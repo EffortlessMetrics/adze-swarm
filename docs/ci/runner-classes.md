@@ -57,6 +57,10 @@ branch-protection-required until it has burn-in receipts.
 | Heavy | Label, manual, schedule, or release-bound | coverage-full, full OS matrix, fuzz, benchmarks, Miri, sanitizers |
 | Release | Public repo only unless explicitly promoted | publish, signing, external credentials |
 
+Docs-only updates are the expected routing probe: they should run the base
+result and cheap docs/policy receipts while Pure Rust, coverage, golden, and
+microcrate implementation lanes skip unless explicitly requested.
+
 Fallback must mean fallback for the selected scoped lane. It must not recreate
 the old public-style full-CI fanout.
 
