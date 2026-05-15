@@ -1,0 +1,122 @@
+name: EM CI CX43 Smoke
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+concurrency:
+  group: em-ci-cx43-smoke-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  rust-small:
+    name: EM CI CX43 Rust Small
+
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        (
+          contains(github.event.pull_request.labels.*.name, 'em-ci') ||
+          contains(github.event.pull_request.labels.*.name, 'vps-ci') ||
+          contains(github.event.pull_request.labels.*.name, 'full-ci')
+        )
+      )
+
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-small, trusted-pr]
+
+    timeout-minutes: 45
+
+    env:
+      JOB_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+
+      CARGO_HOME: /mnt/ci-cache/cargo-home
+      SCCACHE_DIR: /mnt/ci-cache/sccache
+      SCCACHE_CACHE_SIZE: 20G
+      RUSTC_WRAPPER: /usr/local/cargo/bin/sccache
+      CARGO_INCREMENTAL: "0"
+
+      TMPDIR: /mnt/ci-scratch/tmp/${{ github.run_id }}-${{ github.run_attempt }}
+      CARGO_TARGET_DIR: /mnt/ci-scratch/target/${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Guard disk
+        run: |
+          set -euo pipefail
+          ci-disk-guard /mnt/ci-scratch 35
+          ci-disk-guard /mnt/docker 5
+          ci-disk-guard /mnt/ci-cache 5
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Prepare scratch
+        run: |
+          set -euo pipefail
+          mkdir -p "$TMPDIR" "$CARGO_TARGET_DIR" "$CARGO_HOME" "$SCCACHE_DIR"
+
+      - name: Show runner state
+        run: |
+          set -euo pipefail
+          hostname
+          docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.Size}}' | grep em-ci-rust
+          df -h / /mnt/docker /mnt/actions /mnt/ci-scratch /mnt/ci-cache /mnt/ci-artifacts
+
+      - name: Run containerized Rust smoke
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --label em.ci=true \
+            --cpus="6" \
+            --memory="12g" \
+            --entrypoint /bin/bash \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -v "$CARGO_HOME:/cargo-home" \
+            -v "$SCCACHE_DIR:/sccache" \
+            -v "$CARGO_TARGET_DIR:/target" \
+            -v "$TMPDIR:/tmp/jobtmp" \
+            -w /workspace \
+            -e PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            -e HOME=/workspace \
+            -e CARGO_HOME=/cargo-home \
+            -e SCCACHE_DIR=/sccache \
+            -e SCCACHE_CACHE_SIZE=20G \
+            -e RUSTC_WRAPPER=/usr/local/cargo/bin/sccache \
+            -e CARGO_TARGET_DIR=/target \
+            -e TMPDIR=/tmp/jobtmp \
+            -e CARGO_INCREMENTAL=0 \
+            -e CARGO_BUILD_JOBS=4 \
+            -e RUST_TEST_THREADS=2 \
+            -e RUST_BACKTRACE=1 \
+            -e CARGO_TERM_COLOR=always \
+            em-ci-rust:1.95 \
+            -c 'set -euo pipefail
+                rustc --version
+                cargo --version
+                just --version
+                sccache --version
+
+                if [ -f Cargo.toml ]; then
+                  cargo fetch --locked
+                  cargo check --workspace --locked
+                  sccache --show-stats || true
+                else
+                  echo "No Cargo.toml found; infra smoke only."
+                fi'
+
+      - name: Cleanup scratch
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf "${TMPDIR:?}"
+          rm -rf "${CARGO_TARGET_DIR:?}"
+          df -h / /mnt/docker /mnt/actions /mnt/ci-scratch /mnt/ci-cache /mnt/ci-artifacts
