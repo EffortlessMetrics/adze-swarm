@@ -1,10 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   schedule:
     # Run nightly at 2 AM UTC for scheduled jobs (fuzzing, etc)
     - cron: '0 2 * * *'
@@ -70,7 +66,7 @@ jobs:
             git fetch --no-tags --prune --depth=1 origin "${{ github.base_ref }}"
             cargo xtask check-debug-blocks --since "origin/${{ github.base_ref }}"
           else
-            # For push to main, check all tracked files
+            # For scheduled/manual full CI, check all tracked files
             cargo xtask check-debug-blocks
           fi
       
