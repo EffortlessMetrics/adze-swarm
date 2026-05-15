@@ -3,7 +3,7 @@ name: EM CI CX43 Smoke
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [synchronize, reopened, labeled]
 
 concurrency:
   group: em-ci-cx43-smoke-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
@@ -25,6 +25,10 @@ jobs:
           contains(github.event.pull_request.labels.*.name, 'em-ci') ||
           contains(github.event.pull_request.labels.*.name, 'vps-ci') ||
           contains(github.event.pull_request.labels.*.name, 'full-ci')
+        ) &&
+        (
+          github.event.action != 'labeled' ||
+          contains(fromJSON('["em-ci","vps-ci","full-ci"]'), github.event.label.name)
         )
       )
 
