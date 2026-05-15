@@ -1,29 +1,29 @@
-# CI Infrastructure for adze
+# CI Infrastructure for adze-swarm
 
-This document describes the comprehensive CI setup for adze.
+This document describes the active CI setup for `adze-swarm`.
 
 For the full lane classification (required vs advisory vs push-only), see [CI_LANES.md](./CI_LANES.md).
 
 ## Overview
 
-The CI pipeline ensures code quality, API stability, and security through multiple automated checks. Jobs are classified into three visibility tiers:
+`adze-swarm` uses a bounded same-repo PR gate so agents can merge small
+changes without paying the full public-release CI cost on every PR.
 
-- **Required** (`ci-supported`): The single merge gate. Must be green before merge.
-- **Push / scheduled**: Runs on `main` pushes or schedules. Not PR-blocking.
+Jobs are classified into three visibility tiers:
+
+- **Required** (`Rust Small Result`): The single merge gate in branch protection. Must be green before merge.
+- **Push / scheduled**: Runs on schedules, manual dispatch, labels, or explicit paths. Not the default PR blocker.
 - **Advisory** (prefixed `Advisory / `): Uses nightly/unstable toolchains. May be red due to toolchain drift. Inspect, don't block.
 
 ### Jobs
 
-1. **ci-supported** - Stable green gate (`just ci-supported`); runs on every push/PR
-2. **Lint** - Enforces code formatting and clippy warnings
-3. **Test** - Runs all tests using cargo-nextest for speed
-4. **Feature Matrix** - Tests all feature combinations
-5. **MSRV** - Ensures compatibility with Rust 1.95.0
-6. **API Stability** - Detects breaking changes in public APIs
-7. **Security** - Scans for vulnerabilities and license issues
-8. **Documentation** - Builds docs with warnings as errors
-9. **Coverage** - Generates coverage on non-PR CI runs and uploads report on main branch pushes
-10. **Unsafe Audit** - Reports unsafe code usage
+1. **Rust Small Result** - Required routed Rust Small aggregate check for ordinary swarm PRs.
+2. **Route Rust Small** - Chooses CX43 or GitHub-hosted execution.
+3. **Rust Small on CX43** - Runs the small gate on the trusted self-hosted runner when idle.
+4. **Rust Small on GitHub Hosted** - Fallback lane when CX43 is unavailable.
+5. **ci-supported** - Legacy public full-CI support lane; retained for schedule/manual dispatch in `ci.yml`.
+6. **Policy checks** - Source-of-truth and lane-whitelist guardrails.
+7. **Deep lanes** - Feature matrix, OS matrix, coverage, benchmarks, fuzzing, security, docs, and product proof; scheduled, manual, label, or path-routed unless explicitly promoted.
 
 ## Manual CI triggers
 
@@ -41,8 +41,9 @@ To make the CI effective, configure these branch protection rules:
 ### Required Status Checks
 
 Required status checks are intentionally single-gated.
-Set branch protection to require only: `CI / ci-supported`.
-Everything else is optional signal (nightly/manual/canary).
+Set `adze-swarm` branch protection to require only: `Rust Small Result`.
+Everything else is optional signal unless explicitly promoted in
+[CI_LANES.md](./CI_LANES.md) and repository settings.
 
 ### Recommended Settings
 - Require branches to be up to date before merging
@@ -56,8 +57,8 @@ Everything else is optional signal (nightly/manual/canary).
 # Install required tools
 cargo install cargo-nextest cargo-hack cargo-deny cargo-llvm-cov
 
-# Run the full CI suite locally
-just ci-supported  # Stable green CI lane
+# Run the supported proof locally
+just ci-supported  # Stable local supported/product proof, not the swarm GitHub required context
 cargo nextest run  # Fast parallel test runner
 cargo deny check   # Security and license checks
 
@@ -136,7 +137,7 @@ cargo llvm-cov --workspace \
 
 The first Codecov integration is advisory. Codecov checks and comments should not be required in branch protection until the baseline has stabilized on `main`.
 
-Required branch protection remains `CI / ci-supported`.
+Required `adze-swarm` branch protection remains `Rust Small Result`.
 
 ## Maintenance
 

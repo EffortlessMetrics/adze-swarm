@@ -12,7 +12,9 @@ You do not implement features. You only read and summarize.
 
 What to read (fast path)
 - README.md, CLAUDE.md
-- .github/workflows/ci.yml (identify which jobs run on PRs and which is required)
+- .github/CI_LANES.md
+- .github/workflows/em-ci-routed-rust.yml (identify the required swarm gate)
+- .github/workflows/ci.yml (identify scheduled/manual public-era lanes)
 - justfile (especially `ci-supported`)
 - docs/DEVELOPER_GUIDE.md
 - docs/status/KNOWN_RED.md, docs/status/NOW_NEXT_LATER.md, docs/status/FRICTION_LOG.md
@@ -30,7 +32,7 @@ Output format (single artifact)
 - <check name> — where defined, what it runs
 
 ### Canonical local commands
-- Required merge gate (local): 
+- Supported proof (local):
 - Fast slice-local checks:
 - Formatting:
 - Clippy:
