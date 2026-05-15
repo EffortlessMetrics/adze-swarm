@@ -95,8 +95,8 @@ In `adze-swarm`, the legacy `ci.yml` jobs run on schedule or via `workflow_dispa
 | `performance.yml` | `Performance Regression Check` | PR (path-routed) | PR-only | Benchmark comparison on perf-impact changes |
 | `test-policy.yml` | `Enforce Test Policy` | Policy/docs PR + manual | Advisory | Test naming, disabled-test prevention, static inventory; runtime caps on manual dispatch with cold-compile hang guard |
 | `mdbook.yml` | `build` + `deploy` | Push + PR | Push | Documentation site build |
-| `smoke-ts-bridge.yml` | `smoke` | Push + PR | PR-only | ts-bridge link verification |
-| `ts-bridge-smoke.yml` | `smoke` | Push + PR | PR-only | ts-bridge smoke with libtree-sitter |
+| `ts-bridge-smoke.yml` | `ts-bridge matrix setup` | Path-routed PR + dispatch | Advisory | Selects Linux-only default smoke or full OS matrix on explicit request |
+| `ts-bridge-smoke.yml` | `smoke` | Path-routed PR + dispatch | PR-only/manual | Linux-only ts-bridge smoke by default; full OS on `platform-matrix`, `full-ci`, or dispatch |
 | `release.yml` | Various release jobs | Dispatch only | Dispatch | Manual release workflow |
 
 ### Advisory (nightly / unstable / non-blocking)

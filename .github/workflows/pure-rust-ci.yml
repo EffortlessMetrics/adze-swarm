@@ -1,9 +1,10 @@
 name: Pure Rust Implementation CI
 
 # Default code-path PR runs Ubuntu/stable only. Docs/policy-only PRs skip the
-# Rust jobs. The full OS × toolchain matrix runs on workflow_dispatch and on
-# PRs labeled 'platform-matrix' or 'full-ci'. See docs/ci/adze-rollout-plan.md
-# (PR 13).
+# Rust jobs. Excluded tool islands such as tools/ts-bridge are owned by their
+# focused smoke lanes instead of the whole-workspace Pure Rust lane. The full
+# OS × toolchain matrix runs on workflow_dispatch and on PRs labeled
+# 'platform-matrix' or 'full-ci'. See docs/ci/adze-rollout-plan.md (PR 13).
 
 on:
   pull_request:
@@ -54,7 +55,7 @@ jobs:
             BASE_SHA="${{ github.event.pull_request.base.sha }}"
             HEAD_SHA="${{ github.event.pull_request.head.sha }}"
             changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" || true)
-            if echo "$changed" | grep -qE '(^|/)(Cargo\.toml|Cargo\.lock)$|^(runtime/|runtime2/|macro/|common/|ir/|glr-core/|tablegen/|crates/|grammars/|tool/|cli/|xtask/|tests/|testing/|glr-test-support/|test-mini/|lsp-generator/|playground/|wasm-demo/|\.github/workflows/pure-rust-ci\.yml$)'; then
+            if echo "$changed" | grep -qE '^(Cargo\.toml|Cargo\.lock)$|^(runtime/|runtime2/|macro/|common/|ir/|glr-core/|tablegen/|crates/|grammars/|tool/|cli/|xtask/|tests/|testing/|glr-test-support/|test-mini/|lsp-generator/|playground/|wasm-demo/|\.github/workflows/pure-rust-ci\.yml$)'; then
               rust_changed=true
             fi
           fi

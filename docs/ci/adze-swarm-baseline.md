@@ -28,11 +28,15 @@ ordinary `main` merges in `adze-swarm`. They remain available through
 path-routed/labeled PRs or manual dispatch where useful.
 
 The Pure Rust workflow is code-path gated for ordinary PRs. Docs-only,
-policy-only, and CI-doc-only changes should get the base `Rust Small Result`
-gate and policy checks without also paying for the Ubuntu/stable Pure Rust
-lane. Rust/package/runtime/tooling paths, the Pure Rust workflow itself,
-`full-ci`, `platform-matrix`, and manual dispatch still run the Pure Rust
-jobs.
+policy-only, CI-doc-only, and excluded tool-island changes such as
+`tools/ts-bridge/**` should get the base `Rust Small Result` gate and their
+focused receipts without also paying for the Ubuntu/stable Pure Rust lane.
+Rust/package/runtime/workspace-tooling paths, the Pure Rust workflow itself,
+`full-ci`, `platform-matrix`, and manual dispatch still run the Pure Rust jobs.
+
+The `tools/ts-bridge/**` island is owned by `ts-bridge-smoke.yml`. Ordinary
+bridge PRs run the Linux smoke only; `platform-matrix`, `full-ci`, and manual
+dispatch can still request the macOS/Windows smoke matrix.
 
 Coverage is split into `coverage-lite` and `coverage-full`. Lite coverage is
 path-routed or label-routed for PRs and starts with the primary runtime package

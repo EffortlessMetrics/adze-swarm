@@ -504,6 +504,28 @@ review_after = "2026-06-07"
 expires = "2026-11-07"
 
 [[lane]]
+id = "ts-bridge-matrix-setup"
+workflow = ".github/workflows/ts-bridge-smoke.yml"
+job = "matrix-setup"
+display_name = "ts-bridge matrix setup"
+kind = "ffi"
+tier = "advisory"
+default_pr = false
+blocking = false
+runner = "ubuntu_latest"
+base_lem = 1
+owner = "core/runtime"
+intent = "Select the scoped ts-bridge smoke runner matrix."
+failure_mode = "ts-bridge smoke runs too broadly or skips unexpectedly."
+proof_obligation = "Emit the OS matrix for ts-bridge smoke routing."
+evidence = ["job logs"]
+allowed_triggers = ["pull_request", "push", "workflow_dispatch"]
+routing_note = "Runs only when the path-routed ts-bridge smoke workflow wakes. Linux-only by default; full OS matrix on 'platform-matrix'/'full-ci' labels or workflow_dispatch matrix=full-os."
+duplicate_of = []
+review_after = "2026-06-15"
+expires = "2026-09-15"
+
+[[lane]]
 id = "ts-bridge-smoke"
 workflow = ".github/workflows/ts-bridge-smoke.yml"
 job = "smoke"
@@ -513,17 +535,17 @@ tier = "advisory"
 default_pr = false
 blocking = false
 runner = "ubuntu_latest"
-base_lem = 4
+base_lem = 2
 owner = "core/runtime"
 intent = "Smoke test for ts-bridge tooling."
 failure_mode = "ts-bridge tooling regresses silently."
 proof_obligation = "Run ts-bridge smoke harness."
 evidence = ["job logs"]
 allowed_triggers = ["pull_request", "push", "workflow_dispatch"]
-routing_note = "Workflow is path-routed to tools/ts-bridge, scripts/smoke-link.sh, Cargo manifests, or its own workflow file."
+routing_note = "Workflow is path-routed to tools/ts-bridge, scripts/smoke-link.sh, or its own workflow file. Ordinary PRs run Ubuntu only; 'platform-matrix'/'full-ci' labels and workflow_dispatch matrix=full-os run Ubuntu/macOS/Windows."
 duplicate_of = ["ts-bridge-parity"]
-review_after = "2026-06-07"
-expires = "2026-09-07"
+review_after = "2026-06-15"
+expires = "2026-09-15"
 
 [[lane]]
 id = "ts-bridge-parity"
