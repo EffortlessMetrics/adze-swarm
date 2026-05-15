@@ -22,26 +22,52 @@ Coverage is **not** proof of:
 - **Release packaging** — packaging, versioning, and distribution require separate proof lanes
 - **Public API stability** — semver compliance and stability are separate governance signals
 
-## The Coverage lane
+## Coverage lanes
 
-The Coverage lane runs `cargo-llvm-cov` and `cargo-nextest` on the Adze workspace to:
+Coverage is split by cost.
 
-1. Generate `coverage.json` (JSON coverage report)
-2. Generate `coverage.txt` (human-readable summary)
-3. Generate `lcov.info` (LCOV format for Codecov)
-4. Upload `lcov.info` to Codecov (when `CODECOV_TOKEN` secret is present)
-5. Upload all artifacts to GitHub Actions for inspection
+### `coverage-lite`
+
+`coverage-lite` is the PR-facing lane. It runs on Linux/stable when a PR carries
+the `coverage` label or touches core Rust/parser/tooling paths. It generates an
+LCOV artifact for the core package set:
+
+```text
+adze
+adze-macro
+adze-tool
+adze-common
+adze-ir
+adze-glr-core
+adze-tablegen
+```
+
+### `coverage-full`
+
+`coverage-full` is explicit evidence. It runs by `workflow_dispatch` or on PRs
+with `full-ci`. It uses the broader workspace/features command.
+
+Both lanes run `cargo-llvm-cov` to:
+
+1. Generate `lcov.info` (LCOV format)
+2. Upload the LCOV file as a GitHub artifact
+3. Upload `lcov.info` to Codecov when `CODECOV_TOKEN` is present
 
 ### Execution
 
-**When it runs:**
-- `push` to `main` (every commit)
-- `workflow_dispatch` (on-demand)
-- Pull requests labeled `coverage` or `full-ci` (voluntary, label-driven)
+**When `coverage-lite` runs:**
+- pull requests labeled `coverage`
+- pull requests that touch core coverage paths
+- `workflow_dispatch` with mode `lite`
+
+**When `coverage-full` runs:**
+- pull requests labeled `full-ci`
+- `workflow_dispatch` with mode `full`
 
 **Cost:**
-- ~45 Linux-equivalent minutes per run
-- Zero impact on ordinary pull requests (not `default_pr`)
+- `coverage-lite`: lower-cost core package evidence
+- `coverage-full`: broader high-cost evidence
+- Zero impact on docs-only/policy-only ordinary pull requests
 
 **Blocking:**
 - No — advisory only, does not block PRs or merges
@@ -54,6 +80,10 @@ See `codecov.yml` for:
 - **Patch threshold**: 70% target, 20% threshold (informational)
 - **Comments**: Disabled (rely on dashboard)
 - **Annotations**: Disabled (reduce PR noise)
+
+Codecov upload is publication, not the source of truth. A Codecov upload
+failure should not fail the lane when `lcov.info` was generated and uploaded as
+a GitHub artifact.
 
 ## Using the Coverage dashboard
 
@@ -69,7 +99,7 @@ The Codecov dashboard at https://codecov.io/gh/EffortlessMetrics/adze shows:
 Coverage evidence is recorded in:
 
 1. **Codecov dashboard** — persistent, queryable by commit and date range
-2. **GitHub Actions artifact** — `coverage-report` with coverage.json, coverage.txt, lcov.info (14-day retention)
+2. **GitHub Actions artifact** — `coverage-lite-lcov` or `coverage-full-lcov` with `lcov.info` (14-day retention)
 3. **Local runs** — `cargo llvm-cov` on your machine with `--output-path lcov.info`
 
 ## Related lanes and evidence
@@ -85,7 +115,8 @@ Coverage is complementary to these: high coverage with passing tests is necessar
 
 ## Roadmap
 
-1. **PR 1–3 (current)**: Add Coverage workflow, config, and badge
-2. **PR 4–6**: Register lane in policy, document proof boundaries, add receipt
-3. **PR 7+**: Baseline coverage data, establish ratchet thresholds, integrate into governance reports
+1. Baseline `coverage-lite` runtime on core paths.
+2. Decide whether `coverage-lite` should move to CX53 once the `rust-large`
+   runner class is available.
+3. Establish ratchet thresholds only after stable baseline data exists.
 

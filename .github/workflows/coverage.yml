@@ -1,0 +1,199 @@
+name: Coverage
+
+# Coverage is split by cost:
+# - coverage-lite: path/label/manual, Linux stable only, core packages.
+# - coverage-full: manual or full-ci, broader workspace/features.
+# Codecov upload is publication only; LCOV artifact generation is the proof.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Coverage mode to run"
+        type: choice
+        options:
+          - lite
+          - full
+        default: full
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  RUST_TEST_THREADS: 2
+  CARGO_BUILD_JOBS: 2
+
+jobs:
+  paths:
+    name: Detect Coverage Paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      coverage_changed: ${{ steps.detect.outputs.coverage_changed }}
+      full: ${{ steps.detect.outputs.full }}
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          PR_LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "coverage_changed=true" >> "$GITHUB_OUTPUT"
+            echo "full=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if echo "$PR_LABELS_JSON" | grep -qE '"full-ci"'; then
+            echo "coverage_changed=true" >> "$GITHUB_OUTPUT"
+            echo "full=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if echo "$PR_LABELS_JSON" | grep -qE '"coverage"'; then
+            echo "coverage_changed=true" >> "$GITHUB_OUTPUT"
+            echo "full=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" || true)
+
+          if echo "$changed" | grep -qE '(^|/)(Cargo\.toml|Cargo\.lock)$|^(runtime/|macro/|common/|ir/|glr-core/|tablegen/|tool/|crates/linecol-core/|crates/parsetable-metadata/|tests/|testing/|glr-test-support/|\.github/workflows/coverage\.yml$)'; then
+            echo "coverage_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "coverage_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "full=false" >> "$GITHUB_OUTPUT"
+
+  coverage-lite:
+    name: Coverage Lite
+    needs: paths
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'lite') ||
+      (
+        github.event_name == 'pull_request' &&
+        needs.paths.outputs.coverage_changed == 'true' &&
+        needs.paths.outputs.full != 'true'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Generate lite coverage
+        run: |
+          cargo llvm-cov \
+            -p adze \
+            -p adze-macro \
+            -p adze-tool \
+            -p adze-common \
+            -p adze-ir \
+            -p adze-glr-core \
+            -p adze-tablegen \
+            --lcov \
+            --output-path lcov.info
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: coverage-lite-lcov
+          path: lcov.info
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload coverage to Codecov
+        if: ${{ always() && hashFiles('lcov.info') != '' }}
+        continue-on-error: true
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          flags: rust-lite
+          name: adze-rust-lite
+          fail_ci_if_error: false
+          verbose: true
+
+  coverage-full:
+    name: Coverage Full
+    needs: paths
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'full') ||
+      (
+        github.event_name == 'pull_request' &&
+        needs.paths.outputs.full == 'true'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Generate full coverage
+        run: |
+          cargo llvm-cov \
+            --workspace \
+            --exclude adze-wasm-demo \
+            --features "pure-rust,glr,incremental_glr,external_scanners,serialization,ts-compat" \
+            --lcov \
+            --output-path lcov.info
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: coverage-full-lcov
+          path: lcov.info
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload coverage to Codecov
+        if: ${{ always() && hashFiles('lcov.info') != '' }}
+        continue-on-error: true
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          flags: rust-full
+          name: adze-rust-full
+          fail_ci_if_error: false
+          verbose: true
