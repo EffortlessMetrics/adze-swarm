@@ -76,7 +76,7 @@ Coverage evidence is recorded in:
 
 - **ci-supported** (`just ci-supported`) — required gate covering core parser/runtime/tooling surface
 - **pure-rust-os-matrix** — OS and toolchain compatibility (Linux/macOS/Windows, stable/beta/nightly)
-- **test-policy** — policy/docs-routed test hygiene, disabled-test prevention, and static inventory; runtime-cap proof on push/manual
+- **test-policy** — policy/docs-routed test hygiene, disabled-test prevention, and static inventory; runtime-cap proof on manual dispatch
 - **fuzz-build-smoke** — fuzz harness freshness (compile-only)
 - **Miri** — undefined behavior detection (separate nightly-only lane)
 - **Sanitizers** — ASAN/UBSAN proof (separate lane)

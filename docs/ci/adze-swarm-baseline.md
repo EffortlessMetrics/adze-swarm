@@ -16,6 +16,11 @@ manual verification only. It does not run on ordinary swarm PRs or every merge
 to `main`; that keeps the swarm base loop bounded while preserving an opt-in
 full-CI path.
 
+Inherited public push-triggered validation workflows such as pure-Rust matrix,
+microcrate groups, golden tests, and test-policy runtime caps are also kept off
+ordinary `main` merges in `adze-swarm`. They remain available through
+path-routed/labeled PRs or manual dispatch where useful.
+
 ## Public/release workflows
 
 Release, publish, signing, Droid review, Droid security scan, and deploy-style workflows remain on public `EffortlessMetrics/adze` unless explicitly reintroduced here.
