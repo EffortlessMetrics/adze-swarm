@@ -1,12 +1,10 @@
 name: Pure Rust Implementation CI
 
 # Default PR runs Ubuntu/stable only. The full OS × toolchain matrix runs
-# on push to main, on workflow_dispatch, and on PRs labeled
+# on workflow_dispatch and on PRs labeled
 # 'platform-matrix' or 'full-ci'. See docs/ci/adze-rollout-plan.md (PR 13).
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, labeled]
@@ -162,7 +160,7 @@ jobs:
   golden-tests:
     name: Golden Tests
     # The dedicated golden-tests.yml workflow is the PR-default; this job
-    # runs on push/full-ci to keep the integrated path covered.
+    # runs on workflow_dispatch/full-ci to keep the integrated path covered.
     if: |
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'ci:golden') ||
@@ -208,7 +206,7 @@ jobs:
   
   performance:
     name: Performance Regression Tests
-    # Owned by performance.yml on PR; this job runs on push/full-ci.
+    # Owned by performance.yml on PR; this job runs on workflow_dispatch/full-ci.
     if: |
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'ci:perf') ||

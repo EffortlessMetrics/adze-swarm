@@ -75,20 +75,20 @@ In `adze-swarm`, the legacy `ci.yml` jobs run on schedule or via `workflow_dispa
 | `ci.yml` | `Cross-platform` | Schedule + dispatch | Scheduled/manual | macOS + Windows cargo check + lib tests |
 | `ci.yml` | `Advisory / WASM Build` | Schedule + dispatch | Advisory | WASM target check; `continue-on-error` |
 | `ci.yml` | `Benches (unstable, opt-in)` | Dispatch only | Advisory | `unstable-benches` feature; only with `run_full_ci` |
-| `pure-rust-ci.yml` | `Test Pure Rust Implementation` | Push + labeled PR | Push | OS x toolchain matrix for pure-rust path |
-| `pure-rust-ci.yml` | `Test WASM Build` | Push + labeled PR | Advisory | WASM build + size check |
-| `pure-rust-ci.yml` | `Golden Tests` | Push + labeled PR | Advisory | Tree-sitter parity; label-gated |
-| `pure-rust-ci.yml` | `Integration Tests` | PR + push | PR-only | c2rust backend test |
-| `pure-rust-ci.yml` | `Performance Regression Tests` | Push + labeled PR | Advisory | Benchmark run; label-gated |
-| `pure-rust-ci.yml` | `Code Coverage` | Push + labeled PR | Advisory | Coverage report; label-gated |
+| `pure-rust-ci.yml` | `Test Pure Rust Implementation` | PR + dispatch | PR-only/manual | Ubuntu/stable by default; full matrix on labels or dispatch |
+| `pure-rust-ci.yml` | `Test WASM Build` | Labeled PR + dispatch | Advisory | WASM build + size check |
+| `pure-rust-ci.yml` | `Golden Tests` | Labeled PR + dispatch | Advisory | Tree-sitter parity; label-gated |
+| `pure-rust-ci.yml` | `Integration Tests` | PR + dispatch | PR-only | c2rust backend test |
+| `pure-rust-ci.yml` | `Performance Regression Tests` | Labeled PR + dispatch | Advisory | Benchmark run; label-gated |
+| `pure-rust-ci.yml` | `Code Coverage` | Labeled PR + dispatch | Advisory | Coverage report; label-gated |
 | `core-tests.yml` | `core` | Scheduled (nightly) + dispatch | Scheduled | Full nightly canary: clippy, doc, all-features |
 | `benchmarks.yml` | `Performance Benchmarks` | Push + labeled PR | Push | Benchmark comparison for PRs |
 | `benchmarks.yml` | `Criterion HTML Report` | Dispatch only | Advisory | Manual Criterion HTML report generation |
 | `coverage.yml` | `Codecov Coverage` | Push + labeled PR | Push | Dedicated coverage lane |
-| `microcrate-ci.yml` | `Formatting` through `Strict Docs` | Push + path-routed PR | Push | Governance micro-crate tests |
-| `golden-tests.yml` | `Golden Tests` | Push + path-routed PR | Push | Tree-sitter parity validation |
+| `microcrate-ci.yml` | `Formatting` through `Strict Docs` | Path-routed PR + dispatch | PR-only/manual | Governance micro-crate tests |
+| `golden-tests.yml` | `Golden Tests` | Path-routed PR + dispatch | PR-only/manual | Tree-sitter parity validation |
 | `performance.yml` | `Performance Regression Check` | PR (path-routed) | PR-only | Benchmark comparison on perf-impact changes |
-| `test-policy.yml` | `Enforce Test Policy` | Policy/docs PR + push + manual | Advisory | Test naming, disabled-test prevention, static inventory; runtime caps on push/manual with cold-compile hang guard |
+| `test-policy.yml` | `Enforce Test Policy` | Policy/docs PR + manual | Advisory | Test naming, disabled-test prevention, static inventory; runtime caps on manual dispatch with cold-compile hang guard |
 | `mdbook.yml` | `build` + `deploy` | Push + PR | Push | Documentation site build |
 | `smoke-ts-bridge.yml` | `smoke` | Push + PR | PR-only | ts-bridge link verification |
 | `ts-bridge-smoke.yml` | `smoke` | Push + PR | PR-only | ts-bridge smoke with libtree-sitter |

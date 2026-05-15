@@ -10,11 +10,10 @@ name: Golden-Master Tests
 # `paths` setup job and is consumed by the matrix job's `if:`.
 
 on:
-  push:
-    branches: [ main, develop ]
   pull_request:
     branches: [ main ]
     types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
 
 jobs:
   paths:
@@ -47,7 +46,7 @@ jobs:
     name: Golden Tests - ${{ matrix.language }}
     needs: paths
     if: |
-      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
       contains(github.event.pull_request.labels.*.name, 'ci:golden') ||
       contains(github.event.pull_request.labels.*.name, 'full-ci') ||
       (

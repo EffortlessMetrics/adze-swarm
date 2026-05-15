@@ -2,15 +2,14 @@ name: Microcrate CI
 
 # Crate-group test jobs are routed by changed paths. fmt/docs/wasm/strict
 # stay default-on; the heavy test-* jobs gate on the `changes` setup.
-# Push to main and 'ci:microcrate' / 'full-ci' labels run everything.
+# workflow_dispatch and 'ci:microcrate' / 'full-ci' labels run everything.
 # See docs/ci/adze-rollout-plan.md (PR 14).
 
 on:
-  push:
-    branches: [main, master]
   pull_request:
     branches: [main, master]
     types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
 
 concurrency:
   group: microcrate-ci-${{ github.ref }}
