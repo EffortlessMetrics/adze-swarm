@@ -3,6 +3,8 @@
 This document describes the active CI setup for `adze-swarm`.
 
 For the full lane classification (required vs advisory vs push-only), see [CI_LANES.md](./CI_LANES.md).
+For runner capacity classes and fallback policy, see
+[runner-classes.md](../docs/ci/runner-classes.md).
 
 ## Overview
 

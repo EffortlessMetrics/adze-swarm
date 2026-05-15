@@ -16,6 +16,9 @@ whether a red mark means "must fix before merge" or "inspect at your leisure."
 Branch protection in `adze-swarm` requires exactly one check:
 **`Rust Small Result`** from `em-ci-routed-rust.yml`.
 
+Runner capacity classes are defined in
+[`docs/ci/runner-classes.md`](../docs/ci/runner-classes.md).
+
 ---
 
 ## Complete lane inventory
