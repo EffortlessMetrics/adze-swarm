@@ -112,6 +112,10 @@ CI formatting, workspace docs, WASM, and strict-feature receipt jobs.
 Fallback must mean fallback for the selected scoped lane. It must not recreate
 the old public-style full-CI fanout.
 
+Label events follow the same rule. Adding an unrelated label to a PR should not
+restart path detectors or implementation jobs; only labels that request a lane
+should wake that lane.
+
 ## Coverage split
 
 Coverage should have two modes:

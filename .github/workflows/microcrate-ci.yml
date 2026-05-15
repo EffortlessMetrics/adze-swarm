@@ -23,6 +23,11 @@ env:
 jobs:
   changes:
     name: Detect Changed Crate Groups
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.action != 'labeled' ||
+      github.event.label.name == 'full-ci' ||
+      github.event.label.name == 'ci:microcrate'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     outputs:
