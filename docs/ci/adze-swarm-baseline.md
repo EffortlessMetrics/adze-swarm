@@ -27,6 +27,12 @@ microcrate groups, golden tests, and test-policy runtime caps are also kept off
 ordinary `main` merges in `adze-swarm`. They remain available through
 path-routed/labeled PRs or manual dispatch where useful.
 
+Microcrate CI is path-routed at both levels: crate-group tests run only for the
+matching owner-module surface, and receipt jobs such as formatting, `cargo doc`,
+WASM compile checks, and strict features run only for matching Rust/package
+paths. Markdown-only docs changes should rely on the base gate and docs/policy
+receipts instead of paying for workspace `cargo doc`.
+
 The Pure Rust workflow is code-path gated for ordinary PRs. Docs-only,
 policy-only, CI-doc-only, and excluded tool-island changes such as
 `tools/ts-bridge/**` should get the base `Rust Small Result` gate and their
