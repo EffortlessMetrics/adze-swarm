@@ -11,6 +11,11 @@ The current durable base lane is:
 
 This lane routes to the CX43 self-hosted runner when idle and falls back to GitHub-hosted when the runner is busy.
 
+The inherited public `ci.yml` full-CI workflow is retained for scheduled and
+manual verification only. It does not run on ordinary swarm PRs or every merge
+to `main`; that keeps the swarm base loop bounded while preserving an opt-in
+full-CI path.
+
 ## Public/release workflows
 
 Release, publish, signing, Droid review, Droid security scan, and deploy-style workflows remain on public `EffortlessMetrics/adze` unless explicitly reintroduced here.

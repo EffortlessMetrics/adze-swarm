@@ -10,10 +10,11 @@ whether a red mark means "must fix before merge" or "inspect at your leisure."
 |--------|---------|--------------------|
 | **Required** | Merge is blocked. Fix before requesting review. | Must fix. |
 | **PR-only signal** | Runs on every PR, informational, not a merge gate. | Review if red; not a blocker. |
-| **Push / scheduled** | Runs on `main` pushes or schedules. Not PR-blocking. | Inspect trend; fix in a follow-up. |
+| **Push / scheduled** | Runs on schedules or manual dispatch for legacy/deep lanes. Not PR-blocking. | Inspect trend; fix in a follow-up. |
 | **Advisory** | Uses nightly / unstable toolchains, `continue-on-error`, or non-blocking labels. May be red due to toolchain drift. | Inspect if curious. Not actionable for most PRs. |
 
-Branch protection requires exactly one check: **`CI / ci-supported`** (via `pr-gate.yml`).
+Branch protection in `adze-swarm` requires exactly one check:
+**`Rust Small Result`** from `em-ci-routed-rust.yml`.
 
 ---
 
@@ -23,17 +24,21 @@ Branch protection requires exactly one check: **`CI / ci-supported`** (via `pr-g
 
 | Workflow | Job name | Trigger | Meaning |
 |----------|----------|---------|---------|
-| `pr-gate.yml` | `Supported Rust Gate` | PR + merge_group | Runs `just ci-supported`: fmt, clippy, tests on 7 core crates |
-| `pr-gate.yml` | `PR Gate Success` | PR + merge_group | Aggregate: plan + supported/docs gate must pass |
-| `pr-gate.yml` | `PR Plan` | PR | Computes docs_only, estimated LEM, budget band |
+| `em-ci-routed-rust.yml` | `Rust Small Result` | PR + merge_group | Aggregate check for the selected routed Rust small lane |
 
-Required branch protection context: `CI / ci-supported` (maps to the `ci-supported` job in `ci.yml`, also exercised via `pr-gate.yml`).
+Required branch protection context: `Rust Small Result`.
 
 ### PR-only signal (non-blocking)
 
 | Workflow | Job name | Trigger | Lane | Notes |
 |----------|----------|---------|------|-------|
-| `ci.yml` | `ci-supported` | PR + push | **Required** (via pr-gate) | The canonical green gate; runs on every event |
+| `em-ci-routed-rust.yml` | `Route Rust Small` | PR + merge_group | PR-only | Selects CX43 or GitHub-hosted Rust small execution |
+| `em-ci-routed-rust.yml` | `Rust Small on CX43` | PR + merge_group | PR-only | Runs when the trusted CX43 runner is idle |
+| `em-ci-routed-rust.yml` | `Rust Small on GitHub Hosted` | PR + merge_group | PR-only | Fallback when CX43 is unavailable |
+| `pr-gate.yml` | `Supported Rust Gate` | PR + merge_group | PR-only | Legacy public gate signal; not the swarm required context |
+| `pr-gate.yml` | `PR Gate Success` | PR + merge_group | PR-only | Aggregate: plan + supported/docs gate |
+| `pr-gate.yml` | `PR Plan` | PR | PR-only | Computes docs_only, estimated LEM, budget band |
+| `ci.yml` | `ci-supported` | Schedule + dispatch | Scheduled/manual | Legacy public full-CI support lane; routed swarm PRs use `Rust Small Result` |
 | `ci.yml` | `semver-checks` | PR only | PR-only | Detects breaking API changes |
 | `ci.yml` | `api-stability` | PR only | PR-only | `cargo-public-api` diff; `continue-on-error` |
 | `ci.yml` | `package-validation` | PR only | PR-only | Validates package manifests for release surface |
@@ -44,31 +49,31 @@ Required branch protection context: `CI / ci-supported` (maps to the `ci-support
 
 ### Push / scheduled (main health, not PR-blocking)
 
-These jobs run on push to `main`, on schedules, or via `workflow_dispatch` with `run_full_ci`. They do **not** run on ordinary PRs unless explicitly opted in.
+In `adze-swarm`, the legacy `ci.yml` jobs run on schedule or via `workflow_dispatch` with `run_full_ci`. They do **not** run on ordinary PRs or every merge to `main`; swarm PRs use `Rust Small Result` as the active base gate.
 
 | Workflow | Job name | Trigger | Lane | Notes |
 |----------|----------|---------|------|-------|
-| `ci.yml` | `Lint` | Push only | Push | Full lint suite (bare no_mangle, debug blocks, fmt, clippy) |
-| `ci.yml` | `Test` | Push only | Push | OS x features x toolchain matrix (3 OS, 4 features, 2 toolchains) |
-| `ci.yml` | `Matrix Smoke Test` | Push only | Push | Workspace default + all-features test |
-| `ci.yml` | `Test with Debug Assertions` | Push only | Push | Debug-assertion tests for glr-core, runtime, tablegen |
-| `ci.yml` | `Test Release Mode` | Push only | Push | Release-mode tests with strict-invariants |
-| `ci.yml` | `Benchmark Compilation` | Push only | Push | Bench compile check (no-run) |
-| `ci.yml` | `Backend Build Matrix` | Push only | Push | pure-rust backend check + test |
-| `ci.yml` | `Tree-sitter Compatibility API` | Push only | Push | ts-compat feature build + test |
-| `ci.yml` | `Deterministic Codegen` | Push only | Push | Verifies build determinism |
-| `ci.yml` | `Feature Matrix` | Push only | Push | Per-crate feature matrix checks |
-| `ci.yml` | `Feature Matrix Extras` | Push only | Push | Feature powerset via cargo-hack |
-| `ci.yml` | `MSRV (1.95.0)` | Push only | Push | Minimum Supported Rust Version check |
-| `ci.yml` | `Security & Supply Chain` | Push only | Push | `cargo deny check` |
-| `ci.yml` | `Documentation` | Push only | Push | `cargo doc --workspace` with `-D warnings` |
-| `ci.yml` | `adze-python (Optimized Build)` | Push only | Push | Python grammar build + test |
-| `ci.yml` | `Test Connectivity (Tripwires)` | Push only | Push | Enforces no disabled tests, non-zero discovery |
-| `ci.yml` | `Code Coverage` | Push only | Push | `cargo llvm-cov` with threshold check |
-| `ci.yml` | `Advisory / Unsafe Audit` | Push only | Advisory | `cargo geiger` report; `continue-on-error` |
-| `ci.yml` | `Advisory / Cross Compilation (${{ matrix.target }})` | Push only | Advisory | 32-bit / ARM64 / WASM cross builds; `continue-on-error` |
-| `ci.yml` | `Cross-platform` | Push only | Push | macOS + Windows cargo check + lib tests |
-| `ci.yml` | `Advisory / WASM Build` | Push only | Advisory | WASM target check; `continue-on-error` |
+| `ci.yml` | `Lint` | Schedule + dispatch | Scheduled/manual | Full lint suite (bare no_mangle, debug blocks, fmt, clippy) |
+| `ci.yml` | `Test` | Schedule + dispatch | Scheduled/manual | OS x features x toolchain matrix (3 OS, 4 features, 2 toolchains) |
+| `ci.yml` | `Matrix Smoke Test` | Schedule + dispatch | Scheduled/manual | Workspace default + all-features test |
+| `ci.yml` | `Test with Debug Assertions` | Schedule + dispatch | Scheduled/manual | Debug-assertion tests for glr-core, runtime, tablegen |
+| `ci.yml` | `Test Release Mode` | Schedule + dispatch | Scheduled/manual | Release-mode tests with strict-invariants |
+| `ci.yml` | `Benchmark Compilation` | Schedule + dispatch | Scheduled/manual | Bench compile check (no-run) |
+| `ci.yml` | `Backend Build Matrix` | Schedule + dispatch | Scheduled/manual | pure-rust backend check + test |
+| `ci.yml` | `Tree-sitter Compatibility API` | Schedule + dispatch | Scheduled/manual | ts-compat feature build + test |
+| `ci.yml` | `Deterministic Codegen` | Schedule + dispatch | Scheduled/manual | Verifies build determinism |
+| `ci.yml` | `Feature Matrix` | Schedule + dispatch | Scheduled/manual | Per-crate feature matrix checks |
+| `ci.yml` | `Feature Matrix Extras` | Schedule + dispatch | Scheduled/manual | Feature powerset via cargo-hack |
+| `ci.yml` | `MSRV (1.95.0)` | Schedule + dispatch | Scheduled/manual | Minimum Supported Rust Version check |
+| `ci.yml` | `Security & Supply Chain` | Schedule + dispatch | Scheduled/manual | `cargo deny check` |
+| `ci.yml` | `Documentation` | Schedule + dispatch | Scheduled/manual | `cargo doc --workspace` with `-D warnings` |
+| `ci.yml` | `adze-python (Optimized Build)` | Schedule + dispatch | Scheduled/manual | Python grammar build + test |
+| `ci.yml` | `Test Connectivity (Tripwires)` | Schedule + dispatch | Scheduled/manual | Enforces no disabled tests, non-zero discovery |
+| `ci.yml` | `Code Coverage` | Schedule + dispatch | Scheduled/manual | `cargo llvm-cov` with threshold check |
+| `ci.yml` | `Advisory / Unsafe Audit` | Schedule + dispatch | Advisory | `cargo geiger` report; `continue-on-error` |
+| `ci.yml` | `Advisory / Cross Compilation (${{ matrix.target }})` | Schedule + dispatch | Advisory | 32-bit / ARM64 / WASM cross builds; `continue-on-error` |
+| `ci.yml` | `Cross-platform` | Schedule + dispatch | Scheduled/manual | macOS + Windows cargo check + lib tests |
+| `ci.yml` | `Advisory / WASM Build` | Schedule + dispatch | Advisory | WASM target check; `continue-on-error` |
 | `ci.yml` | `Benches (unstable, opt-in)` | Dispatch only | Advisory | `unstable-benches` feature; only with `run_full_ci` |
 | `pure-rust-ci.yml` | `Test Pure Rust Implementation` | Push + labeled PR | Push | OS x toolchain matrix for pure-rust path |
 | `pure-rust-ci.yml` | `Test WASM Build` | Push + labeled PR | Advisory | WASM build + size check |
@@ -96,12 +101,12 @@ These jobs use nightly toolchains, unstable features, or are explicitly marked
 
 | Workflow | Job name | Trigger | Why advisory |
 |----------|----------|---------|-------------|
-| `ci.yml` | `Advisory / Miri` | Push only | Nightly miri; `continue-on-error` |
-| `ci.yml` | `Advisory / Sanitizers` | Push only | Nightly + `-Zbuild-std`; `continue-on-error` |
-| `ci.yml` | `Advisory / Minimal Versions` | Push only | Nightly + `-Z minimal-versions`; `continue-on-error` |
-| `ci.yml` | `Advisory / Cross Compilation (${{ matrix.target }})` | Push only | Cross toolchain drift; `continue-on-error` |
-| `ci.yml` | `Advisory / WASM Build` | Push only | Compile-check only; `continue-on-error` |
-| `ci.yml` | `Advisory / Unsafe Audit` | Push only | `cargo-geiger` may lag toolchain; `continue-on-error` |
+| `ci.yml` | `Advisory / Miri` | Schedule + dispatch | Nightly miri; `continue-on-error` |
+| `ci.yml` | `Advisory / Sanitizers` | Schedule + dispatch | Nightly + `-Zbuild-std`; `continue-on-error` |
+| `ci.yml` | `Advisory / Minimal Versions` | Schedule + dispatch | Nightly + `-Z minimal-versions`; `continue-on-error` |
+| `ci.yml` | `Advisory / Cross Compilation (${{ matrix.target }})` | Schedule + dispatch | Cross toolchain drift; `continue-on-error` |
+| `ci.yml` | `Advisory / WASM Build` | Schedule + dispatch | Compile-check only; `continue-on-error` |
+| `ci.yml` | `Advisory / Unsafe Audit` | Schedule + dispatch | `cargo-geiger` may lag toolchain; `continue-on-error` |
 | `product-proof.yml` | `ci-product advisory canaries` | Scheduled (weekly) + dispatch | Intentionally advisory; `continue-on-error` |
 | `criterion-smoke.yml` | `benchmark` | Scheduled (weekly) + dispatch | Non-blocking; `continue-on-error` |
 | `ts-bridge-parity.yml` | `parity` | Scheduled (nightly) + dispatch | Non-blocking; `continue-on-error` |
@@ -139,8 +144,8 @@ Current required status check (via `.github/settings.yml`):
 
 ```yaml
 required_status_checks:
-  contexts:
-    - "CI / ci-supported"
+contexts:
+    - "Rust Small Result"
 ```
 
 This is correct and intentionally single-gated. All other checks are optional
@@ -150,10 +155,11 @@ signal.
 
 ## How to read the GitHub Checks panel
 
-1. **`CI / ci-supported` red?** — Stop. Fix before merge.
-2. **`PR Gate / PR Gate Success` red?** — Same thing (aggregate gate).
+1. **`Rust Small Result` red?** — Stop. Fix before merge.
+2. **`PR Gate / PR Gate Success` red?** — Inspect, but do not block the swarm
+   base lane on it unless it is explicitly promoted again.
 3. **Any `Advisory / *` red?** — Inspect when convenient. May be nightly drift.
-4. **Push-only jobs red on main?** — Create a follow-up issue. Not a PR blocker.
+4. **Scheduled/manual jobs red?** — Create a follow-up issue. Not a PR blocker.
 5. **PR-only signal red?** — Worth reviewing, but not a merge blocker.
 
 ---
