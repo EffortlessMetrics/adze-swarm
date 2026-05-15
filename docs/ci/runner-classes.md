@@ -48,6 +48,52 @@ rust-large:
 `rust-large` must be introduced as an optional result lane first. Do not make it
 branch-protection-required until it has burn-in receipts.
 
+## CX53 rust-large prep
+
+`cx53` is the planned larger Linux capacity class. It should be registered as a
+single-slot self-hosted runner with precise labels:
+
+```text
+self-hosted
+linux
+x64
+em-ci
+cx53
+rust-large
+rust-small
+trusted-pr
+```
+
+The first `rust-large` workflow should be optional. It should target parser,
+golden, coverage-lite, or other heavier Linux-only affected lanes after those
+lanes are already path-routed. It must not become a back door for the old full
+OS matrix.
+
+Fallback rules:
+
+```text
+rust-small:
+  CX43 first
+  CX53 overflow only when explicitly allowed
+  GitHub-hosted fallback
+
+rust-large:
+  CX53 first
+  GitHub-hosted fallback
+```
+
+Burn-in before any branch-protection change:
+
+- [ ] Runner group access is limited to the intended repos.
+- [ ] Workflows target `cx53` / `rust-large`, not generic `self-hosted`.
+- [ ] Public fork PRs cannot select the self-hosted runner.
+- [ ] Manual dispatch succeeds.
+- [ ] Same-repo PR smoke succeeds.
+- [ ] GitHub-hosted fallback succeeds for the same scoped lane.
+- [ ] Router logs distinguish `cx53_idle`, `no_idle_runner`, and fallback.
+- [ ] At least three clean PRs prove the optional result lane.
+- [ ] Branch protection still requires only `Rust Small Result`.
+
 ## Lane policy
 
 | Lane type | Trigger | Examples |
