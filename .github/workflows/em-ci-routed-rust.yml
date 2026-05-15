@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened]
+  merge_group:
 
 concurrency:
   group: em-ci-routed-rust-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
@@ -20,6 +21,7 @@ jobs:
 
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'merge_group' ||
       (
         github.event_name == 'pull_request' &&
         github.event.pull_request.head.repo.full_name == github.repository
@@ -231,6 +233,7 @@ jobs:
       always() &&
       (
         github.event_name == 'workflow_dispatch' ||
+        github.event_name == 'merge_group' ||
         (
           github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository
