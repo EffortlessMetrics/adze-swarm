@@ -1,0 +1,261 @@
+name: EM CI Routed Rust
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: em-ci-routed-rust-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  route-rust-small:
+    name: Route Rust Small
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+
+    outputs:
+      target: ${{ steps.route.outputs.target }}
+
+    steps:
+      - name: Choose target
+        id: route
+        env:
+          GH_TOKEN: ${{ secrets.EM_RUNNER_READ_TOKEN }}
+          ORG: EffortlessMetrics
+        run: |
+          set -uo pipefail
+
+          fallback_github() {
+            reason="$1"
+            echo "router_target=github"
+            echo "router_error=true"
+            echo "router_reason=${reason}"
+            echo "target=github" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "EM_RUNNER_READ_TOKEN is not set"
+            fallback_github "token_missing"
+          fi
+
+          runners="$(gh api "orgs/${ORG}/actions/runners?per_page=100" 2>&1)"
+          api_exit=$?
+
+          if [ "$api_exit" -ne 0 ]; then
+            echo "gh api failed (exit=${api_exit}): ${runners}"
+            fallback_github "runner_api_failed"
+          fi
+
+          cx43="$(printf '%s' "$runners" | jq '
+            [
+              .runners[]
+              | select(.status == "online")
+              | select(.busy == false)
+              | (.labels | map(.name | ascii_downcase)) as $have
+              | select($have | index("em-ci"))
+              | select($have | index("cx43"))
+              | select($have | index("rust-small"))
+              | select($have | index("trusted-pr"))
+            ]
+            | length
+          ' 2>&1)"
+          jq_exit=$?
+
+          if [ "$jq_exit" -ne 0 ] || ! printf '%s' "$cx43" | grep -Eq '^[0-9]+$'; then
+            echo "jq parse failed (exit=${jq_exit}): ${cx43}"
+            fallback_github "parse_failed"
+          fi
+
+          echo "cx43 idle rust-small runners: ${cx43}"
+
+          if [ "$cx43" -gt 0 ]; then
+            echo "router_target=cx43"
+            echo "router_error=false"
+            echo "router_reason=cx43_idle"
+            echo "target=cx43" >> "$GITHUB_OUTPUT"
+          else
+            echo "router_target=github"
+            echo "router_error=false"
+            echo "router_reason=no_idle_runner"
+            echo "target=github" >> "$GITHUB_OUTPUT"
+          fi
+
+  rust-small-cx43:
+    name: Rust Small on CX43
+    needs: route-rust-small
+    if: needs.route-rust-small.outputs.target == 'cx43'
+
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-small, trusted-pr]
+
+    timeout-minutes: 45
+
+    env:
+      JOB_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+
+      CARGO_HOME: /mnt/ci-cache/cargo-home
+      SCCACHE_DIR: /mnt/ci-cache/sccache
+      SCCACHE_CACHE_SIZE: 20G
+      RUSTC_WRAPPER: /usr/local/cargo/bin/sccache
+      CARGO_INCREMENTAL: "0"
+
+      TMPDIR: /mnt/ci-scratch/tmp/${{ github.run_id }}-${{ github.run_attempt }}
+      CARGO_TARGET_DIR: /mnt/ci-scratch/target/${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Guard disk
+        run: |
+          set -euo pipefail
+          ci-disk-guard /mnt/ci-scratch 35
+          ci-disk-guard /mnt/docker 5
+          ci-disk-guard /mnt/ci-cache 5
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Prepare scratch
+        run: |
+          set -euo pipefail
+          mkdir -p "$TMPDIR" "$CARGO_TARGET_DIR" "$CARGO_HOME" "$SCCACHE_DIR"
+
+      - name: Run Rust small lane in container
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --label em.ci=true \
+            --cpus="6" \
+            --memory="12g" \
+            --entrypoint /bin/bash \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -v "$CARGO_HOME:/cargo-home" \
+            -v "$SCCACHE_DIR:/sccache" \
+            -v "$CARGO_TARGET_DIR:/target" \
+            -v "$TMPDIR:/tmp/jobtmp" \
+            -w /workspace \
+            -e PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            -e HOME=/workspace \
+            -e CARGO_HOME=/cargo-home \
+            -e SCCACHE_DIR=/sccache \
+            -e SCCACHE_CACHE_SIZE=20G \
+            -e RUSTC_WRAPPER=/usr/local/cargo/bin/sccache \
+            -e CARGO_TARGET_DIR=/target \
+            -e TMPDIR=/tmp/jobtmp \
+            -e CARGO_INCREMENTAL=0 \
+            -e CARGO_BUILD_JOBS=4 \
+            -e RUST_TEST_THREADS=2 \
+            -e RUST_BACKTRACE=1 \
+            -e CARGO_TERM_COLOR=always \
+            em-ci-rust:1.95 \
+            -c 'set -euo pipefail
+                rustc --version
+                cargo --version
+                just --version
+                sccache --version
+
+                if [ -f Cargo.toml ]; then
+                  cargo fetch --locked
+                  cargo check --workspace --locked
+                  sccache --show-stats || true
+                else
+                  echo "No Cargo.toml found; infra smoke only."
+                fi'
+
+      - name: Cleanup scratch
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf "${TMPDIR:?}"
+          rm -rf "${CARGO_TARGET_DIR:?}"
+          df -h / /mnt/docker /mnt/actions /mnt/ci-scratch /mnt/ci-cache /mnt/ci-artifacts
+
+  rust-small-github:
+    name: Rust Small on GitHub Hosted
+    needs: route-rust-small
+    if: needs.route-rust-small.outputs.target == 'github'
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Install Rust 1.95.0
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: rustfmt, clippy
+
+      - name: Rust small lane
+        run: |
+          set -euo pipefail
+
+          rustc --version
+          cargo --version
+
+          if [ -f Cargo.toml ]; then
+            cargo fetch --locked
+            cargo check --workspace --locked
+          else
+            echo "No Cargo.toml found; infra smoke only."
+          fi
+
+  rust-small-result:
+    name: Rust Small Result
+    needs:
+      - route-rust-small
+      - rust-small-cx43
+      - rust-small-github
+    if: >-
+      always() &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        )
+      )
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check selected lane
+        run: |
+          set -euo pipefail
+
+          target="${{ needs.route-rust-small.outputs.target }}"
+          cx43="${{ needs.rust-small-cx43.result }}"
+          gh="${{ needs.rust-small-github.result }}"
+
+          echo "target=${target}"
+          echo "cx43=${cx43}"
+          echo "github=${gh}"
+
+          case "$target" in
+            cx43)
+              test "$cx43" = "success"
+              ;;
+            github)
+              test "$gh" = "success"
+              ;;
+            *)
+              echo "unknown target: $target"
+              exit 1
+              ;;
+          esac
