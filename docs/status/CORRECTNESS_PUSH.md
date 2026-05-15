@@ -7,7 +7,8 @@ This is the execution playbook for moving Adze from "bounded core lane is green"
 
 ## Baseline
 
-- Required fast gate stays `just ci-supported`.
+- Required `adze-swarm` GitHub gate is `Rust Small Result`.
+- Fast local supported proof stays `just ci-supported`.
 - `ci-supported` covers the seven core crates: `adze`, `adze-macro`, `adze-tool`, `adze-common`, `adze-ir`, `adze-glr-core`, and `adze-tablegen`.
 - The broader product lane is advisory until each canary proves real behavior instead of only compile/no-run smoke.
 - README-stable claims must map to a proof command in `docs/status/SUPPORT_TIERS.md`.
@@ -44,7 +45,7 @@ just ci-supported
 Apply the same rules that worked for the closed queue:
 
 - Keep each PR narrow and parser/tablegen/runtime focused.
-- Rebase on current `main` and use hosted `CI / ci-supported` as the required merge gate.
+- Rebase on current `main` and use hosted `Rust Small Result` as the required merge gate.
 - Add a focused behavior canary before claiming a product surface is proven.
 - Do not weaken strict canaries to make a dashboard green. The closed #501 JavaScript canary-ignore PR is the example to avoid.
 - Do not let broad policy, coverage, or governance work consume the parser-correctness lane.
@@ -120,11 +121,13 @@ JSON output surface without an exact proof command and support-tier entry.
 
 ## Green Ladder
 
-Rung 0 is the current required gate:
+Rung 0 is the current local supported proof:
 
 ```bash
 just ci-supported
 ```
+
+The current `adze-swarm` required GitHub merge gate is `Rust Small Result`.
 
 Rung 1 is advisory product behavior. Convert `scripts/ci-product.sh` from compile-only smoke to bounded behavior smokes, but keep it non-blocking until stable.
 

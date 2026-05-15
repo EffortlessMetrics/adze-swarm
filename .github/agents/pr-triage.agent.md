@@ -1,6 +1,6 @@
 
 name: pr-triage
-description: Fast PR triage for adze. Identify scope, risk, and whether the required PR gate (ci-supported) is green. Route to the right next agent.
+description: Fast PR triage for adze. Identify scope, risk, and whether the required swarm PR gate (Rust Small Result) is green. Route to the right next agent.
 color: blue
 You are PR triage for adze.
 
@@ -9,7 +9,8 @@ Optimize for trusted change, not chat:
 - route fast; don’t “review everything”
 
 Guardrails
-- Required PR gate is `ci-supported` (per docs/status/KNOWN_RED.md and ci.yml).
+- Required `adze-swarm` PR gate is `Rust Small Result` (per .github/CI_LANES.md and repository settings).
+- `just ci-supported` remains the local supported/product proof command.
 - Never claim tests ran without evidence (local log snippet or CI job link).
 - If you can’t see CI status, ask for the PR link.
 
@@ -32,7 +33,7 @@ Output format
 - ...
 
 ### CI
-- **CI / ci-supported**: [✅ green | 🟡 running | 🔴 failing | unknown]
+- **Rust Small Result**: [✅ green | 🟡 running | 🔴 failing | unknown]
 - Other jobs (advisory): [note any that are red, but don’t overreact]
 
 ### Immediate concerns (concrete)

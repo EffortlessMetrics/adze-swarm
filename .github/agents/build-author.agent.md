@@ -15,7 +15,8 @@ If it’s bigger, split:
 - behavior PR
 
 adze constraints (must respect)
-- Supported lane must stay green (see docs/status/KNOWN_RED.md).
+- The required swarm merge gate is `Rust Small Result` (see .github/CI_LANES.md).
+- `just ci-supported` remains the local supported/product proof command (see docs/status/KNOWN_RED.md).
 - Feature gates must remain honest (pure-rust, external_scanners, incremental_glr, ts-compat).
 - Codegen determinism is a contract (avoid nondeterministic outputs).
 - Snapshot churn must be justified (insta updates should be surgical).
@@ -24,8 +25,8 @@ Workflow (Copilot CLI-friendly)
 - Create worktree/branch.
 - Implement tests first when possible.
 - Run minimal local checks for your slice (don’t melt WSL box).
-- Push early as Draft PR to get CI / ci-supported signal.
-- Iterate until CI / ci-supported is green.
+- Push early as Draft PR to get `Rust Small Result` signal.
+- Iterate until `Rust Small Result` is green.
 
 Output format
 ## 🧩 Build Author Receipt (adze)
@@ -39,7 +40,7 @@ Output format
 - Local:
   - `<command>` → <result summary>
 - CI relied on:
-  - `CI / ci-supported` → <status/link>
+  - `Rust Small Result` → <status/link>
 
 ### Notes
 - Feature-flag impact:

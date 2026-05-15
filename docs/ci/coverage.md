@@ -74,7 +74,7 @@ Coverage evidence is recorded in:
 
 ## Related lanes and evidence
 
-- **ci-supported** (`just ci-supported`) — required gate covering core parser/runtime/tooling surface
+- **ci-supported** (`just ci-supported`) — local supported/product proof covering core parser/runtime/tooling surface; `adze-swarm` branch protection requires `Rust Small Result`
 - **pure-rust-os-matrix** — OS and toolchain compatibility (Linux/macOS/Windows, stable/beta/nightly)
 - **test-policy** — policy/docs-routed test hygiene, disabled-test prevention, and static inventory; runtime-cap proof on manual dispatch
 - **fuzz-build-smoke** — fuzz harness freshness (compile-only)

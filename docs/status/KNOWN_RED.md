@@ -4,7 +4,8 @@
 
 This file tracks intentional exclusions from the supported lane:
 
-- Required PR gate: `just ci-supported` locally, `CI / ci-supported` in GitHub checks
+- Required `adze-swarm` PR gate: `Rust Small Result` in GitHub checks
+- Supported local/product proof: `just ci-supported`
 - Lane classification: [CI_LANES.md](../../.github/CI_LANES.md)
 
 Rule: if something is excluded from the supported lane, it must be listed here with:
@@ -39,7 +40,7 @@ Support tiers and proof commands for major surfaces are tracked in [`docs/status
 
 This lane is intentionally bounded so it stays reliable and fast enough for day-to-day work.
 
-**Current required status:** GREEN when `just ci-supported` / `CI / ci-supported` passes. Broader feature matrices, audit, WASM, and product-proof checks are useful optional signal, but they are not part of the supported merge gate unless explicitly promoted here and in [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
+**Current required status:** GREEN when `Rust Small Result` passes in `adze-swarm`. `just ci-supported` remains the local supported/product proof. Broader feature matrices, audit, WASM, and product-proof checks are useful optional signal, but they are not part of the swarm merge gate unless explicitly promoted here, in [CI_LANES.md](../../.github/CI_LANES.md), and in [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
 ---
 
