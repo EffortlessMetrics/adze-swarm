@@ -31,3 +31,9 @@ They should be restored deliberately once their runner class, trigger policy, an
 ## Operating rule
 
 `adze-swarm` should carry swarm-safe verification. Public release and external-contribution workflows stay on public `adze` unless explicitly promoted into this repo.
+
+## Cutover checkpoint
+
+New swarm work targets `EffortlessMetrics/adze-swarm`. Keep public `EffortlessMetrics/adze` side by side as the release/public-history repo, and do not retarget its `origin` remote during swarm work.
+
+Branches for swarm tasks should be created from `adze-swarm/main`, pushed to `origin`, and opened as same-repo PRs against `adze-swarm/main`. Do not push directly to `main`, do not target `adze-dev`, and do not use `em-ci` labels for swarm routing.
