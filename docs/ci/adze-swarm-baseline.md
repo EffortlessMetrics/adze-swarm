@@ -21,6 +21,13 @@ microcrate groups, golden tests, and test-policy runtime caps are also kept off
 ordinary `main` merges in `adze-swarm`. They remain available through
 path-routed/labeled PRs or manual dispatch where useful.
 
+The Pure Rust workflow is code-path gated for ordinary PRs. Docs-only,
+policy-only, and CI-doc-only changes should get the base `Rust Small Result`
+gate and policy checks without also paying for the Ubuntu/stable Pure Rust
+lane. Rust/package/runtime/tooling paths, the Pure Rust workflow itself,
+`full-ci`, `platform-matrix`, and manual dispatch still run the Pure Rust
+jobs.
+
 ## Public/release workflows
 
 Release, publish, signing, Droid review, Droid security scan, and deploy-style workflows remain on public `EffortlessMetrics/adze` unless explicitly reintroduced here.

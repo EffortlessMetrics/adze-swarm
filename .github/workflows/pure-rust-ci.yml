@@ -1,8 +1,9 @@
 name: Pure Rust Implementation CI
 
-# Default PR runs Ubuntu/stable only. The full OS × toolchain matrix runs
-# on workflow_dispatch and on PRs labeled
-# 'platform-matrix' or 'full-ci'. See docs/ci/adze-rollout-plan.md (PR 13).
+# Default code-path PR runs Ubuntu/stable only. Docs/policy-only PRs skip the
+# Rust jobs. The full OS × toolchain matrix runs on workflow_dispatch and on
+# PRs labeled 'platform-matrix' or 'full-ci'. See docs/ci/adze-rollout-plan.md
+# (PR 13).
 
 on:
   pull_request:
@@ -31,16 +32,31 @@ jobs:
     outputs:
       os: ${{ steps.compute.outputs.os }}
       rust: ${{ steps.compute.outputs.rust }}
+      rust_changed: ${{ steps.compute.outputs.rust_changed }}
+      run_rust: ${{ steps.compute.outputs.run_rust }}
     steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
       - id: compute
         run: |
           set -euo pipefail
           full=false
+          rust_changed=false
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             full=true
+            rust_changed=true
           elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}" == "true" ]] \
             || [[ "${{ contains(github.event.pull_request.labels.*.name, 'platform-matrix') }}" == "true" ]]; then
             full=true
+            rust_changed=true
+          else
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" || true)
+            if echo "$changed" | grep -qE '(^|/)(Cargo\.toml|Cargo\.lock)$|^(runtime/|runtime2/|macro/|common/|ir/|glr-core/|tablegen/|crates/|grammars/|tool/|cli/|xtask/|tests/|testing/|glr-test-support/|test-mini/|lsp-generator/|playground/|wasm-demo/|\.github/workflows/pure-rust-ci\.yml$)'; then
+              rust_changed=true
+            fi
           fi
           if [ "$full" = "true" ]; then
             echo 'os=["ubuntu-latest","macos-latest","windows-latest"]' >> "$GITHUB_OUTPUT"
@@ -49,10 +65,18 @@ jobs:
             echo 'os=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
             echo 'rust=["stable"]' >> "$GITHUB_OUTPUT"
           fi
+          if [ "$rust_changed" = "true" ]; then
+            echo "run_rust=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_rust=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "rust_changed=$rust_changed" >> "$GITHUB_OUTPUT"
+          echo "Rust jobs selected: $rust_changed"
 
   test-pure-rust:
     name: Test Pure Rust Implementation
     needs: matrix-setup
+    if: needs.matrix-setup.outputs.run_rust == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -192,6 +216,8 @@ jobs:
   
   integration-tests:
     name: Integration Tests
+    needs: matrix-setup
+    if: needs.matrix-setup.outputs.run_rust == 'true'
     runs-on: ubuntu-latest
     
     steps:
