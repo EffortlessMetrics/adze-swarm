@@ -35,9 +35,10 @@ lane. Rust/package/runtime/tooling paths, the Pure Rust workflow itself,
 jobs.
 
 Coverage is split into `coverage-lite` and `coverage-full`. Lite coverage is
-path-routed or label-routed for PRs and only covers the core Rust package set.
-Full coverage is manual or `full-ci` evidence. In both modes, the LCOV artifact
-is the proof and Codecov upload is non-blocking publication.
+path-routed or label-routed for PRs and starts with the primary runtime package
+so it stays cheap enough for PR evidence. Full coverage is manual or `full-ci`
+evidence. In both modes, the LCOV artifact is the proof and Codecov upload is
+non-blocking publication.
 
 ## Public/release workflows
 

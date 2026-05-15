@@ -29,18 +29,16 @@ Coverage is split by cost.
 ### `coverage-lite`
 
 `coverage-lite` is the PR-facing lane. It runs on Linux/stable when a PR carries
-the `coverage` label or touches core Rust/parser/tooling paths. It generates an
-LCOV artifact for the core package set:
+the `coverage` label or touches primary runtime/test paths. It starts with a
+deliberately narrow package set so the lane is cheap enough to use as PR
+evidence:
 
 ```text
 adze
-adze-macro
-adze-tool
-adze-common
-adze-ir
-adze-glr-core
-adze-tablegen
 ```
+
+Additional package groups should be added only after measured runtime shows the
+lane still fits the lite budget.
 
 ### `coverage-full`
 
@@ -57,7 +55,7 @@ Both lanes run `cargo-llvm-cov` to:
 
 **When `coverage-lite` runs:**
 - pull requests labeled `coverage`
-- pull requests that touch core coverage paths
+- pull requests that touch primary runtime/test coverage paths
 - `workflow_dispatch` with mode `lite`
 
 **When `coverage-full` runs:**
@@ -65,7 +63,7 @@ Both lanes run `cargo-llvm-cov` to:
 - `workflow_dispatch` with mode `full`
 
 **Cost:**
-- `coverage-lite`: lower-cost core package evidence
+- `coverage-lite`: lower-cost primary runtime package evidence
 - `coverage-full`: broader high-cost evidence
 - Zero impact on docs-only/policy-only ordinary pull requests
 
@@ -115,7 +113,7 @@ Coverage is complementary to these: high coverage with passing tests is necessar
 
 ## Roadmap
 
-1. Baseline `coverage-lite` runtime on core paths.
+1. Baseline `coverage-lite` runtime on primary runtime paths.
 2. Decide whether `coverage-lite` should move to CX53 once the `rust-large`
    runner class is available.
 3. Establish ratchet thresholds only after stable baseline data exists.

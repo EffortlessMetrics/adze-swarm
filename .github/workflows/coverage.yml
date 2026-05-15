@@ -1,7 +1,7 @@
 name: Coverage
 
 # Coverage is split by cost:
-# - coverage-lite: path/label/manual, Linux stable only, core packages.
+# - coverage-lite: path/label/manual, Linux stable only, primary runtime package.
 # - coverage-full: manual or full-ci, broader workspace/features.
 # Codecov upload is publication only; LCOV artifact generation is the proof.
 
@@ -72,7 +72,7 @@ jobs:
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" || true)
 
-          if echo "$changed" | grep -qE '(^|/)(Cargo\.toml|Cargo\.lock)$|^(runtime/|macro/|common/|ir/|glr-core/|tablegen/|tool/|crates/linecol-core/|crates/parsetable-metadata/|tests/|testing/|glr-test-support/|\.github/workflows/coverage\.yml$)'; then
+          if echo "$changed" | grep -qE '(^|/)(Cargo\.toml|Cargo\.lock)$|^(runtime/|tests/|testing/|\.github/workflows/coverage\.yml$)'; then
             echo "coverage_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "coverage_changed=false" >> "$GITHUB_OUTPUT"
@@ -111,12 +111,7 @@ jobs:
         run: |
           cargo llvm-cov \
             -p adze \
-            -p adze-macro \
-            -p adze-tool \
-            -p adze-common \
-            -p adze-ir \
-            -p adze-glr-core \
-            -p adze-tablegen \
+            --lib \
             --lcov \
             --output-path lcov.info
 

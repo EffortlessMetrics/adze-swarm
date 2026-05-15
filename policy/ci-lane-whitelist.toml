@@ -838,14 +838,14 @@ tier = "advisory"
 default_pr = false
 blocking = false
 runner = "ubuntu_latest"
-base_lem = 20
+base_lem = 8
 owner = "release/ci"
-intent = "Lower-cost execution-surface reporting for core Rust parser/runtime/codegen packages via cargo-llvm-cov."
-failure_mode = "A core Rust change removes test execution visibility, but full coverage is too expensive for ordinary PR routing."
-proof_obligation = "Generate lcov.info for the core package set and upload the coverage-lite-lcov artifact; upload to Codecov as non-blocking publication when CODECOV_TOKEN is present."
+intent = "Lower-cost execution-surface reporting for the primary runtime package via cargo-llvm-cov."
+failure_mode = "A runtime change removes test execution visibility, but full coverage is too expensive for ordinary PR routing."
+proof_obligation = "Generate lcov.info for the adze runtime library and upload the coverage-lite-lcov artifact; upload to Codecov as non-blocking publication when CODECOV_TOKEN is present."
 evidence = ["lcov.info", "coverage-lite-lcov GitHub artifact"]
 allowed_triggers = ["pull_request", "workflow_dispatch"]
-routing_note = "Path-routed for core Rust/parser/tooling changes, label-routed with 'coverage', and manually runnable with workflow_dispatch mode=lite."
+routing_note = "Path-routed for runtime/test coverage paths, label-routed with 'coverage', and manually runnable with workflow_dispatch mode=lite. Additional packages require measured runtime evidence before inclusion."
 duplicate_of = []
 review_after = "2026-06-07"
 expires = "2026-11-07"
