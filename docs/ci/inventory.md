@@ -24,7 +24,8 @@ See `adze-rollout-status.md` for status of each item.
 | `ci-policy.yml` | CI lane whitelist advisory lint | Active |
 | `ripr.yml` | ripr advisory with workspace MSRV install and stub fallback | Active advisory |
 | `fuzz.yml` | Label/push/schedule-gated runtime fuzz; build smoke on parser/glr PRs | Active |
-| `pure-rust-ci.yml` | Matrix-setup: ubuntu/stable on default PR; full matrix on labels/main | Active |
+| `pure-rust-ci.yml` | Matrix-setup: ubuntu/stable on code-path PRs; full matrix on labels/dispatch | Active |
+| `ts-bridge-smoke.yml` | Path-routed bridge smoke; Linux by default, full OS matrix on labels/dispatch | Active |
 | `golden-tests.yml` | Grammar-path and `ci:golden`/`full-ci` label gated | Active |
 | `microcrate-ci.yml` | Risk-pack-routed per crate group | Active |
 | `benchmarks.yml` | Label-gated (`ci:perf`/`benchmarks`/`full-ci`) full benchmark suite | Active |
