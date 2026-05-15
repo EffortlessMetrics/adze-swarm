@@ -11,6 +11,12 @@ The current durable base lane is:
 
 This lane routes to the CX43 self-hosted runner when idle and falls back to GitHub-hosted when the runner is busy.
 
+Runner-class policy is defined in [`runner-classes.md`](./runner-classes.md).
+The short version is: CX43 owns the current `rust-small` base gate,
+GitHub-hosted is scoped fallback plus Windows/macOS/public-fork/release
+surface, and CX53 is the planned `rust-large` capacity tier once it is
+registered and burned in.
+
 The inherited public `ci.yml` full-CI workflow is retained for scheduled and
 manual verification only. It does not run on ordinary swarm PRs or every merge
 to `main`; that keeps the swarm base loop bounded while preserving an opt-in
