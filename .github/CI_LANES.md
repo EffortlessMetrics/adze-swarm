@@ -75,10 +75,10 @@ In `adze-swarm`, the legacy `ci.yml` jobs run on schedule or via `workflow_dispa
 | `ci.yml` | `Cross-platform` | Schedule + dispatch | Scheduled/manual | macOS + Windows cargo check + lib tests |
 | `ci.yml` | `Advisory / WASM Build` | Schedule + dispatch | Advisory | WASM target check; `continue-on-error` |
 | `ci.yml` | `Benches (unstable, opt-in)` | Dispatch only | Advisory | `unstable-benches` feature; only with `run_full_ci` |
-| `pure-rust-ci.yml` | `Test Pure Rust Implementation` | PR + dispatch | PR-only/manual | Ubuntu/stable by default; full matrix on labels or dispatch |
+| `pure-rust-ci.yml` | `Test Pure Rust Implementation` | Code-path PR + dispatch | PR-only/manual | Skips docs/policy-only PRs; Ubuntu/stable on code-path PRs; full matrix on labels or dispatch |
 | `pure-rust-ci.yml` | `Test WASM Build` | Labeled PR + dispatch | Advisory | WASM build + size check |
 | `pure-rust-ci.yml` | `Golden Tests` | Labeled PR + dispatch | Advisory | Tree-sitter parity; label-gated |
-| `pure-rust-ci.yml` | `Integration Tests` | PR + dispatch | PR-only | c2rust backend test |
+| `pure-rust-ci.yml` | `Integration Tests` | Code-path PR + dispatch | PR-only | c2rust backend test; skipped for docs/policy-only PRs |
 | `pure-rust-ci.yml` | `Performance Regression Tests` | Labeled PR + dispatch | Advisory | Benchmark run; label-gated |
 | `pure-rust-ci.yml` | `Code Coverage` | Labeled PR + dispatch | Advisory | Coverage report; label-gated |
 | `core-tests.yml` | `core` | Scheduled (nightly) + dispatch | Scheduled | Full nightly canary: clippy, doc, all-features |
