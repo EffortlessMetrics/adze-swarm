@@ -179,10 +179,14 @@ jobs:
       - name: Cleanup scratch
         if: always()
         run: |
-          set -euo pipefail
-          rm -rf "${TMPDIR:?}"
-          rm -rf "${CARGO_TARGET_DIR:?}"
-          df -h / /mnt/docker /mnt/actions /mnt/ci-scratch /mnt/ci-cache /mnt/ci-artifacts
+          docker run --rm \
+            --entrypoint /bin/bash \
+            -v "$TMPDIR:/tmpdir" \
+            -v "$CARGO_TARGET_DIR:/target" \
+            em-ci-rust:1.95 \
+            -c 'find /tmpdir /target -mindepth 1 -delete 2>/dev/null || true' || true
+          rmdir "${TMPDIR}" "${CARGO_TARGET_DIR}" 2>/dev/null || true
+          df -h / /mnt/docker /mnt/actions /mnt/ci-scratch /mnt/ci-cache /mnt/ci-artifacts || true
 
   rust-small-github:
     name: Rust Small on GitHub Hosted
