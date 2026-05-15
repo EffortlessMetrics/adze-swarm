@@ -106,6 +106,8 @@ Burn-in before any branch-protection change:
 Docs-only updates are the expected routing probe: they should run the base
 result and cheap docs/policy receipts while Pure Rust, coverage, golden, and
 microcrate implementation lanes skip unless explicitly requested.
+After microcrate receipt routing, the same probe should also skip Microcrate
+CI formatting, workspace docs, WASM, and strict-feature receipt jobs.
 
 Fallback must mean fallback for the selected scoped lane. It must not recreate
 the old public-style full-CI fanout.
