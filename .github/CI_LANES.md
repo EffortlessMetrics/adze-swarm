@@ -90,7 +90,7 @@ In `adze-swarm`, the legacy `ci.yml` jobs run on schedule or via `workflow_dispa
 | `benchmarks.yml` | `Performance Benchmarks` | Push + labeled PR | Push | Benchmark comparison for PRs |
 | `benchmarks.yml` | `Criterion HTML Report` | Dispatch only | Advisory | Manual Criterion HTML report generation |
 | `coverage.yml` | `Codecov Coverage` | Push + labeled PR | Push | Dedicated coverage lane |
-| `microcrate-ci.yml` | `Formatting` through `Strict Docs` | Path-routed PR + dispatch | PR-only/manual | Governance micro-crate tests |
+| `microcrate-ci.yml` | `Formatting` through `Strict Docs` | Path-routed PR + dispatch | PR-only/manual | Receipt jobs and crate-group tests route by affected Rust/package surface |
 | `golden-tests.yml` | `Golden Tests` | Path-routed PR + dispatch | PR-only/manual | Tree-sitter parity validation |
 | `performance.yml` | `Performance Regression Check` | PR (path-routed) | PR-only | Benchmark comparison on perf-impact changes |
 | `test-policy.yml` | `Enforce Test Policy` | Policy/docs PR + manual | Advisory | Test naming, disabled-test prevention, static inventory; runtime caps on manual dispatch with cold-compile hang guard |

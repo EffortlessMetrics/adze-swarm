@@ -1,7 +1,6 @@
 name: Microcrate CI
 
-# Crate-group test jobs are routed by changed paths. fmt/docs/wasm/strict
-# stay default-on; the heavy test-* jobs gate on the `changes` setup.
+# Crate-group test jobs and receipt jobs are routed by changed paths.
 # workflow_dispatch and 'ci:microcrate' / 'full-ci' labels run everything.
 # See docs/ci/adze-rollout-plan.md (PR 14).
 
@@ -34,6 +33,10 @@ jobs:
       parser: ${{ steps.detect.outputs.parser }}
       core: ${{ steps.detect.outputs.core }}
       runtime: ${{ steps.detect.outputs.runtime }}
+      fmt: ${{ steps.detect.outputs.fmt }}
+      docs: ${{ steps.detect.outputs.docs }}
+      wasm: ${{ steps.detect.outputs.wasm }}
+      strict: ${{ steps.detect.outputs.strict }}
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -49,16 +52,22 @@ jobs:
           elif echo "$PR_LABELS_JSON" | grep -qE '"(full-ci|ci:microcrate)"'; then
             run_all=true
           fi
+          changed=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" || true)
+            if echo "$changed" | grep -qE '^\.github/workflows/microcrate-ci\.yml$'; then
+              run_all=true
+            fi
+          fi
           if [ "$run_all" = "true" ]; then
-            for k in concurrency governance bdd parser core runtime; do
+            for k in concurrency governance bdd parser core runtime fmt docs wasm strict; do
               echo "$k=true" >> "$GITHUB_OUTPUT"
             done
             echo "run_all=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" || true)
           match() { echo "$changed" | grep -qE "$1"; }
           for k in concurrency governance bdd parser core runtime; do
             v=false
@@ -72,11 +81,37 @@ jobs:
             esac
             echo "$k=$v" >> "$GITHUB_OUTPUT"
           done
+          fmt=false
+          docs=false
+          wasm=false
+          strict=false
+          fmt_paths='^(Cargo\.toml|rust-toolchain\.toml|\.rustfmt\.toml)$|^(runtime/|runtime2/|macro/|common/|ir/|glr-core/|tablegen/|crates/|grammars/|tool/|cli/|xtask/|tests/|testing/|glr-test-support/|test-mini/|lsp-generator/|playground/|wasm-demo/).*\.(rs|toml)$'
+          docs_paths='^(Cargo\.toml|Cargo\.lock|rust-toolchain\.toml)$|^(runtime/|runtime2/|macro/|common/|ir/|glr-core/|tablegen/|crates/|grammars/|tool/|cli/|xtask/|tests/|testing/|glr-test-support/|test-mini/|lsp-generator/|playground/|wasm-demo/).*\.(rs|toml)$'
+          strict_paths='^(Cargo\.toml|Cargo\.lock)$|^(common/|ir/|glr-core/|tablegen/|macro/|tool/|crates/bdd-governance-core/|crates/linecol-core/|crates/parsetable-metadata/).*\.(rs|toml)$'
+          wasm_paths='^(Cargo\.toml|Cargo\.lock)$|^(runtime/|ir/|glr-core/|tablegen/).*\.(rs|toml)$'
+          if match "$fmt_paths"; then
+            fmt=true
+          fi
+          if match "$docs_paths"; then
+            docs=true
+          fi
+          if match "$strict_paths"; then
+            strict=true
+          fi
+          if match "$wasm_paths"; then
+            wasm=true
+          fi
+          echo "fmt=$fmt" >> "$GITHUB_OUTPUT"
+          echo "docs=$docs" >> "$GITHUB_OUTPUT"
+          echo "wasm=$wasm" >> "$GITHUB_OUTPUT"
+          echo "strict=$strict" >> "$GITHUB_OUTPUT"
           echo "run_all=false" >> "$GITHUB_OUTPUT"
 
-  # ── Formatting & doc checks (fast, run on every PR) ─────────────────
+  # ── Formatting & doc checks (path-routed receipts) ──────────────────
   fmt-check:
     name: Formatting
+    needs: changes
+    if: needs.changes.outputs.fmt == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -88,6 +123,8 @@ jobs:
 
   doc-check:
     name: Docs Build
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -103,6 +140,8 @@ jobs:
   # ── WASM build check ────────────────────────────────────────────────
   wasm-check:
     name: WASM Build (core crates)
+    needs: changes
+    if: needs.changes.outputs.wasm == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -126,6 +165,8 @@ jobs:
   # ── Feature matrix: strict_api / strict_docs ────────────────────────
   strict-features:
     name: Strict Features (${{ matrix.features }})
+    needs: changes
+    if: needs.changes.outputs.strict == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
