@@ -83,7 +83,9 @@ In `adze-swarm`, the legacy `ci.yml` jobs run on schedule or via `workflow_dispa
 | `pure-rust-ci.yml` | `Golden Tests` | Labeled PR + dispatch | Advisory | Tree-sitter parity; label-gated |
 | `pure-rust-ci.yml` | `Integration Tests` | Code-path PR + dispatch | PR-only | c2rust backend test; skipped for docs/policy-only PRs |
 | `pure-rust-ci.yml` | `Performance Regression Tests` | Labeled PR + dispatch | Advisory | Benchmark run; label-gated |
-| `pure-rust-ci.yml` | `Code Coverage` | Labeled PR + dispatch | Advisory | Coverage report; label-gated |
+| `coverage.yml` | `Detect Coverage Paths` | PR + dispatch | Advisory | Cheap path/label detector for coverage-lite/full routing |
+| `coverage.yml` | `Coverage Lite` | Path/labeled PR + dispatch | Advisory | Core-package LCOV artifact; Codecov upload non-blocking |
+| `coverage.yml` | `Coverage Full` | `full-ci` PR + dispatch | Advisory | Broader workspace/features LCOV artifact; Codecov upload non-blocking |
 | `core-tests.yml` | `core` | Scheduled (nightly) + dispatch | Scheduled | Full nightly canary: clippy, doc, all-features |
 | `benchmarks.yml` | `Performance Benchmarks` | Push + labeled PR | Push | Benchmark comparison for PRs |
 | `benchmarks.yml` | `Criterion HTML Report` | Dispatch only | Advisory | Manual Criterion HTML report generation |

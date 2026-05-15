@@ -807,22 +807,67 @@ review_after = "2026-06-07"
 expires = "2026-11-07"
 
 [[lane]]
-id = "coverage"
+id = "coverage-paths"
 workflow = ".github/workflows/coverage.yml"
-job = "coverage"
-display_name = "Codecov Coverage"
+job = "paths"
+display_name = "Detect Coverage Paths"
+kind = "control"
+tier = "advisory"
+default_pr = true
+blocking = false
+runner = "ubuntu_latest"
+base_lem = 1
+owner = "release/ci"
+intent = "Detect whether coverage-lite or coverage-full should run for this PR."
+failure_mode = "Coverage runs broadly or skips unexpectedly because path/label routing is not visible."
+proof_obligation = "Emit coverage_changed and full routing outputs from PR labels and changed paths."
+evidence = ["job logs"]
+allowed_triggers = ["pull_request", "workflow_dispatch"]
+routing_note = "Cheap setup job; coverage-lite/full carry the actual cargo-llvm-cov cost."
+duplicate_of = []
+review_after = "2026-06-07"
+expires = "2026-11-07"
+
+[[lane]]
+id = "coverage-lite"
+workflow = ".github/workflows/coverage.yml"
+job = "coverage-lite"
+display_name = "Coverage Lite"
 kind = "execution_surface"
-tier = "frontdoor"
+tier = "advisory"
+default_pr = false
+blocking = false
+runner = "ubuntu_latest"
+base_lem = 8
+owner = "release/ci"
+intent = "Lower-cost execution-surface reporting for the primary runtime package via cargo-llvm-cov."
+failure_mode = "A runtime change removes test execution visibility, but full coverage is too expensive for ordinary PR routing."
+proof_obligation = "Generate lcov.info for the adze runtime library and upload the coverage-lite-lcov artifact; upload to Codecov as non-blocking publication when CODECOV_TOKEN is present."
+evidence = ["lcov.info", "coverage-lite-lcov GitHub artifact"]
+allowed_triggers = ["pull_request", "workflow_dispatch"]
+routing_note = "Path-routed for runtime/test coverage paths, label-routed with 'coverage', and manually runnable with workflow_dispatch mode=lite. Additional packages require measured runtime evidence before inclusion."
+duplicate_of = []
+review_after = "2026-06-07"
+expires = "2026-11-07"
+
+[[lane]]
+id = "coverage-full"
+workflow = ".github/workflows/coverage.yml"
+job = "coverage-full"
+display_name = "Coverage Full"
+kind = "execution_surface"
+tier = "deep"
 default_pr = false
 blocking = false
 runner = "ubuntu_latest"
 base_lem = 45
 owner = "release/ci"
-intent = "Execution-surface reporting for Adze Rust codebase via cargo-llvm-cov and Codecov."
-failure_mode = "A change removes test execution over the Rust parser/runtime/codegen surface without visibility."
-proof_obligation = "Generate coverage.json, coverage.txt, lcov.info, upload GitHub artifact, and upload LCOV to Codecov when CODECOV_TOKEN is present."
-evidence = ["coverage.json", "coverage.txt", "lcov.info", "coverage-report GitHub artifact"]
-allowed_triggers = ["push", "workflow_dispatch", "pull_request"]
-duplicate_of = []
+intent = "Explicit broader coverage evidence for the Adze Rust workspace via cargo-llvm-cov and Codecov."
+failure_mode = "Broad feature/workspace execution coverage drifts without an on-demand proof lane."
+proof_obligation = "Generate lcov.info for the broader workspace/features command and upload the coverage-full-lcov artifact; upload to Codecov as non-blocking publication when CODECOV_TOKEN is present."
+evidence = ["lcov.info", "coverage-full-lcov GitHub artifact"]
+allowed_triggers = ["pull_request", "workflow_dispatch"]
+routing_note = "Runs on workflow_dispatch mode=full and PRs labeled 'full-ci'. Not an ordinary PR default."
+duplicate_of = ["coverage-lite"]
 review_after = "2026-06-07"
 expires = "2026-11-07"

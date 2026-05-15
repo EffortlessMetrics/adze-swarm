@@ -34,6 +34,12 @@ lane. Rust/package/runtime/tooling paths, the Pure Rust workflow itself,
 `full-ci`, `platform-matrix`, and manual dispatch still run the Pure Rust
 jobs.
 
+Coverage is split into `coverage-lite` and `coverage-full`. Lite coverage is
+path-routed or label-routed for PRs and starts with the primary runtime package
+so it stays cheap enough for PR evidence. Full coverage is manual or `full-ci`
+evidence. In both modes, the LCOV artifact is the proof and Codecov upload is
+non-blocking publication.
+
 ## Public/release workflows
 
 Release, publish, signing, Droid review, Droid security scan, and deploy-style workflows remain on public `EffortlessMetrics/adze` unless explicitly reintroduced here.
@@ -44,7 +50,6 @@ These workflows are not day-one `adze-swarm` workflows because they involve rele
 
 The following are real CI lanes, but are staged pending routing or policy decisions:
 
-- coverage
 - benchmarks
 - performance
 - fuzz
