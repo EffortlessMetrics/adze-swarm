@@ -80,7 +80,7 @@ These may run as optional signal (nightly/manual/canary), but are not required f
 
 A broad-surface advisory lane now exists as `.github/workflows/product-proof.yml` and runs `scripts/ci-product.sh` on schedule/manual dispatch.
 
-This lane is **not** part of required merge gates. It provides bounded canary proof across product surfaces that are outside `ci-supported`. A narrower `just ci-product-stable` lane exists for README Stable claims only, but it is also advisory until branch protection explicitly promotes it.
+This lane is **not** part of required merge gates. It provides bounded canary proof across product surfaces that are outside `ci-supported`. A narrower `ci-product stable canaries` job runs `just ci-product-stable` on stable-claim PR surfaces and on schedule/manual dispatch, but it is also advisory until branch protection explicitly promotes it.
 
 Current canaries:
 
