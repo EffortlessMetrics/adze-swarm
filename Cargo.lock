@@ -102,6 +102,7 @@ dependencies = [
 name = "adze-common"
 version = "0.8.0-dev"
 dependencies = [
+ "adze-common-type-ops-core",
  "insta",
  "proc-macro2",
  "proptest",
