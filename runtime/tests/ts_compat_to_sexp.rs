@@ -245,3 +245,25 @@ fn to_sexp_remains_named_only_when_anonymous_child_has_field_id() {
     assert!(!expression.to_sexp().contains("operator:"));
     assert!(!expression.to_sexp().contains("-"));
 }
+
+#[test]
+fn to_sexp_includes_missing_nodes_for_recovered_input() {
+    let mut parser = Parser::new();
+    parser
+        .set_language(adze_example::ts_langs::arithmetic())
+        .expect("Failed to set language");
+
+    let tree = parser
+        .parse("1-", None)
+        .expect("parser should return an inspectable recovered tree");
+    let sexp = tree.root_node().to_sexp();
+
+    assert!(
+        sexp.contains("(MISSING)"),
+        "S-expression should expose recovered missing nodes: {sexp}"
+    );
+    assert!(
+        !sexp.contains("(ERROR)"),
+        "zero-width recovery should render as MISSING rather than ERROR: {sexp}"
+    );
+}

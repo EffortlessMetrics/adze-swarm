@@ -42,7 +42,7 @@ A 0.9.0 release is ready when all of the following are true:
 | 10 | Diagnostic ordering by position | covered | `cargo test -p adze --features pure-rust --test generated_parse_errors -- --nocapture` | #31 |
 | 11 | EOF boundary error span | covered | `cargo test -p adze --features pure-rust --test generated_parse_errors -- --nocapture` | #36 |
 | 12 | Mixed ASCII/multibyte line counting | covered | `cargo test -p adze --features pure-rust --test generated_parse_errors -- --nocapture` | #36 |
-| 13 | ERROR/MISSING nodes in S-expression | pending | — | — |
+| 13 | ERROR/MISSING nodes in S-expression | covered | `cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_to_sexp -- --nocapture`; `cargo test -p adze --lib --features "pure-rust,ts-compat" ts_compat::tests::node_to_sexp_renders_error_and_missing_nodes -- --exact --nocapture` | #37 |
 | 14 | Nested alias behavior | pending | — | — |
 | 15 | CST-level GLR determinism | pending | — | — |
 | 16 | Fork count stability | pending | — | — |
