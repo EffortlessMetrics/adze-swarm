@@ -54,7 +54,7 @@ A 0.9.0 release is ready when all of the following are true:
 | # | Item | Status | Proof command | PR |
 |---|------|--------|---------------|----|
 | 19 | README claims audit against proof map | covered | `cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exact --nocapture` | #55 |
-| 20 | Benchmark classification inventory | pending | `cargo test -p adze-benchmarks --test verify_fixture_parsing -- --nocapture` | — |
+| 20 | Benchmark classification inventory | covered | `cargo test -p adze-benchmarks --test verify_fixture_parsing -- --nocapture` | #61 |
 | 21 | Duplicate bench deprecation (glr_performance.rs) | pending | `cargo bench -p adze-benchmarks --no-run` | — |
 | 22 | Package publishability — adze | pending | `cargo package -p adze --allow-dirty` | — |
 | 23 | Package publishability — adze-macro | covered | `cargo package -p adze-macro --allow-dirty` | #58 |
