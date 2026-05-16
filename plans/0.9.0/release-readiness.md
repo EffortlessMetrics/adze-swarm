@@ -40,8 +40,8 @@ A 0.9.0 release is ready when all of the following are true:
 | 8 | Byte↔point span agreement | covered | `cargo test -p adze --features pure-rust --test typed_cst_generated_document -- --nocapture` | #30 |
 | 9 | Multi-error deduplication | covered | `cargo test -p adze --features pure-rust --test generated_parse_errors -- --nocapture` | #31 |
 | 10 | Diagnostic ordering by position | covered | `cargo test -p adze --features pure-rust --test generated_parse_errors -- --nocapture` | #31 |
-| 11 | EOF boundary error span | pending | — | — |
-| 12 | Mixed ASCII/multibyte line counting | pending | — | — |
+| 11 | EOF boundary error span | covered | `cargo test -p adze --features pure-rust --test generated_parse_errors -- --nocapture` | #36 |
+| 12 | Mixed ASCII/multibyte line counting | covered | `cargo test -p adze --features pure-rust --test generated_parse_errors -- --nocapture` | #36 |
 | 13 | ERROR/MISSING nodes in S-expression | pending | — | — |
 | 14 | Nested alias behavior | pending | — | — |
 | 15 | CST-level GLR determinism | pending | — | — |
