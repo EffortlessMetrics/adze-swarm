@@ -26,15 +26,17 @@
 | Same AST from both paths (non-GLR) | `typed_ast_contract_parse_document_ast_matches_parse` | — | — |
 | Extraction provenance recorded | `typed_ast_contract_parse_document_ast_records_extraction_provenance` | — | — |
 | Determinism (16 repeats) | `typed_ast_contract_repeated_parse_is_deterministic` | — | — |
-| Same CST topology (node count, byte ranges) | none | No test compares raw CST node IDs/edges between the two paths | Add test asserting `parse_document().tree()` node count and root byte range match parser internals |
-| GLR-path agreement | none | No test for `parse_document()` vs `parse()` when table has conflicts | Add test using ambiguous grammar asserting GLR `parse_document().ast() == parse()` |
+| Same CST topology (node count, byte ranges) | `document_parse_agreement` non-GLR topology and determinism tests | — | — |
+| GLR-path agreement | `document_parse_agreement` GLR topology and AST agreement tests | — | — |
 | Bad input: both report diagnostics | Diagnostics agreement covered in typed_ast_contract | — | — |
 | Bad input: strict AST extraction refuses recovered doc | none | No test that `parse_document().ast()` on recovered input returns error or refuses extraction by default | Add test: truncated source → document with diagnostics → `ast()` returns error |
 
 **Proof commands:**
 ```bash
 cargo test -p adze --features pure-rust --test typed_ast_contract -- --nocapture
+cargo test -p adze --features pure-rust --test document_parse_agreement -- --nocapture
 cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_e2e_ambiguous_grammar_glr -- --nocapture
+cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test document_parse_agreement -- --nocapture
 ```
 
 ---
@@ -272,7 +274,7 @@ cargo package -p adze-common --allow-dirty
 
 | Surface | Tested aspects | Named gaps | Next canary priority |
 |---------|---------------|------------|---------------------|
-| parse() / parse_document() agreement | 4 | 3 | GLR-path agreement test |
+| parse() / parse_document() agreement | 6 | 1 | Recovered-doc strict AST extraction refusal |
 | AdzeDocument boundaries | 4 | 2 | `source_slice()` boundary test |
 | Edge field metadata | 6 | 3 | Empty field map canary |
 | Diagnostics normalization | 7 | 3 | Byte↔point span agreement |
@@ -283,7 +285,7 @@ cargo package -p adze-common --allow-dirty
 | CLI output truth | 5 | 3 | `adze parse --mode document` test |
 | Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
 | Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **50** | **30** | — |
+| **Total** | **52** | **28** | — |
 
 ---
 
@@ -291,13 +293,14 @@ cargo package -p adze-common --allow-dirty
 
 Each PR adds focused tests for one surface gap. No code changes to production crates.
 
-1. **test(document): prove parse and parse_document agree** — GLR-path agreement, CST topology comparison, recovered-doc rejection
-2. **test(document): prove edge field metadata invariants** — empty field map, missing/error node fields, repeated field iteration
-3. **test(diagnostics): prove expected-token normalization** — byte↔point span agreement, multi-error dedup, diagnostic ordering
-4. **test(diagnostics): cover UTF-8 and EOF recovery spans** — EOF boundary, mixed ASCII/multibyte line counting
-5. **test(ts-compat): prove adapter identity and alias behavior** — ERROR/MISSING S-expression, nested aliases
-6. **test(glr): prove ambiguity summary determinism** — CST-level determinism, fork count stability
-7. **docs: audit README claims against proof map** — no new tests, verify existing proof commands still pass
-8. **benchmarks: classify benchmark inventory** — mark duplicates, document what each bench measures
-9. **release: audit publishable package metadata** — add `just check-publishable` recipe
-10. **release: add 0.9 readiness receipt** — update this map with final gap status
+1. **test(document): prove parse and parse_document agree** — GLR-path agreement and CST topology comparison
+2. **test(document): prove recovered-doc AST refusal** — strict AST extraction refuses recovered diagnostic documents
+3. **test(document): prove edge field metadata invariants** — empty field map, missing/error node fields, repeated field iteration
+4. **test(diagnostics): prove expected-token normalization** — byte↔point span agreement, multi-error dedup, diagnostic ordering
+5. **test(diagnostics): cover UTF-8 and EOF recovery spans** — EOF boundary, mixed ASCII/multibyte line counting
+6. **test(ts-compat): prove adapter identity and alias behavior** — ERROR/MISSING S-expression, nested aliases
+7. **test(glr): prove ambiguity summary determinism** — CST-level determinism, fork count stability
+8. **docs: audit README claims against proof map** — no new tests, verify existing proof commands still pass
+9. **benchmarks: classify benchmark inventory** — mark duplicates, document what each bench measures
+10. **release: audit publishable package metadata** — add `just check-publishable` recipe
+11. **release: add 0.9 readiness receipt** — update this map with final gap status
