@@ -172,7 +172,7 @@ cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_types 
 | Selection reason present and stable | `SelectionReason::StableStructuralTieBreak` asserted | — | — |
 | CST-level determinism (not just AST) | `generated_ambiguous_expr_parse_document_cst_topology_is_deterministic` | — | — |
 | Fork count stability | `generated_ambiguous_expr_runtime_fork_count_is_deterministic` | — | — |
-| Larger ambiguity (3+ alternatives) | none | No test for input producing 3+ structurally distinct parse trees | Add test: grammar with 3-way ambiguity |
+| Larger ambiguity (3+ alternatives) | `generated_ambiguous_expr_glr_runtime_retains_three_or_more_complete_alternatives` | — | — |
 
 **Proof commands:**
 ```bash
@@ -282,12 +282,12 @@ just check-publishable
 | Diagnostics normalization | 9 | 0 | — |
 | UTF-8 / zero-width spans | 7 | 0 | — |
 | ts_compat adapter identity | 8 | 0 | — |
-| Ambiguity determinism | 7 | 1 | Larger ambiguity (3+ alternatives) |
+| Ambiguity determinism | 8 | 0 | — |
 | JSON projection | 7 | 0 | — |
 | CLI output truth | 8 | 0 | — |
 | Benchmarks truth | 4 | 0 | — |
 | Package publishability | 4 | 0 | — |
-| **Total** | **77** | **1** | Larger ambiguity (3+ alternatives) |
+| **Total** | **78** | **0** | — |
 
 ---
 
@@ -302,7 +302,7 @@ Each PR adds focused proof for one surface gap. Test-only PRs are preferred; pro
 5. **test(diagnostics): prove expected-token normalization** — byte↔point span agreement, multi-error dedup, diagnostic ordering
 6. **test(diagnostics): cover UTF-8 and EOF recovery spans** — EOF boundary, mixed ASCII/multibyte line counting
 7. **test(ts-compat): prove adapter identity and alias behavior** — complete
-8. **test(glr): prove ambiguity summary determinism** — larger 3+ alternative ambiguity remains the only named accuracy gap
+8. **test(glr): prove ambiguity summary determinism** — complete
 9. **docs: audit README claims against proof map** — no new tests, verify existing proof commands still pass
 10. **benchmarks: classify benchmark inventory** — complete
 11. **release: audit publishable package metadata** — complete
