@@ -368,7 +368,13 @@ mod tests {
         assert_eq!(gss.active_heads.len(), before_active - 1);
         assert_eq!(gss.completed_heads.len(), before_completed + 1);
         // The head moved to completed should retain its terminal state.
-        assert_eq!(gss.completed_heads.last().unwrap().state, StateId(1));
+        assert_eq!(
+            gss.completed_heads
+                .last()
+                .expect("completed_heads.last() should contain the moved head")
+                .state,
+            StateId(1)
+        );
     }
 
     #[test]
