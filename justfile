@@ -66,22 +66,10 @@ bench-perf:
 snap:
     cargo insta review
 
-supported_crates := "-p adze -p adze-macro -p adze-tool -p adze-common -p adze-ir -p adze-glr-core -p adze-tablegen"
-supported_crate_names := "adze adze-macro adze-tool adze-common adze-ir adze-glr-core adze-tablegen"
-
 # Required PR gate: this is the single supported CI lane for branch protection
 # See docs/status/KNOWN_RED.md; update it whenever ci-supported command targets change.
 ci-supported:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
-    export RUST_TEST_THREADS="${RUST_TEST_THREADS:-2}"
-    for crate in {{supported_crate_names}}; do
-      cargo fmt -p "$crate" -- --check
-    done
-    cargo clippy {{supported_crates}} --all-targets -- -D warnings
-    cargo test {{supported_crates}} --lib --tests --bins -- --test-threads="$RUST_TEST_THREADS"
-    cargo test -p adze-glr-core --features serialization --doc -- --test-threads="$RUST_TEST_THREADS"
+    bash ./scripts/ci-supported.sh
 
 # Candidate product lane for README Stable claims. This is advisory until
 # branch protection explicitly promotes it.
