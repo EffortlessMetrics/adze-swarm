@@ -1,18 +1,15 @@
-//! Parser implementation with Tree-sitter-compatible API
+//! Parser implementation with Tree-sitter-compatible API.
+//!
+//! The parser facade is intentionally small; parsing backends, pure-Rust GLR
+//! state, and `.parsetable` loading live in focused sibling modules.
 
-#[cfg(feature = "glr")]
-use crate::builder::forest_to_tree;
-#[cfg(feature = "glr")]
-use crate::engine::parse_full as engine_parse_full;
-#[cfg(all(feature = "glr", feature = "incremental_glr"))]
-use crate::engine::parse_incremental as engine_parse_incremental;
-use crate::{error::ParseError, language::Language, tree::Tree};
 #[cfg(feature = "pure-rust")]
-#[path = "parser/glr.rs"]
 mod glr;
+mod language_mode;
 #[cfg(all(feature = "pure-rust", feature = "serialization"))]
-#[path = "parser/parsetable.rs"]
 mod parsetable;
+
+use crate::{error::ParseError, language::Language, tree::Tree};
 #[cfg(all(feature = "pure-rust", feature = "serialization"))]
 use adze_parsetable_metadata::ParsetableMetadata;
 #[cfg(feature = "pure-rust")]
@@ -53,7 +50,7 @@ pub struct Parser {
 }
 
 impl Parser {
-    /// Create a new parser
+    /// Create a new parser.
     pub fn new() -> Self {
         Self {
             language: None,
@@ -67,7 +64,7 @@ impl Parser {
         }
     }
 
-    /// Set the language for parsing
+    /// Set the language for parsing.
     ///
     /// In GLR mode, validates that the language provides a parse table and tokenizer.
     pub fn set_language(&mut self, language: Language) -> Result<(), ParseError> {
@@ -96,22 +93,22 @@ impl Parser {
         Ok(())
     }
 
-    /// Get the current language
+    /// Get the current language.
     pub fn language(&self) -> Option<&Language> {
         self.language.as_ref()
     }
 
-    /// Set a timeout for parsing operations
+    /// Set a timeout for parsing operations.
     pub fn set_timeout(&mut self, timeout: Duration) {
         self.timeout = Some(timeout);
     }
 
-    /// Get the current timeout
+    /// Get the current timeout.
     pub fn timeout(&self) -> Option<Duration> {
         self.timeout
     }
 
-    /// Parse the given input text
+    /// Parse the given input text.
     ///
     /// If `old_tree` is provided, performs incremental parsing.
     ///
@@ -119,7 +116,6 @@ impl Parser {
     ///
     /// - If GLR mode is active (`set_glr_table()` was called), uses pure-Rust GLR engine
     /// - Otherwise, uses language-based parsing (`set_language()` was called)
-    ///
     pub fn parse(
         &mut self,
         input: impl AsRef<[u8]>,
@@ -127,28 +123,12 @@ impl Parser {
     ) -> Result<Tree, ParseError> {
         let input = input.as_ref();
 
-        // Route to GLR engine if in pure-Rust GLR mode
         #[cfg(feature = "pure-rust")]
         if self.glr_state.is_some() {
             return self.parse_glr(input, old_tree);
         }
 
-        // Otherwise, use language-based parsing
-        let language_ptr =
-            self.language.as_ref().ok_or(ParseError::no_language())? as *const Language;
-
-        // SAFETY: we only read from the language while holding an immutable reference
-        let language = unsafe { &*language_ptr };
-
-        let tree = if let Some(old) = old_tree {
-            self.parse_incremental(language, input, old)?
-        } else {
-            self.parse_full(language, input)?
-        };
-        let mut tree = tree;
-        tree.set_language(language.clone());
-        tree.set_source(input.to_vec());
-        Ok(tree)
+        self.parse_language(input, old_tree)
     }
 
     /// Parse a UTF-8 string input.
@@ -156,57 +136,6 @@ impl Parser {
     /// Convenience wrapper around [`parse`](Self::parse) that accepts `&str`.
     pub fn parse_utf8(&mut self, input: &str, old_tree: Option<&Tree>) -> Result<Tree, ParseError> {
         self.parse(input.as_bytes(), old_tree)
-    }
-
-    fn parse_full(&mut self, language: &Language, input: &[u8]) -> Result<Tree, ParseError> {
-        #[cfg(feature = "glr")]
-        {
-            let forest = engine_parse_full(language, input)?;
-            Ok(forest_to_tree(forest))
-        }
-
-        #[cfg(not(feature = "glr"))]
-        {
-            let _ = (language, input);
-            Err(ParseError::with_msg("GLR core feature not enabled"))
-        }
-    }
-
-    #[cfg(feature = "incremental_glr")]
-    fn parse_incremental(
-        &mut self,
-        language: &Language,
-        input: &[u8],
-        old_tree: &Tree,
-    ) -> Result<Tree, ParseError> {
-        #[cfg(all(feature = "glr", feature = "incremental_glr"))]
-        {
-            // Optimization: return early if input hasn't changed
-            if let Some(old_src) = old_tree.source_bytes()
-                && old_src == input
-            {
-                return Ok(old_tree.clone());
-            }
-            let forest = engine_parse_incremental(language, input, old_tree)?;
-            Ok(forest_to_tree(forest))
-        }
-
-        #[cfg(not(feature = "glr"))]
-        {
-            let _ = (language, input, old_tree);
-            Err(ParseError::with_msg("GLR core feature not enabled"))
-        }
-    }
-
-    #[cfg(not(feature = "incremental_glr"))]
-    fn parse_incremental(
-        &mut self,
-        language: &Language,
-        input: &[u8],
-        _old_tree: &Tree,
-    ) -> Result<Tree, ParseError> {
-        // Fall back to full parse when incremental is disabled
-        self.parse_full(language, input)
     }
 
     /// Reset the parser state, clearing any internal caches or arenas.
