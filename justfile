@@ -124,6 +124,10 @@ publish-order:
 check-publishable:
     ./scripts/check-publish.sh
 
+# Verify a crate package with local patches for unpublished co-release crates
+package-local crate:
+    ./scripts/package-local-release.sh {{crate}}
+
 # Clean build artifacts
 clean:
     cargo clean

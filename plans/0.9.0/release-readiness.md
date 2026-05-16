@@ -17,7 +17,7 @@ A 0.9.0 release is ready when all of the following are true:
 1. All **Stable** and **Stabilizing** support-tier surfaces have named proof commands that pass.
 2. No **Stable** claim in README lacks a proof command in `SUPPORT_TIERS.md`.
 3. The accuracy proof map has zero "Missing" entries for Stable surfaces.
-4. All publishable crates pass `cargo package --allow-dirty`.
+4. All publishable crates pass package verification. Crates that depend on unpublished co-release siblings use `scripts/package-local-release.sh <crate>` so package verification compiles against the local release surface instead of older crates.io versions.
 5. Benchmarks are classified (real / synthetic / placeholder / duplicate).
 6. `just ci-supported` passes on `main`.
 7. `just ci-product-stable` passes on `main`.
@@ -56,9 +56,9 @@ A 0.9.0 release is ready when all of the following are true:
 | 19 | README claims audit against proof map | covered | `cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exact --nocapture` | #55 |
 | 20 | Benchmark classification inventory | covered | `cargo test -p adze-benchmarks --test verify_fixture_parsing -- --nocapture` | #61 |
 | 21 | Duplicate bench deprecation (glr_performance.rs) | covered | `cargo bench -p adze-benchmarks --no-run`; `cargo test -p adze-benchmarks --test verify_fixture_parsing -- --nocapture` | #62 |
-| 22 | Package publishability — adze | pending | `cargo package -p adze --allow-dirty` | — |
+| 22 | Package publishability — adze | covered | `scripts/package-local-release.sh adze` | #93 |
 | 23 | Package publishability — adze-macro | covered | `cargo package -p adze-macro --allow-dirty` | #58 |
-| 24 | Package publishability — adze-tool | pending | `cargo package -p adze-tool --allow-dirty` | — |
+| 24 | Package publishability — adze-tool | covered | `scripts/package-local-release.sh adze-tool` | #93 |
 | 25 | Package publishability — adze-cli | covered | `cargo package -p adze-cli --allow-dirty` | #90 |
 | 26 | Package publishability — adze-ir | covered | `cargo package -p adze-ir --allow-dirty` | #57 |
 | 27 | Package publishability — adze-glr-core | covered | `cargo package -p adze-glr-core --allow-dirty` | #59 |
@@ -68,8 +68,7 @@ A 0.9.0 release is ready when all of the following are true:
 
 Current package blockers:
 
-- `cargo package -p adze --allow-dirty`: package verification resolves older crates.io governance/support crates that do not expose the runtime parser-selection APIs used by the local `adze` crate.
-- `cargo package -p adze-tool --allow-dirty`: package verification resolves crates.io `adze-tablegen v0.8.0`, which does not export `TypedCstGenerator`.
+- None for the tracked 0.9 release-readiness package checks. `adze` and `adze-tool` require `scripts/package-local-release.sh <crate>` until their matching co-release siblings are published.
 
 ### CI gates
 
