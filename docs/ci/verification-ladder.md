@@ -7,7 +7,7 @@ ladder as its risk pack justifies — no further.
 
 | Lane | Source | Why |
 | --- | --- | --- |
-| `ci-supported` | `just ci-supported` | Format, clippy, tests on the supported crate set |
+| `ci-supported` | `just ci-supported` | Portable workspace format proof, clippy, tests on the supported crate set |
 | PR Gate Success | summary check | One required target for branch protection |
 
 ## Tier 1 – Frontdoor advisory (every PR, non-blocking)

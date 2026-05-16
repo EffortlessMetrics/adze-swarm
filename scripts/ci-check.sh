@@ -9,7 +9,7 @@ echo
 
 # Format check
 echo "→ Checking code formatting..."
-cargo fmt --all -- --check || {
+./scripts/fmt-workspace.sh --check || {
     echo "❌ Format check failed. Run 'cargo fmt' to fix."
     exit 1
 }

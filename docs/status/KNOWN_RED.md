@@ -33,7 +33,7 @@ Support tiers and proof commands for major surfaces are tracked in [`docs/status
 
 `ci-supported` currently checks the **core pipeline** (7 crates: `adze`, `adze-macro`, `adze-tool`, `adze-common`, `adze-ir`, `adze-glr-core`, `adze-tablegen`):
 
-- `cargo fmt --all --check`
+- `scripts/fmt-workspace.sh --check` for the declared workspace-member formatting proof. This replaces the intended `cargo fmt --all --check` release check with per-member invocations so Windows does not fail before rustfmt starts.
 - `cargo clippy` (supported crates, `-D warnings`)
 - `cargo test` (supported crates: lib, tests, bins)
 - `adze-glr-core` doctests with `serialization` feature
