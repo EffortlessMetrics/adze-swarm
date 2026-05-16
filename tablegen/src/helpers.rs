@@ -220,4 +220,50 @@ mod tests {
         // Should still contain EOF
         assert_eq!(indices, vec![0]);
     }
+
+    #[test]
+    fn eof_accepts_or_reduces_returns_false_when_action_table_empty() {
+        let mut parse_table = crate::empty_table!(states: 1, terms: 0, nonterms: 0);
+        let eof_symbol = parse_table.eof_symbol;
+        parse_table.symbol_to_index.clear();
+        parse_table.symbol_to_index.insert(eof_symbol, 0);
+        parse_table.action_table.clear();
+        assert!(!eof_accepts_or_reduces(&parse_table));
+    }
+
+    #[test]
+    fn eof_accepts_or_reduces_returns_false_when_eof_not_in_map() {
+        let mut parse_table = crate::empty_table!(states: 1, terms: 0, nonterms: 0);
+        // Drop the EOF mapping entirely.
+        parse_table.symbol_to_index.clear();
+        assert!(!eof_accepts_or_reduces(&parse_table));
+    }
+
+    #[test]
+    fn eof_accepts_or_reduces_returns_false_when_state0_has_only_shift_on_eof() {
+        let mut parse_table = crate::empty_table!(states: 1, terms: 1, nonterms: 0);
+        let eof_symbol = parse_table.eof_symbol;
+        let eof_idx = parse_table.symbol_to_index[&eof_symbol];
+        // Replace state 0's EOF cell with a Shift only.
+        parse_table.action_table[0][eof_idx] = vec![Action::Shift(adze_ir::StateId(1))];
+        assert!(!eof_accepts_or_reduces(&parse_table));
+    }
+
+    #[test]
+    fn eof_accepts_or_reduces_returns_true_for_accept_on_eof() {
+        let mut parse_table = crate::empty_table!(states: 1, terms: 1, nonterms: 0);
+        let eof_symbol = parse_table.eof_symbol;
+        let eof_idx = parse_table.symbol_to_index[&eof_symbol];
+        parse_table.action_table[0][eof_idx] = vec![Action::Accept];
+        assert!(eof_accepts_or_reduces(&parse_table));
+    }
+
+    #[test]
+    fn eof_accepts_or_reduces_returns_true_for_reduce_on_eof() {
+        let mut parse_table = crate::empty_table!(states: 1, terms: 1, nonterms: 0);
+        let eof_symbol = parse_table.eof_symbol;
+        let eof_idx = parse_table.symbol_to_index[&eof_symbol];
+        parse_table.action_table[0][eof_idx] = vec![Action::Reduce(adze_ir::RuleId(0))];
+        assert!(eof_accepts_or_reduces(&parse_table));
+    }
 }

@@ -283,4 +283,104 @@ mod tests {
         assert_eq!(popped, vec![StateId(2), StateId(3)]);
         assert_eq!(gss.top_state(0), StateId(1));
     }
+
+    #[test]
+    fn stack_node_new_root_has_depth_zero() {
+        let node = StackNode::new(StateId(7), None, None);
+        assert_eq!(node.state, StateId(7));
+        assert_eq!(node.depth, 0);
+        assert!(node.parent.is_none());
+        assert!(node.symbol.is_none());
+    }
+
+    #[test]
+    fn stack_node_new_with_parent_increments_depth() {
+        let root = Rc::new(StackNode::new(StateId(0), None, None));
+        let child = StackNode::new(StateId(1), Some(SymbolId(99)), Some(root.clone()));
+        assert_eq!(child.depth, 1);
+        assert_eq!(child.state, StateId(1));
+        assert_eq!(child.symbol, Some(SymbolId(99)));
+
+        let grandchild = StackNode::new(StateId(2), None, Some(Rc::new(child)));
+        assert_eq!(grandchild.depth, 2);
+    }
+
+    #[test]
+    fn stack_node_get_states_returns_root_first() {
+        let root = Rc::new(StackNode::new(StateId(0), None, None));
+        let mid = Rc::new(StackNode::new(StateId(1), None, Some(root.clone())));
+        let top = StackNode::new(StateId(2), None, Some(mid));
+
+        assert_eq!(top.get_states(), vec![StateId(0), StateId(1), StateId(2)]);
+    }
+
+    #[test]
+    fn stack_node_get_states_single_root() {
+        let only = StackNode::new(StateId(5), None, None);
+        assert_eq!(only.get_states(), vec![StateId(5)]);
+    }
+
+    #[test]
+    fn stack_node_shares_prefix_with_both_roots() {
+        let a = StackNode::new(StateId(0), None, None);
+        let b = StackNode::new(StateId(0), None, None);
+        assert!(a.shares_prefix_with(&b));
+    }
+
+    #[test]
+    fn stack_node_shares_prefix_with_same_parent_rc() {
+        let root = Rc::new(StackNode::new(StateId(0), None, None));
+        let a = StackNode::new(StateId(1), None, Some(root.clone()));
+        let b = StackNode::new(StateId(2), None, Some(root));
+        assert!(a.shares_prefix_with(&b));
+    }
+
+    #[test]
+    fn stack_node_shares_prefix_with_distinct_parents() {
+        let root_a = Rc::new(StackNode::new(StateId(0), None, None));
+        let root_b = Rc::new(StackNode::new(StateId(0), None, None));
+        let a = StackNode::new(StateId(1), None, Some(root_a));
+        let b = StackNode::new(StateId(1), None, Some(root_b));
+        assert!(!a.shares_prefix_with(&b));
+    }
+
+    #[test]
+    fn stack_node_shares_prefix_with_one_root_one_child() {
+        let root = Rc::new(StackNode::new(StateId(0), None, None));
+        let child = StackNode::new(StateId(1), None, Some(root));
+        let other_root = StackNode::new(StateId(0), None, None);
+        assert!(!child.shares_prefix_with(&other_root));
+        assert!(!other_root.shares_prefix_with(&child));
+    }
+
+    #[test]
+    fn mark_completed_moves_head_off_active_list() {
+        let mut gss = GraphStructuredStack::new(StateId(0));
+        gss.push(0, StateId(1), None);
+        let fork = gss.fork_head(0);
+        gss.push(fork, StateId(7), None);
+
+        let before_active = gss.active_heads.len();
+        let before_completed = gss.completed_heads.len();
+
+        gss.mark_completed(0);
+
+        assert_eq!(gss.active_heads.len(), before_active - 1);
+        assert_eq!(gss.completed_heads.len(), before_completed + 1);
+        // The head moved to completed should retain its terminal state.
+        assert_eq!(
+            gss.completed_heads
+                .last()
+                .expect("completed_heads.last() should contain the moved head")
+                .state,
+            StateId(1)
+        );
+    }
+
+    #[test]
+    fn can_merge_returns_false_for_same_index() {
+        let mut gss = GraphStructuredStack::new(StateId(0));
+        gss.push(0, StateId(1), None);
+        assert!(!gss.can_merge(0, 0));
+    }
 }

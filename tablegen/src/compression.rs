@@ -280,4 +280,90 @@ mod tests {
         assert_eq!(decompress_goto(&compressed, 1, 0), Some(StateId(2)));
         assert_eq!(decompress_goto(&compressed, 2, 2), Some(StateId(3)));
     }
+
+    #[test]
+    fn compress_action_table_empty_input_yields_empty_output() {
+        let table: Vec<Vec<Vec<Action>>> = Vec::new();
+        let compressed = compress_action_table(&table);
+        assert!(compressed.unique_rows.is_empty());
+        assert!(compressed.state_to_row.is_empty());
+    }
+
+    #[test]
+    fn compress_action_table_all_distinct_rows_preserved() {
+        let table = vec![
+            vec![vec![Action::Shift(StateId(1))]],
+            vec![vec![Action::Reduce(adze_ir::RuleId(0))]],
+            vec![vec![Action::Accept]],
+        ];
+        let compressed = compress_action_table(&table);
+        assert_eq!(compressed.unique_rows.len(), 3);
+        assert_eq!(compressed.state_to_row, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn decompress_action_returns_error_for_empty_cell() {
+        let table = vec![vec![Vec::<Action>::new()]];
+        let compressed = compress_action_table(&table);
+        assert_eq!(decompress_action(&compressed, 0, 0), Action::Error);
+    }
+
+    #[test]
+    fn compress_goto_table_empty_input_yields_empty_entries() {
+        let table: Vec<Vec<Option<StateId>>> = Vec::new();
+        let compressed = compress_goto_table(&table);
+        assert!(compressed.entries.is_empty());
+        assert_eq!(decompress_goto(&compressed, 0, 0), None);
+    }
+
+    #[test]
+    fn compress_goto_table_all_none_entries_yields_no_storage() {
+        let table = vec![vec![None, None], vec![None, None]];
+        let compressed = compress_goto_table(&table);
+        assert!(compressed.entries.is_empty());
+        assert_eq!(decompress_goto(&compressed, 0, 0), None);
+        assert_eq!(decompress_goto(&compressed, 1, 1), None);
+    }
+
+    #[test]
+    fn decompress_goto_missing_entry_returns_none() {
+        let table = vec![vec![Some(StateId(5)), None]];
+        let compressed = compress_goto_table(&table);
+        // Position present
+        assert_eq!(decompress_goto(&compressed, 0, 0), Some(StateId(5)));
+        // Position absent (no entry recorded)
+        assert_eq!(decompress_goto(&compressed, 0, 1), None);
+        // Out-of-table coordinates
+        assert_eq!(decompress_goto(&compressed, 9, 9), None);
+    }
+
+    #[test]
+    fn bit_packed_table_decompresses_error_cells() {
+        let table = vec![vec![Action::Error, Action::Error]];
+        let packed = BitPackedActionTable::from_table(&table);
+        assert_eq!(packed.decompress(0, 0), Action::Error);
+        assert_eq!(packed.decompress(0, 1), Action::Error);
+    }
+
+    #[test]
+    fn bit_packed_table_decompresses_fork_cell() {
+        let inner = vec![
+            Action::Shift(StateId(3)),
+            Action::Reduce(adze_ir::RuleId(1)),
+        ];
+        let table = vec![vec![Action::Error, Action::Fork(inner.clone())]];
+        let packed = BitPackedActionTable::from_table(&table);
+        match packed.decompress(0, 1) {
+            Action::Fork(actions) => assert_eq!(actions, inner),
+            other => panic!("expected Fork, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn bit_packed_table_empty_table_has_zero_symbols() {
+        let table: Vec<Vec<Action>> = Vec::new();
+        let packed = BitPackedActionTable::from_table(&table);
+        // No cells exist; the symbol count is zero.
+        assert_eq!(packed.symbol_count, 0);
+    }
 }

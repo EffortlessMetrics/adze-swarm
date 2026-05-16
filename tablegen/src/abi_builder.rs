@@ -30,6 +30,11 @@ macro_rules! debug_trace {
     };
 }
 
+// Submodules host the SRP-decomposed helpers used by `generate`.
+// They are declared after `debug_trace!` so the macro is in scope.
+mod code_pieces;
+mod diagnostics;
+
 /// Builder for generating ABI-compatible language structures
 pub struct AbiLanguageBuilder<'a> {
     grammar: &'a Grammar,
@@ -64,49 +69,21 @@ impl<'a> AbiLanguageBuilder<'a> {
         }
     }
 
-    /// Generate the complete language module
+    /// Generate the complete language module.
+    ///
+    /// Orchestrates the SRP-decomposed helpers: diagnostic logging
+    /// (`log_generation_start`, etc.), per-field static-array generators
+    /// (`generate_*` methods), conditional fragment builders
+    /// (`build_external_scanner_pieces`, etc.), and the final
+    /// `TSLanguage` assembly below.
     pub fn generate(&self) -> TokenStream {
         let language_name = &self.grammar.name;
         let language_fn_ident = quote::format_ident!("tree_sitter_{}", language_name);
 
-        debug_trace!(
-            "DEBUG AbiLanguageBuilder: Generating language for '{}'",
-            language_name
-        );
-        debug_trace!("DEBUG AbiLanguageBuilder: symbol_to_index mapping:");
-        for (symbol_id, &index) in &self.parse_table.symbol_to_index {
-            let symbol_name = self.get_symbol_name(*symbol_id);
-            debug_trace!(
-                "  SymbolId({}) -> index {} ('{}')",
-                symbol_id.0,
-                index,
-                symbol_name
-            );
-        }
+        self.log_generation_start(language_name);
+        self.log_state0_actions();
 
-        // Check what the initial state expects
-        if !self.parse_table.action_table.is_empty() {
-            debug_trace!("DEBUG AbiLanguageBuilder: State 0 actions:");
-            for (symbol_idx, action_cell) in self.parse_table.action_table[0].iter().enumerate() {
-                if !action_cell.is_empty() {
-                    // Find the symbol ID for this index
-                    let symbol_id = self
-                        .parse_table
-                        .symbol_to_index
-                        .iter()
-                        .find(|(_, idx)| **idx == symbol_idx)
-                        .map(|(id, _)| *id);
-                    debug_trace!(
-                        "  Index {} (SymbolId {:?}): {:?}",
-                        symbol_idx,
-                        symbol_id,
-                        action_cell
-                    );
-                }
-            }
-        }
-
-        // Generate all static data with deterministic ordering
+        // Generate all static data with deterministic ordering.
         let (symbol_names, symbol_name_ptrs) = self.generate_symbol_names();
         let (field_names, field_name_ptrs) = self.generate_field_names();
         let symbol_metadata = self.generate_symbol_metadata();
@@ -122,57 +99,20 @@ impl<'a> AbiLanguageBuilder<'a> {
         let variant_symbol_map = self.generate_variant_symbol_map();
         let (alias_map, alias_sequences) = self.generate_alias_tables();
 
-        // Generate external scanner data if needed
-        let (external_scanner_code, external_scanner_struct) = if !self.grammar.externals.is_empty()
-        {
-            use crate::external_scanner_v2::ExternalScannerGenerator;
-
-            let scanner_gen =
-                ExternalScannerGenerator::new(self.grammar.clone(), self.parse_table.clone());
-            let scanner_interface = scanner_gen.generate_scanner_interface();
-
-            // Skip generating scanner FFI functions - let grammars provide their own
-            // Grammars with external scanners should implement their own FFI functions
-            let scanner_functions = quote! {};
-
-            let scanner_struct = quote! {
-                ExternalScanner {
-                    states: EXTERNAL_SCANNER_STATES.as_ptr() as *const u8,
-                    symbol_map: EXTERNAL_SCANNER_SYMBOL_MAP.as_ptr(),
-                    create: None,
-                    destroy: None,
-                    scan: None,
-                    serialize: None,
-                    deserialize: None,
-                }
-            };
-
-            (
-                quote! {
-                    #scanner_interface
-                    #scanner_functions
-                },
-                scanner_struct,
-            )
-        } else {
-            (
-                quote! {},
-                quote! {
-                    ExternalScanner {
-                        states: std::ptr::null(),
-                        symbol_map: std::ptr::null(),
-                        create: None,
-                        destroy: None,
-                        scan: None,
-                        serialize: None,
-                        deserialize: None,
-                    }
-                },
-            )
-        };
-
-        // Count elements
+        // Build conditional fragments via the SRP-decomposed helpers.
+        let (external_scanner_code, external_scanner_struct) = self.build_external_scanner_pieces();
         let counts = self.calculate_counts();
+        let alias_pieces = self.build_alias_table_pieces(&counts, &alias_map, &alias_sequences);
+        let field_names_array = self.build_field_names_array(&counts, &field_name_ptrs);
+
+        self.log_lexer_token_mapping(&counts);
+
+        // Generate lexer function with symbol mapping
+        let lexer_code =
+            crate::lexer_gen::generate_lexer(self.grammar, &self.parse_table.symbol_to_index);
+
+        // Bind LanguageCounts fields and alias fragments into named locals so
+        // the `quote!` template below can interpolate them directly.
         let symbol_count = counts.symbol_count;
         let alias_count = counts.alias_count;
         let token_count = counts.token_count;
@@ -182,60 +122,9 @@ impl<'a> AbiLanguageBuilder<'a> {
         let production_id_count = counts.production_id_count;
         let field_count = counts.field_count;
         let max_alias_sequence_length = counts.max_alias_sequence_length;
-        let alias_tables = if alias_count > 0 && max_alias_sequence_length > 0 {
-            quote! {
-                static ALIAS_MAP: &[u16] = &[#(#alias_map),*];
-                static ALIAS_SEQUENCES: &[u16] = &[#(#alias_sequences),*];
-            }
-        } else {
-            quote! {}
-        };
-        let alias_map_ptr = if alias_count > 0 && max_alias_sequence_length > 0 {
-            quote! { ALIAS_MAP.as_ptr() }
-        } else {
-            quote! { std::ptr::null() }
-        };
-        let alias_sequences_ptr = if alias_count > 0 && max_alias_sequence_length > 0 {
-            quote! { ALIAS_SEQUENCES.as_ptr() }
-        } else {
-            quote! { std::ptr::null::<u16>() }
-        };
-
-        // Generate field names array
-        let field_names_array = if field_count == 0 {
-            quote! {
-                static FIELD_NAME_PTRS: [SyncPtr; 0] = [];
-            }
-        } else {
-            quote! {
-                const FIELD_NAME_PTRS_LEN: usize = #field_count as usize;
-                static FIELD_NAME_PTRS: [SyncPtr; FIELD_NAME_PTRS_LEN] = [
-                    #(#field_name_ptrs),*
-                ];
-            }
-        };
-
-        // Debug: Print symbol_to_index mapping for tokens
-        debug_trace!("DEBUG: Symbol to index mapping for lexer generation:");
-        for (sym_id, idx) in &self.parse_table.symbol_to_index {
-            if self.grammar.tokens.contains_key(sym_id) {
-                let token = &self.grammar.tokens[sym_id];
-                debug_trace!(
-                    "  Token '{}' (SymbolId {:?}) -> index {}",
-                    token.name,
-                    sym_id,
-                    idx
-                );
-            }
-        }
-        debug_trace!("DEBUG: token_count = {}", self.parse_table.token_count);
-
-        debug_trace!("DEBUG: token_count = {}", counts.token_count);
-        debug_trace!("DEBUG: symbol_count = {}", counts.symbol_count);
-
-        // Generate lexer function with symbol mapping
-        let lexer_code =
-            crate::lexer_gen::generate_lexer(self.grammar, &self.parse_table.symbol_to_index);
+        let alias_tables = &alias_pieces.tables;
+        let alias_map_ptr = &alias_pieces.map_ptr;
+        let alias_sequences_ptr = &alias_pieces.sequences_ptr;
 
         quote! {
             use adze::pure_parser::{TSLanguage, TSParseAction, TSRule, SyncPtr, TREE_SITTER_LANGUAGE_VERSION, ExternalScanner, TSLexState};
@@ -2021,5 +1910,162 @@ mod tests {
 
         assert_eq!(slices, vec!["0u16", "0u16"]);
         assert_eq!(entries, vec!["0u16"]);
+    }
+
+    // --- SRP helper tests: pin the contracts of the code_pieces helpers ---
+
+    fn minimal_builder_fixture() -> (Grammar, ParseTable) {
+        let mut grammar = Grammar::new("helper_fixture".to_string());
+        let start = SymbolId(1);
+        let t = SymbolId(2);
+        grammar.rule_names.insert(start, "start".to_string());
+        grammar.tokens.insert(
+            t,
+            Token {
+                name: "t".to_string(),
+                pattern: TokenPattern::String("t".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.add_rule(Rule {
+            lhs: start,
+            rhs: vec![Symbol::Terminal(t)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        let table = crate::empty_table!(states: 1, terms: 1, nonterms: 1);
+        (grammar, table)
+    }
+
+    #[test]
+    fn build_external_scanner_pieces_is_null_when_no_externals() {
+        let (grammar, table) = minimal_builder_fixture();
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let (code, struct_lit) = builder.build_external_scanner_pieces();
+
+        assert!(
+            code.is_empty(),
+            "no externals → scanner code block must be empty"
+        );
+        let struct_str = struct_lit.to_string();
+        assert!(
+            struct_str.contains("std :: ptr :: null ()"),
+            "expected null pointer literals in struct, got: {struct_str}"
+        );
+        assert!(!struct_str.contains("EXTERNAL_SCANNER_STATES"));
+    }
+
+    #[test]
+    fn build_external_scanner_pieces_emits_interface_when_externals_present() {
+        let (mut grammar, table) = minimal_builder_fixture();
+        // Inject a minimal external token via the public Grammar API.
+        let ext_id = SymbolId(100);
+        grammar.externals.push(ExternalToken {
+            symbol_id: ext_id,
+            name: "ext_token".to_string(),
+        });
+
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let (code, struct_lit) = builder.build_external_scanner_pieces();
+
+        assert!(
+            !code.is_empty(),
+            "externals present → scanner code block must be non-empty"
+        );
+        assert!(
+            struct_lit.to_string().contains("EXTERNAL_SCANNER_STATES"),
+            "scanner struct must reference EXTERNAL_SCANNER_STATES when externals exist"
+        );
+    }
+
+    #[test]
+    fn build_alias_table_pieces_falls_back_to_null_when_empty() {
+        let (grammar, table) = minimal_builder_fixture();
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let counts = builder.calculate_counts();
+        let pieces = builder.build_alias_table_pieces(&counts, &[], &[]);
+
+        assert!(pieces.tables.is_empty(), "empty alias case → no tables");
+        assert!(
+            pieces.map_ptr.to_string().contains("null"),
+            "expected null map_ptr, got: {}",
+            pieces.map_ptr
+        );
+        assert!(
+            pieces.sequences_ptr.to_string().contains("null"),
+            "expected null sequences_ptr, got: {}",
+            pieces.sequences_ptr
+        );
+    }
+
+    #[test]
+    fn build_alias_table_pieces_emits_statics_when_aliases_present() {
+        let (grammar, table) = minimal_builder_fixture();
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        // Synthesize counts that drive the "has aliases" branch.
+        let counts = LanguageCounts {
+            symbol_count: 1,
+            alias_count: 1,
+            token_count: 1,
+            external_token_count: 0,
+            state_count: 1,
+            large_state_count: 0,
+            production_id_count: 1,
+            field_count: 0,
+            max_alias_sequence_length: 1,
+        };
+        let map_token: TokenStream = quote! { 7u16 };
+        let seq_token: TokenStream = quote! { 9u16 };
+        let pieces = builder.build_alias_table_pieces(&counts, &[map_token], &[seq_token]);
+
+        let tables_str = pieces.tables.to_string();
+        assert!(
+            tables_str.contains("ALIAS_MAP") && tables_str.contains("ALIAS_SEQUENCES"),
+            "tables must declare both alias statics, got: {tables_str}"
+        );
+        assert_eq!(pieces.map_ptr.to_string(), "ALIAS_MAP . as_ptr ()");
+        assert_eq!(
+            pieces.sequences_ptr.to_string(),
+            "ALIAS_SEQUENCES . as_ptr ()"
+        );
+    }
+
+    #[test]
+    fn build_field_names_array_uses_zero_sized_when_no_fields() {
+        let (grammar, table) = minimal_builder_fixture();
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let counts = builder.calculate_counts();
+        let decl = builder.build_field_names_array(&counts, &[]);
+        let decl_str = decl.to_string();
+
+        assert!(decl_str.contains("FIELD_NAME_PTRS"));
+        assert!(
+            decl_str.contains("[SyncPtr ; 0]"),
+            "no fields → zero-sized array literal, got: {decl_str}"
+        );
+        assert!(!decl_str.contains("FIELD_NAME_PTRS_LEN"));
+    }
+
+    #[test]
+    fn build_field_names_array_uses_const_len_when_fields_present() {
+        let (mut grammar, table) = minimal_builder_fixture();
+        grammar.fields.insert(FieldId(0), "a".to_string());
+        grammar.fields.insert(FieldId(1), "b".to_string());
+
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let counts = builder.calculate_counts();
+        let ptrs = vec![
+            quote! { SyncPtr::new(FIELD_NAME_0.as_ptr()) },
+            quote! { SyncPtr::new(FIELD_NAME_1.as_ptr()) },
+        ];
+        let decl = builder.build_field_names_array(&counts, &ptrs);
+        let decl_str = decl.to_string();
+
+        assert!(decl_str.contains("FIELD_NAME_PTRS_LEN"));
+        assert!(decl_str.contains("2u32 as usize"));
+        assert!(decl_str.contains("FIELD_NAME_0"));
+        assert!(decl_str.contains("FIELD_NAME_1"));
     }
 }

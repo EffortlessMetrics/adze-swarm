@@ -196,6 +196,66 @@ mod tests {
     }
 
     #[test]
+    fn token_precedence_missing_returns_none() {
+        let grammar = Grammar::new("empty".to_string());
+        let resolver = StaticPrecedenceResolver::from_grammar(&grammar);
+        assert!(resolver.token_precedence(SymbolId(0)).is_none());
+        assert!(resolver.token_precedence(SymbolId(42)).is_none());
+    }
+
+    #[test]
+    fn rule_precedence_missing_returns_none() {
+        let grammar = Grammar::new("empty".to_string());
+        let resolver = StaticPrecedenceResolver::from_grammar(&grammar);
+        assert!(resolver.rule_precedence(RuleId(0)).is_none());
+        assert!(resolver.rule_precedence(RuleId(7)).is_none());
+    }
+
+    #[test]
+    fn from_grammar_empty_grammar_produces_empty_resolver() {
+        let grammar = Grammar::new("empty".to_string());
+        let resolver = StaticPrecedenceResolver::from_grammar(&grammar);
+        assert!(resolver.token_precedence(SymbolId(0)).is_none());
+        assert!(resolver.rule_precedence(RuleId(0)).is_none());
+    }
+
+    #[test]
+    fn compare_precedences_none_inputs_yield_no_decision() {
+        let some = PrecedenceInfo {
+            level: 1,
+            associativity: Associativity::Left,
+            is_fragile: false,
+        };
+        assert_eq!(
+            compare_precedences(None, Some(some)),
+            PrecedenceComparison::None
+        );
+        assert_eq!(
+            compare_precedences(Some(some), None),
+            PrecedenceComparison::None
+        );
+        assert_eq!(compare_precedences(None, None), PrecedenceComparison::None);
+    }
+
+    #[test]
+    fn compare_precedences_higher_reduce_wins() {
+        let shift = PrecedenceInfo {
+            level: 1,
+            associativity: Associativity::Left,
+            is_fragile: false,
+        };
+        let reduce = PrecedenceInfo {
+            level: 5,
+            associativity: Associativity::Left,
+            is_fragile: false,
+        };
+        assert_eq!(
+            compare_precedences(Some(shift), Some(reduce)),
+            PrecedenceComparison::PreferReduce
+        );
+    }
+
+    #[test]
     fn test_precedence_extraction() {
         let mut grammar = Grammar::new("test".to_string());
 
