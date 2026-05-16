@@ -115,6 +115,27 @@ fn generated_parse_document_diagnostics_preserve_expected_tokens() {
 }
 
 #[test]
+fn generated_parse_document_diagnostics_byte_and_point_ranges_agree() {
+    let cases = ["1 +", "1 + \u{03bb}", "1 +\n@"];
+
+    for source in cases {
+        let document = adze_example::typed_ast_contract::grammar::parse_document(source)
+            .expect("generated parse_document helper should return partial parse facts");
+        let diagnostic = document
+            .diagnostics()
+            .first()
+            .unwrap_or_else(|| panic!("source {source:?} should produce a diagnostic"));
+        let expected_point_range =
+            adze::document::PointRange::from_byte_range(source, diagnostic.byte_span());
+
+        assert_eq!(
+            diagnostic.point_range, expected_point_range,
+            "diagnostic point range should describe the same source span as its byte range for {source:?}"
+        );
+    }
+}
+
+#[test]
 fn generated_parse_document_diagnostics_include_multibyte_byte_span() {
     let source = "1 + \u{03bb}";
     let document = adze_example::typed_ast_contract::grammar::parse_document(source)
