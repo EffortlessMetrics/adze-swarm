@@ -75,9 +75,9 @@ cargo test -p adze --features "pure-rust,serialization" --test adze_document_jso
 | Node field IDs match language field IDs | `node_field_ids_match_language_field_ids` | — | — |
 | Typed CST generated accessors agree with generic CST | `generated_parse_document_helper_feeds_generated_syntax_module` | — | — |
 | Fielded-struct fields survive Rust expansion → ABI → edge metadata | Covered in typed_cst_generated_document | — | — |
-| Empty field map (grammar with zero fields) | none | No test for grammar with no fields | Add canary: zero-field grammar → `field_count() == 0`, all lookups return None |
+| Empty field map (grammar with zero fields) | `parse_document_empty_field_map_has_no_edge_fields` | — | — |
 | Field values on missing/error nodes | none | No test for field lookup when child is ERROR or MISSING | Add test: error node → `child_by_field_name()` behavior |
-| Repeated field (multiple children with same field name) | none | No test for repeated field iteration | Add test: grammar with repeat field → iterator returns all children |
+| Repeated field (multiple children with same field name) | `parse_document_repeated_field_edges_remain_iterable` | — | — |
 
 **Proof commands:**
 ```bash
@@ -276,7 +276,7 @@ cargo package -p adze-common --allow-dirty
 |---------|---------------|------------|---------------------|
 | parse() / parse_document() agreement | 7 | 0 | — |
 | AdzeDocument boundaries | 6 | 0 | — |
-| Edge field metadata | 6 | 3 | Empty field map canary |
+| Edge field metadata | 8 | 1 | Field values on missing/error nodes |
 | Diagnostics normalization | 7 | 3 | Byte↔point span agreement |
 | UTF-8 / zero-width spans | 5 | 2 | EOF boundary error test |
 | ts_compat adapter identity | 6 | 3 | ERROR/MISSING in S-expression |
@@ -285,7 +285,7 @@ cargo package -p adze-common --allow-dirty
 | CLI output truth | 5 | 3 | `adze parse --mode document` test |
 | Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
 | Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **55** | **25** | — |
+| **Total** | **57** | **23** | — |
 
 ---
 
@@ -296,7 +296,7 @@ Each PR adds focused tests for one surface gap. No code changes to production cr
 1. **test(document): prove parse and parse_document agree** — GLR-path agreement and CST topology comparison
 2. **test(document): prove recovered-doc AST refusal** — strict AST extraction refuses recovered diagnostic documents through document AST entry points
 3. **test(document): cover document boundary canaries** — UTF-8 `source_slice()` boundaries and empty clean-node diagnostics
-4. **test(document): prove edge field metadata invariants** — empty field map, missing/error node fields, repeated field iteration
+4. **test(document): prove edge field metadata invariants** — empty field map and repeated field iteration
 5. **test(diagnostics): prove expected-token normalization** — byte↔point span agreement, multi-error dedup, diagnostic ordering
 6. **test(diagnostics): cover UTF-8 and EOF recovery spans** — EOF boundary, mixed ASCII/multibyte line counting
 7. **test(ts-compat): prove adapter identity and alias behavior** — ERROR/MISSING S-expression, nested aliases
