@@ -1,8 +1,9 @@
 # Adze 0.9.0 Contract Convergence Implementation Plan
 
-Status: active
+Status: complete
 Owner: Adze maintainers
 Created: 2026-05-12
+Completed: 2026-05-16
 Linked proposal: ../../docs/proposals/ADZE-PROP-0001-0.9-contract-convergence.md
 Linked specs:
 - ../../docs/specs/ADZE-SPEC-0001-package-surface-boundary.md
@@ -12,6 +13,7 @@ Linked ADRs:
 - ../../docs/adr/ADZE-ADR-0002-no-durable-unpublished-production-crates.md
 Active goal: ../../.adze/goals/active.toml
 Support-tier map: ../../docs/status/SUPPORT_TIERS.md
+Closeout: ./closeout.md
 
 ## Campaign Goal
 
@@ -45,6 +47,9 @@ the package-boundary release gate is expected to stay green. The API foundation
 spec stack is tracked separately in `api-foundation.md`. It encodes the
 runtime/API build sequence so follow-up implementation PRs can be executed from
 source-of-truth artifacts rather than chat history.
+
+The 0.9 contract-convergence campaign is now closed out in `closeout.md`; this
+plan remains as the historical work queue and proof-command index.
 
 ## Work Item: source-of-truth-scaffolding
 
@@ -483,12 +488,13 @@ Revert the MSRV bump PR.
 
 ## Work Item: clippy-policy-refresh
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0001-0.9-contract-convergence.md
 Linked spec:
 Linked ADR:
 Blocks: product-proof-refresh
 Blocked by: none
+PR: #762
 
 ### Goal
 
@@ -537,12 +543,13 @@ Revert the lint policy PR and any mechanical fixes tied only to that promotion.
 
 ## Work Item: product-proof-refresh
 
-Status: active
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0001-0.9-contract-convergence.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR:
 Blocks: 0.9-closeout
 Blocked by: none
+PR: #763
 
 ### Goal
 
