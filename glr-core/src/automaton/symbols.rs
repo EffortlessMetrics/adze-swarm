@@ -143,3 +143,285 @@ pub(super) fn build_nonterminal_to_index(
     }
     nonterminal_to_index
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn token(name: &str) -> Token {
+        Token {
+            name: name.to_string(),
+            pattern: TokenPattern::Regex("x".to_string()),
+            fragile: false,
+        }
+    }
+
+    fn rule_with_rhs(lhs: SymbolId, rhs: Vec<Symbol>, production_id: ProductionId) -> Rule {
+        Rule {
+            lhs,
+            rhs,
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id,
+        }
+    }
+
+    #[test]
+    fn partitions_collect_empty_grammar_has_eof_at_one() {
+        // An empty grammar has max_symbol = 0 (the unwrap_or fallback), so eof = SymbolId(1).
+        let grammar = Grammar::new("empty".to_string());
+        let parts = SymbolPartitions::collect(&grammar).expect("collect should succeed");
+        assert!(parts.nonterminal_symbols.is_empty());
+        assert!(parts.external_symbols.is_empty());
+        assert!(parts.rhs_terminals.is_empty());
+        assert_eq!(parts.max_symbol, 0);
+        assert_eq!(parts.eof_symbol, SymbolId(1));
+    }
+
+    #[test]
+    fn partitions_collect_picks_max_symbol_across_pools() {
+        let mut grammar = Grammar::new("g".to_string());
+        grammar.tokens.insert(SymbolId(3), token("t"));
+        grammar.rules.insert(
+            SymbolId(10),
+            vec![rule_with_rhs(
+                SymbolId(10),
+                vec![Symbol::Terminal(SymbolId(3))],
+                ProductionId(0),
+            )],
+        );
+        grammar.rule_names.insert(SymbolId(10), "r".to_string());
+        grammar.externals.push(ExternalToken {
+            name: "e".to_string(),
+            symbol_id: SymbolId(7),
+        });
+
+        let parts = SymbolPartitions::collect(&grammar).expect("collect should succeed");
+        assert_eq!(parts.max_symbol, 10);
+        assert_eq!(parts.eof_symbol, SymbolId(11));
+        assert!(parts.nonterminal_symbols.contains(&SymbolId(10)));
+        assert!(parts.external_symbols.contains(&SymbolId(7)));
+        assert!(parts.rhs_terminals.contains(&SymbolId(3)));
+    }
+
+    #[test]
+    fn partitions_collect_ignores_nonterminal_symbols_in_rhs_terminals() {
+        let mut grammar = Grammar::new("g".to_string());
+        grammar.rules.insert(
+            SymbolId(2),
+            vec![rule_with_rhs(
+                SymbolId(2),
+                vec![
+                    Symbol::NonTerminal(SymbolId(2)),
+                    Symbol::External(SymbolId(5)),
+                ],
+                ProductionId(0),
+            )],
+        );
+
+        let parts = SymbolPartitions::collect(&grammar).expect("collect should succeed");
+        // Only Symbol::Terminal contributions show up in rhs_terminals.
+        assert!(parts.rhs_terminals.is_empty());
+    }
+
+    #[test]
+    fn partitions_collect_errors_when_eof_overflows_u16() {
+        let mut grammar = Grammar::new("g".to_string());
+        // max_symbol becomes u16::MAX => eof = MAX + 1 => overflow.
+        grammar.tokens.insert(SymbolId(u16::MAX), token("max"));
+
+        match SymbolPartitions::collect(&grammar) {
+            Err(GLRError::StateMachine(msg)) => assert!(
+                msg.contains("overflow"),
+                "expected overflow message, got: {msg}"
+            ),
+            Err(other) => panic!("unexpected error: {other:?}"),
+            Ok(_) => panic!("collect should fail on u16 overflow"),
+        }
+    }
+
+    #[test]
+    fn build_symbol_index_places_eof_at_zero() {
+        let mut grammar = Grammar::new("g".to_string());
+        grammar.tokens.insert(SymbolId(1), token("a"));
+        let parts = SymbolPartitions::collect(&grammar).expect("collect");
+
+        let idx = build_symbol_index(&grammar, &parts).expect("build index");
+        assert_eq!(idx.symbol_to_index.get(&parts.eof_symbol), Some(&0));
+    }
+
+    #[test]
+    fn build_symbol_index_orders_internal_then_external_then_nonterminal() {
+        let mut grammar = Grammar::new("g".to_string());
+        // Internal terminals from tokens: SymbolId(3), SymbolId(5).
+        grammar.tokens.insert(SymbolId(3), token("a"));
+        grammar.tokens.insert(SymbolId(5), token("b"));
+        // Nonterminal: SymbolId(10).
+        grammar.rules.insert(
+            SymbolId(10),
+            vec![rule_with_rhs(SymbolId(10), vec![], ProductionId(0))],
+        );
+        // External: SymbolId(20).
+        grammar.externals.push(ExternalToken {
+            name: "ext".to_string(),
+            symbol_id: SymbolId(20),
+        });
+
+        let parts = SymbolPartitions::collect(&grammar).expect("collect");
+        let idx = build_symbol_index(&grammar, &parts).expect("build index");
+
+        // EOF at 0, then internal terminals sorted (3, 5), then externals (20), then NT (10).
+        assert_eq!(idx.symbol_to_index.get(&parts.eof_symbol), Some(&0));
+        assert_eq!(idx.symbol_to_index.get(&SymbolId(3)), Some(&1));
+        assert_eq!(idx.symbol_to_index.get(&SymbolId(5)), Some(&2));
+        assert_eq!(idx.symbol_to_index.get(&SymbolId(20)), Some(&3));
+        assert_eq!(idx.symbol_to_index.get(&SymbolId(10)), Some(&4));
+
+        assert_eq!(idx.internal_tokens, vec![SymbolId(3), SymbolId(5)]);
+        assert_eq!(idx.ext_tokens, vec![SymbolId(20)]);
+    }
+
+    #[test]
+    fn build_symbol_index_removes_externals_and_nonterminals_from_internals() {
+        let mut grammar = Grammar::new("g".to_string());
+        // SymbolId(4) appears both as a token AND as an external — externals win.
+        grammar.tokens.insert(SymbolId(4), token("dup"));
+        grammar.externals.push(ExternalToken {
+            name: "dup".to_string(),
+            symbol_id: SymbolId(4),
+        });
+        // SymbolId(6) is a nonterminal that happens to also have a token entry.
+        grammar.tokens.insert(SymbolId(6), token("nt_token"));
+        grammar.rules.insert(
+            SymbolId(6),
+            vec![rule_with_rhs(SymbolId(6), vec![], ProductionId(0))],
+        );
+
+        let parts = SymbolPartitions::collect(&grammar).expect("collect");
+        let idx = build_symbol_index(&grammar, &parts).expect("build index");
+
+        // Internal terminals are empty: both candidates were removed.
+        assert!(idx.internal_tokens.is_empty());
+        assert_eq!(idx.ext_tokens, vec![SymbolId(4)]);
+        // SymbolId(6) lives in symbol_to_index as a nonterminal entry.
+        assert!(idx.symbol_to_index.contains_key(&SymbolId(6)));
+    }
+
+    #[test]
+    fn build_symbol_index_picks_up_rhs_terminals_not_in_tokens() {
+        let mut grammar = Grammar::new("g".to_string());
+        // SymbolId(8) is only referenced via Symbol::Terminal on an RHS.
+        grammar.rules.insert(
+            SymbolId(2),
+            vec![rule_with_rhs(
+                SymbolId(2),
+                vec![Symbol::Terminal(SymbolId(8))],
+                ProductionId(0),
+            )],
+        );
+
+        let parts = SymbolPartitions::collect(&grammar).expect("collect");
+        let idx = build_symbol_index(&grammar, &parts).expect("build index");
+
+        assert!(idx.internal_tokens.contains(&SymbolId(8)));
+        assert!(idx.symbol_to_index.contains_key(&SymbolId(8)));
+    }
+
+    #[test]
+    fn build_symbol_index_errors_on_rule_name_outside_partitions() {
+        // rule_names entry that is NOT a nonterminal, terminal, or external triggers
+        // the StateMachine error path.
+        let mut grammar = Grammar::new("g".to_string());
+        grammar
+            .rule_names
+            .insert(SymbolId(50), "orphan".to_string());
+
+        let parts = SymbolPartitions::collect(&grammar).expect("collect");
+        match build_symbol_index(&grammar, &parts) {
+            Err(GLRError::StateMachine(msg)) => assert!(
+                msg.contains("Unexpected symbols"),
+                "expected unexpected-symbols message, got: {msg}"
+            ),
+            Err(other) => panic!("unexpected error: {other:?}"),
+            Ok(_) => panic!("expected StateMachine error for orphan rule name"),
+        }
+    }
+
+    #[test]
+    fn build_reverse_symbol_index_empty_map_yields_empty_vec() {
+        let map: BTreeMap<SymbolId, usize> = BTreeMap::new();
+        let result = build_reverse_symbol_index(&map);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn build_reverse_symbol_index_inverts_mapping() {
+        let mut map: BTreeMap<SymbolId, usize> = BTreeMap::new();
+        map.insert(SymbolId(7), 0);
+        map.insert(SymbolId(3), 2);
+        map.insert(SymbolId(11), 1);
+
+        let result = build_reverse_symbol_index(&map);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], SymbolId(7));
+        assert_eq!(result[1], SymbolId(11));
+        assert_eq!(result[2], SymbolId(3));
+    }
+
+    #[test]
+    fn build_reverse_symbol_index_fills_gaps_with_max_sentinel() {
+        // Length comes from map.len(); indices outside the range stay at the sentinel.
+        let mut map: BTreeMap<SymbolId, usize> = BTreeMap::new();
+        map.insert(SymbolId(1), 0);
+        map.insert(SymbolId(2), 2); // skip index 1 inside a len-3 vector
+        // Boost len to 3 with another mapping at index 1 missing -> sentinel.
+        // Map has 2 entries -> len 2, so the index-2 write would panic. Use three entries.
+        map.insert(SymbolId(3), 1);
+        let result = build_reverse_symbol_index(&map);
+        assert_eq!(result[0], SymbolId(1));
+        assert_eq!(result[1], SymbolId(3));
+        assert_eq!(result[2], SymbolId(2));
+    }
+
+    #[test]
+    fn build_nonterminal_to_index_empty_inputs_yield_empty_map() {
+        let map: BTreeMap<SymbolId, usize> = BTreeMap::new();
+        let nts: BTreeSet<SymbolId> = BTreeSet::new();
+        let result = build_nonterminal_to_index(&map, &nts);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn build_nonterminal_to_index_filters_out_non_nonterminals() {
+        let mut map: BTreeMap<SymbolId, usize> = BTreeMap::new();
+        map.insert(SymbolId(1), 0); // terminal
+        map.insert(SymbolId(2), 1); // nonterminal
+        map.insert(SymbolId(3), 2); // terminal
+        map.insert(SymbolId(4), 3); // nonterminal
+
+        let mut nts: BTreeSet<SymbolId> = BTreeSet::new();
+        nts.insert(SymbolId(2));
+        nts.insert(SymbolId(4));
+
+        let result = build_nonterminal_to_index(&map, &nts);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result.get(&SymbolId(2)), Some(&1));
+        assert_eq!(result.get(&SymbolId(4)), Some(&3));
+        assert!(!result.contains_key(&SymbolId(1)));
+        assert!(!result.contains_key(&SymbolId(3)));
+    }
+
+    #[test]
+    fn build_nonterminal_to_index_ignores_unmapped_nonterminals() {
+        // A nonterminal listed but not in symbol_to_index is silently skipped.
+        let mut map: BTreeMap<SymbolId, usize> = BTreeMap::new();
+        map.insert(SymbolId(1), 0);
+
+        let mut nts: BTreeSet<SymbolId> = BTreeSet::new();
+        nts.insert(SymbolId(99)); // not in map
+
+        let result = build_nonterminal_to_index(&map, &nts);
+        assert!(result.is_empty());
+    }
+}
