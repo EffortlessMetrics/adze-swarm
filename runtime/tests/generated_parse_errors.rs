@@ -1,4 +1,5 @@
 use adze::errors::ParseErrorReason;
+use std::collections::HashSet;
 use std::ops::Range;
 
 #[test]
@@ -645,6 +646,131 @@ fn generated_typed_parser_bad_inputs_return_errors_without_panicking() {
             !errors.is_empty(),
             "generated parser should return at least one structured error for {label}"
         );
+    }
+}
+
+#[test]
+fn generated_parser_multi_error_diagnostics_are_ordered() {
+    struct Case {
+        label: &'static str,
+        source: &'static str,
+        parse: fn(&str) -> Result<(), Vec<adze::errors::ParseError>>,
+    }
+
+    let cases = [
+        Case {
+            label: "typed AST contract repeated bad tokens",
+            source: "1 + @ @",
+            parse: |source| {
+                adze_example::typed_ast_contract::grammar::parse(source)
+                    .map(|_: adze_example::typed_ast_contract::grammar::Expr| ())
+            },
+        },
+        Case {
+            label: "fielded precedence repeated bad tokens",
+            source: "1+@+@",
+            parse: |source| {
+                adze_example::fielded_precedence_typed_cst_contract::grammar::parse(source)
+                    .map(|_: adze_example::fielded_precedence_typed_cst_contract::grammar::Expr| ())
+            },
+        },
+        Case {
+            label: "object-like repeated structural errors",
+            source: "{ name 1\n other nope",
+            parse: |source| {
+                adze_example::object_like_contract::grammar::parse(source)
+                    .map(|_: adze_example::object_like_contract::grammar::Object| ())
+            },
+        },
+    ];
+
+    for case in cases {
+        let errors = match (case.parse)(case.source) {
+            Ok(()) => panic!("{} should fail", case.label),
+            Err(errors) => errors,
+        };
+        assert!(
+            errors.len() > 1,
+            "{} should exercise a multi-error diagnostic vector, got {:?}",
+            case.label,
+            errors
+        );
+
+        for pair in errors.windows(2) {
+            let previous = &pair[0];
+            let next = &pair[1];
+            assert!(
+                (previous.start, previous.end) <= (next.start, next.end),
+                "{} diagnostics should be ordered by byte span, got {:?} before {:?}",
+                case.label,
+                previous.byte_span(),
+                next.byte_span()
+            );
+        }
+    }
+}
+
+#[test]
+fn generated_parser_multi_error_diagnostics_are_not_duplicated() {
+    struct Case {
+        label: &'static str,
+        source: &'static str,
+        parse: fn(&str) -> Result<(), Vec<adze::errors::ParseError>>,
+    }
+
+    let cases = [
+        Case {
+            label: "typed AST contract repeated bad tokens",
+            source: "@ + @",
+            parse: |source| {
+                adze_example::typed_ast_contract::grammar::parse(source)
+                    .map(|_: adze_example::typed_ast_contract::grammar::Expr| ())
+            },
+        },
+        Case {
+            label: "CSV repeated delimiter errors",
+            source: ", ,",
+            parse: |source| {
+                adze_example::csv_list::grammar::parse(source)
+                    .map(|_: adze_example::csv_list::grammar::CsvList| ())
+            },
+        },
+        Case {
+            label: "object-like repeated structural errors",
+            source: "{ name 1 bad }",
+            parse: |source| {
+                adze_example::object_like_contract::grammar::parse(source)
+                    .map(|_: adze_example::object_like_contract::grammar::Object| ())
+            },
+        },
+    ];
+
+    for case in cases {
+        let errors = match (case.parse)(case.source) {
+            Ok(()) => panic!("{} should fail", case.label),
+            Err(errors) => errors,
+        };
+        assert!(
+            errors.len() > 1,
+            "{} should exercise a multi-error diagnostic vector, got {:?}",
+            case.label,
+            errors
+        );
+
+        let mut seen = HashSet::new();
+        for error in errors {
+            let key = (
+                error.start,
+                error.end,
+                format!("{:?}", error.reason),
+                error.expected,
+            );
+            assert!(
+                seen.insert(key),
+                "{} should not report duplicate diagnostics at the same span with the same reason and expectations",
+                case.label
+            );
+        }
     }
 }
 

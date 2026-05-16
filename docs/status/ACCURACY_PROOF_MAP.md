@@ -100,8 +100,8 @@ cargo test -p adze --features pure-rust --test typed_cst_generated_document -- -
 | Source excerpt with caret marker | Covered in error_display_tests | — | — |
 | No internal symbol leaks in Display | Covered in error_display_tests | — | — |
 | Byte↔point span consistency | `generated_parse_document_diagnostics_byte_and_point_ranges_agree` | — | — |
-| Multi-error deduplication | none | No test that the same diagnostic doesn't appear twice for one parse | Add test: grammar that triggers same error at same position → single diagnostic |
-| Diagnostic ordering | none | No test that diagnostics are sorted by byte position | Add test: multiple errors → diagnostics ordered by start byte |
+| Multi-error deduplication | `generated_parser_multi_error_diagnostics_are_not_duplicated` | — | — |
+| Diagnostic ordering | `generated_parser_multi_error_diagnostics_are_ordered` | — | — |
 
 **Proof commands:**
 ```bash
@@ -277,7 +277,7 @@ cargo package -p adze-common --allow-dirty
 | parse() / parse_document() agreement | 7 | 0 | — |
 | AdzeDocument boundaries | 6 | 0 | — |
 | Edge field metadata | 8 | 1 | Field values on missing/error nodes |
-| Diagnostics normalization | 8 | 2 | Multi-error deduplication |
+| Diagnostics normalization | 10 | 0 | — |
 | UTF-8 / zero-width spans | 5 | 2 | EOF boundary error test |
 | ts_compat adapter identity | 6 | 3 | ERROR/MISSING in S-expression |
 | Ambiguity determinism | 5 | 3 | CST-level determinism test |
@@ -285,7 +285,7 @@ cargo package -p adze-common --allow-dirty
 | CLI output truth | 5 | 3 | `adze parse --mode document` test |
 | Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
 | Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **58** | **22** | — |
+| **Total** | **60** | **20** | — |
 
 ---
 
