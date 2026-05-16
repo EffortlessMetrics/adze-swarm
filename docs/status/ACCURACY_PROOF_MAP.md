@@ -76,13 +76,14 @@ cargo test -p adze --features "pure-rust,serialization" --test adze_document_jso
 | Typed CST generated accessors agree with generic CST | `generated_parse_document_helper_feeds_generated_syntax_module` | — | — |
 | Fielded-struct fields survive Rust expansion → ABI → edge metadata | Covered in typed_cst_generated_document | — | — |
 | Empty field map (grammar with zero fields) | `parse_document_empty_field_map_has_no_edge_fields` | — | — |
-| Field values on missing/error nodes | none | No test for field lookup when child is ERROR or MISSING | Add test: error node → `child_by_field_name()` behavior |
+| Field values on missing/error nodes | `document::tests::field_lookup_resolves_missing_error_child` | — | — |
 | Repeated field (multiple children with same field name) | `parse_document_repeated_field_edges_remain_iterable` | — | — |
 
 **Proof commands:**
 ```bash
 cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_language_fields -- --nocapture
 cargo test -p adze --features pure-rust --test typed_cst_generated_document -- --nocapture
+cargo test -p adze --lib --features "pure-rust,ts-compat" document::tests::field_lookup_resolves_missing_error_child -- --exact --nocapture
 ```
 
 ---
@@ -278,7 +279,7 @@ cargo package -p adze-common --allow-dirty
 |---------|---------------|------------|---------------------|
 | parse() / parse_document() agreement | 7 | 0 | — |
 | AdzeDocument boundaries | 6 | 0 | — |
-| Edge field metadata | 8 | 1 | Field values on missing/error nodes |
+| Edge field metadata | 9 | 0 | — |
 | Diagnostics normalization | 10 | 0 | — |
 | UTF-8 / zero-width spans | 7 | 0 | — |
 | ts_compat adapter identity | 9 | 0 | — |
@@ -287,7 +288,7 @@ cargo package -p adze-common --allow-dirty
 | CLI output truth | 5 | 3 | `adze parse --mode document` test |
 | Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
 | Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **69** | **11** | — |
+| **Total** | **70** | **10** | — |
 
 ---
 
