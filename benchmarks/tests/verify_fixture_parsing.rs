@@ -103,6 +103,68 @@ fn readme_inventory_names() -> Vec<String> {
     names
 }
 
+fn benchmark_metadata_field(name: &str, field: &str) -> Option<String> {
+    let mut in_metadata = false;
+
+    for line in BENCHMARK_CARGO_TOML.lines() {
+        let trimmed = line.trim();
+        if trimmed == "[package.metadata.bench-classification]" {
+            in_metadata = true;
+            continue;
+        }
+        if in_metadata && trimmed.starts_with('[') {
+            break;
+        }
+        if !in_metadata {
+            continue;
+        }
+
+        let Some((row_name, metadata)) = trimmed.split_once(" = ") else {
+            continue;
+        };
+        if row_name.trim() != name {
+            continue;
+        }
+
+        let inline_table = metadata
+            .trim()
+            .trim_start_matches('{')
+            .trim_end_matches('}');
+        for part in inline_table.split(',') {
+            let Some((key, value)) = part.split_once(" = ") else {
+                continue;
+            };
+            if key.trim() == field {
+                return Some(value.trim().trim_matches('"').to_owned());
+            }
+        }
+    }
+
+    None
+}
+
+fn readme_inventory_status(name: &str) -> Option<String> {
+    let needle = format!("`{name}`");
+
+    for line in BENCHMARK_README.lines() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with('|') {
+            continue;
+        }
+
+        let cells = trimmed
+            .trim_matches('|')
+            .split('|')
+            .map(str::trim)
+            .collect::<Vec<_>>();
+        if cells.first() == Some(&needle.as_str()) {
+            return cells.get(2).map(|status| (*status).to_owned());
+        }
+    }
+
+    None
+}
+
 #[test]
 fn verify_python_fixtures_do_not_parse_with_arithmetic_grammar() {
     // This test documents the current state: Python fixtures contain code
@@ -203,6 +265,20 @@ fn verify_benchmark_inventory_is_exhaustive() {
     assert_eq!(
         registered, documented,
         "benchmarks/README.md must document every registered benchmark"
+    );
+}
+
+#[test]
+fn verify_duplicate_glr_performance_bench_is_deprecated() {
+    assert_eq!(
+        benchmark_metadata_field("glr_performance", "status").as_deref(),
+        Some("deprecated"),
+        "glr_performance must stay deprecated while it duplicates parse_bench"
+    );
+    assert_eq!(
+        readme_inventory_status("glr_performance").as_deref(),
+        Some("deprecated"),
+        "benchmarks/README.md must show glr_performance as deprecated"
     );
 }
 

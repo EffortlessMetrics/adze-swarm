@@ -92,6 +92,49 @@ mod glr_api_tests {
     }
 
     #[test]
+    fn test_set_language_clears_glr_mode() {
+        use adze_runtime::Language;
+
+        let mut parser = Parser::new();
+        parser.set_glr_table(create_static_parse_table()).unwrap();
+        assert!(parser.is_glr_mode());
+
+        let language_table = create_static_parse_table();
+        let language = Language {
+            version: 0,
+            symbol_count: 2,
+            field_count: 0,
+            max_alias_sequence_length: 0,
+            parse_table: Some(language_table),
+            tokenize: Some(Box::new(|_| Box::new(std::iter::empty()))),
+            symbol_names: vec!["sym0".to_string(), "sym1".to_string()],
+            symbol_metadata: vec![
+                SymbolMetadata {
+                    is_terminal: true,
+                    is_visible: true,
+                    is_supertype: false,
+                },
+                SymbolMetadata {
+                    is_terminal: false,
+                    is_visible: true,
+                    is_supertype: false,
+                },
+            ],
+            field_names: vec![],
+            #[cfg(feature = "external_scanners")]
+            external_scanner: None,
+        };
+
+        parser.set_language(language).unwrap();
+
+        assert!(
+            !parser.is_glr_mode(),
+            "set_language should switch out of GLR mode"
+        );
+        assert!(parser.language().is_some(), "Language should be retained");
+    }
+
+    #[test]
     fn test_set_symbol_metadata_requires_glr_table() {
         let mut parser = Parser::new();
 
