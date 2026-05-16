@@ -52,7 +52,7 @@ pub(crate) enum Commands {
         /// Input file to parse
         input: PathBuf,
         /// Output format
-        #[arg(short, long, default_value = "tree")]
+        #[arg(short, long, visible_alias = "output", default_value = "tree")]
         format: OutputFormat,
         /// Use dynamic loader to load compiled grammar from shared library (experimental; requires --features dynamic)
         #[arg(long)]
@@ -103,6 +103,36 @@ pub(crate) enum OutputFormat {
     Json,
     Sexp,
     Dot,
+    #[value(name = "document-json")]
+    DocumentJson,
+    #[value(name = "tree-json")]
+    TreeJson,
+    #[value(name = "diagnostics-json")]
+    DiagnosticsJson,
+    #[value(name = "ambiguity-json")]
+    AmbiguityJson,
+}
+
+impl OutputFormat {
+    fn cli_name(&self) -> &'static str {
+        match self {
+            Self::Tree => "tree",
+            Self::Json => "json",
+            Self::Sexp => "sexp",
+            Self::Dot => "dot",
+            Self::DocumentJson => "document-json",
+            Self::TreeJson => "tree-json",
+            Self::DiagnosticsJson => "diagnostics-json",
+            Self::AmbiguityJson => "ambiguity-json",
+        }
+    }
+
+    fn is_document_projection(&self) -> bool {
+        matches!(
+            self,
+            Self::DocumentJson | Self::TreeJson | Self::DiagnosticsJson | Self::AmbiguityJson
+        )
+    }
 }
 
 fn main() -> Result<()> {
@@ -364,14 +394,14 @@ fn watch_and_build(path: &Path) -> Result<()> {
 fn parse_file(
     grammar: &Path,
     input: &Path,
-    _format: OutputFormat,
+    format: OutputFormat,
     dynamic: bool,
     _symbol: &str,
 ) -> Result<()> {
     if dynamic {
         #[cfg(feature = "dynamic")]
         {
-            return parse_file_dynamic(grammar, input, _format, _symbol);
+            return parse_file_dynamic(grammar, input, format, _symbol);
         }
         #[cfg(not(feature = "dynamic"))]
         {
@@ -386,15 +416,25 @@ fn parse_file(
 
     let input_content = fs::read_to_string(input)?;
     println!(
-        "  Grammar: {}\n  Input: {} ({} bytes)",
+        "  Grammar: {}\n  Input: {} ({} bytes)\n  Output: {}",
         grammar.display(),
         input.display(),
-        input_content.len()
+        input_content.len(),
+        format.cli_name()
     );
     println!(
         "{} Static parse mode is not yet available in adze-cli.",
         "⚠️ ".yellow()
     );
+    if format.is_document_projection() {
+        println!(
+            "   `{}` is reserved for the ADZE-SPEC-0008 document projection surface.",
+            format.cli_name()
+        );
+        println!(
+            "   Until CLI schema output lands, use generated `parse_document()` from Rust code."
+        );
+    }
     println!(
         "   To parse files from Rust code, use `adze build` + `cargo test` in your grammar project."
     );
@@ -449,7 +489,13 @@ fn parse_file_dynamic(
             grammar.display()
         );
         println!("Input size: {} bytes", input_content.len());
-        let _ = format;
+        println!("Requested output: {}", format.cli_name());
+        if format.is_document_projection() {
+            println!(
+                "{} Document projection output is reserved but not implemented for dynamic parse mode yet.",
+                "⚠️ ".yellow()
+            );
+        }
         println!(
             "{} Dynamic parse mode is experimental: loading works, but AST/output parsing is not implemented yet.",
             "⚠️ ".yellow()

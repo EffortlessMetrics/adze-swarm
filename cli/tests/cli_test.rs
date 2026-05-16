@@ -208,6 +208,28 @@ fn test_parse_static_mode_is_explicitly_unimplemented() {
 }
 
 #[test]
+fn test_parse_document_json_mode_is_explicitly_reserved() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let grammar = temp.path().join("grammar.rs");
+    let input = temp.path().join("input.txt");
+    std::fs::write(&grammar, "// dummy grammar").expect("write grammar");
+    std::fs::write(&input, "x").expect("write input");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("parse")
+        .arg(&grammar)
+        .arg(&input)
+        .arg("--output")
+        .arg("document-json")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unimplemented"))
+        .stdout(predicate::str::contains("Output: document-json"))
+        .stdout(predicate::str::contains("ADZE-SPEC-0008"))
+        .stdout(predicate::str::contains("parse_document()"));
+}
+
+#[test]
 fn test_init_generated_cargo_toml_is_valid() {
     let temp = tempfile::tempdir().expect("tempdir");
     let project_name = "validcargotoml";
@@ -356,7 +378,12 @@ fn test_parse_reports_available_modes() {
         .stdout(predicate::str::contains("tree"))
         .stdout(predicate::str::contains("json"))
         .stdout(predicate::str::contains("sexp"))
-        .stdout(predicate::str::contains("dot"));
+        .stdout(predicate::str::contains("dot"))
+        .stdout(predicate::str::contains("document-json"))
+        .stdout(predicate::str::contains("tree-json"))
+        .stdout(predicate::str::contains("diagnostics-json"))
+        .stdout(predicate::str::contains("ambiguity-json"))
+        .stdout(predicate::str::contains("--output"));
 }
 
 #[test]
@@ -401,6 +428,10 @@ fn test_parse_help_documents_available_modes() {
         .stdout(predicate::str::contains("json"))
         .stdout(predicate::str::contains("sexp"))
         .stdout(predicate::str::contains("dot"))
+        .stdout(predicate::str::contains("document-json"))
+        .stdout(predicate::str::contains("tree-json"))
+        .stdout(predicate::str::contains("diagnostics-json"))
+        .stdout(predicate::str::contains("ambiguity-json"))
         .stdout(predicate::str::contains("experimental"));
 }
 
@@ -444,7 +475,7 @@ mod parsing {
         Parse {
             grammar: std::path::PathBuf,
             input: std::path::PathBuf,
-            #[arg(short, long, default_value = "tree")]
+            #[arg(short, long, visible_alias = "output", default_value = "tree")]
             format: OutputFormat,
             #[arg(long)]
             dynamic: bool,
@@ -477,6 +508,14 @@ mod parsing {
         Json,
         Sexp,
         Dot,
+        #[value(name = "document-json")]
+        DocumentJson,
+        #[value(name = "tree-json")]
+        TreeJson,
+        #[value(name = "diagnostics-json")]
+        DiagnosticsJson,
+        #[value(name = "ambiguity-json")]
+        AmbiguityJson,
     }
 
     // --- argument parsing unit tests ---
@@ -578,6 +617,25 @@ mod parsing {
                 assert_eq!(input.to_str().unwrap(), "input.txt");
                 assert!(dynamic);
                 assert_eq!(symbol, "my_lang");
+            }
+            _ => panic!("expected Parse command"),
+        }
+    }
+
+    #[test]
+    fn parse_parse_command_accepts_output_alias_and_document_json() {
+        let cli = Cli::try_parse_from([
+            "adze",
+            "parse",
+            "gram.rs",
+            "input.txt",
+            "--output",
+            "document-json",
+        ])
+        .unwrap();
+        match cli.command {
+            Commands::Parse { format, .. } => {
+                assert!(matches!(format, OutputFormat::DocumentJson));
             }
             _ => panic!("expected Parse command"),
         }
