@@ -3,6 +3,9 @@
 /target-*/
 **/target-*/
 
+# Claude Code agent worktrees (created by isolated subagents)
+.claude/worktrees/
+
 # Bench/fuzz artifacts
 bench-output.txt
 **/criterion/
