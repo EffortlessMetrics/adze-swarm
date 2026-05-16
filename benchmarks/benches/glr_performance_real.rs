@@ -1,7 +1,7 @@
 //! Classification: real_parser
 //! Status: active
-//! CI coverage: performance.yml Quick Performance Smoke Test (compile-only),
-//!   pure-rust-ci.yml benchmark compile check (compile-only)
+//! CI coverage: criterion-smoke.yml benchmark compile check (compile-only),
+//!   pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)
 //!
 //! Real parsing benchmarks for adze
 //!

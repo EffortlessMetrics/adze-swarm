@@ -1,7 +1,7 @@
 //! Classification: infrastructure
 //! Status: legacy
-//! CI coverage: performance.yml Quick Performance Smoke Test (compile-only),
-//!   pure-rust-ci.yml benchmark compile check (compile-only)
+//! CI coverage: criterion-smoke.yml benchmark compile check (compile-only),
+//!   pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)
 //!
 //! Legacy auxiliary benchmark. Superseded by `arena_vs_box_allocation` and
 //! `stack_optimization` which provide more focused micro-benches. The

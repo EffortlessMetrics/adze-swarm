@@ -132,7 +132,7 @@ jobs:
       if: matrix.os != 'windows-latest' && github.event_name == 'pull_request'
       run: |
         echo "::notice::Skipping all-crate benchmark compile check on pull_request events."
-        echo "::notice::Benchmark compile coverage is owned by performance.yml/benchmarks.yml and opt-in labels."
+        echo "::notice::Benchmark compile coverage is owned by criterion-smoke.yml and manual/full-CI lanes."
     
     - name: Run benchmark compile check (all crates)
       if: matrix.os != 'windows-latest' && github.event_name != 'pull_request'
@@ -242,7 +242,7 @@ jobs:
   
   performance:
     name: Performance Regression Tests
-    # Owned by performance.yml on PR; this job runs on workflow_dispatch/full-ci.
+    # Benchmark proof is explicit. This integrated job runs on workflow_dispatch/full-ci.
     if: |
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'ci:perf') ||

@@ -1,7 +1,7 @@
 //! Classification: build_pipeline
 //! Status: active
-//! CI coverage: performance.yml Quick Performance Smoke Test (compile-only),
-//!   pure-rust-ci.yml benchmark compile check (compile-only)
+//! CI coverage: criterion-smoke.yml benchmark compile check (compile-only),
+//!   pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)
 //!
 //! Criterion baselines for core crates:
 //!   1. IR normalization (varying grammar sizes)

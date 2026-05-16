@@ -1,8 +1,8 @@
 //! Classification: real_parser
 //! Status: active
 //! CI coverage: ci.yml Benchmark Compilation (compile-only incremental_bench),
-//!   performance.yml Quick Performance Smoke Test (compile-only),
-//!   pure-rust-ci.yml benchmark compile check (compile-only)
+//!   criterion-smoke.yml benchmark compile check (compile-only),
+//!   pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)
 //!
 //! Incremental GLR parser benchmark. Measures full-reparse vs incremental
 //! reparse across different edit patterns and file sizes, plus fork
