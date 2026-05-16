@@ -38,8 +38,8 @@ A 0.9.0 release is ready when all of the following are true:
 | 6 | Field lookup on error/missing nodes | pending | — | — |
 | 7 | Repeated field iteration | covered | `cargo test -p adze --features "pure-rust,ts-compat" --test adze_document_alpha -- --nocapture` | #29 |
 | 8 | Byte↔point span agreement | covered | `cargo test -p adze --features pure-rust --test typed_cst_generated_document -- --nocapture` | #30 |
-| 9 | Multi-error deduplication | pending | — | — |
-| 10 | Diagnostic ordering by position | pending | — | — |
+| 9 | Multi-error deduplication | covered | `cargo test -p adze --features pure-rust --test generated_parse_errors -- --nocapture` | #31 |
+| 10 | Diagnostic ordering by position | covered | `cargo test -p adze --features pure-rust --test generated_parse_errors -- --nocapture` | #31 |
 | 11 | EOF boundary error span | pending | — | — |
 | 12 | Mixed ASCII/multibyte line counting | pending | — | — |
 | 13 | ERROR/MISSING nodes in S-expression | pending | — | — |
@@ -100,7 +100,7 @@ Items 1–18 are blocking for the surfaces they cover. Items 19–34 are release
 3. test(document): prove recovered-doc AST refusal           ← item 3
 4. test(document): cover document boundary canaries          ← item 4
 5. test(document): prove edge field metadata invariants      ← items 5 and 7
-6. test(diagnostics): prove expected-token normalization     ← item 8 first; items 9-10 remain
+6. test(diagnostics): prove expected-token normalization     ← items 8-10
 7. test(diagnostics): cover UTF-8 and EOF recovery spans     ← items 11-12
 8. test(ts-compat): prove adapter identity and alias         ← items 13-14
 9. test(glr): prove ambiguity summary determinism            ← items 15-16
