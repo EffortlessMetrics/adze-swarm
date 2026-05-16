@@ -2,9 +2,18 @@
 name = "adze-cli"
 version = "0.8.0-dev"
 edition = "2024"
-authors = ["Tree-sitter Contributors"]
-description = "CLI tools for adze grammar development"
-license = "MIT OR Apache-2.0"
+rust-version = "1.95.0"
+authors = ["Steven Zimmerman, CPA"]
+description = "Command-line tools for Adze grammar development and validation"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/effortlessmetrics/adze"
+homepage = "https://github.com/effortlessmetrics/adze"
+documentation = "https://docs.rs/adze-cli"
+readme = "README.md"
+publish = true
+keywords = ["parsing", "codegen", "grammar", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+include = ["Cargo.toml", "LICENSE*", "README*", "src/**", "tests/**"]
 
 [[bin]]
 name = "adze"
@@ -15,8 +24,9 @@ dynamic = ["libloading"]
 
 [dependencies]
 clap.workspace = true
-adze-tool = { path = "../tool" }
+adze-tool = { version = "0.8.0-dev", path = "../tool" }
 serde_json.workspace = true
+syn.workspace = true
 colored = "3.0"
 anyhow.workspace = true
 env_logger = "0.11"

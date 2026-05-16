@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-publish.sh — Verify that core crates pass `cargo package --list`
+# check-publish.sh — Verify that core release crates pass `cargo package --list`
 # and have complete metadata for crates.io publishing.
 #
 # Usage:
@@ -20,6 +20,7 @@ CORE_CRATES=(
   adze-tablegen
   adze-macro
   adze-tool
+  adze-cli
   adze
 )
 
@@ -31,6 +32,7 @@ declare -A CRATE_DIR=(
   [adze-tablegen]=tablegen
   [adze-macro]=macro
   [adze-tool]=tool
+  [adze-cli]=cli
   [adze]=runtime
 )
 
