@@ -305,7 +305,7 @@ pub mod perf {
 }
 
 mod conflicts;
-mod first_follow;
+pub mod first_follow;
 mod lr_items;
 mod parse_table;
 

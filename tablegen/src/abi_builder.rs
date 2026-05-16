@@ -4,13 +4,11 @@
 // ABI-compatible language builder for Tree-sitter
 // This module generates static Language structures that match Tree-sitter's C ABI exactly
 
-use crate::abi::*;
 use crate::compress::CompressedTables;
-use adze_glr_core::{Action, ParseTable};
-use adze_ir::{Grammar, ProductionId, Rule, Symbol, SymbolId, TokenPattern};
+use adze_glr_core::ParseTable;
+use adze_ir::{Grammar, SymbolId};
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::collections::HashSet;
 
 #[cfg(not(debug_assertions))]
 macro_rules! debug_trace {
@@ -29,6 +27,17 @@ macro_rules! debug_trace {
         }
     };
 }
+
+// Submodules host the SRP-decomposed helpers used by `generate`.
+// They are declared after `debug_trace!` so the macro is in scope.
+mod code_pieces;
+mod counts;
+mod diagnostics;
+mod fields;
+mod metadata;
+mod parse_tables;
+mod productions;
+mod symbols;
 
 /// Builder for generating ABI-compatible language structures
 pub struct AbiLanguageBuilder<'a> {
@@ -64,49 +73,21 @@ impl<'a> AbiLanguageBuilder<'a> {
         }
     }
 
-    /// Generate the complete language module
+    /// Generate the complete language module.
+    ///
+    /// Orchestrates the SRP-decomposed helpers: diagnostic logging
+    /// (`log_generation_start`, etc.), per-field static-array generators
+    /// (`generate_*` methods), conditional fragment builders
+    /// (`build_external_scanner_pieces`, etc.), and the final
+    /// `TSLanguage` assembly below.
     pub fn generate(&self) -> TokenStream {
         let language_name = &self.grammar.name;
         let language_fn_ident = quote::format_ident!("tree_sitter_{}", language_name);
 
-        debug_trace!(
-            "DEBUG AbiLanguageBuilder: Generating language for '{}'",
-            language_name
-        );
-        debug_trace!("DEBUG AbiLanguageBuilder: symbol_to_index mapping:");
-        for (symbol_id, &index) in &self.parse_table.symbol_to_index {
-            let symbol_name = self.get_symbol_name(*symbol_id);
-            debug_trace!(
-                "  SymbolId({}) -> index {} ('{}')",
-                symbol_id.0,
-                index,
-                symbol_name
-            );
-        }
+        self.log_generation_start(language_name);
+        self.log_state0_actions();
 
-        // Check what the initial state expects
-        if !self.parse_table.action_table.is_empty() {
-            debug_trace!("DEBUG AbiLanguageBuilder: State 0 actions:");
-            for (symbol_idx, action_cell) in self.parse_table.action_table[0].iter().enumerate() {
-                if !action_cell.is_empty() {
-                    // Find the symbol ID for this index
-                    let symbol_id = self
-                        .parse_table
-                        .symbol_to_index
-                        .iter()
-                        .find(|(_, idx)| **idx == symbol_idx)
-                        .map(|(id, _)| *id);
-                    debug_trace!(
-                        "  Index {} (SymbolId {:?}): {:?}",
-                        symbol_idx,
-                        symbol_id,
-                        action_cell
-                    );
-                }
-            }
-        }
-
-        // Generate all static data with deterministic ordering
+        // Generate all static data with deterministic ordering.
         let (symbol_names, symbol_name_ptrs) = self.generate_symbol_names();
         let (field_names, field_name_ptrs) = self.generate_field_names();
         let symbol_metadata = self.generate_symbol_metadata();
@@ -122,57 +103,20 @@ impl<'a> AbiLanguageBuilder<'a> {
         let variant_symbol_map = self.generate_variant_symbol_map();
         let (alias_map, alias_sequences) = self.generate_alias_tables();
 
-        // Generate external scanner data if needed
-        let (external_scanner_code, external_scanner_struct) = if !self.grammar.externals.is_empty()
-        {
-            use crate::external_scanner_v2::ExternalScannerGenerator;
-
-            let scanner_gen =
-                ExternalScannerGenerator::new(self.grammar.clone(), self.parse_table.clone());
-            let scanner_interface = scanner_gen.generate_scanner_interface();
-
-            // Skip generating scanner FFI functions - let grammars provide their own
-            // Grammars with external scanners should implement their own FFI functions
-            let scanner_functions = quote! {};
-
-            let scanner_struct = quote! {
-                ExternalScanner {
-                    states: EXTERNAL_SCANNER_STATES.as_ptr() as *const u8,
-                    symbol_map: EXTERNAL_SCANNER_SYMBOL_MAP.as_ptr(),
-                    create: None,
-                    destroy: None,
-                    scan: None,
-                    serialize: None,
-                    deserialize: None,
-                }
-            };
-
-            (
-                quote! {
-                    #scanner_interface
-                    #scanner_functions
-                },
-                scanner_struct,
-            )
-        } else {
-            (
-                quote! {},
-                quote! {
-                    ExternalScanner {
-                        states: std::ptr::null(),
-                        symbol_map: std::ptr::null(),
-                        create: None,
-                        destroy: None,
-                        scan: None,
-                        serialize: None,
-                        deserialize: None,
-                    }
-                },
-            )
-        };
-
-        // Count elements
+        // Build conditional fragments via the SRP-decomposed helpers.
+        let (external_scanner_code, external_scanner_struct) = self.build_external_scanner_pieces();
         let counts = self.calculate_counts();
+        let alias_pieces = self.build_alias_table_pieces(&counts, &alias_map, &alias_sequences);
+        let field_names_array = self.build_field_names_array(&counts, &field_name_ptrs);
+
+        self.log_lexer_token_mapping(&counts);
+
+        // Generate lexer function with symbol mapping
+        let lexer_code =
+            crate::lexer_gen::generate_lexer(self.grammar, &self.parse_table.symbol_to_index);
+
+        // Bind LanguageCounts fields and alias fragments into named locals so
+        // the `quote!` template below can interpolate them directly.
         let symbol_count = counts.symbol_count;
         let alias_count = counts.alias_count;
         let token_count = counts.token_count;
@@ -182,60 +126,9 @@ impl<'a> AbiLanguageBuilder<'a> {
         let production_id_count = counts.production_id_count;
         let field_count = counts.field_count;
         let max_alias_sequence_length = counts.max_alias_sequence_length;
-        let alias_tables = if alias_count > 0 && max_alias_sequence_length > 0 {
-            quote! {
-                static ALIAS_MAP: &[u16] = &[#(#alias_map),*];
-                static ALIAS_SEQUENCES: &[u16] = &[#(#alias_sequences),*];
-            }
-        } else {
-            quote! {}
-        };
-        let alias_map_ptr = if alias_count > 0 && max_alias_sequence_length > 0 {
-            quote! { ALIAS_MAP.as_ptr() }
-        } else {
-            quote! { std::ptr::null() }
-        };
-        let alias_sequences_ptr = if alias_count > 0 && max_alias_sequence_length > 0 {
-            quote! { ALIAS_SEQUENCES.as_ptr() }
-        } else {
-            quote! { std::ptr::null::<u16>() }
-        };
-
-        // Generate field names array
-        let field_names_array = if field_count == 0 {
-            quote! {
-                static FIELD_NAME_PTRS: [SyncPtr; 0] = [];
-            }
-        } else {
-            quote! {
-                const FIELD_NAME_PTRS_LEN: usize = #field_count as usize;
-                static FIELD_NAME_PTRS: [SyncPtr; FIELD_NAME_PTRS_LEN] = [
-                    #(#field_name_ptrs),*
-                ];
-            }
-        };
-
-        // Debug: Print symbol_to_index mapping for tokens
-        debug_trace!("DEBUG: Symbol to index mapping for lexer generation:");
-        for (sym_id, idx) in &self.parse_table.symbol_to_index {
-            if self.grammar.tokens.contains_key(sym_id) {
-                let token = &self.grammar.tokens[sym_id];
-                debug_trace!(
-                    "  Token '{}' (SymbolId {:?}) -> index {}",
-                    token.name,
-                    sym_id,
-                    idx
-                );
-            }
-        }
-        debug_trace!("DEBUG: token_count = {}", self.parse_table.token_count);
-
-        debug_trace!("DEBUG: token_count = {}", counts.token_count);
-        debug_trace!("DEBUG: symbol_count = {}", counts.symbol_count);
-
-        // Generate lexer function with symbol mapping
-        let lexer_code =
-            crate::lexer_gen::generate_lexer(self.grammar, &self.parse_table.symbol_to_index);
+        let alias_tables = &alias_pieces.tables;
+        let alias_map_ptr = &alias_pieces.map_ptr;
+        let alias_sequences_ptr = &alias_pieces.sequences_ptr;
 
         quote! {
             use adze::pure_parser::{TSLanguage, TSParseAction, TSRule, SyncPtr, TREE_SITTER_LANGUAGE_VERSION, ExternalScanner, TSLexState};
@@ -358,1038 +251,24 @@ impl<'a> AbiLanguageBuilder<'a> {
             }
         }
     }
-
-    /// Generate symbol names with deterministic ordering
-    fn generate_symbol_names(&self) -> (Vec<TokenStream>, Vec<TokenStream>) {
-        let mut names = Vec::new();
-        let mut name_idents = Vec::new();
-
-        // Use the parse table's symbol ordering
-        // Create reverse mapping from index to symbol ID
-        let mut index_to_symbol: Vec<Option<SymbolId>> = vec![None; self.parse_table.symbol_count];
-        for (symbol_id, &index) in &self.parse_table.symbol_to_index {
-            if index < self.parse_table.symbol_count {
-                index_to_symbol[index] = Some(*symbol_id);
-            }
-        }
-
-        // Generate names in parse table order
-        for (idx, symbol_id_opt) in index_to_symbol.iter().enumerate() {
-            let ident = quote::format_ident!("SYMBOL_NAME_{}", idx);
-
-            let name_str = if let Some(symbol_id) = symbol_id_opt {
-                if *symbol_id == self.parse_table.eof_symbol {
-                    // EOF symbol
-                    "end".to_string()
-                } else if let Some(token) = self.grammar.tokens.get(symbol_id) {
-                    // Terminal symbol
-                    token.name.clone()
-                } else if let Some(rule_name) = self.grammar.rule_names.get(symbol_id) {
-                    // Non-terminal with explicit name
-                    rule_name.clone()
-                } else if let Some(external) = self
-                    .grammar
-                    .externals
-                    .iter()
-                    .find(|external| external.symbol_id == *symbol_id)
-                {
-                    // External token
-                    external.name.clone()
-                } else {
-                    // Non-terminal without name - generate one
-                    format!("rule_{}", symbol_id.0)
-                }
-            } else {
-                // Should not happen
-                format!("unknown_{}", idx)
-            };
-
-            let name_bytes = format!("{}\0", name_str).into_bytes();
-            names.push(quote! {
-                static #ident: &[u8] = &[#(#name_bytes),*];
-            });
-            name_idents.push(ident);
-        }
-
-        let ptrs = name_idents
-            .iter()
-            .map(|ident| {
-                quote! { SyncPtr::new(#ident.as_ptr()) }
-            })
-            .collect();
-
-        (names, ptrs)
-    }
-
-    /// Generate field names with lexicographic ordering
-    fn generate_field_names(&self) -> (Vec<TokenStream>, Vec<TokenStream>) {
-        let mut names = Vec::new();
-        let mut name_idents = Vec::new();
-
-        // Fields must be in lexicographic order
-        let mut fields: Vec<_> = self.grammar.fields.iter().collect();
-        fields.sort_by_key(|(_, name)| name.as_str());
-
-        for (i, (_id, name)) in fields.iter().enumerate() {
-            let ident = quote::format_ident!("FIELD_NAME_{}", i);
-            let name_bytes = format!("{}\0", name).into_bytes();
-            names.push(quote! {
-                static #ident: &[u8] = &[#(#name_bytes),*];
-            });
-            name_idents.push(ident);
-        }
-
-        let ptrs = name_idents
-            .iter()
-            .map(|ident| {
-                quote! { SyncPtr::new(#ident.as_ptr()) }
-            })
-            .collect();
-
-        (names, ptrs)
-    }
-
-    fn field_name_indices_by_field_id(&self) -> std::collections::BTreeMap<u16, u16> {
-        let mut fields: Vec<_> = self.grammar.fields.iter().collect();
-        fields.sort_by_key(|(_, name)| name.as_str());
-        fields
-            .into_iter()
-            .enumerate()
-            .map(|(index, (field_id, _))| (field_id.0, index as u16))
-            .collect()
-    }
-
-    /// Generate symbol metadata
-    fn generate_symbol_metadata(&self) -> Vec<TokenStream> {
-        let mut metadata = Vec::new();
-
-        debug_trace!("\nDEBUG generate_symbol_metadata: Starting metadata generation");
-        debug_trace!("  grammar.extras = {:?}", self.grammar.extras);
-
-        // Debug: Check all tokens in the grammar
-        debug_trace!("  All tokens in grammar:");
-        for (id, token) in &self.grammar.tokens {
-            debug_trace!(
-                "    Token {:?}: name='{}', pattern={:?}",
-                id,
-                token.name,
-                token.pattern
-            );
-        }
-
-        // First, find all terminal tokens that should be marked as extras
-        let extra_tokens = self.find_extra_tokens();
-        debug_trace!("  extra_tokens found = {:?}", extra_tokens);
-
-        // Debug: Print which symbol corresponds to whitespace
-        debug_trace!("  Looking for whitespace token (should be symbol 4):");
-        for (id, token) in &self.grammar.tokens {
-            if token.name.contains("whitespace")
-                || token.pattern == TokenPattern::Regex(r"\s".to_string())
-            {
-                debug_trace!(
-                    "    Found whitespace-like token: {:?} -> {}",
-                    id,
-                    token.name
-                );
-            }
-        }
-
-        // Generate metadata in parse table order using symbol_to_index mapping
-        let mut index_to_symbol: Vec<Option<SymbolId>> = vec![None; self.parse_table.symbol_count];
-        for (symbol_id, &index) in &self.parse_table.symbol_to_index {
-            if index < self.parse_table.symbol_count {
-                index_to_symbol[index] = Some(*symbol_id);
-            }
-        }
-
-        debug_trace!("  Generating metadata in parse table order:");
-        debug_trace!(
-            "  symbol_to_index mapping: {:?}",
-            self.parse_table.symbol_to_index
-        );
-        for (idx, symbol_id_opt) in index_to_symbol.iter().enumerate() {
-            if let Some(symbol_id) = symbol_id_opt {
-                if *symbol_id == self.parse_table.eof_symbol {
-                    // EOF symbol
-                    let meta_byte = create_symbol_metadata(true, false, false, false, false);
-                    debug_trace!("    Index {}: EOF, metadata={:#x}", idx, meta_byte);
-                    metadata.push(quote! { #meta_byte });
-                } else if let Some(token) = self.grammar.tokens.get(symbol_id) {
-                    // Terminal token
-                    let visible = !token.name.starts_with('_');
-                    let named = visible && matches!(&token.pattern, TokenPattern::Regex(_));
-                    let _original_hidden = extra_tokens.contains(symbol_id);
-
-                    // Special handling for whitespace tokens
-                    // If this is a whitespace token (by pattern), it should be hidden
-                    let is_whitespace_token = matches!(&token.pattern, TokenPattern::Regex(p) if p == r"\s")
-                        || token.name.to_lowercase().contains("whitespace");
-
-                    if is_whitespace_token {
-                        debug_trace!(
-                            "    WHITESPACE TOKEN FOUND: {} (id={:?})",
-                            token.name,
-                            symbol_id
-                        );
-                        debug_trace!("      Pattern: {:?}", token.pattern);
-                        debug_trace!(
-                            "      Was in extra_tokens: {}",
-                            extra_tokens.contains(symbol_id)
-                        );
-                    }
-
-                    // Force whitespace tokens to be hidden
-                    let hidden = extra_tokens.contains(symbol_id) || is_whitespace_token;
-
-                    let meta_byte = create_symbol_metadata(visible, named, hidden, false, false);
-                    debug_trace!(
-                        "    Index {}: Token {} (id={:?}): visible={}, named={}, hidden={}, metadata={:#x}",
-                        idx,
-                        token.name,
-                        symbol_id,
-                        visible,
-                        named,
-                        hidden,
-                        meta_byte
-                    );
-                    metadata.push(quote! { #meta_byte });
-                } else if self.grammar.rules.contains_key(symbol_id) {
-                    // Non-terminal
-                    let name = self
-                        .grammar
-                        .rule_names
-                        .get(symbol_id)
-                        .cloned()
-                        .unwrap_or_else(|| format!("rule_{}", symbol_id.0));
-                    let visible = !name.starts_with('_');
-                    let named = visible;
-                    let hidden = false; // Non-terminals are never hidden
-                    let supertype = self.grammar.supertypes.contains(symbol_id);
-                    let meta_byte =
-                        create_symbol_metadata(visible, named, hidden, false, supertype);
-                    debug_trace!(
-                        "    Index {}: Non-terminal {} (id={:?}): visible={}, named={}, supertype={}, metadata={:#x}",
-                        idx,
-                        name,
-                        symbol_id,
-                        visible,
-                        named,
-                        supertype,
-                        meta_byte
-                    );
-                    metadata.push(quote! { #meta_byte });
-                } else if let Some(external) = self
-                    .grammar
-                    .externals
-                    .iter()
-                    .find(|e| e.symbol_id == *symbol_id)
-                {
-                    // External token
-                    let visible = !external.name.starts_with('_');
-                    let named = visible;
-                    let meta_byte = create_symbol_metadata(visible, named, false, false, false);
-                    debug_trace!(
-                        "    Index {}: External {} (id={:?}): visible={}, named={}, metadata={:#x}",
-                        idx,
-                        external.name,
-                        symbol_id,
-                        visible,
-                        named,
-                        meta_byte
-                    );
-                    metadata.push(quote! { #meta_byte });
-                } else {
-                    // Unknown symbol - shouldn't happen
-                    debug_trace!(
-                        "    Index {}: WARNING: Unknown symbol id={:?}",
-                        idx,
-                        symbol_id
-                    );
-                    metadata.push(quote! { 0u8 });
-                }
-            } else {
-                // No symbol for this index - shouldn't happen
-                debug_trace!("    Index {}: WARNING: No symbol mapped", idx);
-                metadata.push(quote! { 0u8 });
-            }
-        }
-
-        metadata
-    }
-
-    /// Generate compressed parse tables
-    fn generate_parse_tables(&self) -> (Vec<TokenStream>, Vec<TokenStream>) {
-        if let Some(compressed) = self.compressed_tables {
-            // Generate compressed table data
-            let mut table_data = Vec::new();
-            let mut map_data = Vec::new();
-
-            // Encode both action and goto table entries combined
-            // Tree-sitter format: each state's row contains both actions (for terminals)
-            // and gotos (for non-terminals) as (symbol, value) pairs
-
-            for state_idx in 0..self.parse_table.state_count {
-                // Record the starting offset for this state (in u16 array indices, not pairs)
-                let current_offset = table_data.len();
-                map_data.push(quote! { #current_offset as u32 });
-
-                // Track which symbols already have action entries to avoid duplicates
-                let mut action_symbols = std::collections::HashSet::new();
-
-                // First, add action entries for this state
-                let action_start = compressed.action_table.row_offsets[state_idx] as usize;
-                let action_end = compressed.action_table.row_offsets[state_idx + 1] as usize;
-
-                for entry in &compressed.action_table.data[action_start..action_end] {
-                    let symbol = entry.symbol;
-                    action_symbols.insert(symbol);
-                    table_data.push(quote! { #symbol });
-                    if let Ok(encoded) = self.encode_action(&entry.action) {
-                        table_data.push(quote! { #encoded });
-                    }
-                }
-
-                // Then, add goto entries for this state (encode as shifts for Tree-sitter compat)
-                // Skip symbols that already have action entries to avoid duplicates
-                if state_idx < self.parse_table.goto_table.len() {
-                    for (symbol_idx, &goto_state) in
-                        self.parse_table.goto_table[state_idx].iter().enumerate()
-                    {
-                        let symbol = symbol_idx as u16;
-                        if goto_state.0 > 0 && !action_symbols.contains(&symbol) {
-                            // This is a valid goto transition without a conflicting action
-                            let encoded_shift = goto_state.0; // Shift actions are encoded as state_id
-                            table_data.push(quote! { #symbol });
-                            table_data.push(quote! { #encoded_shift });
-                        }
-                    }
-                }
-            }
-
-            // Add final offset (end of table, in u16 array indices)
-            let final_offset = table_data.len();
-            map_data.push(quote! { #final_offset as u32 });
-
-            (table_data, map_data)
-        } else {
-            // Fallback: generate compressed table format without proper compression
-            // This stores only non-error entries as (symbol, action) pairs
-            let mut table_data = Vec::new();
-            let mut map_data = Vec::new();
-            let mut current_offset = 0u32;
-
-            debug_trace!(
-                "DEBUG: goto_table.len() = {}, state_count = {}",
-                self.parse_table.goto_table.len(),
-                self.parse_table.state_count
-            );
-
-            for state_idx in 0..self.parse_table.state_count {
-                // Record the starting offset for this state
-                map_data.push(quote! { #current_offset });
-
-                // We need to know the count before we start pushing
-                let mut entries = Vec::new();
-
-                let mut non_error_actions = Vec::new();
-
-                for symbol_idx in 0..self.parse_table.symbol_count {
-                    let symbol_id = self
-                        .parse_table
-                        .symbol_to_index
-                        .iter()
-                        .find(|&(_, &idx)| idx == symbol_idx)
-                        .map(|(id, _)| *id);
-
-                    let Some(symbol_id) = symbol_id else {
-                        continue;
-                    };
-
-                    let is_terminal = self.grammar.tokens.contains_key(&symbol_id)
-                        || self
-                            .grammar
-                            .externals
-                            .iter()
-                            .any(|e| e.symbol_id == symbol_id)
-                        || symbol_id == self.parse_table.eof_symbol;
-
-                    let mut record_action = |symbol_idx: usize, action: &Action| match action {
-                        Action::Error => {}
-                        _ => {
-                            non_error_actions.push((symbol_idx, action.clone()));
-                        }
-                    };
-
-                    if is_terminal {
-                        if state_idx < self.parse_table.action_table.len()
-                            && symbol_idx < self.parse_table.action_table[state_idx].len()
-                        {
-                            let actions = &self.parse_table.action_table[state_idx][symbol_idx];
-                            for action in actions {
-                                record_action(symbol_idx, action);
-                            }
-                        }
-                    } else if state_idx < self.parse_table.goto_table.len()
-                        && symbol_idx < self.parse_table.goto_table[state_idx].len()
-                    {
-                        let goto_state = self.parse_table.goto_table[state_idx][symbol_idx];
-                        if goto_state.0 > 0 {
-                            record_action(symbol_idx, &Action::Shift(goto_state));
-                        }
-                    }
-                }
-
-                for (symbol_idx, action) in non_error_actions {
-                    if let Ok(encoded) = self.encode_action(&action) {
-                        entries.push((symbol_idx as u16, encoded));
-                    }
-                }
-
-                for (sym, val) in entries {
-                    table_data.push(quote! { #sym });
-                    table_data.push(quote! { #val });
-                    current_offset += 2;
-                }
-            }
-
-            // Add final offset for end of table
-            debug_trace!("DEBUG: Final offset: {}", current_offset);
-            map_data.push(quote! { #current_offset });
-
-            (table_data, map_data)
-        }
-    }
-
-    /// Encode an action as u16
-    fn encode_action(&self, action: &Action) -> Result<u16, String> {
-        match action {
-            Action::Shift(state) => Ok(state.0),
-            Action::Reduce(rule) => {
-                // Tree-sitter uses 1-based production IDs in reduce actions
-                // The runtime will map through PRODUCTION_ID_MAP to get the actual index
-                Ok(0x8000 | (rule.0 + 1))
-            }
-            Action::Accept => Ok(0xFFFF), // Use 0xFFFF for accept (must match decoder in pure_parser.rs)
-            Action::Error => Ok(0),       // Use 0 for error to match parser expectation
-            Action::Recover => Ok(0xFFFD), // Use distinct value for Recover
-            Action::Fork(actions) => {
-                // For Fork actions, we need to choose one action from the fork
-                // For now, let's prefer reduce actions over shift actions
-                // This is a simplified conflict resolution strategy
-
-                // First, try to find a reduce action
-                for action in actions {
-                    if let Action::Reduce(_) = action {
-                        return self.encode_action(action);
-                    }
-                }
-
-                // If no reduce action, take the first non-error action
-                for action in actions {
-                    if !matches!(action, Action::Error) {
-                        return self.encode_action(action);
-                    }
-                }
-
-                // If all actions are errors (shouldn't happen), return error
-                Ok(0)
-            }
-            _ => {
-                // Unknown action type // Expected: V for Recover
-                crate::util::unexpected_action(action, "encode_action");
-                Ok(0)
-            }
-        }
-    }
-
-    /// Generate parse actions
-    fn generate_parse_actions(&self) -> Vec<TokenStream> {
-        // Generate production information for reduce actions
-        // The array must be indexed by production ID, not sequential
-
-        // We need to size the array based on production_id_count
-        let counts = self.calculate_counts();
-        let production_id_count = counts.production_id_count as usize;
-
-        // Create array with dummy entries (Shift to state 0, which is normally Error in state 0)
-        let mut actions = vec![
-            quote! {
-                TSParseAction {
-                    action_type: 3, // Error
-                    extra: 0,
-                    child_count: 0,
-                    dynamic_precedence: 0,
-                    symbol: 0,
-                }
-            };
-            production_id_count
-        ];
-
-        // Fill in the actual productions at their correct indices
-        // We MUST use the same rule ordering as generate_ts_rules
-        let mut rules: Vec<_> = self
-            .grammar
-            .rules
-            .iter()
-            .flat_map(|(_, rules)| rules.iter())
-            .collect();
-        rules.sort_by_key(|rule| rule.production_id.0);
-
-        for rule in rules {
-            let index = rule.production_id.0 as usize;
-            let child_count = rule.rhs.len() as u8;
-
-            // Store the production ID because PARSE_ACTIONS is production-indexed.
-            let symbol = rule.production_id.0;
-
-            if index < actions.len() {
-                actions[index] = quote! {
-                    TSParseAction {
-                        action_type: 1, // Reduce
-                        extra: 0,
-                        child_count: #child_count,
-                        dynamic_precedence: 0,
-                        symbol: #symbol,
-                    }
-                };
-            }
-        }
-
-        actions
-    }
-
-    /// Generate lex modes
-    fn generate_lex_modes(&self) -> Vec<TokenStream> {
-        let mut modes = Vec::new();
-
-        for state_index in 0..self.parse_table.state_count {
-            let mode = self
-                .parse_table
-                .lex_modes
-                .get(state_index)
-                .copied()
-                .unwrap_or(adze_glr_core::LexMode {
-                    lex_state: 0,
-                    external_lex_state: 0,
-                });
-            let lex_state = mode.lex_state;
-            let external_lex_state = mode.external_lex_state;
-            modes.push(quote! {
-                TSLexState {
-                    lex_state: #lex_state,
-                    external_lex_state: #external_lex_state,
-                }
-            });
-        }
-
-        modes
-    }
-
-    /// Generate field maps
-    fn generate_field_maps(&self) -> (Vec<TokenStream>, Vec<TokenStream>) {
-        let production_id_count = self.calculate_counts().production_id_count as usize;
-        let mut field_map_slices = vec![quote! { 0u16 }; production_id_count * 2];
-        let mut field_map_entries = Vec::new();
-        let field_name_indices = self.field_name_indices_by_field_id();
-
-        // Group rules by production ID
-        let mut rules_by_production: std::collections::BTreeMap<u16, Vec<&Rule>> =
-            std::collections::BTreeMap::new();
-        for (_, rules) in &self.grammar.rules {
-            for rule in rules {
-                rules_by_production
-                    .entry(rule.production_id.0)
-                    .or_default()
-                    .push(rule);
-            }
-        }
-
-        // Build field map entries for each production
-        for (production_id, rules) in rules_by_production {
-            let start_index = (field_map_entries.len() / 2) as u16;
-            let mut entry_count = 0u16;
-
-            // Process each rule with this production ID
-            for rule in rules {
-                // Add entries for each field in this rule
-                for (field_id, position) in &rule.fields {
-                    let field_id_val = field_name_indices
-                        .get(&field_id.0)
-                        .copied()
-                        .unwrap_or(field_id.0);
-                    let child_index = *position as u8;
-                    let inherited = 0u8; // false - TODO: implement inheritance detection
-
-                    // Pack TSFieldMapEntry: field_id (16 bits) | child_index (8 bits) | inherited (8 bits)
-                    let packed_entry = (field_id_val as u32)
-                        | ((child_index as u32) << 16)
-                        | ((inherited as u32) << 24);
-                    field_map_entries.push(quote! { #packed_entry as u16 });
-                    field_map_entries.push(quote! { (#packed_entry >> 16) as u16 });
-                    entry_count += 1;
-                }
-            }
-
-            // Add slice for this production ID if it has fields
-            if entry_count > 0 {
-                let slice_offset = production_id as usize * 2;
-                if slice_offset + 1 < field_map_slices.len() {
-                    field_map_slices[slice_offset] = quote! { #start_index };
-                    field_map_slices[slice_offset + 1] = quote! { #entry_count };
-                }
-            }
-        }
-        if field_map_entries.is_empty() {
-            field_map_entries.push(quote! { 0u16 });
-        }
-
-        (field_map_slices, field_map_entries)
-    }
-
-    /// Generate public symbol map
-    fn generate_public_symbol_map(&self) -> Vec<TokenStream> {
-        let symbol_count = self.calculate_symbol_count();
-        let mut index_to_symbol = vec![None; symbol_count];
-        for (&symbol_id, &index) in &self.parse_table.symbol_to_index {
-            if index < symbol_count {
-                index_to_symbol[index] = Some(symbol_id);
-            }
-        }
-
-        (0..symbol_count)
-            .map(|index| {
-                let public_symbol =
-                    index_to_symbol[index].unwrap_or(SymbolId(index as u16)).0 as usize;
-                quote! { #public_symbol as u16 }
-            })
-            .collect()
-    }
-
-    /// Generate primary state IDs
-    fn generate_primary_state_ids(&self) -> Vec<TokenStream> {
-        (0..self.parse_table.state_count)
-            .map(|i| {
-                quote! { #i as u16 }
-            })
-            .collect()
-    }
-
-    /// Generate variant to symbol ID mapping for Extract trait
-    fn generate_variant_symbol_map(&self) -> TokenStream {
-        // For now, just generate the complete symbol-to-index mapping
-        // that the macro can use to fix enum variant extraction
-        let mut symbol_entries = Vec::new();
-
-        // Sort symbols by their index to ensure deterministic output
-        let mut index_to_symbol: Vec<(usize, SymbolId)> = Vec::new();
-        for (symbol_id, &index) in &self.parse_table.symbol_to_index {
-            index_to_symbol.push((index, *symbol_id));
-        }
-        for (symbol_id, &index) in &self.parse_table.nonterminal_to_index {
-            index_to_symbol.push((index, *symbol_id));
-        }
-        index_to_symbol.sort_by_key(|(idx, _)| *idx);
-
-        // Generate entries for the mapping
-        for (index, symbol_id) in &index_to_symbol {
-            let symbol_id_val = symbol_id.0 as u32;
-            let index_val = *index as u16;
-
-            // Also include the symbol name for debugging
-            let _symbol_name = if *symbol_id == self.parse_table.eof_symbol {
-                "EOF".to_string()
-            } else if let Some(token) = self.grammar.tokens.get(symbol_id) {
-                token.name.clone()
-            } else if let Some(rule_name) = self.grammar.rule_names.get(symbol_id) {
-                rule_name.clone()
-            } else {
-                format!("symbol_{}", symbol_id.0)
-            };
-
-            symbol_entries.push(quote! {
-                // #symbol_name
-                (#symbol_id_val, #index_val)
-            });
-        }
-
-        // Generate the inverse mapping array (index to symbol ID)
-        let total_symbol_count = self.parse_table.symbol_count;
-        let mut index_to_id_entries = vec![quote! { 0 }; total_symbol_count];
-
-        for (index, symbol_id) in index_to_symbol {
-            if index < total_symbol_count {
-                let symbol_id_val = symbol_id.0;
-                index_to_id_entries[index] = quote! { #symbol_id_val };
-            }
-        }
-
-        quote! {
-            // Complete symbol ID to parse table index mapping
-            // This is used by the Extract trait to correctly identify symbols
-            pub const SYMBOL_ID_TO_INDEX: &[(u32, u16)] = &[
-                #(#symbol_entries),*
-            ];
-
-            // Inverse mapping: index to symbol ID
-            // This is used by the pure parser to convert indices back to symbol IDs
-            pub const SYMBOL_INDEX_TO_ID: &[u16] = &[
-                #(#index_to_id_entries),*
-            ];
-
-            // Helper function to get symbol index from symbol ID
-            #[allow(dead_code)]
-            pub fn get_symbol_index(symbol_id: u32) -> Option<u16> {
-                SYMBOL_ID_TO_INDEX.iter()
-                    .find(|(id, _)| *id == symbol_id)
-                    .map(|(_, index)| *index)
-            }
-
-            // Helper function to get symbol ID from symbol index
-            #[allow(dead_code)]
-            pub fn get_symbol_id(symbol_index: u16) -> u16 {
-                SYMBOL_INDEX_TO_ID[symbol_index as usize]
-            }
-        }
-    }
-
-    /// Generate production ID map
-    fn generate_production_id_map(&self) -> Vec<TokenStream> {
-        // Tree-sitter uses 1-based production IDs in the parse table
-        // After decoding to zero-based, runtime indexes this map by RULE ID from parse actions.
-        // Therefore this map must be: rule_id -> production_id.
-        // PARSE_ACTIONS / TS_RULES are indexed by production_id.
-        let map_size = self.calculate_counts().production_id_count as usize;
-
-        // Initialize map with a sentinel value (u16::MAX)
-        let mut rule_to_production = vec![u16::MAX; map_size];
-
-        // Fill the map in the same rule-id order used by GLR action generation.
-        for (rule_id, rule) in self.grammar.all_rules().enumerate() {
-            if rule_id < map_size {
-                rule_to_production[rule_id] = rule.production_id.0;
-            }
-        }
-
-        // Convert to TokenStreams
-        let mut production_map = Vec::new();
-        for val in rule_to_production {
-            production_map.push(quote! { #val });
-        }
-
-        production_map
-    }
-
-    fn generate_production_lhs_index(&self) -> Vec<TokenStream> {
-        // Generate a dense array of LHS symbols in table index space, indexed by
-        // production ID. Runtime reductions map encoded rule IDs through
-        // PRODUCTION_ID_MAP and then index this array by that production ID.
-        let production_id_count = self.calculate_counts().production_id_count as usize;
-        let mut lhs_indices = vec![quote! { 0u16 }; production_id_count];
-
-        // Get all rules sorted by production ID
-        let mut rules: Vec<_> = self
-            .grammar
-            .rules
-            .iter()
-            .flat_map(|(_, rules)| rules.iter())
-            .collect();
-        rules.sort_by_key(|rule| rule.production_id.0);
-
-        // For each production, get its LHS symbol in table index space
-        for rule in &rules {
-            let lhs_idx = self
-                .parse_table
-                .symbol_to_index
-                .get(&rule.lhs)
-                .copied()
-                .unwrap_or_else(|| {
-                    panic!(
-                        "LHS symbol {} not found in symbol_to_index for production {}",
-                        rule.lhs.0, rule.production_id.0
-                    );
-                });
-
-            // Guard rail: production LHS must be a non-terminal column
-            debug_assert!(
-                (lhs_idx as u32) >= self.parse_table.token_count as u32,
-                "production LHS must be a non-terminal column (lhs_idx={}, token_count={})",
-                lhs_idx,
-                self.parse_table.token_count
-            );
-
-            let lhs_index = lhs_idx as u16;
-            let production_index = rule.production_id.0 as usize;
-            if production_index < lhs_indices.len() {
-                lhs_indices[production_index] = quote! { #lhs_index };
-            }
-        }
-
-        lhs_indices
-    }
-
-    fn generate_ts_rules(&self) -> Vec<TokenStream> {
-        let production_id_count = self.calculate_counts().production_id_count as usize;
-        if self.grammar.all_rules().next().is_none() {
-            return Vec::new();
-        }
-
-        // Generate TSRule structs indexed by production ID.
-        let mut ts_rules = vec![
-            quote! {
-                TSRule {
-                    lhs: 0,
-                    rhs_len: 0,
-                    _pad: 0,
-                }
-            };
-            production_id_count
-        ];
-
-        // Get all rules sorted by production ID
-        let mut rules: Vec<_> = self
-            .grammar
-            .rules
-            .iter()
-            .flat_map(|(_, rules)| rules.iter())
-            .collect();
-        rules.sort_by_key(|rule| rule.production_id.0);
-
-        // For each production, create a TSRule
-        for rule in &rules {
-            let production_index = rule.production_id.0 as usize;
-            let symbol_id = rule.lhs;
-            let lhs = self
-                .parse_table
-                .nonterminal_to_index
-                .get(&symbol_id)
-                .or_else(|| self.parse_table.symbol_to_index.get(&symbol_id))
-                .copied()
-                .unwrap_or_else(|| {
-                    debug_trace!(
-                        "WARNING: No symbol index found for LHS symbol ID {} in rule",
-                        symbol_id.0
-                    );
-                    symbol_id.0 as usize
-                }) as u16;
-            let rhs_len = rule.rhs.len() as u8;
-            if production_index < ts_rules.len() {
-                ts_rules[production_index] = quote! {
-                    TSRule {
-                        lhs: #lhs,
-                        rhs_len: #rhs_len,
-                        _pad: 0,
-                    }
-                };
-            }
-        }
-
-        ts_rules
-    }
-
-    fn generate_alias_tables(&self) -> (Vec<TokenStream>, Vec<TokenStream>) {
-        let (_, max_alias_sequence_length) = self.calculate_alias_metrics();
-        let production_count = self.calculate_production_count();
-        let stride = max_alias_sequence_length as usize;
-        if production_count == 0 || stride == 0 {
-            return (Vec::new(), Vec::new());
-        }
-
-        let mut alias_map = Vec::with_capacity(production_count);
-        let mut alias_sequences = vec![quote! { 0u16 }; production_count * stride];
-
-        for production_index in 0..production_count {
-            let offset = production_index * stride;
-            alias_map.push(quote! { #offset as u16 });
-
-            let production_id = ProductionId(production_index as u16);
-            if let Some(sequence) = self.grammar.alias_sequences.get(&production_id) {
-                for (position, alias) in sequence.aliases.iter().take(stride).enumerate() {
-                    if let Some(alias_name) = alias.as_deref()
-                        && let Some(symbol_index) = self.resolve_alias_symbol(alias_name)
-                    {
-                        alias_sequences[offset + position] = quote! { #symbol_index as u16 };
-                    }
-                }
-            }
-        }
-
-        (alias_map, alias_sequences)
-    }
-
-    fn resolve_alias_symbol(&self, alias: &str) -> Option<u16> {
-        let symbol_id = self
-            .grammar
-            .tokens
-            .iter()
-            .find_map(|(id, token)| (token.name == alias).then_some(*id))
-            .or_else(|| {
-                self.grammar
-                    .rule_names
-                    .iter()
-                    .find_map(|(id, name)| (name == alias).then_some(*id))
-            })?;
-
-        self.parse_table
-            .symbol_to_index
-            .get(&symbol_id)
-            .copied()
-            .map(|index| index as u16)
-            .or(Some(symbol_id.0))
-    }
-
-    /// Calculate counts for the language structure
-    fn calculate_counts(&self) -> LanguageCounts {
-        let (alias_count, max_alias_sequence_length) = self.calculate_alias_metrics();
-        LanguageCounts {
-            symbol_count: self.calculate_symbol_count() as u32,
-            alias_count,
-            // token_count comes from the parse table which knows about all terminals (including EOF)
-            token_count: self.parse_table.token_count as u32,
-            external_token_count: self.parse_table.external_token_count as u32,
-            state_count: self.parse_table.state_count as u32,
-            large_state_count: 0, // TODO: Calculate large states
-            production_id_count: self.calculate_production_count() as u32,
-            field_count: self.grammar.fields.len() as u32,
-            max_alias_sequence_length,
-        }
-    }
-
-    fn calculate_alias_metrics(&self) -> (u32, u16) {
-        let mut aliases = HashSet::new();
-        let mut max_len = self.grammar.max_alias_sequence_length;
-
-        for sequence in self.grammar.alias_sequences.values() {
-            max_len = max_len.max(sequence.aliases.len());
-            for alias in sequence.aliases.iter().flatten() {
-                aliases.insert(alias.as_str());
-            }
-        }
-
-        (
-            aliases.len() as u32,
-            u16::try_from(max_len).unwrap_or(u16::MAX),
-        )
-    }
-
-    fn calculate_symbol_count(&self) -> usize {
-        // Use the parse table's symbol count which is the correct count after processing
-        self.parse_table.symbol_count
-    }
-
-    fn calculate_production_count(&self) -> usize {
-        let max_id = self
-            .grammar
-            .rules
-            .values()
-            .flat_map(|rules| rules.iter().map(|r| r.production_id.0))
-            .max()
-            .unwrap_or(0);
-        (max_id as usize) + 1
-    }
-
-    /// Find all terminal tokens that should be marked as extras
-    fn find_extra_tokens(&self) -> HashSet<SymbolId> {
-        let mut extra_tokens = HashSet::new();
-        let mut visited = HashSet::new();
-
-        debug_trace!(
-            "DEBUG find_extra_tokens: grammar.extras = {:?}",
-            self.grammar.extras
-        );
-
-        // Check if any extras directly refer to tokens
-        for &extra_symbol in &self.grammar.extras {
-            if self.grammar.tokens.contains_key(&extra_symbol) {
-                debug_trace!("  Extra symbol {:?} is directly a token!", extra_symbol);
-                extra_tokens.insert(extra_symbol);
-            }
-        }
-
-        // For each extra symbol, find all terminal tokens it can produce (recursively)
-        for &extra_symbol in &self.grammar.extras {
-            debug_trace!("  Processing extra symbol: {:?}", extra_symbol);
-            self.find_terminals_recursive(extra_symbol, &mut extra_tokens, &mut visited);
-        }
-
-        debug_trace!("DEBUG find_extra_tokens: result = {:?}", extra_tokens);
-        extra_tokens
-    }
-
-    /// Recursively find all terminal tokens reachable from a symbol
-    fn find_terminals_recursive(
-        &self,
-        symbol: SymbolId,
-        terminals: &mut HashSet<SymbolId>,
-        visited: &mut HashSet<SymbolId>,
-    ) {
-        // Avoid infinite recursion
-        if !visited.insert(symbol) {
-            return;
-        }
-
-        // If it's a terminal token, add it
-        if self.grammar.tokens.contains_key(&symbol) {
-            debug_trace!("    Found terminal: {:?}", symbol);
-            terminals.insert(symbol);
-            return;
-        }
-
-        // If it's a non-terminal, explore all its rules
-        if let Some(rules) = self.grammar.rules.get(&symbol) {
-            debug_trace!(
-                "    Exploring non-terminal {:?} with {} rules",
-                symbol,
-                rules.len()
-            );
-            for rule in rules {
-                debug_trace!("      Rule: {:?} -> {:?}", rule.lhs, rule.rhs);
-                for sym in &rule.rhs {
-                    match sym {
-                        Symbol::Terminal(token_id) => {
-                            debug_trace!("        Found terminal in rule: {:?}", token_id);
-                            terminals.insert(*token_id);
-                        }
-                        Symbol::NonTerminal(nt_id) => {
-                            debug_trace!("        Recursing into non-terminal: {:?}", nt_id);
-                            self.find_terminals_recursive(*nt_id, terminals, visited);
-                        }
-                        Symbol::External(_)
-                        | Symbol::Optional(_)
-                        | Symbol::Repeat(_)
-                        | Symbol::RepeatOne(_)
-                        | Symbol::Choice(_)
-                        | Symbol::Sequence(_)
-                        | Symbol::Epsilon => {
-                            // These symbol types are not expected in the IR at this stage
-                            debug_trace!(
-                                "        WARNING: Unexpected symbol type in rule: {:?}",
-                                sym
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
-struct LanguageCounts {
-    symbol_count: u32,
-    alias_count: u32,
-    token_count: u32,
-    external_token_count: u32,
-    state_count: u32,
-    large_state_count: u32,
-    production_id_count: u32,
-    field_count: u32,
-    max_alias_sequence_length: u16,
+pub(super) struct LanguageCounts {
+    pub(super) symbol_count: u32,
+    pub(super) alias_count: u32,
+    pub(super) token_count: u32,
+    pub(super) external_token_count: u32,
+    pub(super) state_count: u32,
+    pub(super) large_state_count: u32,
+    pub(super) production_id_count: u32,
+    pub(super) field_count: u32,
+    pub(super) max_alias_sequence_length: u16,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use adze_glr_core::LexMode;
+    use adze_glr_core::{Action, LexMode};
     use adze_ir::*;
 
     fn token_stream_u16(token: &TokenStream) -> u16 {
@@ -2021,5 +900,162 @@ mod tests {
 
         assert_eq!(slices, vec!["0u16", "0u16"]);
         assert_eq!(entries, vec!["0u16"]);
+    }
+
+    // --- SRP helper tests: pin the contracts of the code_pieces helpers ---
+
+    fn minimal_builder_fixture() -> (Grammar, ParseTable) {
+        let mut grammar = Grammar::new("helper_fixture".to_string());
+        let start = SymbolId(1);
+        let t = SymbolId(2);
+        grammar.rule_names.insert(start, "start".to_string());
+        grammar.tokens.insert(
+            t,
+            Token {
+                name: "t".to_string(),
+                pattern: TokenPattern::String("t".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.add_rule(Rule {
+            lhs: start,
+            rhs: vec![Symbol::Terminal(t)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        let table = crate::empty_table!(states: 1, terms: 1, nonterms: 1);
+        (grammar, table)
+    }
+
+    #[test]
+    fn build_external_scanner_pieces_is_null_when_no_externals() {
+        let (grammar, table) = minimal_builder_fixture();
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let (code, struct_lit) = builder.build_external_scanner_pieces();
+
+        assert!(
+            code.is_empty(),
+            "no externals → scanner code block must be empty"
+        );
+        let struct_str = struct_lit.to_string();
+        assert!(
+            struct_str.contains("std :: ptr :: null ()"),
+            "expected null pointer literals in struct, got: {struct_str}"
+        );
+        assert!(!struct_str.contains("EXTERNAL_SCANNER_STATES"));
+    }
+
+    #[test]
+    fn build_external_scanner_pieces_emits_interface_when_externals_present() {
+        let (mut grammar, table) = minimal_builder_fixture();
+        // Inject a minimal external token via the public Grammar API.
+        let ext_id = SymbolId(100);
+        grammar.externals.push(ExternalToken {
+            symbol_id: ext_id,
+            name: "ext_token".to_string(),
+        });
+
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let (code, struct_lit) = builder.build_external_scanner_pieces();
+
+        assert!(
+            !code.is_empty(),
+            "externals present → scanner code block must be non-empty"
+        );
+        assert!(
+            struct_lit.to_string().contains("EXTERNAL_SCANNER_STATES"),
+            "scanner struct must reference EXTERNAL_SCANNER_STATES when externals exist"
+        );
+    }
+
+    #[test]
+    fn build_alias_table_pieces_falls_back_to_null_when_empty() {
+        let (grammar, table) = minimal_builder_fixture();
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let counts = builder.calculate_counts();
+        let pieces = builder.build_alias_table_pieces(&counts, &[], &[]);
+
+        assert!(pieces.tables.is_empty(), "empty alias case → no tables");
+        assert!(
+            pieces.map_ptr.to_string().contains("null"),
+            "expected null map_ptr, got: {}",
+            pieces.map_ptr
+        );
+        assert!(
+            pieces.sequences_ptr.to_string().contains("null"),
+            "expected null sequences_ptr, got: {}",
+            pieces.sequences_ptr
+        );
+    }
+
+    #[test]
+    fn build_alias_table_pieces_emits_statics_when_aliases_present() {
+        let (grammar, table) = minimal_builder_fixture();
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        // Synthesize counts that drive the "has aliases" branch.
+        let counts = LanguageCounts {
+            symbol_count: 1,
+            alias_count: 1,
+            token_count: 1,
+            external_token_count: 0,
+            state_count: 1,
+            large_state_count: 0,
+            production_id_count: 1,
+            field_count: 0,
+            max_alias_sequence_length: 1,
+        };
+        let map_token: TokenStream = quote! { 7u16 };
+        let seq_token: TokenStream = quote! { 9u16 };
+        let pieces = builder.build_alias_table_pieces(&counts, &[map_token], &[seq_token]);
+
+        let tables_str = pieces.tables.to_string();
+        assert!(
+            tables_str.contains("ALIAS_MAP") && tables_str.contains("ALIAS_SEQUENCES"),
+            "tables must declare both alias statics, got: {tables_str}"
+        );
+        assert_eq!(pieces.map_ptr.to_string(), "ALIAS_MAP . as_ptr ()");
+        assert_eq!(
+            pieces.sequences_ptr.to_string(),
+            "ALIAS_SEQUENCES . as_ptr ()"
+        );
+    }
+
+    #[test]
+    fn build_field_names_array_uses_zero_sized_when_no_fields() {
+        let (grammar, table) = minimal_builder_fixture();
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let counts = builder.calculate_counts();
+        let decl = builder.build_field_names_array(&counts, &[]);
+        let decl_str = decl.to_string();
+
+        assert!(decl_str.contains("FIELD_NAME_PTRS"));
+        assert!(
+            decl_str.contains("[SyncPtr ; 0]"),
+            "no fields → zero-sized array literal, got: {decl_str}"
+        );
+        assert!(!decl_str.contains("FIELD_NAME_PTRS_LEN"));
+    }
+
+    #[test]
+    fn build_field_names_array_uses_const_len_when_fields_present() {
+        let (mut grammar, table) = minimal_builder_fixture();
+        grammar.fields.insert(FieldId(0), "a".to_string());
+        grammar.fields.insert(FieldId(1), "b".to_string());
+
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let counts = builder.calculate_counts();
+        let ptrs = vec![
+            quote! { SyncPtr::new(FIELD_NAME_0.as_ptr()) },
+            quote! { SyncPtr::new(FIELD_NAME_1.as_ptr()) },
+        ];
+        let decl = builder.build_field_names_array(&counts, &ptrs);
+        let decl_str = decl.to_string();
+
+        assert!(decl_str.contains("FIELD_NAME_PTRS_LEN"));
+        assert!(decl_str.contains("2u32 as usize"));
+        assert!(decl_str.contains("FIELD_NAME_0"));
+        assert!(decl_str.contains("FIELD_NAME_1"));
     }
 }

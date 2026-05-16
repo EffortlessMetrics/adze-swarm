@@ -733,11 +733,17 @@ impl<'a> Node<'a> {
 
     fn write_sexp(&self, result: &mut String) {
         result.push('(');
-        result.push_str(self.kind());
+        if self.is_missing() {
+            result.push_str("MISSING");
+        } else if self.is_error() {
+            result.push_str("ERROR");
+        } else {
+            result.push_str(self.kind());
+        }
 
         for child in &self.node.children {
             let child_node = Node::new(self.tree, child);
-            if !child_node.is_named() {
+            if !child_node.is_named() && !child_node.is_error() {
                 continue;
             }
 
@@ -1223,5 +1229,31 @@ mod tests {
         assert!(!error.is_missing());
         assert!(!empty_regular.is_error());
         assert!(!empty_regular.is_missing());
+    }
+
+    #[test]
+    fn node_to_sexp_renders_error_and_missing_nodes() {
+        let missing_child = parse_node(0, 1, 1);
+        let spanning_error_child = parse_node(0, 2, 3);
+        let root = ParseNode {
+            symbol: SymbolId(1),
+            symbol_id: SymbolId(1),
+            start_byte: 0,
+            end_byte: 3,
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![missing_child, spanning_error_child],
+        };
+        let tree = Tree {
+            core: OwnedCoreTree {
+                root,
+                source: b"abc".to_vec(),
+                error_count: 0,
+            },
+            last_edit: None,
+            language: empty_parse_table_language(),
+        };
+
+        assert_eq!(tree.root_node().to_sexp(), "(unknown (MISSING) (ERROR))");
     }
 }

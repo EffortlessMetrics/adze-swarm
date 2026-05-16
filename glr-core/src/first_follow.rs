@@ -1,35 +1,176 @@
+//! FIRST/FOLLOW set computation for normalized GLR grammars.
+
 use crate::GLRError;
 use adze_ir::*;
 use fixedbitset::FixedBitSet;
 use indexmap::IndexMap;
+
+const FIRST_FOLLOW_OPERATION: &str = "FIRST/FOLLOW computation";
 
 /// FIRST/FOLLOW sets computation for GLR parsing
 #[derive(Debug, Clone)]
 pub struct FirstFollowSets {
     pub(crate) first: IndexMap<SymbolId, FixedBitSet>,
     pub(crate) follow: IndexMap<SymbolId, FixedBitSet>,
-    nullable: FixedBitSet,
+    pub(crate) nullable: FixedBitSet,
     #[allow(dead_code)]
     symbol_count: usize,
 }
 
-impl FirstFollowSets {
-    fn get_max_symbol_id(symbol: &Symbol) -> u16 {
-        match symbol {
-            Symbol::Terminal(id) | Symbol::NonTerminal(id) | Symbol::External(id) => id.0,
-            Symbol::Optional(inner) | Symbol::Repeat(inner) | Symbol::RepeatOne(inner) => {
-                Self::get_max_symbol_id(inner)
-            }
-            Symbol::Choice(choices) => choices
-                .iter()
-                .map(Self::get_max_symbol_id)
-                .max()
-                .unwrap_or(0),
-            Symbol::Sequence(seq) => seq.iter().map(Self::get_max_symbol_id).max().unwrap_or(0),
-            Symbol::Epsilon => 0,
+#[derive(Debug)]
+struct FirstFollowBuilder<'grammar> {
+    grammar: &'grammar Grammar,
+    first: IndexMap<SymbolId, FixedBitSet>,
+    follow: IndexMap<SymbolId, FixedBitSet>,
+    nullable: FixedBitSet,
+    symbol_count: usize,
+}
+
+impl<'grammar> FirstFollowBuilder<'grammar> {
+    fn new(grammar: &'grammar Grammar) -> Self {
+        let symbol_count = symbol_count(grammar);
+        let mut first = IndexMap::new();
+        let mut follow = IndexMap::new();
+
+        for &symbol_id in grammar.rules.keys().chain(grammar.tokens.keys()) {
+            first.insert(symbol_id, FixedBitSet::with_capacity(symbol_count));
+            follow.insert(symbol_id, FixedBitSet::with_capacity(symbol_count));
+        }
+
+        Self {
+            grammar,
+            first,
+            follow,
+            nullable: FixedBitSet::with_capacity(symbol_count),
+            symbol_count,
         }
     }
 
+    fn compute(mut self) -> Result<FirstFollowSets, GLRError> {
+        self.compute_first_sets()?;
+        self.compute_follow_sets()?;
+
+        Ok(FirstFollowSets {
+            first: self.first,
+            follow: self.follow,
+            nullable: self.nullable,
+            symbol_count: self.symbol_count,
+        })
+    }
+
+    fn compute_first_sets(&mut self) -> Result<(), GLRError> {
+        let mut changed = true;
+        while changed {
+            changed = false;
+
+            for rule in self.grammar.all_rules() {
+                changed |= self.absorb_rule_first_set(rule)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn absorb_rule_first_set(&mut self, rule: &Rule) -> Result<bool, GLRError> {
+        let mut changed = false;
+        let mut rule_nullable = true;
+
+        for symbol in &rule.rhs {
+            match symbol {
+                Symbol::Terminal(id) => {
+                    changed |= insert_symbol(&mut self.first, rule.lhs, *id);
+                    rule_nullable = false;
+                    break;
+                }
+                Symbol::NonTerminal(id) | Symbol::External(id) => {
+                    changed |= union_symbol_set(&mut self.first, rule.lhs, *id);
+
+                    if !self.nullable.contains(id.0 as usize) {
+                        rule_nullable = false;
+                        break;
+                    }
+                }
+                Symbol::Epsilon => {
+                    // Epsilon doesn't contribute to FIRST set but keeps the rule nullable.
+                }
+                Symbol::Optional(_)
+                | Symbol::Repeat(_)
+                | Symbol::RepeatOne(_)
+                | Symbol::Choice(_)
+                | Symbol::Sequence(_) => return Err(complex_symbol_error()),
+            }
+        }
+
+        if rule_nullable && !self.nullable.contains(rule.lhs.0 as usize) {
+            self.nullable.insert(rule.lhs.0 as usize);
+            changed = true;
+        }
+
+        Ok(changed)
+    }
+
+    fn compute_follow_sets(&mut self) -> Result<(), GLRError> {
+        self.seed_start_follow_set();
+
+        let mut changed = true;
+        while changed {
+            changed = false;
+
+            for rule in self.grammar.all_rules() {
+                changed |= self.propagate_left_recursive_follow(rule);
+                changed |= self.propagate_rule_follow_sets(rule)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn seed_start_follow_set(&mut self) {
+        if let Some(start_symbol) = self.grammar.start_symbol()
+            && let Some(follow_set) = self.follow.get_mut(&start_symbol)
+        {
+            follow_set.insert(0); // EOF symbol
+        }
+    }
+
+    fn propagate_left_recursive_follow(&mut self, rule: &Rule) -> bool {
+        // Special handling for rules of the form A -> A B (left recursion).
+        if rule.rhs.len() >= 2
+            && let (Symbol::NonTerminal(first_id), Symbol::NonTerminal(second_id)) =
+                (&rule.rhs[0], &rule.rhs[1])
+            && *first_id == rule.lhs
+        {
+            return union_symbol_set_from(&mut self.follow, rule.lhs, &self.first, *second_id);
+        }
+
+        false
+    }
+
+    fn propagate_rule_follow_sets(&mut self, rule: &Rule) -> Result<bool, GLRError> {
+        let mut changed = false;
+
+        for (i, symbol) in rule.rhs.iter().enumerate() {
+            let (Symbol::NonTerminal(id) | Symbol::External(id)) = symbol else {
+                continue;
+            };
+
+            let remaining = &rule.rhs[i + 1..];
+            let first_of_remaining =
+                first_of_sequence_static(remaining, &self.first, &self.nullable)?;
+            changed |= union_fixed_set(&mut self.follow, *id, &first_of_remaining);
+
+            if sequence_is_nullable(remaining, &self.nullable)
+                && let Some(lhs_follow) = self.follow.get(&rule.lhs).cloned()
+            {
+                changed |= union_fixed_set(&mut self.follow, *id, &lhs_follow);
+            }
+        }
+
+        Ok(changed)
+    }
+}
+
+impl FirstFollowSets {
     /// Compute FIRST/FOLLOW sets for the given grammar with automatic normalization.
     ///
     /// This method automatically normalizes complex symbols (Repeat, Choice, etc.) before computation.
@@ -91,242 +232,16 @@ impl FirstFollowSets {
     /// ```
     #[must_use = "computation result must be checked"]
     pub fn compute(grammar: &Grammar) -> Result<Self, GLRError> {
-        // Clone and normalize the grammar if it contains complex symbols
-        let normalized_grammar = {
-            let mut cloned = grammar.clone();
-            let _ = cloned.normalize(); // normalize returns Vec<Rule>, ignore it
-            cloned
-        };
+        let mut normalized_grammar = grammar.clone();
+        let _ = normalized_grammar.normalize();
 
-        // Use the normalized grammar for computation
-        let grammar = &normalized_grammar;
-        // Find the maximum symbol ID to determine the size needed
-        let max_rule_id = grammar.rules.keys().map(|id| id.0).max().unwrap_or(0);
-        let max_token_id = grammar.tokens.keys().map(|id| id.0).max().unwrap_or(0);
-        let max_external_id = grammar
-            .externals
-            .iter()
-            .map(|e| e.symbol_id.0)
-            .max()
-            .unwrap_or(0);
-
-        // Also check max symbol ID in all rule RHS
-        let mut max_rhs_id = 0u16;
-        for rules in grammar.rules.values() {
-            for rule in rules {
-                for symbol in &rule.rhs {
-                    max_rhs_id = max_rhs_id.max(Self::get_max_symbol_id(symbol));
-                }
-            }
-        }
-
-        let symbol_count = (max_rule_id
-            .max(max_token_id)
-            .max(max_external_id)
-            .max(max_rhs_id)
-            + 2) as usize; // +2 to leave room for EOF and other potential symbols
-
-        let mut first = IndexMap::new();
-        let mut follow = IndexMap::new();
-        let mut nullable = FixedBitSet::with_capacity(symbol_count);
-
-        // Initialize sets
-        for &symbol_id in grammar.rules.keys().chain(grammar.tokens.keys()) {
-            first.insert(symbol_id, FixedBitSet::with_capacity(symbol_count));
-            follow.insert(symbol_id, FixedBitSet::with_capacity(symbol_count));
-        }
-
-        // Compute FIRST sets
-        let mut changed = true;
-        while changed {
-            changed = false;
-
-            for rule in grammar.all_rules() {
-                let lhs = rule.lhs;
-                let mut rule_nullable = true;
-
-                for symbol in &rule.rhs {
-                    match symbol {
-                        Symbol::Terminal(id) => {
-                            if let Some(first_set) = first.get_mut(&lhs)
-                                && !first_set.contains(id.0 as usize)
-                            {
-                                first_set.insert(id.0 as usize);
-                                changed = true;
-                            }
-                            rule_nullable = false;
-                            break;
-                        }
-                        Symbol::NonTerminal(id) | Symbol::External(id) => {
-                            if let Some(symbol_first) = first.get(id).cloned()
-                                && let Some(lhs_first) = first.get_mut(&lhs)
-                            {
-                                let old_len = lhs_first.count_ones(..);
-                                lhs_first.union_with(&symbol_first);
-                                if lhs_first.count_ones(..) > old_len {
-                                    changed = true;
-                                }
-                            }
-
-                            if !nullable.contains(id.0 as usize) {
-                                rule_nullable = false;
-                                break;
-                            }
-                        }
-                        Symbol::Epsilon => {
-                            // Epsilon doesn't contribute to FIRST set
-                            // but keeps rule nullable
-                        }
-                        Symbol::Optional(_)
-                        | Symbol::Repeat(_)
-                        | Symbol::RepeatOne(_)
-                        | Symbol::Choice(_)
-                        | Symbol::Sequence(_) => {
-                            // These should be normalized before FIRST/FOLLOW computation
-                            return Err(GLRError::ComplexSymbolsNotNormalized {
-                                operation: "FIRST/FOLLOW computation".to_string(),
-                            });
-                        }
-                    }
-                }
-
-                if rule_nullable && !nullable.contains(lhs.0 as usize) {
-                    nullable.insert(lhs.0 as usize);
-                    changed = true;
-                }
-            }
-        }
-
-        // Compute FOLLOW sets
-        // Initialize FOLLOW(start_symbol) with EOF
-        if let Some(start_symbol) = grammar.start_symbol()
-            && let Some(follow_set) = follow.get_mut(&start_symbol)
-        {
-            follow_set.insert(0); // EOF symbol
-        }
-
-        changed = true;
-        while changed {
-            changed = false;
-
-            for rule in grammar.all_rules() {
-                // Special handling for rules of the form A -> A B (left recursion)
-                if rule.rhs.len() >= 2
-                    && let (Symbol::NonTerminal(first_id), Symbol::NonTerminal(second_id)) =
-                        (&rule.rhs[0], &rule.rhs[1])
-                    && *first_id == rule.lhs
-                {
-                    // This is a left-recursive rule like Module_body_vec_contents -> Module_body_vec_contents Statement
-                    // FIRST(Statement) should be in FOLLOW(Module_body_vec_contents)
-                    if let Some(first_of_second) = first.get(second_id)
-                        && let Some(follow_set) = follow.get_mut(&rule.lhs)
-                    {
-                        let old_len = follow_set.count_ones(..);
-                        follow_set.union_with(first_of_second);
-                        if follow_set.count_ones(..) > old_len {
-                            changed = true;
-                        }
-                    }
-                }
-
-                for (i, symbol) in rule.rhs.iter().enumerate() {
-                    if let Symbol::NonTerminal(id) | Symbol::External(id) = symbol {
-                        // Add FIRST of remaining symbols to FOLLOW of current symbol
-                        let remaining = &rule.rhs[i + 1..];
-                        let first_of_remaining =
-                            Self::first_of_sequence_static(remaining, &first, &nullable)?;
-
-                        if let Some(follow_set) = follow.get_mut(id) {
-                            let old_len = follow_set.count_ones(..);
-                            follow_set.union_with(&first_of_remaining);
-                            if follow_set.count_ones(..) > old_len {
-                                changed = true;
-                            }
-                        }
-
-                        // If remaining symbols are nullable, add FOLLOW of LHS
-                        if Self::sequence_is_nullable(remaining, &nullable)
-                            && let Some(lhs_follow) = follow.get(&rule.lhs).cloned()
-                            && let Some(follow_set) = follow.get_mut(id)
-                        {
-                            let old_len = follow_set.count_ones(..);
-                            follow_set.union_with(&lhs_follow);
-                            if follow_set.count_ones(..) > old_len {
-                                changed = true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(Self {
-            first,
-            follow,
-            nullable,
-            symbol_count,
-        })
+        FirstFollowBuilder::new(&normalized_grammar).compute()
     }
 
     /// Get FIRST set of a sequence of symbols
     #[must_use = "computation result must be checked"]
     pub fn first_of_sequence(&self, symbols: &[Symbol]) -> Result<FixedBitSet, GLRError> {
-        Self::first_of_sequence_static(symbols, &self.first, &self.nullable)
-    }
-
-    fn first_of_sequence_static(
-        symbols: &[Symbol],
-        first: &IndexMap<SymbolId, FixedBitSet>,
-        nullable: &FixedBitSet,
-    ) -> Result<FixedBitSet, GLRError> {
-        let mut result = FixedBitSet::with_capacity(nullable.len());
-
-        for symbol in symbols {
-            match symbol {
-                Symbol::Terminal(id) => {
-                    result.insert(id.0 as usize);
-                    break;
-                }
-                Symbol::Epsilon => {
-                    // Epsilon doesn't contribute to FIRST set, continue to next symbol
-                }
-                Symbol::NonTerminal(id) | Symbol::External(id) => {
-                    if let Some(symbol_first) = first.get(id) {
-                        result.union_with(symbol_first);
-                    }
-
-                    if !nullable.contains(id.0 as usize) {
-                        break;
-                    }
-                }
-                Symbol::Optional(_)
-                | Symbol::Repeat(_)
-                | Symbol::RepeatOne(_)
-                | Symbol::Choice(_)
-                | Symbol::Sequence(_) => {
-                    return Err(GLRError::ComplexSymbolsNotNormalized {
-                        operation: "FIRST/FOLLOW computation".to_string(),
-                    });
-                }
-            }
-        }
-
-        Ok(result)
-    }
-
-    fn sequence_is_nullable(symbols: &[Symbol], nullable: &FixedBitSet) -> bool {
-        symbols.iter().all(|symbol| match symbol {
-            Symbol::Terminal(_) => false,
-            Symbol::NonTerminal(id) | Symbol::External(id) => nullable.contains(id.0 as usize),
-            Symbol::Epsilon => true,
-            Symbol::Optional(_)
-            | Symbol::Repeat(_)
-            | Symbol::RepeatOne(_)
-            | Symbol::Choice(_)
-            | Symbol::Sequence(_) => {
-                panic!("Complex symbols should be normalized before FIRST/FOLLOW computation");
-            }
-        })
+        first_of_sequence_static(symbols, &self.first, &self.nullable)
     }
 
     /// Get FIRST set for a symbol
@@ -342,5 +257,155 @@ impl FirstFollowSets {
     /// Check if a symbol is nullable
     pub fn is_nullable(&self, symbol: SymbolId) -> bool {
         self.nullable.contains(symbol.0 as usize)
+    }
+}
+
+fn symbol_count(grammar: &Grammar) -> usize {
+    let max_rule_id = grammar.rules.keys().map(|id| id.0).max().unwrap_or(0);
+    let max_token_id = grammar.tokens.keys().map(|id| id.0).max().unwrap_or(0);
+    let max_external_id = grammar
+        .externals
+        .iter()
+        .map(|external| external.symbol_id.0)
+        .max()
+        .unwrap_or(0);
+    let max_rhs_id = grammar
+        .rules
+        .values()
+        .flatten()
+        .flat_map(|rule| rule.rhs.iter())
+        .map(max_symbol_id)
+        .max()
+        .unwrap_or(0);
+
+    (max_rule_id
+        .max(max_token_id)
+        .max(max_external_id)
+        .max(max_rhs_id)
+        + 2) as usize
+}
+
+fn max_symbol_id(symbol: &Symbol) -> u16 {
+    match symbol {
+        Symbol::Terminal(id) | Symbol::NonTerminal(id) | Symbol::External(id) => id.0,
+        Symbol::Optional(inner) | Symbol::Repeat(inner) | Symbol::RepeatOne(inner) => {
+            max_symbol_id(inner)
+        }
+        Symbol::Choice(choices) => choices.iter().map(max_symbol_id).max().unwrap_or(0),
+        Symbol::Sequence(seq) => seq.iter().map(max_symbol_id).max().unwrap_or(0),
+        Symbol::Epsilon => 0,
+    }
+}
+
+fn first_of_sequence_static(
+    symbols: &[Symbol],
+    first: &IndexMap<SymbolId, FixedBitSet>,
+    nullable: &FixedBitSet,
+) -> Result<FixedBitSet, GLRError> {
+    let mut result = FixedBitSet::with_capacity(nullable.len());
+
+    for symbol in symbols {
+        match symbol {
+            Symbol::Terminal(id) => {
+                result.insert(id.0 as usize);
+                break;
+            }
+            Symbol::Epsilon => {
+                // Epsilon doesn't contribute to FIRST set, continue to next symbol
+            }
+            Symbol::NonTerminal(id) | Symbol::External(id) => {
+                if let Some(symbol_first) = first.get(id) {
+                    result.union_with(symbol_first);
+                }
+
+                if !nullable.contains(id.0 as usize) {
+                    break;
+                }
+            }
+            Symbol::Optional(_)
+            | Symbol::Repeat(_)
+            | Symbol::RepeatOne(_)
+            | Symbol::Choice(_)
+            | Symbol::Sequence(_) => return Err(complex_symbol_error()),
+        }
+    }
+
+    Ok(result)
+}
+
+fn sequence_is_nullable(symbols: &[Symbol], nullable: &FixedBitSet) -> bool {
+    symbols.iter().all(|symbol| match symbol {
+        Symbol::Terminal(_) => false,
+        Symbol::NonTerminal(id) | Symbol::External(id) => nullable.contains(id.0 as usize),
+        Symbol::Epsilon => true,
+        Symbol::Optional(_)
+        | Symbol::Repeat(_)
+        | Symbol::RepeatOne(_)
+        | Symbol::Choice(_)
+        | Symbol::Sequence(_) => {
+            panic!("Complex symbols should be normalized before FIRST/FOLLOW computation");
+        }
+    })
+}
+
+fn insert_symbol(
+    sets: &mut IndexMap<SymbolId, FixedBitSet>,
+    destination: SymbolId,
+    symbol: SymbolId,
+) -> bool {
+    let Some(destination_set) = sets.get_mut(&destination) else {
+        return false;
+    };
+
+    if destination_set.contains(symbol.0 as usize) {
+        return false;
+    }
+
+    destination_set.insert(symbol.0 as usize);
+    true
+}
+
+fn union_symbol_set(
+    sets: &mut IndexMap<SymbolId, FixedBitSet>,
+    destination: SymbolId,
+    source: SymbolId,
+) -> bool {
+    let Some(source_set) = sets.get(&source).cloned() else {
+        return false;
+    };
+
+    union_fixed_set(sets, destination, &source_set)
+}
+
+fn union_symbol_set_from(
+    destination_sets: &mut IndexMap<SymbolId, FixedBitSet>,
+    destination: SymbolId,
+    source_sets: &IndexMap<SymbolId, FixedBitSet>,
+    source: SymbolId,
+) -> bool {
+    let Some(source_set) = source_sets.get(&source) else {
+        return false;
+    };
+
+    union_fixed_set(destination_sets, destination, source_set)
+}
+
+fn union_fixed_set(
+    sets: &mut IndexMap<SymbolId, FixedBitSet>,
+    destination: SymbolId,
+    source: &FixedBitSet,
+) -> bool {
+    let Some(destination_set) = sets.get_mut(&destination) else {
+        return false;
+    };
+
+    let old_len = destination_set.count_ones(..);
+    destination_set.union_with(source);
+    destination_set.count_ones(..) > old_len
+}
+
+fn complex_symbol_error() -> GLRError {
+    GLRError::ComplexSymbolsNotNormalized {
+        operation: FIRST_FOLLOW_OPERATION.to_string(),
     }
 }
