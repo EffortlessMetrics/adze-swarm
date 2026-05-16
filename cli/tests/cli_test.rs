@@ -125,6 +125,21 @@ fn test_check_rejects_file_without_adze_grammar() {
 }
 
 #[test]
+fn test_check_reports_missing_grammar_path() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let missing_grammar = temp.path().join("missing.rs");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("check")
+        .arg(&missing_grammar)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Grammar file does not exist"))
+        .stderr(predicate::str::contains("Grammar analysis panicked").not())
+        .stdout(predicate::str::contains("Grammar syntax is valid").not());
+}
+
+#[test]
 fn test_stats_rejects_file_without_adze_grammar() {
     let temp = tempfile::tempdir().expect("tempdir");
     let not_a_grammar = temp.path().join("not_a_grammar.rs");

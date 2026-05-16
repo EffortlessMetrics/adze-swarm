@@ -217,7 +217,7 @@ cargo test -p adze --features "pure-rust,serialization,glr" --test adze_document
 | `adze parse` documents available modes | `test_parse_help_documents_available_modes` | — | — |
 | `adze parse --mode document` output | none | No test for document-JSON parse output mode | Add test: `adze parse --mode document` → valid JSON with document envelope |
 | `adze check` with broken grammar | none | No test for check output on intentionally invalid grammar | Add test: syntax error in grammar → check reports error |
-| Error handling (bad path, permission) | none | No CLI error-path tests | Add test: nonexistent file → graceful error message |
+| Missing grammar path handling | `test_check_reports_missing_grammar_path` | — | — |
 
 **Proof commands:**
 ```bash
@@ -285,10 +285,10 @@ cargo package -p adze-common --allow-dirty
 | ts_compat adapter identity | 9 | 0 | — |
 | Ambiguity determinism | 7 | 1 | Larger ambiguity (3+ alternatives) |
 | JSON projection | 7 | 0 | — |
-| CLI output truth | 5 | 3 | `adze parse --mode document` test |
+| CLI output truth | 6 | 2 | `adze parse --mode document` test |
 | Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
 | Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **70** | **10** | — |
+| **Total** | **71** | **9** | — |
 
 ---
 
