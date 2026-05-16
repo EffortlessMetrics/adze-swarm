@@ -33,7 +33,7 @@ A 0.9.0 release is ready when all of the following are true:
 | 1 | parse() / parse_document() GLR-path agreement | covered | `cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test document_parse_agreement -- --nocapture` | #26 |
 | 2 | parse() / parse_document() CST topology comparison | covered | `cargo test -p adze --features pure-rust --test document_parse_agreement -- --nocapture` | #26 |
 | 3 | Recovered document refuses strict AST extraction | covered | `cargo test -p adze --features pure-rust --test document_parse_agreement -- --nocapture` | #27 |
-| 4 | AdzeDocument source_slice() boundary test | pending | — | — |
+| 4 | AdzeDocument source_slice() and empty node diagnostics | covered | `cargo test -p adze --features "pure-rust,ts-compat" --test adze_document_alpha -- --nocapture` | #28 |
 | 5 | Empty field map canary | pending | — | — |
 | 6 | Field lookup on error/missing nodes | pending | — | — |
 | 7 | Repeated field iteration | pending | — | — |
@@ -98,13 +98,14 @@ Items 1–18 are blocking for the surfaces they cover. Items 19–34 are release
 1. docs(status): add 0.9 accuracy and coverage map          ← this document
 2. test(document): prove parse and parse_document agree      ← items 1-2
 3. test(document): prove recovered-doc AST refusal           ← item 3
-4. test(document): prove edge field metadata invariants      ← items 5-7
-5. test(diagnostics): prove expected-token normalization     ← items 8-10
-6. test(diagnostics): cover UTF-8 and EOF recovery spans     ← items 11-12
-7. test(ts-compat): prove adapter identity and alias         ← items 13-14
-8. test(glr): prove ambiguity summary determinism            ← items 15-16
-9. docs: audit README claims against proof map               ← item 19
-10. benchmarks: classify benchmark inventory                 ← items 20-21
-11. release: audit publishable package metadata              ← items 22-30
-12. release: update this receipt, tag 0.9.0
+4. test(document): cover document boundary canaries          ← item 4
+5. test(document): prove edge field metadata invariants      ← items 5-7
+6. test(diagnostics): prove expected-token normalization     ← items 8-10
+7. test(diagnostics): cover UTF-8 and EOF recovery spans     ← items 11-12
+8. test(ts-compat): prove adapter identity and alias         ← items 13-14
+9. test(glr): prove ambiguity summary determinism            ← items 15-16
+10. docs: audit README claims against proof map              ← item 19
+11. benchmarks: classify benchmark inventory                 ← items 20-21
+12. release: audit publishable package metadata              ← items 22-30
+13. release: update this receipt, tag 0.9.0
 ```

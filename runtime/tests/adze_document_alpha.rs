@@ -134,6 +134,17 @@ fn parse_document_exposes_generic_tree_and_ts_projection_from_same_parse() {
 
     let root = tree.root();
     assert_eq!(tree.root_id(), root.node_id());
+    assert!(
+        document
+            .diagnostics_for_node(root.node_id())
+            .next()
+            .is_none(),
+        "clean document root should have no related diagnostics"
+    );
+    assert!(
+        root.diagnostics().next().is_none(),
+        "clean node diagnostic iterator should be empty"
+    );
     let root_record = root.record();
     assert_eq!(tree.node_record(root.node_id()), Some(root_record));
     assert_eq!(root_record.visible_id(), root.kind_id());
@@ -432,6 +443,38 @@ fn parse_document_exposes_generic_tree_and_ts_projection_from_same_parse() {
             .expect("left field should project")
             .text(source.as_bytes()),
         "1"
+    );
+}
+
+#[test]
+fn parse_document_source_slice_respects_utf8_boundaries() {
+    let lang = adze_example::ts_langs::arithmetic();
+    let mut parser = CoreParser::new(lang.grammar.clone(), lang.table.clone(), lang.name.clone());
+
+    let source = "é+1";
+    let document = parser
+        .parse_document(source)
+        .expect("document parse should retain source text even for partial parse facts");
+
+    assert_eq!(document.source_slice(0..2), Some("é"));
+    assert_eq!(document.source_slice(2..3), Some("+"));
+    assert_eq!(document.source_slice(3..4), Some("1"));
+    assert_eq!(document.source_slice(4..4), Some(""));
+
+    assert_eq!(
+        document.source_slice(0..1),
+        None,
+        "slice ending inside a UTF-8 codepoint should be rejected"
+    );
+    assert_eq!(
+        document.source_slice(1..2),
+        None,
+        "slice starting inside a UTF-8 codepoint should be rejected"
+    );
+    assert_eq!(
+        document.source_slice(0..5),
+        None,
+        "slice beyond source bounds should be rejected"
     );
 }
 

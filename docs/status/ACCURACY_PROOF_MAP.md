@@ -51,8 +51,8 @@ cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test document_parse_
 | Alias-visible identity from native node data | `parse_document_projects_alias_visible_identity_from_native_node_data` | — | — |
 | ts_compat projection reads same document | Covered in adze_document_alpha | — | — |
 | JSON projection (serialization feature) | `adze_document_json` suite (clean, EOF, multibyte, multiline, GLR fixtures) | — | — |
-| `source_slice()` with invalid UTF-8 boundary | none | No test for boundary cases on `source_slice()` | Add test: slice at non-char boundary |
-| `diagnostics_for_node()` with node that has no diagnostics | none | No test for empty diagnostic list per node | Add test: clean parse → `diagnostics_for_node(root) == []` |
+| `source_slice()` with invalid UTF-8 boundary | `parse_document_source_slice_respects_utf8_boundaries` | — | — |
+| `diagnostics_for_node()` with node that has no diagnostics | `parse_document_exposes_generic_tree_and_ts_projection_from_same_parse` | — | — |
 | `ambiguities()` non-empty only for GLR | Covered in test_e2e_ambiguous_grammar_glr | — | — |
 
 **Proof commands:**
@@ -275,7 +275,7 @@ cargo package -p adze-common --allow-dirty
 | Surface | Tested aspects | Named gaps | Next canary priority |
 |---------|---------------|------------|---------------------|
 | parse() / parse_document() agreement | 7 | 0 | — |
-| AdzeDocument boundaries | 4 | 2 | `source_slice()` boundary test |
+| AdzeDocument boundaries | 6 | 0 | — |
 | Edge field metadata | 6 | 3 | Empty field map canary |
 | Diagnostics normalization | 7 | 3 | Byte↔point span agreement |
 | UTF-8 / zero-width spans | 5 | 2 | EOF boundary error test |
@@ -285,7 +285,7 @@ cargo package -p adze-common --allow-dirty
 | CLI output truth | 5 | 3 | `adze parse --mode document` test |
 | Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
 | Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **53** | **27** | — |
+| **Total** | **55** | **25** | — |
 
 ---
 
@@ -295,12 +295,13 @@ Each PR adds focused tests for one surface gap. No code changes to production cr
 
 1. **test(document): prove parse and parse_document agree** — GLR-path agreement and CST topology comparison
 2. **test(document): prove recovered-doc AST refusal** — strict AST extraction refuses recovered diagnostic documents through document AST entry points
-3. **test(document): prove edge field metadata invariants** — empty field map, missing/error node fields, repeated field iteration
-4. **test(diagnostics): prove expected-token normalization** — byte↔point span agreement, multi-error dedup, diagnostic ordering
-5. **test(diagnostics): cover UTF-8 and EOF recovery spans** — EOF boundary, mixed ASCII/multibyte line counting
-6. **test(ts-compat): prove adapter identity and alias behavior** — ERROR/MISSING S-expression, nested aliases
-7. **test(glr): prove ambiguity summary determinism** — CST-level determinism, fork count stability
-8. **docs: audit README claims against proof map** — no new tests, verify existing proof commands still pass
-9. **benchmarks: classify benchmark inventory** — mark duplicates, document what each bench measures
-10. **release: audit publishable package metadata** — add `just check-publishable` recipe
-11. **release: add 0.9 readiness receipt** — update this map with final gap status
+3. **test(document): cover document boundary canaries** — UTF-8 `source_slice()` boundaries and empty clean-node diagnostics
+4. **test(document): prove edge field metadata invariants** — empty field map, missing/error node fields, repeated field iteration
+5. **test(diagnostics): prove expected-token normalization** — byte↔point span agreement, multi-error dedup, diagnostic ordering
+6. **test(diagnostics): cover UTF-8 and EOF recovery spans** — EOF boundary, mixed ASCII/multibyte line counting
+7. **test(ts-compat): prove adapter identity and alias behavior** — ERROR/MISSING S-expression, nested aliases
+8. **test(glr): prove ambiguity summary determinism** — CST-level determinism, fork count stability
+9. **docs: audit README claims against proof map** — no new tests, verify existing proof commands still pass
+10. **benchmarks: classify benchmark inventory** — mark duplicates, document what each bench measures
+11. **release: audit publishable package metadata** — add `just check-publishable` recipe
+12. **release: add 0.9 readiness receipt** — update this map with final gap status
