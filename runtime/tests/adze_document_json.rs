@@ -6,6 +6,25 @@ use adze::document::ADZE_DOCUMENT_JSON_SCHEMA;
 use serde_json::Value;
 
 #[test]
+fn adze_document_json_schema_identifier_is_pinned() {
+    use adze_example::fielded_precedence_typed_cst_contract::grammar;
+
+    let document = grammar::parse_document("1+2")
+        .expect("generated parse_document helper should return an AdzeDocument");
+    let json = document.to_json_value();
+
+    assert_eq!(
+        ADZE_DOCUMENT_JSON_SCHEMA, "adze.document.v1",
+        "schema-family changes must be deliberate because CLI/WASM consumers key off this identifier"
+    );
+    assert_eq!(
+        json["schema"].as_str(),
+        Some("adze.document.v1"),
+        "document JSON should emit the pinned schema family"
+    );
+}
+
+#[test]
 fn parse_document_json_has_schema_and_tree_facts() {
     use adze_example::fielded_precedence_typed_cst_contract::grammar;
 
@@ -152,6 +171,85 @@ fn parse_document_json_serializes_diagnostics_and_error_flags() {
         "adze_document_json_diagnostic",
         serde_json::to_string_pretty(&json)
             .expect("diagnostic document JSON should render as pretty JSON")
+    );
+}
+
+#[test]
+fn parse_document_json_diagnostic_fields_match_native_diagnostic() {
+    use adze_example::typed_ast_contract::grammar;
+
+    let source = "1 + \u{03bb}";
+    let document = grammar::parse_document(source)
+        .expect("generated parse_document helper should return multibyte partial parse facts");
+    let json = document.to_json_value();
+    let native = document
+        .diagnostics()
+        .first()
+        .expect("multibyte bad token should produce a native diagnostic");
+    let diagnostic = json["diagnostics"]
+        .as_array()
+        .and_then(|diagnostics| diagnostics.first())
+        .expect("multibyte bad token should serialize a diagnostic");
+
+    let expected = diagnostic["expected"]
+        .as_array()
+        .expect("diagnostic JSON should serialize expected tokens")
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .expect("expected token JSON values should be strings")
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    let related_nodes = diagnostic["related_nodes"]
+        .as_array()
+        .expect("diagnostic JSON should serialize related node IDs")
+        .iter()
+        .map(|value| {
+            value
+                .as_u64()
+                .expect("related node JSON values should be numeric") as usize
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        diagnostic["start_byte"].as_u64(),
+        Some(native.start_byte as u64)
+    );
+    assert_eq!(
+        diagnostic["end_byte"].as_u64(),
+        Some(native.end_byte as u64)
+    );
+    assert_eq!(diagnostic["found"].as_str(), native.found.as_deref());
+    assert_eq!(expected, native.expected);
+    assert_eq!(
+        related_nodes,
+        native
+            .related_nodes
+            .iter()
+            .map(|node_id| node_id.as_usize())
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        diagnostic["message"].as_str(),
+        Some(native.message.as_str())
+    );
+    assert_eq!(
+        diagnostic["point_range"]["start"]["row"].as_u64(),
+        Some(native.point_range.start.row as u64)
+    );
+    assert_eq!(
+        diagnostic["point_range"]["start"]["column"].as_u64(),
+        Some(native.point_range.start.column as u64)
+    );
+    assert_eq!(
+        diagnostic["point_range"]["end"]["row"].as_u64(),
+        Some(native.point_range.end.row as u64)
+    );
+    assert_eq!(
+        diagnostic["point_range"]["end"]["column"].as_u64(),
+        Some(native.point_range.end.column as u64)
     );
 }
 

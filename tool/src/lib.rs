@@ -44,7 +44,7 @@ pub use error::{Result as ToolResult, ToolError};
 
 // Use tree-sitter-generate's version for compatibility
 // Version 0.25.1 is what we depend on in Cargo.toml
-const GENERATED_SEMANTIC_VERSION: Option<(u8, u8, u8)> = Some((0, 25, 1));
+pub(crate) const GENERATED_SEMANTIC_VERSION: Option<(u8, u8, u8)> = Some((0, 25, 1));
 
 /// Generates JSON strings defining Tree Sitter grammars for every Adze
 /// grammar found in the given module and recursive submodules.
@@ -75,13 +75,12 @@ fn generate_all_grammars(item: &Item, out: &mut Vec<Value>) -> ToolResult<()> {
     Ok(())
 }
 
-use std::path::Path;
-
 #[cfg(feature = "build_parsers")]
 mod build_parsers;
 #[cfg(feature = "build_parsers")]
 pub use build_parsers::build_parsers;
 
+use std::path::Path;
 #[cfg(test)]
 mod tests {
     use syn::parse_quote;
