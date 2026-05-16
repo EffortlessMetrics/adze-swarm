@@ -193,7 +193,7 @@ cargo test -p adze --features "pure-rust,glr,glr_telemetry,runtime-e2e" --test t
 | Multiline diagnostic JSON | `adze_document_json` multiline fixture | — | — |
 | GLR ambiguity JSON | `parse_document_json_serializes_glr_ambiguity_summary` | — | — |
 | Schema snapshot stability | `adze_document_json_schema_identifier_is_pinned`; snapshots exist for each fixture | — | — |
-| JSON ↔ native field parity | Clean fixture cross-checks edge/field/child data | No cross-check on diagnostic fixtures | Add test: diagnostic fixture JSON fields match native `ParseDiagnostic` values |
+| JSON ↔ native field parity | Clean fixture cross-checks edge/field/child data; `parse_document_json_diagnostic_fields_match_native_diagnostic` | — | — |
 
 **Proof commands:**
 ```bash
@@ -283,11 +283,11 @@ cargo package -p adze-common --allow-dirty
 | UTF-8 / zero-width spans | 7 | 0 | — |
 | ts_compat adapter identity | 9 | 0 | — |
 | Ambiguity determinism | 7 | 1 | Larger ambiguity (3+ alternatives) |
-| JSON projection | 6 | 1 | Diagnostic JSON/native parity |
+| JSON projection | 7 | 0 | — |
 | CLI output truth | 5 | 3 | `adze parse --mode document` test |
 | Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
 | Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **68** | **12** | — |
+| **Total** | **69** | **11** | — |
 
 ---
 
