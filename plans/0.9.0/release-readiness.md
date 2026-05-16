@@ -69,7 +69,8 @@ surface after a fresh final proof run.
 | 27 | Package publishability — adze-glr-core | covered | `cargo package -p adze-glr-core --allow-dirty` | #59 |
 | 28 | Package publishability — adze-tablegen | covered | `cargo package -p adze-tablegen --allow-dirty` | #58 |
 | 29 | Package publishability — adze-common | covered | `cargo package -p adze-common --allow-dirty` | #57 |
-| 30 | `just check-publishable` recipe exists | covered | `just check-publishable` | #56 |
+| 30 | Package publishability — adze-common-type-ops-core | covered | `cargo package -p adze-common-type-ops-core --allow-dirty` | #104 |
+| 31 | `just check-publishable` recipe exists | covered | `just check-publishable` | #56 |
 
 Current package blockers:
 
@@ -79,10 +80,10 @@ Current package blockers:
 
 | # | Item | Status | Proof command | PR |
 |---|------|--------|---------------|----|
-| 31 | `just ci-supported` passes | covered | `just ci-supported` | #94 |
-| 32 | `just ci-product-stable` passes | covered | `just ci-product-stable` | #91 |
-| 33 | Workspace formatting passes | covered | `just fmt` | #92 |
-| 34 | `just clippy` passes | covered | `just clippy` | #70 |
+| 32 | `just ci-supported` passes | covered | `just ci-supported` | #94 |
+| 33 | `just ci-product-stable` passes | covered | `just ci-product-stable` | #91 |
+| 34 | Workspace formatting passes | covered | `just fmt` | #92 |
+| 35 | `just clippy` passes | covered | `just clippy` | #70 |
 
 ---
 
@@ -97,7 +98,7 @@ An item is **advisory** if:
 - It covers Experimental or Advisory surfaces.
 - It improves quality signal but does not affect correctness of Stable claims.
 
-Items 1–18 are blocking for the surfaces they cover. Items 19–34 are release quality, not correctness blockers — but all must pass before `0.9.0` is tagged.
+Items 1–18 are blocking for the surfaces they cover. Items 19–35 are release quality, not correctness blockers — but all must pass before `0.9.0` is tagged.
 
 ---
 
