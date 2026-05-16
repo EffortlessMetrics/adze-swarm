@@ -1,6 +1,6 @@
 # 0.9 Accuracy and Proof Coverage Map
 
-**Last updated:** 2026-05-15
+**Last updated:** 2026-05-16
 **Purpose:** List the behavior that must be accurate for 0.9, the current proof, the missing proof, and the next test to add. This is a correctness work queue, not a feature roadmap.
 
 **Rules:**
@@ -29,7 +29,7 @@
 | Same CST topology (node count, byte ranges) | `document_parse_agreement` non-GLR topology and determinism tests | — | — |
 | GLR-path agreement | `document_parse_agreement` GLR topology and AST agreement tests | — | — |
 | Bad input: both report diagnostics | Diagnostics agreement covered in typed_ast_contract | — | — |
-| Bad input: strict AST extraction refuses recovered doc | none | No test that `parse_document().ast()` on recovered input returns error or refuses extraction by default | Add test: truncated source → document with diagnostics → `ast()` returns error |
+| Bad input: strict AST extraction refuses recovered doc | `parse_document_recovered_doc_refuses_strict_ast_projection` | — | — |
 
 **Proof commands:**
 ```bash
@@ -274,7 +274,7 @@ cargo package -p adze-common --allow-dirty
 
 | Surface | Tested aspects | Named gaps | Next canary priority |
 |---------|---------------|------------|---------------------|
-| parse() / parse_document() agreement | 6 | 1 | Recovered-doc strict AST extraction refusal |
+| parse() / parse_document() agreement | 7 | 0 | — |
 | AdzeDocument boundaries | 4 | 2 | `source_slice()` boundary test |
 | Edge field metadata | 6 | 3 | Empty field map canary |
 | Diagnostics normalization | 7 | 3 | Byte↔point span agreement |
@@ -285,7 +285,7 @@ cargo package -p adze-common --allow-dirty
 | CLI output truth | 5 | 3 | `adze parse --mode document` test |
 | Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
 | Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **52** | **28** | — |
+| **Total** | **53** | **27** | — |
 
 ---
 
@@ -294,7 +294,7 @@ cargo package -p adze-common --allow-dirty
 Each PR adds focused tests for one surface gap. No code changes to production crates.
 
 1. **test(document): prove parse and parse_document agree** — GLR-path agreement and CST topology comparison
-2. **test(document): prove recovered-doc AST refusal** — strict AST extraction refuses recovered diagnostic documents
+2. **test(document): prove recovered-doc AST refusal** — strict AST extraction refuses recovered diagnostic documents through document AST entry points
 3. **test(document): prove edge field metadata invariants** — empty field map, missing/error node fields, repeated field iteration
 4. **test(diagnostics): prove expected-token normalization** — byte↔point span agreement, multi-error dedup, diagnostic ordering
 5. **test(diagnostics): cover UTF-8 and EOF recovery spans** — EOF boundary, mixed ASCII/multibyte line counting

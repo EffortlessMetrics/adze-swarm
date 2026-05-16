@@ -23,6 +23,29 @@ fn collect_topology(
     }
 }
 
+fn assert_parse_errors_match_document_diagnostics(
+    errors: &[adze::errors::ParseError],
+    document: &adze::document::AdzeDocument,
+) {
+    assert_eq!(
+        errors.len(),
+        document.diagnostics().len(),
+        "typed AST rejection should return one parse error per document diagnostic"
+    );
+
+    for (error, diagnostic) in errors.iter().zip(document.diagnostics()) {
+        assert_eq!(
+            error.start..error.end,
+            diagnostic.byte_span(),
+            "typed AST rejection span should match the document diagnostic span"
+        );
+        assert_eq!(
+            error.expected, diagnostic.expected,
+            "typed AST rejection expected tokens should match the document diagnostic"
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Test 1: CST topology parity for non-GLR path
 //
@@ -215,7 +238,45 @@ fn parse_document_error_tree_has_consistent_error_metadata() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 4: parse_document() round-trips clean input without diagnostics
+// Test 4: Recovered documents refuse strict typed AST extraction
+//
+// parse_document() preserves partial facts for bad input, but strict typed AST
+// projection must not synthesize a semantic AST from recovered syntax by default.
+// ---------------------------------------------------------------------------
+#[test]
+fn parse_document_recovered_doc_refuses_strict_ast_projection() {
+    let source = "1 +";
+    let document = adze_example::typed_ast_contract::grammar::parse_document(source)
+        .expect("document should build from partial parse");
+
+    assert!(
+        document.tree().has_errors(),
+        "truncated input should produce a recovered/error document"
+    );
+    assert!(
+        !document.diagnostics().is_empty(),
+        "recovered document should carry diagnostics"
+    );
+
+    let ast_errors = document
+        .ast::<adze_example::typed_ast_contract::grammar::Expr>()
+        .expect_err("strict ast() should reject recovered documents");
+    assert_parse_errors_match_document_diagnostics(&ast_errors, &document);
+
+    let provenance_errors = document
+        .ast_with_provenance::<adze_example::typed_ast_contract::grammar::Expr>()
+        .expect_err("strict ast_with_provenance() should reject recovered documents");
+    assert_parse_errors_match_document_diagnostics(&provenance_errors, &document);
+
+    let root_id = document.tree().root().node_id();
+    let node_errors = document
+        .ast_from_node::<adze_example::typed_ast_contract::grammar::Expr>(root_id)
+        .expect_err("strict ast_from_node() should reject recovered documents");
+    assert_parse_errors_match_document_diagnostics(&node_errors, &document);
+}
+
+// ---------------------------------------------------------------------------
+// Test 5: parse_document() round-trips clean input without diagnostics
 //
 // If parse() succeeds, parse_document() should produce zero diagnostics.
 // ---------------------------------------------------------------------------
@@ -247,7 +308,7 @@ fn parse_document_clean_input_has_zero_diagnostics() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 5: GLR-path agreement (feature-gated)
+// Test 6: GLR-path agreement (feature-gated)
 //
 // When the table has conflicts, parse() and parse_document() should still
 // agree. The selected tree from parse_document() should match parse().

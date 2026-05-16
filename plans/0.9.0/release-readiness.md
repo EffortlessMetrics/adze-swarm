@@ -1,6 +1,6 @@
 # 0.9.0 Release Readiness
 
-**Last updated:** 2026-05-15
+**Last updated:** 2026-05-16
 **Status:** In progress — accuracy map landed, test PRs queued
 
 This document tracks the release-readiness checklist for Adze 0.9.0.
@@ -32,7 +32,7 @@ A 0.9.0 release is ready when all of the following are true:
 |---|------|--------|---------------|----|
 | 1 | parse() / parse_document() GLR-path agreement | covered | `cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test document_parse_agreement -- --nocapture` | #26 |
 | 2 | parse() / parse_document() CST topology comparison | covered | `cargo test -p adze --features pure-rust --test document_parse_agreement -- --nocapture` | #26 |
-| 3 | Recovered document refuses strict AST extraction | pending | — | — |
+| 3 | Recovered document refuses strict AST extraction | covered | `cargo test -p adze --features pure-rust --test document_parse_agreement -- --nocapture` | #27 |
 | 4 | AdzeDocument source_slice() boundary test | pending | — | — |
 | 5 | Empty field map canary | pending | — | — |
 | 6 | Field lookup on error/missing nodes | pending | — | — |
