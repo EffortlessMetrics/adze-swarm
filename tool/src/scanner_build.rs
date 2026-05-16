@@ -335,4 +335,148 @@ impl ExternalScanner for MyScanner {
         let struct_name = builder.find_scanner_struct(content).unwrap();
         assert_eq!(struct_name, "MyScanner");
     }
+
+    #[test]
+    fn scanner_language_extension_matches_variant() {
+        assert_eq!(ScannerLanguage::C.extension(), "c");
+        assert_eq!(ScannerLanguage::Cpp.extension(), "cc");
+        assert_eq!(ScannerLanguage::Rust.extension(), "rs");
+    }
+
+    #[test]
+    fn scanner_language_is_copy_and_eq() {
+        let l = ScannerLanguage::C;
+        let copied = l;
+        assert_eq!(l, copied);
+        assert_ne!(ScannerLanguage::C, ScannerLanguage::Cpp);
+        assert_ne!(ScannerLanguage::Cpp, ScannerLanguage::Rust);
+        // Debug formatting works
+        assert!(!format!("{:?}", ScannerLanguage::Cpp).is_empty());
+    }
+
+    #[test]
+    fn find_scanner_returns_none_when_missing() {
+        let temp_dir = TempDir::new().unwrap();
+        let builder = ScannerBuilder::new("test", temp_dir.path().to_path_buf(), PathBuf::new());
+        assert!(builder.find_scanner().unwrap().is_none());
+    }
+
+    #[test]
+    fn find_scanner_detects_cpp_via_cc_extension() {
+        let temp_dir = TempDir::new().unwrap();
+        let src_dir = temp_dir.path().to_path_buf();
+        fs::write(src_dir.join("scanner.cc"), "// cc scanner").unwrap();
+
+        let builder = ScannerBuilder::new("g", src_dir, PathBuf::new());
+        let scanner = builder.find_scanner().unwrap().unwrap();
+        assert_eq!(scanner.language, ScannerLanguage::Cpp);
+        assert_eq!(scanner.grammar_name, "g");
+        assert!(scanner.path.ends_with("scanner.cc"));
+    }
+
+    #[test]
+    fn find_scanner_detects_cpp_via_cpp_extension() {
+        let temp_dir = TempDir::new().unwrap();
+        let src_dir = temp_dir.path().to_path_buf();
+        fs::write(src_dir.join("scanner.cpp"), "// cpp scanner").unwrap();
+
+        let builder = ScannerBuilder::new("g", src_dir, PathBuf::new());
+        let scanner = builder.find_scanner().unwrap().unwrap();
+        assert_eq!(scanner.language, ScannerLanguage::Cpp);
+    }
+
+    #[test]
+    fn find_scanner_detects_rust() {
+        let temp_dir = TempDir::new().unwrap();
+        let src_dir = temp_dir.path().to_path_buf();
+        fs::write(src_dir.join("scanner.rs"), "// rust scanner").unwrap();
+
+        let builder = ScannerBuilder::new("g", src_dir, PathBuf::new());
+        let scanner = builder.find_scanner().unwrap().unwrap();
+        assert_eq!(scanner.language, ScannerLanguage::Rust);
+    }
+
+    #[test]
+    fn find_scanner_detects_grammar_prefixed_name() {
+        let temp_dir = TempDir::new().unwrap();
+        let src_dir = temp_dir.path().to_path_buf();
+        fs::write(src_dir.join("python_scanner.c"), "// python scanner").unwrap();
+
+        let builder = ScannerBuilder::new("python", src_dir, PathBuf::new());
+        let scanner = builder.find_scanner().unwrap().unwrap();
+        assert_eq!(scanner.language, ScannerLanguage::C);
+        assert_eq!(scanner.grammar_name, "python");
+        assert!(scanner.path.ends_with("python_scanner.c"));
+    }
+
+    #[test]
+    fn find_scanner_prefers_canonical_name_over_prefixed() {
+        let temp_dir = TempDir::new().unwrap();
+        let src_dir = temp_dir.path().to_path_buf();
+        // Both present — canonical scanner.c wins (it is searched first).
+        fs::write(src_dir.join("scanner.c"), "// canonical").unwrap();
+        fs::write(src_dir.join("py_scanner.c"), "// prefixed").unwrap();
+
+        let builder = ScannerBuilder::new("py", src_dir, PathBuf::new());
+        let scanner = builder.find_scanner().unwrap().unwrap();
+        assert!(scanner.path.ends_with("scanner.c"));
+    }
+
+    #[test]
+    fn find_scanner_source_is_clone() {
+        // Exercise derive(Clone, Debug) on ScannerSource.
+        let temp_dir = TempDir::new().unwrap();
+        let src_dir = temp_dir.path().to_path_buf();
+        fs::write(src_dir.join("scanner.c"), "").unwrap();
+
+        let builder = ScannerBuilder::new("g", src_dir, PathBuf::new());
+        let scanner = builder.find_scanner().unwrap().unwrap();
+        let cloned = scanner.clone();
+        assert_eq!(cloned.grammar_name, scanner.grammar_name);
+        assert_eq!(cloned.language, scanner.language);
+        assert!(!format!("{:?}", scanner).is_empty());
+    }
+
+    #[test]
+    fn find_scanner_struct_falls_back_to_pub_struct_with_scanner() {
+        let builder = ScannerBuilder::new("g", PathBuf::new(), PathBuf::new());
+        // No `impl ExternalScanner for ...` line, so the fallback branch runs.
+        let content = r#"
+// Some preamble
+
+pub struct CustomScanner {
+    foo: u32,
+}
+"#;
+        let name = builder.find_scanner_struct(content).unwrap();
+        assert_eq!(name, "CustomScanner");
+    }
+
+    #[test]
+    fn find_scanner_struct_strips_trailing_brace() {
+        let builder = ScannerBuilder::new("g", PathBuf::new(), PathBuf::new());
+        // No whitespace before the opening brace exercises trim_end_matches.
+        let content = "impl ExternalScanner for TightScanner{ }\n";
+        let name = builder.find_scanner_struct(content).unwrap();
+        assert_eq!(name, "TightScanner");
+    }
+
+    #[test]
+    fn find_scanner_struct_errors_when_missing() {
+        let builder = ScannerBuilder::new("g", PathBuf::new(), PathBuf::new());
+        let err = builder
+            .find_scanner_struct("// no scanner here\nfn unrelated() {}\n")
+            .unwrap_err();
+        let msg = format!("{:?}", err);
+        assert!(msg.contains("Could not find scanner struct"));
+    }
+
+    #[test]
+    fn find_scanner_struct_ignores_non_scanner_pub_struct() {
+        let builder = ScannerBuilder::new("g", PathBuf::new(), PathBuf::new());
+        // `pub struct Foo` without "Scanner" in the name should NOT match the
+        // fallback branch; with no `impl ExternalScanner` line either, this errors.
+        let content = "pub struct Foo {}\n";
+        assert!(builder.find_scanner_struct(content).is_err());
+    }
 }
