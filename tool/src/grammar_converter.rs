@@ -92,3 +92,123 @@ impl GrammarConverter {
         grammar
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_sample_grammar_uses_sample_name() {
+        let grammar = GrammarConverter::create_sample_grammar();
+        assert_eq!(grammar.name, "sample");
+    }
+
+    #[test]
+    fn create_sample_grammar_has_three_tokens() {
+        let grammar = GrammarConverter::create_sample_grammar();
+        assert_eq!(grammar.tokens.len(), 3);
+    }
+
+    #[test]
+    fn create_sample_grammar_registers_identifier_token() {
+        let grammar = GrammarConverter::create_sample_grammar();
+        let token = grammar
+            .tokens
+            .get(&SymbolId(1))
+            .expect("identifier token missing");
+        assert_eq!(token.name, "identifier");
+        assert!(!token.fragile);
+        match &token.pattern {
+            TokenPattern::Regex(re) => assert_eq!(re, r"[a-zA-Z_][a-zA-Z0-9_]*"),
+            other => panic!("expected Regex pattern, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn create_sample_grammar_registers_number_token() {
+        let grammar = GrammarConverter::create_sample_grammar();
+        let token = grammar
+            .tokens
+            .get(&SymbolId(2))
+            .expect("number token missing");
+        assert_eq!(token.name, "number");
+        match &token.pattern {
+            TokenPattern::Regex(re) => assert_eq!(re, r"\d+"),
+            other => panic!("expected Regex pattern, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn create_sample_grammar_registers_plus_token_as_string() {
+        let grammar = GrammarConverter::create_sample_grammar();
+        let token = grammar
+            .tokens
+            .get(&SymbolId(3))
+            .expect("plus token missing");
+        assert_eq!(token.name, "plus");
+        match &token.pattern {
+            TokenPattern::String(s) => assert_eq!(s, "+"),
+            other => panic!("expected String pattern, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn create_sample_grammar_has_three_expr_rules() {
+        let grammar = GrammarConverter::create_sample_grammar();
+        let rules = grammar.rules.get(&SymbolId(4)).expect("expr rules missing");
+        assert_eq!(rules.len(), 3);
+    }
+
+    #[test]
+    fn create_sample_grammar_first_rule_is_terminal_identifier() {
+        let grammar = GrammarConverter::create_sample_grammar();
+        let rules = grammar.rules.get(&SymbolId(4)).expect("expr rules missing");
+        assert_eq!(rules[0].lhs, SymbolId(4));
+        assert_eq!(rules[0].rhs, vec![Symbol::Terminal(SymbolId(1))]);
+        assert_eq!(rules[0].production_id, ProductionId(0));
+        assert!(rules[0].precedence.is_none());
+        assert!(rules[0].associativity.is_none());
+        assert!(rules[0].fields.is_empty());
+    }
+
+    #[test]
+    fn create_sample_grammar_second_rule_is_terminal_number() {
+        let grammar = GrammarConverter::create_sample_grammar();
+        let rules = grammar.rules.get(&SymbolId(4)).expect("expr rules missing");
+        assert_eq!(rules[1].rhs, vec![Symbol::Terminal(SymbolId(2))]);
+        assert_eq!(rules[1].production_id, ProductionId(1));
+    }
+
+    #[test]
+    fn create_sample_grammar_third_rule_is_binary_plus() {
+        let grammar = GrammarConverter::create_sample_grammar();
+        let rules = grammar.rules.get(&SymbolId(4)).expect("expr rules missing");
+        let binary = &rules[2];
+        assert_eq!(
+            binary.rhs,
+            vec![
+                Symbol::NonTerminal(SymbolId(4)),
+                Symbol::Terminal(SymbolId(3)),
+                Symbol::NonTerminal(SymbolId(4)),
+            ]
+        );
+        assert_eq!(binary.precedence, Some(PrecedenceKind::Static(1)));
+        assert_eq!(binary.associativity, Some(Associativity::Left));
+        assert_eq!(binary.production_id, ProductionId(2));
+        assert_eq!(binary.fields, vec![(FieldId(1), 0), (FieldId(2), 2)]);
+    }
+
+    #[test]
+    fn create_sample_grammar_registers_left_and_right_fields() {
+        let grammar = GrammarConverter::create_sample_grammar();
+        assert_eq!(grammar.fields.len(), 2);
+        assert_eq!(
+            grammar.fields.get(&FieldId(1)).map(String::as_str),
+            Some("left")
+        );
+        assert_eq!(
+            grammar.fields.get(&FieldId(2)).map(String::as_str),
+            Some("right")
+        );
+    }
+}
