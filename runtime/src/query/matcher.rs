@@ -357,3 +357,270 @@ impl<'a> Iterator for QueryMatches<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::query::ast::{Pattern, PatternChild, PatternNode, Predicate, Quantifier, Query};
+    use adze_ir::SymbolId;
+
+    fn leaf(symbol: u16, start: usize, end: usize) -> ParseNode {
+        ParseNode {
+            symbol: SymbolId(symbol),
+            symbol_id: SymbolId(symbol),
+            start_byte: start,
+            end_byte: end,
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![],
+        }
+    }
+
+    fn leaf_with_field(symbol: u16, start: usize, end: usize, field: &str) -> ParseNode {
+        ParseNode {
+            symbol: SymbolId(symbol),
+            symbol_id: SymbolId(symbol),
+            start_byte: start,
+            end_byte: end,
+            field_name: Some(field.to_string()),
+            alias_symbol_id: None,
+            children: vec![],
+        }
+    }
+
+    fn branch(symbol: u16, children: Vec<ParseNode>) -> ParseNode {
+        let start = children.first().map(|c| c.start_byte).unwrap_or(0);
+        let end = children.last().map(|c| c.end_byte).unwrap_or(0);
+        ParseNode {
+            symbol: SymbolId(symbol),
+            symbol_id: SymbolId(symbol),
+            start_byte: start,
+            end_byte: end,
+            field_name: None,
+            alias_symbol_id: None,
+            children,
+        }
+    }
+
+    fn pattern_for(symbol: u16, capture: Option<u32>) -> Pattern {
+        let mut root = PatternNode::new(SymbolId(symbol), true);
+        if let Some(c) = capture {
+            root = root.with_capture(c);
+        }
+        Pattern {
+            root,
+            predicates: Vec::new(),
+            start_byte: 0,
+        }
+    }
+
+    fn query_with_patterns(patterns: Vec<Pattern>) -> Query {
+        let mut q = Query::new();
+        q.patterns = patterns;
+        q
+    }
+
+    #[test]
+    fn matcher_with_empty_query_returns_no_matches() {
+        let query = Query::new();
+        let matcher = QueryMatcher::new(&query);
+        let root = leaf(1, 0, 5);
+        assert!(matcher.matches(&root).is_empty());
+    }
+
+    #[test]
+    fn matcher_finds_root_symbol_match() {
+        let query = query_with_patterns(vec![pattern_for(42, None)]);
+        let matcher = QueryMatcher::new(&query);
+        let root = leaf(42, 0, 5);
+        let matches = matcher.matches(&root);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pattern_index, 0);
+    }
+
+    #[test]
+    fn matcher_returns_zero_matches_when_symbol_differs() {
+        let query = query_with_patterns(vec![pattern_for(42, None)]);
+        let matcher = QueryMatcher::new(&query);
+        let root = leaf(7, 0, 5);
+        assert!(matcher.matches(&root).is_empty());
+    }
+
+    #[test]
+    fn matcher_walks_into_children() {
+        let query = query_with_patterns(vec![pattern_for(99, None)]);
+        let matcher = QueryMatcher::new(&query);
+        let root = branch(1, vec![leaf(99, 0, 1), leaf(99, 1, 2)]);
+        assert_eq!(matcher.matches(&root).len(), 2);
+    }
+
+    #[test]
+    fn matcher_records_captures_sorted_by_index() {
+        let mut pattern = pattern_for(5, Some(1));
+        // Add child with capture 0 so the sorted captures span [0, 1].
+        let mut child = PatternNode::new(SymbolId(8), true);
+        child = child.with_capture(0);
+        pattern.root.add_child(PatternChild::Node(child));
+        let query = query_with_patterns(vec![pattern]);
+        let matcher = QueryMatcher::new(&query);
+        let root = branch(5, vec![leaf(8, 0, 2)]);
+        let matches = matcher.matches(&root);
+        assert_eq!(matches.len(), 1);
+        let captures = &matches[0].captures;
+        assert_eq!(captures.len(), 2);
+        assert_eq!(captures[0].index, 0);
+        assert_eq!(captures[1].index, 1);
+    }
+
+    #[test]
+    fn field_assertion_requires_field_name() {
+        let mut pattern = pattern_for(1, None);
+        let field_pattern = PatternNode::new(SymbolId(9), true);
+        pattern.root.add_field("name".to_string(), field_pattern);
+        let query = query_with_patterns(vec![pattern]);
+        let matcher = QueryMatcher::new(&query);
+        let with_field = branch(1, vec![leaf_with_field(9, 0, 2, "name")]);
+        let without_field = branch(1, vec![leaf(9, 0, 2)]);
+        assert_eq!(matcher.matches(&with_field).len(), 1);
+        assert!(matcher.matches(&without_field).is_empty());
+    }
+
+    #[test]
+    fn optional_quantifier_matches_even_without_child_patterns() {
+        let mut pattern = pattern_for(1, None);
+        pattern.root = pattern.root.with_quantifier(Quantifier::Optional);
+        let query = query_with_patterns(vec![pattern]);
+        let matcher = QueryMatcher::new(&query);
+        let root = leaf(1, 0, 1);
+        assert_eq!(matcher.matches(&root).len(), 1);
+    }
+
+    #[test]
+    fn star_quantifier_always_matches_symbol_root() {
+        let mut pattern = pattern_for(1, None);
+        pattern.root = pattern.root.with_quantifier(Quantifier::Star);
+        let query = query_with_patterns(vec![pattern]);
+        let matcher = QueryMatcher::new(&query);
+        let root = leaf(1, 0, 1);
+        assert_eq!(matcher.matches(&root).len(), 1);
+    }
+
+    #[test]
+    fn child_sequence_must_consume_all_nodes() {
+        // Pattern: parent(child_a). Tree: parent[child_a, child_extra]. Should not match
+        // because the explicit pattern child list requires all children to be consumed.
+        let mut pattern = pattern_for(1, None);
+        pattern
+            .root
+            .add_child(PatternChild::Node(PatternNode::new(SymbolId(2), true)));
+        let query = query_with_patterns(vec![pattern]);
+        let matcher = QueryMatcher::new(&query);
+        let root = branch(1, vec![leaf(2, 0, 1), leaf(3, 1, 2)]);
+        assert!(matcher.matches(&root).is_empty());
+    }
+
+    #[test]
+    fn child_sequence_with_token_child_matches_any_node() {
+        let mut pattern = pattern_for(1, None);
+        pattern
+            .root
+            .add_child(PatternChild::Token("anything".to_string()));
+        let query = query_with_patterns(vec![pattern]);
+        let matcher = QueryMatcher::new(&query);
+        let root = branch(1, vec![leaf(99, 0, 1)]);
+        assert_eq!(matcher.matches(&root).len(), 1);
+    }
+
+    #[test]
+    fn query_matches_iterator_yields_each_then_none() {
+        let query = query_with_patterns(vec![pattern_for(1, None)]);
+        let root = branch(0, vec![leaf(1, 0, 1), leaf(1, 1, 2), leaf(1, 2, 3)]);
+        let mut iter = QueryMatches::new(&query, &root);
+        assert!(iter.next().is_some());
+        assert!(iter.next().is_some());
+        assert!(iter.next().is_some());
+        assert!(iter.next().is_none());
+        assert!(iter.next().is_none()); // idempotent on exhaustion
+    }
+
+    #[test]
+    fn predicate_eq_with_matching_captures_keeps_match() {
+        let mut pattern = pattern_for(1, None);
+        let mut a = PatternNode::new(SymbolId(2), true);
+        a = a.with_capture(0);
+        let mut b = PatternNode::new(SymbolId(2), true);
+        b = b.with_capture(1);
+        pattern.root.add_child(PatternChild::Node(a));
+        pattern.root.add_child(PatternChild::Node(b));
+        pattern.predicates.push(Predicate::Eq {
+            capture1: 0,
+            capture2: Some(1),
+            value: None,
+        });
+        let query = query_with_patterns(vec![pattern]);
+        let matcher = QueryMatcher::new(&query);
+        // Both captured nodes share the same span -> Eq passes.
+        let root = branch(1, vec![leaf(2, 0, 1), leaf(2, 0, 1)]);
+        assert_eq!(matcher.matches(&root).len(), 1);
+    }
+
+    #[test]
+    fn predicate_eq_with_mismatched_captures_drops_match() {
+        let mut pattern = pattern_for(1, None);
+        let mut a = PatternNode::new(SymbolId(2), true);
+        a = a.with_capture(0);
+        let mut b = PatternNode::new(SymbolId(2), true);
+        b = b.with_capture(1);
+        pattern.root.add_child(PatternChild::Node(a));
+        pattern.root.add_child(PatternChild::Node(b));
+        pattern.predicates.push(Predicate::Eq {
+            capture1: 0,
+            capture2: Some(1),
+            value: None,
+        });
+        let query = query_with_patterns(vec![pattern]);
+        let matcher = QueryMatcher::new(&query);
+        let root = branch(1, vec![leaf(2, 0, 1), leaf(2, 5, 9)]);
+        assert!(matcher.matches(&root).is_empty());
+    }
+
+    #[test]
+    fn predicate_not_eq_inverts_eq() {
+        let mut pattern = pattern_for(1, None);
+        let mut a = PatternNode::new(SymbolId(2), true);
+        a = a.with_capture(0);
+        let mut b = PatternNode::new(SymbolId(2), true);
+        b = b.with_capture(1);
+        pattern.root.add_child(PatternChild::Node(a));
+        pattern.root.add_child(PatternChild::Node(b));
+        pattern.predicates.push(Predicate::NotEq {
+            capture1: 0,
+            capture2: Some(1),
+            value: None,
+        });
+        let query = query_with_patterns(vec![pattern]);
+        let matcher = QueryMatcher::new(&query);
+        let root = branch(1, vec![leaf(2, 0, 1), leaf(2, 5, 9)]);
+        assert_eq!(matcher.matches(&root).len(), 1);
+    }
+
+    #[test]
+    fn capture_struct_carries_index_and_node() {
+        let capture = QueryCapture {
+            index: 3,
+            node: leaf(7, 0, 4),
+        };
+        assert_eq!(capture.index, 3);
+        assert_eq!(capture.node.symbol, SymbolId(7));
+    }
+
+    #[test]
+    fn match_struct_default_shape_is_empty_captures() {
+        let m = QueryMatch {
+            pattern_index: 5,
+            captures: vec![],
+        };
+        assert_eq!(m.pattern_index, 5);
+        assert!(m.captures.is_empty());
+    }
+}
