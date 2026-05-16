@@ -35,7 +35,7 @@ A 0.9.0 release is ready when all of the following are true:
 | 3 | Recovered document refuses strict AST extraction | covered | `cargo test -p adze --features pure-rust --test document_parse_agreement -- --nocapture` | #27 |
 | 4 | AdzeDocument source_slice() and empty node diagnostics | covered | `cargo test -p adze --features "pure-rust,ts-compat" --test adze_document_alpha -- --nocapture` | #28 |
 | 5 | Empty field map canary | covered | `cargo test -p adze --features "pure-rust,ts-compat" --test adze_document_alpha -- --nocapture` | #29 |
-| 6 | Field lookup on error/missing nodes | pending | — | — |
+| 6 | Field lookup on error/missing nodes | covered | `cargo test -p adze --lib --features "pure-rust,ts-compat" document::tests::field_lookup_resolves_missing_error_child -- --exact --nocapture` | #52 |
 | 7 | Repeated field iteration | covered | `cargo test -p adze --features "pure-rust,ts-compat" --test adze_document_alpha -- --nocapture` | #29 |
 | 8 | Byte↔point span agreement | covered | `cargo test -p adze --features pure-rust --test typed_cst_generated_document -- --nocapture` | #30 |
 | 9 | Multi-error deduplication | covered | `cargo test -p adze --features pure-rust --test generated_parse_errors -- --nocapture` | #31 |
