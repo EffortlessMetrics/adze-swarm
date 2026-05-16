@@ -33,7 +33,7 @@ serialization = ["serde", "serde_json", "adze-glr-core/serialization"] # Enable 
 legacy-parsers = [] # Enable to access deprecated parser_v2 and parser_v3 modules
 incremental_glr = [] # Enable GLR incremental parsing support
 debug_glr = [] # Enable debug output for GLR parser
-ts-compat = [] # Enable Tree-sitter compatibility API
+ts-compat = ["adze-example/ts-compat"] # Enable Tree-sitter compatibility API
 debug_incremental = [] # Enable debug output for incremental parsing
 experimental_examples = [] # Enable experimental examples that use internal APIs
 json_example = [] # Enable JSON parser example (separate from other examples)
@@ -80,7 +80,7 @@ proptest = "1.4"
 hex = "0.4"
 ts_bridge = { package = "ts-bridge", path = "../tools/ts-bridge" }
 glr-test-support = { path = "../glr-test-support" }
-adze-example = { path = "../example", features = ["ts-compat"] }
+adze-example = { path = "../example" }
 adze-python-simple = { path = "../grammars/python-simple" }
 adze-python = { path = "../grammars/python" }
 
@@ -154,6 +154,14 @@ required-features = ["experimental_examples", "pure-rust"]
 name = "lang_probe"
 required-features = ["experimental_examples"]
 
-# [[example]]
-# name = "validation_demo"
-# required-features = ["experimental_examples"]
+[[example]]
+name = "pr58_features_demo"
+required-features = ["ts-compat"]
+
+[[example]]
+name = "query_demo"
+required-features = ["query"]
+
+[[example]]
+name = "validation_demo"
+required-features = ["experimental_examples"]

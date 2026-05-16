@@ -74,7 +74,7 @@ Current package blockers:
 
 | # | Item | Status | Proof command | PR |
 |---|------|--------|---------------|----|
-| 31 | `just ci-supported` passes | pending | `just ci-supported` | — |
+| 31 | `just ci-supported` passes | covered | `just ci-supported` | #94 |
 | 32 | `just ci-product-stable` passes | covered | `just ci-product-stable` | #91 |
 | 33 | Workspace formatting passes | covered | `just fmt` | #92 |
 | 34 | `just clippy` passes | covered | `just clippy` | #70 |
