@@ -5,7 +5,6 @@
 //! compile parsers.
 
 use std::env;
-use std::error::Error as _;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
