@@ -64,14 +64,43 @@ impl<'a> AbiLanguageBuilder<'a> {
         }
     }
 
-    /// Generate the complete language module
+    /// Generate the complete language module.
+    ///
+    /// This is the high-level orchestrator. Each step delegates to a focused
+    /// helper so this function shows the pipeline at a glance:
+    /// trace → collect static pieces → external scanner → counts →
+    /// alias artifacts → field-names array → lexer → assemble.
     pub fn generate(&self) -> TokenStream {
-        let language_name = &self.grammar.name;
-        let language_fn_ident = quote::format_ident!("tree_sitter_{}", language_name);
+        self.emit_grammar_overview_debug();
 
+        let pieces = self.collect_static_pieces();
+        let scanner = self.build_external_scanner_artifacts();
+        let counts = self.calculate_counts();
+        let aliases =
+            self.build_alias_artifacts(&counts, &pieces.alias_map, &pieces.alias_sequences);
+        let field_names_array =
+            self.build_field_names_array(counts.field_count, &pieces.field_name_ptrs);
+
+        self.emit_lexer_generation_debug(&counts);
+        let lexer_code =
+            crate::lexer_gen::generate_lexer(self.grammar, &self.parse_table.symbol_to_index);
+
+        self.assemble_language_module(
+            &counts,
+            pieces,
+            scanner,
+            aliases,
+            field_names_array,
+            lexer_code,
+        )
+    }
+
+    /// Trace grammar identity and the initial action row before generation.
+    /// No-op in release builds.
+    fn emit_grammar_overview_debug(&self) {
         debug_trace!(
             "DEBUG AbiLanguageBuilder: Generating language for '{}'",
-            language_name
+            self.grammar.name
         );
         debug_trace!("DEBUG AbiLanguageBuilder: symbol_to_index mapping:");
         for (symbol_id, &index) in &self.parse_table.symbol_to_index {
@@ -84,12 +113,10 @@ impl<'a> AbiLanguageBuilder<'a> {
             );
         }
 
-        // Check what the initial state expects
         if !self.parse_table.action_table.is_empty() {
             debug_trace!("DEBUG AbiLanguageBuilder: State 0 actions:");
             for (symbol_idx, action_cell) in self.parse_table.action_table[0].iter().enumerate() {
                 if !action_cell.is_empty() {
-                    // Find the symbol ID for this index
                     let symbol_id = self
                         .parse_table
                         .symbol_to_index
@@ -105,117 +132,11 @@ impl<'a> AbiLanguageBuilder<'a> {
                 }
             }
         }
+    }
 
-        // Generate all static data with deterministic ordering
-        let (symbol_names, symbol_name_ptrs) = self.generate_symbol_names();
-        let (field_names, field_name_ptrs) = self.generate_field_names();
-        let symbol_metadata = self.generate_symbol_metadata();
-        let (parse_table_data, small_parse_table_map) = self.generate_parse_tables();
-        let parse_actions = self.generate_parse_actions();
-        let lex_modes = self.generate_lex_modes();
-        let (field_map_slices, field_map_entries) = self.generate_field_maps();
-        let public_symbol_map = self.generate_public_symbol_map();
-        let primary_state_ids = self.generate_primary_state_ids();
-        let production_id_map = self.generate_production_id_map();
-        let production_lhs_index = self.generate_production_lhs_index();
-        let ts_rules = self.generate_ts_rules();
-        let variant_symbol_map = self.generate_variant_symbol_map();
-        let (alias_map, alias_sequences) = self.generate_alias_tables();
-
-        // Generate external scanner data if needed
-        let (external_scanner_code, external_scanner_struct) = if !self.grammar.externals.is_empty()
-        {
-            use crate::external_scanner_v2::ExternalScannerGenerator;
-
-            let scanner_gen =
-                ExternalScannerGenerator::new(self.grammar.clone(), self.parse_table.clone());
-            let scanner_interface = scanner_gen.generate_scanner_interface();
-
-            // Skip generating scanner FFI functions - let grammars provide their own
-            // Grammars with external scanners should implement their own FFI functions
-            let scanner_functions = quote! {};
-
-            let scanner_struct = quote! {
-                ExternalScanner {
-                    states: EXTERNAL_SCANNER_STATES.as_ptr() as *const u8,
-                    symbol_map: EXTERNAL_SCANNER_SYMBOL_MAP.as_ptr(),
-                    create: None,
-                    destroy: None,
-                    scan: None,
-                    serialize: None,
-                    deserialize: None,
-                }
-            };
-
-            (
-                quote! {
-                    #scanner_interface
-                    #scanner_functions
-                },
-                scanner_struct,
-            )
-        } else {
-            (
-                quote! {},
-                quote! {
-                    ExternalScanner {
-                        states: std::ptr::null(),
-                        symbol_map: std::ptr::null(),
-                        create: None,
-                        destroy: None,
-                        scan: None,
-                        serialize: None,
-                        deserialize: None,
-                    }
-                },
-            )
-        };
-
-        // Count elements
-        let counts = self.calculate_counts();
-        let symbol_count = counts.symbol_count;
-        let alias_count = counts.alias_count;
-        let token_count = counts.token_count;
-        let external_token_count = counts.external_token_count;
-        let state_count = counts.state_count;
-        let large_state_count = counts.large_state_count;
-        let production_id_count = counts.production_id_count;
-        let field_count = counts.field_count;
-        let max_alias_sequence_length = counts.max_alias_sequence_length;
-        let alias_tables = if alias_count > 0 && max_alias_sequence_length > 0 {
-            quote! {
-                static ALIAS_MAP: &[u16] = &[#(#alias_map),*];
-                static ALIAS_SEQUENCES: &[u16] = &[#(#alias_sequences),*];
-            }
-        } else {
-            quote! {}
-        };
-        let alias_map_ptr = if alias_count > 0 && max_alias_sequence_length > 0 {
-            quote! { ALIAS_MAP.as_ptr() }
-        } else {
-            quote! { std::ptr::null() }
-        };
-        let alias_sequences_ptr = if alias_count > 0 && max_alias_sequence_length > 0 {
-            quote! { ALIAS_SEQUENCES.as_ptr() }
-        } else {
-            quote! { std::ptr::null::<u16>() }
-        };
-
-        // Generate field names array
-        let field_names_array = if field_count == 0 {
-            quote! {
-                static FIELD_NAME_PTRS: [SyncPtr; 0] = [];
-            }
-        } else {
-            quote! {
-                const FIELD_NAME_PTRS_LEN: usize = #field_count as usize;
-                static FIELD_NAME_PTRS: [SyncPtr; FIELD_NAME_PTRS_LEN] = [
-                    #(#field_name_ptrs),*
-                ];
-            }
-        };
-
-        // Debug: Print symbol_to_index mapping for tokens
+    /// Trace the token-to-index mapping and counts that drive lexer generation.
+    /// No-op in release builds.
+    fn emit_lexer_generation_debug(&self, counts: &LanguageCounts) {
         debug_trace!("DEBUG: Symbol to index mapping for lexer generation:");
         for (sym_id, idx) in &self.parse_table.symbol_to_index {
             if self.grammar.tokens.contains_key(sym_id) {
@@ -229,13 +150,200 @@ impl<'a> AbiLanguageBuilder<'a> {
             }
         }
         debug_trace!("DEBUG: token_count = {}", self.parse_table.token_count);
-
         debug_trace!("DEBUG: token_count = {}", counts.token_count);
         debug_trace!("DEBUG: symbol_count = {}", counts.symbol_count);
+    }
 
-        // Generate lexer function with symbol mapping
-        let lexer_code =
-            crate::lexer_gen::generate_lexer(self.grammar, &self.parse_table.symbol_to_index);
+    /// Run all per-table generators with deterministic ordering and group the
+    /// resulting TokenStreams into a single struct for downstream assembly.
+    fn collect_static_pieces(&self) -> StaticPieces {
+        let (symbol_names, symbol_name_ptrs) = self.generate_symbol_names();
+        let (field_names, field_name_ptrs) = self.generate_field_names();
+        let (parse_table_data, small_parse_table_map) = self.generate_parse_tables();
+        let (field_map_slices, field_map_entries) = self.generate_field_maps();
+        let (alias_map, alias_sequences) = self.generate_alias_tables();
+
+        StaticPieces {
+            symbol_names,
+            symbol_name_ptrs,
+            field_names,
+            field_name_ptrs,
+            symbol_metadata: self.generate_symbol_metadata(),
+            parse_table_data,
+            small_parse_table_map,
+            parse_actions: self.generate_parse_actions(),
+            lex_modes: self.generate_lex_modes(),
+            field_map_slices,
+            field_map_entries,
+            public_symbol_map: self.generate_public_symbol_map(),
+            primary_state_ids: self.generate_primary_state_ids(),
+            production_id_map: self.generate_production_id_map(),
+            production_lhs_index: self.generate_production_lhs_index(),
+            ts_rules: self.generate_ts_rules(),
+            variant_symbol_map: self.generate_variant_symbol_map(),
+            alias_map,
+            alias_sequences,
+        }
+    }
+
+    /// Build the external scanner FFI block plus the `ExternalScanner` struct
+    /// initializer. Falls back to a null-pointer struct when the grammar has
+    /// no external symbols.
+    fn build_external_scanner_artifacts(&self) -> ExternalScannerArtifacts {
+        if self.grammar.externals.is_empty() {
+            return ExternalScannerArtifacts {
+                code: quote! {},
+                struct_init: quote! {
+                    ExternalScanner {
+                        states: std::ptr::null(),
+                        symbol_map: std::ptr::null(),
+                        create: None,
+                        destroy: None,
+                        scan: None,
+                        serialize: None,
+                        deserialize: None,
+                    }
+                },
+            };
+        }
+
+        use crate::external_scanner_v2::ExternalScannerGenerator;
+
+        let scanner_gen =
+            ExternalScannerGenerator::new(self.grammar.clone(), self.parse_table.clone());
+        let scanner_interface = scanner_gen.generate_scanner_interface();
+
+        // Skip generating scanner FFI functions - grammars with external
+        // scanners should implement their own FFI functions.
+        let scanner_functions = quote! {};
+
+        ExternalScannerArtifacts {
+            code: quote! {
+                #scanner_interface
+                #scanner_functions
+            },
+            struct_init: quote! {
+                ExternalScanner {
+                    states: EXTERNAL_SCANNER_STATES.as_ptr() as *const u8,
+                    symbol_map: EXTERNAL_SCANNER_SYMBOL_MAP.as_ptr(),
+                    create: None,
+                    destroy: None,
+                    scan: None,
+                    serialize: None,
+                    deserialize: None,
+                }
+            },
+        }
+    }
+
+    /// Build the alias table declarations and the `alias_map` /
+    /// `alias_sequences` field initializers for the `LANGUAGE` static.
+    /// When there are no aliases, the declarations are empty and the field
+    /// initializers fall back to null pointers.
+    fn build_alias_artifacts(
+        &self,
+        counts: &LanguageCounts,
+        alias_map: &[TokenStream],
+        alias_sequences: &[TokenStream],
+    ) -> AliasArtifacts {
+        let has_aliases = counts.alias_count > 0 && counts.max_alias_sequence_length > 0;
+
+        if has_aliases {
+            AliasArtifacts {
+                tables: quote! {
+                    static ALIAS_MAP: &[u16] = &[#(#alias_map),*];
+                    static ALIAS_SEQUENCES: &[u16] = &[#(#alias_sequences),*];
+                },
+                map_ptr: quote! { ALIAS_MAP.as_ptr() },
+                sequences_ptr: quote! { ALIAS_SEQUENCES.as_ptr() },
+            }
+        } else {
+            AliasArtifacts {
+                tables: quote! {},
+                map_ptr: quote! { std::ptr::null() },
+                sequences_ptr: quote! { std::ptr::null::<u16>() },
+            }
+        }
+    }
+
+    /// Build the `FIELD_NAME_PTRS` static. The empty-array path needs a
+    /// distinct shape because Rust forbids `[T; 0]` initializers from a
+    /// `#field_count` splice that is also `0`.
+    fn build_field_names_array(
+        &self,
+        field_count: u32,
+        field_name_ptrs: &[TokenStream],
+    ) -> TokenStream {
+        if field_count == 0 {
+            quote! {
+                static FIELD_NAME_PTRS: [SyncPtr; 0] = [];
+            }
+        } else {
+            quote! {
+                const FIELD_NAME_PTRS_LEN: usize = #field_count as usize;
+                static FIELD_NAME_PTRS: [SyncPtr; FIELD_NAME_PTRS_LEN] = [
+                    #(#field_name_ptrs),*
+                ];
+            }
+        }
+    }
+
+    /// Splice all generated pieces into the final language module TokenStream.
+    fn assemble_language_module(
+        &self,
+        counts: &LanguageCounts,
+        pieces: StaticPieces,
+        scanner: ExternalScannerArtifacts,
+        aliases: AliasArtifacts,
+        field_names_array: TokenStream,
+        lexer_code: TokenStream,
+    ) -> TokenStream {
+        let language_fn_ident = quote::format_ident!("tree_sitter_{}", &self.grammar.name);
+
+        let StaticPieces {
+            symbol_names,
+            symbol_name_ptrs,
+            field_names,
+            field_name_ptrs: _,
+            symbol_metadata,
+            parse_table_data,
+            small_parse_table_map,
+            parse_actions,
+            lex_modes,
+            field_map_slices,
+            field_map_entries,
+            public_symbol_map,
+            primary_state_ids,
+            production_id_map,
+            production_lhs_index,
+            ts_rules,
+            variant_symbol_map,
+            alias_map: _,
+            alias_sequences: _,
+        } = pieces;
+
+        let LanguageCounts {
+            symbol_count,
+            alias_count,
+            token_count,
+            external_token_count,
+            state_count,
+            large_state_count,
+            production_id_count,
+            field_count,
+            max_alias_sequence_length,
+        } = *counts;
+
+        let ExternalScannerArtifacts {
+            code: external_scanner_code,
+            struct_init: external_scanner_struct,
+        } = scanner;
+
+        let AliasArtifacts {
+            tables: alias_tables,
+            map_ptr: alias_map_ptr,
+            sequences_ptr: alias_sequences_ptr,
+        } = aliases;
 
         quote! {
             use adze::pure_parser::{TSLanguage, TSParseAction, TSRule, SyncPtr, TREE_SITTER_LANGUAGE_VERSION, ExternalScanner, TSLexState};
@@ -1386,6 +1494,46 @@ struct LanguageCounts {
     max_alias_sequence_length: u16,
 }
 
+/// All static-data TokenStream pieces produced by the per-table generators,
+/// grouped so the orchestrator can pass them to assembly without a 19-arg
+/// parameter list.
+struct StaticPieces {
+    symbol_names: Vec<TokenStream>,
+    symbol_name_ptrs: Vec<TokenStream>,
+    field_names: Vec<TokenStream>,
+    field_name_ptrs: Vec<TokenStream>,
+    symbol_metadata: Vec<TokenStream>,
+    parse_table_data: Vec<TokenStream>,
+    small_parse_table_map: Vec<TokenStream>,
+    parse_actions: Vec<TokenStream>,
+    lex_modes: Vec<TokenStream>,
+    field_map_slices: Vec<TokenStream>,
+    field_map_entries: Vec<TokenStream>,
+    public_symbol_map: Vec<TokenStream>,
+    primary_state_ids: Vec<TokenStream>,
+    production_id_map: Vec<TokenStream>,
+    production_lhs_index: Vec<TokenStream>,
+    ts_rules: Vec<TokenStream>,
+    variant_symbol_map: TokenStream,
+    alias_map: Vec<TokenStream>,
+    alias_sequences: Vec<TokenStream>,
+}
+
+/// External scanner FFI emitted into the language module plus the matching
+/// `ExternalScanner` field initializer for the `LANGUAGE` static.
+struct ExternalScannerArtifacts {
+    code: TokenStream,
+    struct_init: TokenStream,
+}
+
+/// Alias table declarations and the `alias_map` / `alias_sequences` field
+/// initializers for the `LANGUAGE` static.
+struct AliasArtifacts {
+    tables: TokenStream,
+    map_ptr: TokenStream,
+    sequences_ptr: TokenStream,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2021,5 +2169,224 @@ mod tests {
 
         assert_eq!(slices, vec!["0u16", "0u16"]);
         assert_eq!(entries, vec!["0u16"]);
+    }
+
+    fn minimal_builder_grammar(name: &str) -> (Grammar, ParseTable) {
+        let table = crate::empty_table!(states: 1, terms: 1, nonterms: 1);
+        let start = table.start_symbol;
+        let t = SymbolId(1);
+
+        let mut grammar = Grammar::new(name.to_string());
+        grammar.rule_names.insert(start, "start".to_string());
+        grammar.tokens.insert(
+            t,
+            Token {
+                name: "t".to_string(),
+                pattern: TokenPattern::String("t".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.add_rule(Rule {
+            lhs: start,
+            rhs: vec![Symbol::Terminal(t)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+
+        (grammar, table)
+    }
+
+    fn normalized_token_stream(stream: &TokenStream) -> String {
+        stream
+            .to_string()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    #[test]
+    fn build_external_scanner_artifacts_returns_null_init_when_no_externals() {
+        let (grammar, table) = minimal_builder_grammar("no_externals");
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+
+        let artifacts = builder.build_external_scanner_artifacts();
+
+        assert!(
+            artifacts.code.is_empty(),
+            "with no externals, scanner code block must be empty"
+        );
+
+        let init = normalized_token_stream(&artifacts.struct_init);
+        assert!(
+            init.contains("states : std :: ptr :: null ()"),
+            "expected null states pointer in {init}"
+        );
+        assert!(
+            init.contains("symbol_map : std :: ptr :: null ()"),
+            "expected null symbol_map pointer in {init}"
+        );
+        assert!(
+            !init.contains("EXTERNAL_SCANNER_STATES"),
+            "must not reference scanner statics when there are no externals: {init}"
+        );
+    }
+
+    #[test]
+    fn build_external_scanner_artifacts_references_scanner_statics_when_externals_present() {
+        let (mut grammar, table) = minimal_builder_grammar("with_externals");
+        grammar.externals.push(adze_ir::ExternalToken {
+            name: "ext_token".to_string(),
+            symbol_id: SymbolId(99),
+        });
+
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let artifacts = builder.build_external_scanner_artifacts();
+
+        assert!(
+            !artifacts.code.is_empty(),
+            "external scanner code stream must not be empty when externals exist"
+        );
+
+        let init = normalized_token_stream(&artifacts.struct_init);
+        assert!(
+            init.contains("EXTERNAL_SCANNER_STATES . as_ptr"),
+            "expected EXTERNAL_SCANNER_STATES reference in {init}"
+        );
+        assert!(
+            init.contains("EXTERNAL_SCANNER_SYMBOL_MAP . as_ptr"),
+            "expected EXTERNAL_SCANNER_SYMBOL_MAP reference in {init}"
+        );
+    }
+
+    #[test]
+    fn build_alias_artifacts_emits_null_pointers_when_no_aliases() {
+        let (grammar, table) = minimal_builder_grammar("no_aliases");
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let counts = builder.calculate_counts();
+        assert_eq!(counts.alias_count, 0, "precondition: no aliases");
+
+        let artifacts = builder.build_alias_artifacts(&counts, &[], &[]);
+
+        assert!(
+            artifacts.tables.is_empty(),
+            "alias tables block must be empty when there are no aliases"
+        );
+        assert_eq!(
+            normalized_token_stream(&artifacts.map_ptr),
+            "std :: ptr :: null ()"
+        );
+        assert_eq!(
+            normalized_token_stream(&artifacts.sequences_ptr),
+            "std :: ptr :: null :: < u16 > ()"
+        );
+    }
+
+    #[test]
+    fn build_alias_artifacts_emits_static_arrays_when_aliases_present() {
+        let (grammar, table) = minimal_builder_grammar("with_aliases");
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let counts = LanguageCounts {
+            symbol_count: 2,
+            alias_count: 1,
+            token_count: 1,
+            external_token_count: 0,
+            state_count: 1,
+            large_state_count: 0,
+            production_id_count: 1,
+            field_count: 0,
+            max_alias_sequence_length: 1,
+        };
+        let alias_map = vec![quote! { 1u16 }, quote! { 0u16 }];
+        let alias_sequences = vec![quote! { 0u16 }];
+
+        let artifacts = builder.build_alias_artifacts(&counts, &alias_map, &alias_sequences);
+
+        let tables = normalized_token_stream(&artifacts.tables);
+        assert!(
+            tables.contains("ALIAS_MAP : & [u16] = & [1u16 , 0u16]"),
+            "expected ALIAS_MAP declaration in {tables}"
+        );
+        assert!(
+            tables.contains("ALIAS_SEQUENCES : & [u16] = & [0u16]"),
+            "expected ALIAS_SEQUENCES declaration in {tables}"
+        );
+        assert_eq!(
+            normalized_token_stream(&artifacts.map_ptr),
+            "ALIAS_MAP . as_ptr ()"
+        );
+        assert_eq!(
+            normalized_token_stream(&artifacts.sequences_ptr),
+            "ALIAS_SEQUENCES . as_ptr ()"
+        );
+    }
+
+    #[test]
+    fn build_field_names_array_emits_zero_sized_array_when_field_count_is_zero() {
+        let (grammar, table) = minimal_builder_grammar("zero_fields");
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+
+        let stream = builder.build_field_names_array(0, &[]);
+        let s = normalized_token_stream(&stream);
+
+        assert_eq!(
+            s, "static FIELD_NAME_PTRS : [SyncPtr ; 0] = [] ;",
+            "zero-field path must hard-code [SyncPtr; 0]"
+        );
+    }
+
+    #[test]
+    fn build_field_names_array_emits_sized_array_when_field_count_positive() {
+        let (grammar, table) = minimal_builder_grammar("one_field");
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+
+        let ptrs = vec![quote! { SyncPtr(FIELD_NAME_0.as_ptr()) }];
+        let stream = builder.build_field_names_array(1, &ptrs);
+        let s = normalized_token_stream(&stream);
+
+        assert!(
+            s.contains("FIELD_NAME_PTRS_LEN : usize = 1u32 as usize"),
+            "expected sized FIELD_NAME_PTRS_LEN const in {s}"
+        );
+        assert!(
+            s.contains("FIELD_NAME_PTRS : [SyncPtr ; FIELD_NAME_PTRS_LEN]"),
+            "expected sized FIELD_NAME_PTRS array in {s}"
+        );
+    }
+
+    #[test]
+    fn collect_static_pieces_population_matches_individual_generators() {
+        let (grammar, table) = minimal_builder_grammar("collect_pieces");
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+
+        let pieces = builder.collect_static_pieces();
+        let (expected_symbol_names, expected_symbol_name_ptrs) = builder.generate_symbol_names();
+        let (expected_parse_table, expected_parse_table_map) = builder.generate_parse_tables();
+
+        // Spot-check that the bundled struct carries the exact same
+        // TokenStreams as the underlying generators.
+        let to_strings = |v: &[TokenStream]| v.iter().map(ToString::to_string).collect::<Vec<_>>();
+        assert_eq!(
+            to_strings(&pieces.symbol_names),
+            to_strings(&expected_symbol_names)
+        );
+        assert_eq!(
+            to_strings(&pieces.symbol_name_ptrs),
+            to_strings(&expected_symbol_name_ptrs)
+        );
+        assert_eq!(
+            to_strings(&pieces.parse_table_data),
+            to_strings(&expected_parse_table)
+        );
+        assert_eq!(
+            to_strings(&pieces.small_parse_table_map),
+            to_strings(&expected_parse_table_map)
+        );
+        assert_eq!(
+            pieces.symbol_metadata.len(),
+            builder.generate_symbol_metadata().len(),
+            "symbol metadata length must match"
+        );
     }
 }
