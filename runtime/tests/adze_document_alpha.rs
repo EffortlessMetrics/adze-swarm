@@ -34,6 +34,23 @@ fn fielded_arithmetic_language() -> Arc<Language> {
     Arc::new(lang)
 }
 
+fn empty_field_arithmetic_language() -> Arc<Language> {
+    let mut lang = (*adze_example::ts_langs::arithmetic()).clone();
+    lang.table.field_names.clear();
+    lang.table.field_map.clear();
+    Arc::new(lang)
+}
+
+fn repeated_field_arithmetic_language() -> Arc<Language> {
+    let mut lang = (*adze_example::ts_langs::arithmetic()).clone();
+    lang.table.field_names = vec!["part".to_string()];
+    lang.table.field_map.clear();
+    lang.table.field_map.insert((RuleId(2), 0), 0);
+    lang.table.field_map.insert((RuleId(2), 1), 0);
+    lang.table.field_map.insert((RuleId(2), 2), 0);
+    Arc::new(lang)
+}
+
 fn arithmetic_with_expression_child_alias(alias_name: &str) -> Arc<Language> {
     let mut lang = (*adze_example::ts_langs::arithmetic()).clone();
     let source_file = symbol_named(&lang, "source_file");
@@ -134,6 +151,17 @@ fn parse_document_exposes_generic_tree_and_ts_projection_from_same_parse() {
 
     let root = tree.root();
     assert_eq!(tree.root_id(), root.node_id());
+    assert!(
+        document
+            .diagnostics_for_node(root.node_id())
+            .next()
+            .is_none(),
+        "clean document root should have no related diagnostics"
+    );
+    assert!(
+        root.diagnostics().next().is_none(),
+        "clean node diagnostic iterator should be empty"
+    );
     let root_record = root.record();
     assert_eq!(tree.node_record(root.node_id()), Some(root_record));
     assert_eq!(root_record.visible_id(), root.kind_id());
@@ -432,6 +460,167 @@ fn parse_document_exposes_generic_tree_and_ts_projection_from_same_parse() {
             .expect("left field should project")
             .text(source.as_bytes()),
         "1"
+    );
+}
+
+#[test]
+fn parse_document_empty_field_map_has_no_edge_fields() {
+    let lang = empty_field_arithmetic_language();
+    let mut parser = CoreParser::new(lang.grammar.clone(), lang.table.clone(), lang.name.clone());
+
+    let source = "1-2";
+    let document = parser
+        .parse_document(source)
+        .expect("document parse should succeed with empty field metadata");
+
+    assert_eq!(document.language().field_count(), 0);
+    assert!(document.language().fields().is_empty());
+    assert_eq!(document.language().field_name_for_id(0), None);
+    assert_eq!(document.language().field_name_for_id(1), None);
+    assert_eq!(document.language().field_id_for_name("left"), None);
+    assert_eq!(document.language().field_id_for_name("part"), None);
+
+    let root = document.tree().root();
+    let expression = root.child(0).expect("root should expose expression child");
+    assert_eq!(expression.child_count(), 3);
+    assert!(expression.edge_by_field_name("left").is_none());
+    assert!(expression.child_by_field_name("left").is_none());
+
+    for child_index in 0..expression.child_count() {
+        assert_eq!(expression.field_name_for_child(child_index), None);
+        assert_eq!(expression.field_id_for_child(child_index), None);
+        let edge = expression
+            .child_edge(child_index)
+            .expect("expression child edge should resolve");
+        assert_eq!(edge.field_name(), None);
+        assert_eq!(edge.field_id(), None);
+        assert_eq!(edge.record().field_id(), None);
+        assert_eq!(
+            edge.child()
+                .expect("edge child should resolve")
+                .field_name(),
+            None
+        );
+    }
+
+    let ts_tree = Tree::from_document(Arc::clone(&lang), &document);
+    let ts_expression = ts_tree
+        .root_node()
+        .child(0)
+        .expect("Tree-sitter projection should expose expression child");
+    assert_eq!(ts_tree.language().field_count(), 0);
+    assert_eq!(ts_expression.field_name_for_child(0), None);
+    assert!(ts_expression.child_by_field_name("left").is_none());
+}
+
+#[test]
+fn parse_document_repeated_field_edges_remain_iterable() {
+    let lang = repeated_field_arithmetic_language();
+    let mut parser = CoreParser::new(lang.grammar.clone(), lang.table.clone(), lang.name.clone());
+
+    let source = "1-2";
+    let document = parser
+        .parse_document(source)
+        .expect("document parse should succeed with repeated field metadata");
+    let part_field = document
+        .language()
+        .field_id_for_name("part")
+        .expect("repeated field should resolve");
+
+    let expression = document
+        .tree()
+        .root()
+        .child(0)
+        .expect("root should expose expression child");
+    let part_edges: Vec<_> = expression
+        .child_edges()
+        .filter(|edge| edge.field_name() == Some("part"))
+        .collect();
+    assert_eq!(
+        part_edges.len(),
+        3,
+        "all expression children should remain iterable through the repeated field"
+    );
+
+    let part_texts: Vec<_> = part_edges
+        .iter()
+        .map(|edge| {
+            edge.child()
+                .expect("repeated field edge should resolve its child")
+                .utf8_text()
+                .expect("child text should be UTF-8")
+        })
+        .collect();
+    assert_eq!(part_texts, ["1", "-", "2"]);
+
+    for child_index in 0..expression.child_count() {
+        assert_eq!(expression.field_name_for_child(child_index), Some("part"));
+        assert_eq!(expression.field_id_for_child(child_index), Some(part_field));
+    }
+    assert_eq!(
+        expression
+            .child_by_field_name("part")
+            .expect("first repeated field child should resolve")
+            .utf8_text()
+            .expect("child text should be UTF-8"),
+        "1"
+    );
+    assert_eq!(
+        expression
+            .child_by_field_id(part_field)
+            .expect("first repeated field id child should resolve")
+            .utf8_text()
+            .expect("child text should be UTF-8"),
+        "1"
+    );
+
+    let ts_tree = Tree::from_document(Arc::clone(&lang), &document);
+    let ts_expression = ts_tree
+        .root_node()
+        .child(0)
+        .expect("Tree-sitter projection should expose expression child");
+    assert_eq!(ts_tree.language().field_count(), 1);
+    assert_eq!(ts_expression.field_name_for_child(0), Some("part"));
+    assert_eq!(ts_expression.field_name_for_child(1), Some("part"));
+    assert_eq!(ts_expression.field_name_for_child(2), Some("part"));
+    assert_eq!(
+        ts_expression
+            .child_by_field_name("part")
+            .expect("first repeated Tree-sitter field child should resolve")
+            .text(source.as_bytes()),
+        "1"
+    );
+}
+
+#[test]
+fn parse_document_source_slice_respects_utf8_boundaries() {
+    let lang = adze_example::ts_langs::arithmetic();
+    let mut parser = CoreParser::new(lang.grammar.clone(), lang.table.clone(), lang.name.clone());
+
+    let source = "é+1";
+    let document = parser
+        .parse_document(source)
+        .expect("document parse should retain source text even for partial parse facts");
+
+    assert_eq!(document.source_slice(0..2), Some("é"));
+    assert_eq!(document.source_slice(2..3), Some("+"));
+    assert_eq!(document.source_slice(3..4), Some("1"));
+    assert_eq!(document.source_slice(4..4), Some(""));
+
+    assert_eq!(
+        document.source_slice(0..1),
+        None,
+        "slice ending inside a UTF-8 codepoint should be rejected"
+    );
+    assert_eq!(
+        document.source_slice(1..2),
+        None,
+        "slice starting inside a UTF-8 codepoint should be rejected"
+    );
+    assert_eq!(
+        document.source_slice(0..5),
+        None,
+        "slice beyond source bounds should be rejected"
     );
 }
 

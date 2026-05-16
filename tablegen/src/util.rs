@@ -35,4 +35,15 @@ mod tests {
         unexpected_action(&Action::Reduce(RuleId(0)), "util-test");
         unexpected_action(&Action::Accept, "util-test");
     }
+
+    #[test]
+    fn unexpected_action_recover_variant_no_panic() {
+        unexpected_action(&Action::Recover, "util-test");
+    }
+
+    #[test]
+    fn unexpected_action_fork_variant_no_panic() {
+        let inner = vec![Action::Shift(StateId(1)), Action::Reduce(RuleId(2))];
+        unexpected_action(&Action::Fork(inner), "util-test");
+    }
 }

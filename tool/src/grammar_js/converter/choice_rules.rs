@@ -118,3 +118,304 @@ impl GrammarJsConverter {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::*;
+    use crate::grammar_js::{GrammarJs, Rule as JsRule};
+    use adze_ir::{Associativity, PrecedenceKind, Symbol};
+
+    /// Build a grammar from a single `source_file` rule body, driving the
+    /// converter via its public entry point so we exercise the helpers under
+    /// realistic state.
+    fn convert_source(rule: JsRule) -> adze_ir::Grammar {
+        let mut grammar_js = GrammarJs::new("test".to_string());
+        grammar_js.rules.insert("source_file".to_string(), rule);
+        GrammarJsConverter::new(grammar_js).convert().unwrap()
+    }
+
+    fn source_file_id(grammar: &adze_ir::Grammar) -> adze_ir::SymbolId {
+        grammar
+            .rule_names
+            .iter()
+            .find_map(|(id, name)| (name == "source_file").then_some(*id))
+            .expect("source_file should exist")
+    }
+
+    #[test]
+    fn choice_with_two_symbol_members_emits_two_rules() {
+        let mut grammar_js = GrammarJs::new("test".to_string());
+        grammar_js.rules.insert(
+            "source_file".to_string(),
+            JsRule::Choice {
+                members: vec![
+                    JsRule::Symbol {
+                        name: "a".to_string(),
+                    },
+                    JsRule::Symbol {
+                        name: "b".to_string(),
+                    },
+                ],
+            },
+        );
+        grammar_js.rules.insert(
+            "a".to_string(),
+            JsRule::Pattern {
+                value: r"\d+".to_string(),
+            },
+        );
+        grammar_js.rules.insert(
+            "b".to_string(),
+            JsRule::Pattern {
+                value: r"[a-z]+".to_string(),
+            },
+        );
+
+        let grammar = GrammarJsConverter::new(grammar_js).convert().unwrap();
+        let source_file = source_file_id(&grammar);
+        let rules = grammar.rules.get(&source_file).expect("rules exist");
+        assert_eq!(rules.len(), 2, "each choice member yields one rule");
+        assert!(rules.iter().all(|r| r.rhs.len() == 1));
+        assert!(rules.iter().all(|r| r.precedence.is_none()));
+        assert!(rules.iter().all(|r| r.associativity.is_none()));
+    }
+
+    #[test]
+    fn choice_with_empty_members_emits_no_rules() {
+        let grammar = convert_source(JsRule::Choice { members: vec![] });
+        let source_file = source_file_id(&grammar);
+        // No choice members means no rules added for source_file.
+        assert!(
+            grammar
+                .rules
+                .get(&source_file)
+                .is_none_or(|rules| rules.is_empty())
+        );
+    }
+
+    #[test]
+    fn choice_member_prec_attaches_static_precedence_without_assoc() {
+        let mut grammar_js = GrammarJs::new("test".to_string());
+        grammar_js.rules.insert(
+            "source_file".to_string(),
+            JsRule::Choice {
+                members: vec![JsRule::Prec {
+                    value: 7,
+                    content: Box::new(JsRule::Symbol {
+                        name: "a".to_string(),
+                    }),
+                }],
+            },
+        );
+        grammar_js.rules.insert(
+            "a".to_string(),
+            JsRule::Pattern {
+                value: r"\d+".to_string(),
+            },
+        );
+
+        let grammar = GrammarJsConverter::new(grammar_js).convert().unwrap();
+        let source_file = source_file_id(&grammar);
+        let rule = &grammar.rules[&source_file][0];
+        assert_eq!(rule.precedence, Some(PrecedenceKind::Static(7)));
+        assert_eq!(rule.associativity, None);
+    }
+
+    #[test]
+    fn choice_member_prec_left_attaches_left_associativity() {
+        let mut grammar_js = GrammarJs::new("test".to_string());
+        grammar_js.rules.insert(
+            "source_file".to_string(),
+            JsRule::Choice {
+                members: vec![JsRule::PrecLeft {
+                    value: 3,
+                    content: Box::new(JsRule::Symbol {
+                        name: "a".to_string(),
+                    }),
+                }],
+            },
+        );
+        grammar_js.rules.insert(
+            "a".to_string(),
+            JsRule::Pattern {
+                value: r"\d+".to_string(),
+            },
+        );
+
+        let grammar = GrammarJsConverter::new(grammar_js).convert().unwrap();
+        let source_file = source_file_id(&grammar);
+        let rule = &grammar.rules[&source_file][0];
+        assert_eq!(rule.precedence, Some(PrecedenceKind::Static(3)));
+        assert_eq!(rule.associativity, Some(Associativity::Left));
+    }
+
+    #[test]
+    fn choice_member_prec_right_attaches_right_associativity() {
+        let mut grammar_js = GrammarJs::new("test".to_string());
+        grammar_js.rules.insert(
+            "source_file".to_string(),
+            JsRule::Choice {
+                members: vec![JsRule::PrecRight {
+                    value: 5,
+                    content: Box::new(JsRule::Symbol {
+                        name: "a".to_string(),
+                    }),
+                }],
+            },
+        );
+        grammar_js.rules.insert(
+            "a".to_string(),
+            JsRule::Pattern {
+                value: r"\d+".to_string(),
+            },
+        );
+
+        let grammar = GrammarJsConverter::new(grammar_js).convert().unwrap();
+        let source_file = source_file_id(&grammar);
+        let rule = &grammar.rules[&source_file][0];
+        assert_eq!(rule.precedence, Some(PrecedenceKind::Static(5)));
+        assert_eq!(rule.associativity, Some(Associativity::Right));
+    }
+
+    #[test]
+    fn choice_member_prec_with_seq_inlines_sequence_into_rhs() {
+        let mut grammar_js = GrammarJs::new("test".to_string());
+        grammar_js.rules.insert(
+            "source_file".to_string(),
+            JsRule::Choice {
+                members: vec![JsRule::Prec {
+                    value: 2,
+                    content: Box::new(JsRule::Seq {
+                        members: vec![
+                            JsRule::Symbol {
+                                name: "a".to_string(),
+                            },
+                            JsRule::Symbol {
+                                name: "b".to_string(),
+                            },
+                        ],
+                    }),
+                }],
+            },
+        );
+        grammar_js.rules.insert(
+            "a".to_string(),
+            JsRule::Pattern {
+                value: r"\d+".to_string(),
+            },
+        );
+        grammar_js.rules.insert(
+            "b".to_string(),
+            JsRule::Pattern {
+                value: r"[a-z]+".to_string(),
+            },
+        );
+
+        let grammar = GrammarJsConverter::new(grammar_js).convert().unwrap();
+        let source_file = source_file_id(&grammar);
+        let rule = &grammar.rules[&source_file][0];
+        // The Seq members are inlined into the rhs (length 2), not wrapped.
+        assert_eq!(rule.rhs.len(), 2);
+        assert_eq!(rule.precedence, Some(PrecedenceKind::Static(2)));
+    }
+
+    #[test]
+    fn choice_member_prec_with_empty_seq_emits_no_rule() {
+        // Empty Seq -> rhs empty -> falls through; rule_to_symbol on Seq returns None.
+        let grammar = convert_source(JsRule::Choice {
+            members: vec![JsRule::Prec {
+                value: 1,
+                content: Box::new(JsRule::Seq { members: vec![] }),
+            }],
+        });
+        let source_file = source_file_id(&grammar);
+        assert!(
+            grammar
+                .rules
+                .get(&source_file)
+                .is_none_or(|rules| rules.is_empty())
+        );
+    }
+
+    #[test]
+    fn choice_member_seq_with_members_emits_rule() {
+        let mut grammar_js = GrammarJs::new("test".to_string());
+        grammar_js.rules.insert(
+            "source_file".to_string(),
+            JsRule::Choice {
+                members: vec![JsRule::Seq {
+                    members: vec![
+                        JsRule::Symbol {
+                            name: "a".to_string(),
+                        },
+                        JsRule::Symbol {
+                            name: "b".to_string(),
+                        },
+                    ],
+                }],
+            },
+        );
+        grammar_js.rules.insert(
+            "a".to_string(),
+            JsRule::Pattern {
+                value: r"\d+".to_string(),
+            },
+        );
+        grammar_js.rules.insert(
+            "b".to_string(),
+            JsRule::Pattern {
+                value: r"[a-z]+".to_string(),
+            },
+        );
+
+        let grammar = GrammarJsConverter::new(grammar_js).convert().unwrap();
+        let source_file = source_file_id(&grammar);
+        let rule = &grammar.rules[&source_file][0];
+        assert_eq!(rule.rhs.len(), 2);
+        assert!(rule.precedence.is_none());
+        assert!(rule.associativity.is_none());
+    }
+
+    #[test]
+    fn choice_member_empty_seq_emits_no_rule() {
+        let grammar = convert_source(JsRule::Choice {
+            members: vec![JsRule::Seq { members: vec![] }],
+        });
+        let source_file = source_file_id(&grammar);
+        assert!(
+            grammar
+                .rules
+                .get(&source_file)
+                .is_none_or(|rules| rules.is_empty())
+        );
+    }
+
+    #[test]
+    fn choice_fallthrough_with_string_member_emits_terminal_rule() {
+        // String falls through to the `_` arm, which calls rule_to_symbol.
+        let grammar = convert_source(JsRule::Choice {
+            members: vec![JsRule::String {
+                value: "x".to_string(),
+            }],
+        });
+        let source_file = source_file_id(&grammar);
+        let rule = &grammar.rules[&source_file][0];
+        assert_eq!(rule.rhs.len(), 1);
+        assert!(matches!(rule.rhs[0], Symbol::Terminal(_)));
+    }
+
+    #[test]
+    fn choice_fallthrough_with_unresolvable_blank_emits_no_rule() {
+        // JsRule::Blank falls through; rule_to_symbol returns None for Blank.
+        let grammar = convert_source(JsRule::Choice {
+            members: vec![JsRule::Blank],
+        });
+        let source_file = source_file_id(&grammar);
+        assert!(
+            grammar
+                .rules
+                .get(&source_file)
+                .is_none_or(|rules| rules.is_empty())
+        );
+    }
+}
