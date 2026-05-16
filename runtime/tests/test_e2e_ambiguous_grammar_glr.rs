@@ -556,6 +556,58 @@ fn generated_ambiguous_expr_parse_document_cst_topology_is_deterministic() {
 }
 
 #[test]
+#[cfg(all(feature = "glr", feature = "glr_telemetry"))]
+fn generated_ambiguous_expr_runtime_fork_count_is_deterministic() {
+    use adze_example::ambiguous_expr::grammar;
+
+    fn run(input: &str) -> (usize, usize) {
+        let language = grammar::language();
+        let mut parse_table = decoder::decode_parse_table(language);
+        adze::__private::align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
+        let grammar = decoder::decode_grammar(language);
+        let mut parser = GLRParser::new(parse_table, grammar);
+        let lex_fn = language
+            .lex_fn
+            .expect("generated language should expose a lex_fn");
+
+        for token in adze::__private::lex_with_language_fn(language, lex_fn, input.as_bytes())
+            .expect("generated lexer should tokenize ambiguous expression")
+        {
+            parser.process_token(token.symbol_id, &token.text, token.byte_offset);
+        }
+        parser.process_eof(input.len());
+        let summary = parser
+            .finish_ambiguity_summary()
+            .expect("ambiguous generated grammar should expose an ambiguity summary")
+            .expect("ambiguous generated grammar should retain alternatives");
+
+        assert!(
+            summary.selected.is_some(),
+            "ambiguous generated grammar should still choose one selected alternative"
+        );
+
+        (parser.telemetry_fork_count(), summary.alternatives.len())
+    }
+
+    let input = "1 + 2 + 3 + 4";
+    let first = run(input);
+    let second = run(input);
+
+    assert!(
+        first.0 > 0,
+        "ambiguous generated grammar should record at least one runtime fork"
+    );
+    assert!(
+        first.1 >= 2,
+        "ambiguous generated grammar should retain multiple complete alternatives"
+    );
+    assert_eq!(
+        first, second,
+        "runtime fork count and retained alternative count should be deterministic across repeated parses"
+    );
+}
+
+#[test]
 #[cfg(feature = "glr")]
 fn generated_ambiguous_expr_parse_document_bad_input_returns_diagnostic_document() {
     use adze_example::ambiguous_expr::grammar;
