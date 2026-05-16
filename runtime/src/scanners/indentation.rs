@@ -165,3 +165,247 @@ impl ExternalScanner for IndentationScanner {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockLexer {
+        input: Vec<u8>,
+        pos: usize,
+        end_mark: usize,
+    }
+
+    impl MockLexer {
+        fn new(input: &[u8]) -> Self {
+            MockLexer {
+                input: input.to_vec(),
+                pos: 0,
+                end_mark: 0,
+            }
+        }
+    }
+
+    impl Lexer for MockLexer {
+        fn lookahead(&self) -> Option<u8> {
+            self.input.get(self.pos).copied()
+        }
+
+        fn advance(&mut self, n: usize) {
+            self.pos = (self.pos + n).min(self.input.len());
+        }
+
+        fn mark_end(&mut self) {
+            self.end_mark = self.pos;
+        }
+
+        fn column(&self) -> usize {
+            let preceding = &self.input[..self.pos];
+            preceding
+                .iter()
+                .rev()
+                .position(|&b| b == b'\n')
+                .unwrap_or(preceding.len())
+        }
+
+        fn is_eof(&self) -> bool {
+            self.pos >= self.input.len()
+        }
+    }
+
+    fn all_valid() -> [bool; 3] {
+        [true, true, true]
+    }
+
+    #[test]
+    fn new_pushes_baseline_zero_indent() {
+        let scanner = IndentationScanner::new();
+        assert_eq!(scanner.indent_stack, vec![0]);
+        assert!(scanner.at_line_start);
+        assert_eq!(scanner.pending_dedents, 0);
+    }
+
+    #[test]
+    fn default_is_clean_state_with_no_stack() {
+        // Note: Default derives directly, so it does NOT push a 0 baseline.
+        let scanner = IndentationScanner::default();
+        assert!(scanner.indent_stack.is_empty());
+    }
+
+    #[test]
+    fn scan_returns_none_at_eof_when_no_pending_dedents() {
+        let mut scanner = IndentationScanner::new();
+        let mut lexer = MockLexer::new(b"");
+        assert!(scanner.scan(&mut lexer, &all_valid()).is_none());
+    }
+
+    #[test]
+    fn newline_advances_lexer_and_emits_newline_token() {
+        let mut scanner = IndentationScanner::new();
+        scanner.at_line_start = false;
+        let mut lexer = MockLexer::new(b"\n");
+        let result = scanner.scan(&mut lexer, &all_valid());
+        let res = result.expect("expected NEWLINE");
+        assert_eq!(res.symbol, 0);
+        assert_eq!(res.length, 1);
+        assert!(scanner.at_line_start);
+    }
+
+    #[test]
+    fn newline_symbol_gating_disables_newline_emit() {
+        let mut scanner = IndentationScanner::new();
+        scanner.at_line_start = false;
+        let mut lexer = MockLexer::new(b"\n");
+        // NEWLINE is index 0 -> disabled.
+        let result = scanner.scan(&mut lexer, &[false, true, true]);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn indent_increase_pushes_stack_and_emits_indent() {
+        let mut scanner = IndentationScanner::new();
+        // Stack is [0]; encountering "    x" produces INDENT to push 4.
+        let mut lexer = MockLexer::new(b"    x");
+        let result = scanner.scan(&mut lexer, &all_valid());
+        let res = result.expect("expected INDENT");
+        assert_eq!(res.symbol, 1);
+        assert_eq!(scanner.indent_stack.last(), Some(&4));
+        assert!(!scanner.at_line_start);
+    }
+
+    #[test]
+    fn tab_counts_as_eight_spaces_for_indent() {
+        let mut scanner = IndentationScanner::new();
+        let mut lexer = MockLexer::new(b"\tx");
+        let result = scanner.scan(&mut lexer, &all_valid());
+        assert!(result.is_some());
+        assert_eq!(scanner.indent_stack.last(), Some(&8));
+    }
+
+    #[test]
+    fn dedent_pops_stack_and_returns_dedent() {
+        let mut scanner = IndentationScanner::new();
+        scanner.indent_stack = vec![0, 4, 8];
+        // After "    x" we should pop 8 -> emit one DEDENT, no pending.
+        let mut lexer = MockLexer::new(b"    x");
+        let result = scanner.scan(&mut lexer, &all_valid());
+        let res = result.expect("expected DEDENT");
+        assert_eq!(res.symbol, 2);
+        assert_eq!(scanner.indent_stack, vec![0, 4]);
+        assert_eq!(scanner.pending_dedents, 0);
+    }
+
+    #[test]
+    fn multiple_dedents_emit_one_and_queue_pending() {
+        let mut scanner = IndentationScanner::new();
+        scanner.indent_stack = vec![0, 4, 8, 12];
+        // Drop all the way to column 0 -> three dedents: emit 1 now, queue 2.
+        let mut lexer = MockLexer::new(b"x");
+        let result = scanner.scan(&mut lexer, &all_valid());
+        let res = result.expect("expected first DEDENT");
+        assert_eq!(res.symbol, 2);
+        assert_eq!(scanner.pending_dedents, 2);
+        assert_eq!(scanner.indent_stack, vec![0]);
+
+        // Subsequent calls (even on a no-content lexer) should drain pending dedents.
+        let mut empty = MockLexer::new(b"");
+        let next = scanner.scan(&mut empty, &all_valid()).unwrap();
+        assert_eq!(next.symbol, 2);
+        assert_eq!(scanner.pending_dedents, 1);
+        let next = scanner.scan(&mut empty, &all_valid()).unwrap();
+        assert_eq!(next.symbol, 2);
+        assert_eq!(scanner.pending_dedents, 0);
+    }
+
+    #[test]
+    fn pending_dedents_blocked_when_dedent_symbol_invalid() {
+        let mut scanner = IndentationScanner::new();
+        scanner.pending_dedents = 2;
+        let mut lexer = MockLexer::new(b"");
+        // DEDENT (index 2) disabled -> falls through to EOF check -> None.
+        let result = scanner.scan(&mut lexer, &[true, true, false]);
+        assert!(result.is_none());
+        assert_eq!(scanner.pending_dedents, 2);
+    }
+
+    #[test]
+    fn blank_line_does_not_modify_indent_stack() {
+        let mut scanner = IndentationScanner::new();
+        let start_stack = scanner.indent_stack.clone();
+        // Indented blank line.
+        let mut lexer = MockLexer::new(b"    ");
+        let result = scanner.scan(&mut lexer, &all_valid());
+        assert!(result.is_none());
+        assert_eq!(scanner.indent_stack, start_stack);
+    }
+
+    #[test]
+    fn comment_line_does_not_modify_indent_stack() {
+        let mut scanner = IndentationScanner::new();
+        let start_stack = scanner.indent_stack.clone();
+        let mut lexer = MockLexer::new(b"    # comment");
+        let result = scanner.scan(&mut lexer, &all_valid());
+        assert!(result.is_none());
+        assert_eq!(scanner.indent_stack, start_stack);
+    }
+
+    #[test]
+    fn equal_indent_emits_nothing_but_consumes_state_flag() {
+        let mut scanner = IndentationScanner::new();
+        scanner.indent_stack = vec![0, 4];
+        let mut lexer = MockLexer::new(b"    x");
+        let result = scanner.scan(&mut lexer, &all_valid());
+        assert!(result.is_none());
+        // Same indent level: at_line_start should flip to false now that the
+        // significant token is reached.
+        assert!(!scanner.at_line_start);
+    }
+
+    #[test]
+    fn indent_symbol_invalid_does_not_push_stack() {
+        let mut scanner = IndentationScanner::new();
+        let mut lexer = MockLexer::new(b"    x");
+        // INDENT (index 1) disabled.
+        let result = scanner.scan(&mut lexer, &[true, false, true]);
+        assert!(result.is_none());
+        assert_eq!(scanner.indent_stack, vec![0]);
+    }
+
+    #[test]
+    fn serialize_then_deserialize_roundtrips_state() {
+        let mut original = IndentationScanner::new();
+        original.indent_stack = vec![0, 4, 8];
+        original.at_line_start = false;
+        original.pending_dedents = 3;
+
+        let mut buf = Vec::new();
+        original.serialize(&mut buf);
+
+        let mut restored = IndentationScanner::new();
+        restored.deserialize(&buf);
+        assert_eq!(restored.indent_stack, vec![0, 4, 8]);
+        assert!(!restored.at_line_start);
+        assert_eq!(restored.pending_dedents, 3);
+    }
+
+    #[test]
+    fn deserialize_short_buffer_is_noop() {
+        let mut scanner = IndentationScanner::new();
+        let original = scanner.indent_stack.clone();
+        scanner.deserialize(&[]);
+        assert_eq!(scanner.indent_stack, original);
+    }
+
+    #[test]
+    fn deserialize_truncated_stack_stops_early() {
+        let mut scanner = IndentationScanner::new();
+        // Claim 3 entries in the stack but only provide 1 (followed by an
+        // unrelated trailing byte that should not be misread as a stack entry).
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&3u16.to_le_bytes()); // stack length = 3
+        buf.extend_from_slice(&4u16.to_le_bytes()); // 1st entry = 4
+        // Buffer ends mid-stack -> remaining entries are skipped.
+        scanner.deserialize(&buf);
+        assert_eq!(scanner.indent_stack, vec![4]);
+    }
+}
