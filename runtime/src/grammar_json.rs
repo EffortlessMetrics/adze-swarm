@@ -99,3 +99,257 @@ pub fn load_patterns_with_symbol_map(
 
     Ok(patterns_by_id)
 }
+
+#[cfg(all(test, feature = "serialization"))]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    /// Helper: write JSON text to a temporary file and return the handle so the
+    /// caller controls the file's lifetime (it is deleted on drop).
+    fn write_grammar(json: &str) -> NamedTempFile {
+        let mut file = NamedTempFile::new().expect("temp file");
+        file.write_all(json.as_bytes()).expect("write json");
+        file.flush().expect("flush");
+        file
+    }
+
+    // ---- load_patterns_from_grammar_json --------------------------------
+
+    #[test]
+    fn load_patterns_missing_file_errors() {
+        let path = Path::new("/nonexistent/path/should/not/exist/grammar.json");
+        let result = load_patterns_from_grammar_json(path);
+        assert!(result.is_err(), "missing file must error");
+    }
+
+    #[test]
+    fn load_patterns_invalid_json_errors() {
+        let file = write_grammar("{ not valid json ::: ");
+        let result = load_patterns_from_grammar_json(file.path());
+        assert!(result.is_err(), "malformed JSON must error");
+    }
+
+    #[test]
+    fn load_patterns_no_rules_returns_empty() {
+        // Valid JSON but without a `rules` object -> empty map (no error).
+        let file = write_grammar(r#"{"name": "empty_grammar"}"#);
+        let patterns = load_patterns_from_grammar_json(file.path()).expect("ok");
+        assert!(patterns.is_empty());
+    }
+
+    #[test]
+    fn load_patterns_rules_not_object_returns_empty() {
+        // `rules` is present but not a JSON object -> branch falls through to empty map.
+        let file = write_grammar(r#"{"rules": []}"#);
+        let patterns = load_patterns_from_grammar_json(file.path()).expect("ok");
+        assert!(patterns.is_empty());
+    }
+
+    #[test]
+    fn load_patterns_string_and_pattern_happy_path() {
+        let json = r#"{
+            "name": "tiny",
+            "rules": {
+                "kw_def": {"type": "STRING", "value": "def"},
+                "identifier": {"type": "PATTERN", "value": "[a-zA-Z_][a-zA-Z0-9_]*"}
+            }
+        }"#;
+        let file = write_grammar(json);
+        let patterns = load_patterns_from_grammar_json(file.path()).expect("ok");
+        assert_eq!(patterns.len(), 2);
+        assert_eq!(
+            patterns.get("kw_def"),
+            Some(&TokenPattern::String("def".to_string()))
+        );
+        assert_eq!(
+            patterns.get("identifier"),
+            Some(&TokenPattern::Regex("[a-zA-Z_][a-zA-Z0-9_]*".to_string()))
+        );
+    }
+
+    #[test]
+    fn load_patterns_token_and_immediate_token_unwrap_content() {
+        let json = r#"{
+            "rules": {
+                "tok": {"type": "TOKEN", "content": {"type": "STRING", "value": "tok_val"}},
+                "imm": {"type": "IMMEDIATE_TOKEN", "content": {"type": "PATTERN", "value": "\\d+"}}
+            }
+        }"#;
+        let file = write_grammar(json);
+        let patterns = load_patterns_from_grammar_json(file.path()).expect("ok");
+        assert_eq!(
+            patterns.get("tok"),
+            Some(&TokenPattern::String("tok_val".to_string()))
+        );
+        assert_eq!(
+            patterns.get("imm"),
+            Some(&TokenPattern::Regex("\\d+".to_string()))
+        );
+    }
+
+    #[test]
+    fn load_patterns_alias_unwraps_content() {
+        let json = r#"{
+            "rules": {
+                "alias_str": {
+                    "type": "ALIAS",
+                    "content": {"type": "STRING", "value": "aliased"}
+                }
+            }
+        }"#;
+        let file = write_grammar(json);
+        let patterns = load_patterns_from_grammar_json(file.path()).expect("ok");
+        assert_eq!(
+            patterns.get("alias_str"),
+            Some(&TokenPattern::String("aliased".to_string()))
+        );
+    }
+
+    #[test]
+    fn load_patterns_skips_non_terminals_and_complex_rules() {
+        // CHOICE, SYMBOL, SEQ, REPEAT, REPEAT1, PREC*, and unknown rule
+        // types are deliberately skipped by extract_pattern_from_rule.
+        let json = r#"{
+            "rules": {
+                "choose": {"type": "CHOICE", "members": []},
+                "ref":    {"type": "SYMBOL", "name": "other"},
+                "seq":    {"type": "SEQ",    "members": []},
+                "rep":    {"type": "REPEAT", "content": {}},
+                "rep1":   {"type": "REPEAT1","content": {}},
+                "pr":     {"type": "PREC",       "value": 1, "content": {}},
+                "prl":    {"type": "PREC_LEFT",  "value": 1, "content": {}},
+                "prr":    {"type": "PREC_RIGHT", "value": 1, "content": {}},
+                "prd":    {"type": "PREC_DYNAMIC","value": 1, "content": {}},
+                "weird":  {"type": "WHO_KNOWS"}
+            }
+        }"#;
+        let file = write_grammar(json);
+        let patterns = load_patterns_from_grammar_json(file.path()).expect("ok");
+        assert!(
+            patterns.is_empty(),
+            "no token-bearing rules should be extracted, got {patterns:?}"
+        );
+    }
+
+    #[test]
+    fn load_patterns_token_missing_content_yields_none() {
+        // TOKEN/IMMEDIATE_TOKEN/ALIAS with no `content` field -> None, skipped.
+        let json = r#"{
+            "rules": {
+                "broken_tok":   {"type": "TOKEN"},
+                "broken_imm":   {"type": "IMMEDIATE_TOKEN"},
+                "broken_alias": {"type": "ALIAS"}
+            }
+        }"#;
+        let file = write_grammar(json);
+        let patterns = load_patterns_from_grammar_json(file.path()).expect("ok");
+        assert!(patterns.is_empty());
+    }
+
+    #[test]
+    fn load_patterns_string_without_value_yields_none() {
+        // STRING/PATTERN with missing or non-string `value` -> skipped.
+        let json = r#"{
+            "rules": {
+                "no_val":   {"type": "STRING"},
+                "bad_val":  {"type": "PATTERN", "value": 42},
+                "good":     {"type": "STRING", "value": "x"}
+            }
+        }"#;
+        let file = write_grammar(json);
+        let patterns = load_patterns_from_grammar_json(file.path()).expect("ok");
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(
+            patterns.get("good"),
+            Some(&TokenPattern::String("x".to_string()))
+        );
+    }
+
+    #[test]
+    fn load_patterns_single_rule_grammar() {
+        let json = r#"{
+            "rules": {"only": {"type": "STRING", "value": "solo"}}
+        }"#;
+        let file = write_grammar(json);
+        let patterns = load_patterns_from_grammar_json(file.path()).expect("ok");
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(
+            patterns.get("only"),
+            Some(&TokenPattern::String("solo".to_string()))
+        );
+    }
+
+    #[test]
+    fn load_patterns_nested_token_wrapping_alias_string() {
+        // TOKEN -> ALIAS -> STRING should still unwrap to a String pattern.
+        let json = r#"{
+            "rules": {
+                "nested": {
+                    "type": "TOKEN",
+                    "content": {
+                        "type": "ALIAS",
+                        "content": {"type": "STRING", "value": "deep"}
+                    }
+                }
+            }
+        }"#;
+        let file = write_grammar(json);
+        let patterns = load_patterns_from_grammar_json(file.path()).expect("ok");
+        assert_eq!(
+            patterns.get("nested"),
+            Some(&TokenPattern::String("deep".to_string()))
+        );
+    }
+
+    // ---- load_patterns_with_symbol_map ----------------------------------
+
+    #[test]
+    fn symbol_map_propagates_missing_file_error() {
+        let path = Path::new("/nonexistent/path/grammar.json");
+        let names = vec!["a".to_string()];
+        let result = load_patterns_with_symbol_map(path, &names);
+        assert!(result.is_err(), "underlying loader error must propagate");
+    }
+
+    #[test]
+    fn symbol_map_assigns_ids_by_index_and_skips_unknown() {
+        let json = r#"{
+            "rules": {
+                "kw":  {"type": "STRING",  "value": "kw"},
+                "id":  {"type": "PATTERN", "value": "[a-z]+"}
+            }
+        }"#;
+        let file = write_grammar(json);
+        // Note: `missing` has no rule in the grammar -> no entry in the map.
+        let names = vec!["kw".to_string(), "missing".to_string(), "id".to_string()];
+        let map = load_patterns_with_symbol_map(file.path(), &names).expect("ok");
+        assert_eq!(map.len(), 2);
+        assert_eq!(
+            map.get(&SymbolId(0)),
+            Some(&TokenPattern::String("kw".to_string()))
+        );
+        assert!(!map.contains_key(&SymbolId(1)));
+        assert_eq!(
+            map.get(&SymbolId(2)),
+            Some(&TokenPattern::Regex("[a-z]+".to_string()))
+        );
+    }
+
+    #[test]
+    fn symbol_map_empty_names_yields_empty_map() {
+        let json = r#"{"rules": {"a": {"type": "STRING", "value": "a"}}}"#;
+        let file = write_grammar(json);
+        let map = load_patterns_with_symbol_map(file.path(), &[]).expect("ok");
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn symbol_map_empty_grammar_yields_empty_map() {
+        let file = write_grammar(r#"{"name": "g"}"#);
+        let names = vec!["a".to_string(), "b".to_string()];
+        let map = load_patterns_with_symbol_map(file.path(), &names).expect("ok");
+        assert!(map.is_empty());
+    }
+}
