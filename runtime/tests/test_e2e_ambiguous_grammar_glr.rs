@@ -435,6 +435,65 @@ fn generated_ambiguous_expr_glr_runtime_retains_multiple_complete_alternatives()
 
 #[test]
 #[cfg(feature = "glr")]
+fn generated_ambiguous_expr_glr_runtime_retains_three_or_more_complete_alternatives() {
+    use adze_example::ambiguous_expr::grammar;
+
+    let input = "1 + 2 + 3 + 4";
+    let language = grammar::language();
+    let mut parse_table = decoder::decode_parse_table(language);
+    adze::__private::align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
+    let grammar = decoder::decode_grammar(language);
+    let mut parser = GLRParser::new(parse_table, grammar);
+
+    let lex_fn = language
+        .lex_fn
+        .expect("generated language should expose a lex_fn");
+    for token in adze::__private::lex_with_language_fn(language, lex_fn, input.as_bytes())
+        .expect("generated lexer should tokenize ambiguous expression")
+    {
+        parser.process_token(token.symbol_id, &token.text, token.byte_offset);
+    }
+    parser.process_eof(input.len());
+
+    let alternatives = parser
+        .finish_all_alternatives()
+        .expect("ambiguous generated grammar should finish successfully");
+    let summary = parser
+        .finish_ambiguity_summary()
+        .expect("ambiguous generated grammar should expose an ambiguity summary")
+        .expect("ambiguous generated grammar should retain complete alternatives");
+    let unique_shapes = alternatives
+        .iter()
+        .map(|alternative| format!("{alternative:?}"))
+        .collect::<BTreeSet<_>>();
+
+    assert!(
+        alternatives.len() >= 3,
+        "four operands should retain at least three complete parse alternatives, got {}",
+        alternatives.len()
+    );
+    assert!(
+        unique_shapes.len() >= 3,
+        "four operands should retain at least three structurally distinct alternatives"
+    );
+    assert_eq!(
+        summary.alternatives.len(),
+        alternatives.len(),
+        "ambiguity summary should report every retained complete alternative"
+    );
+    assert_eq!(
+        summary.span,
+        0..input.len(),
+        "multi-alternative ambiguity should span the full ambiguous input"
+    );
+    assert!(
+        summary.selected.is_some(),
+        "multi-alternative ambiguity summary should still identify a selected tree"
+    );
+}
+
+#[test]
+#[cfg(feature = "glr")]
 fn generated_ambiguous_expr_parse_document_reports_ambiguity_summary() {
     use adze_example::ambiguous_expr::grammar;
 
