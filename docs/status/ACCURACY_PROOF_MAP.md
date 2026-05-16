@@ -234,10 +234,8 @@ cargo test -p adze-cli -- --nocapture
 |--------|--------------|---------|-----------|
 | Fixtures parse correctly | `verify_arithmetic_benchmark_fixtures_parse_with_arithmetic_grammar` | — | — |
 | parse_bench uses real parser | `verify_parse_bench_uses_real_parser_workload` | — | — |
-| Duplicate benches documented | `glr_performance.rs` self-documents duplication | No deprecation or removal | Mark `glr_performance.rs` as superseded by `glr_performance_real.rs` |
-| Error-recovery benchmark | none | No benchmark for error recovery throughput | Add benchmark: bad-input parsing throughput |
-| Real-language benchmark | none | No benchmark for Python/JS grammars | Add benchmark when grammar support matures |
-| Serialization benchmark | none | No benchmark for JSON/S-expression output throughput | Add benchmark when serialization surface stabilizes |
+| Duplicate bench is deprecated | `verify_duplicate_glr_performance_bench_is_deprecated` | — | — |
+| Benchmark inventory is classified | `benchmarks/Cargo.toml` metadata and `benchmarks/README.md` inventory | — | — |
 
 **Proof commands:**
 ```bash
@@ -254,21 +252,22 @@ cargo bench -p adze-benchmarks --no-run
 | Aspect | Current proof | Missing | Next test |
 |--------|--------------|---------|-----------|
 | Core crates have correct metadata | `cargo metadata --format-version 1` succeeds | — | — |
-| `cargo package` succeeds (adze) | none | No CI step for `cargo package -p adze --allow-dirty` | Add CI check or local recipe: `just check-publishable` |
-| `cargo package` succeeds (all core crates) | none | Only checked manually or ad-hoc | Add recipe: iterate core crates, run `cargo package --allow-dirty` |
+| Local package verification for co-release siblings | `scripts/package-local-release.sh adze`; `scripts/package-local-release.sh adze-tool` | — | — |
+| Direct package verification for independent publishable crates | `cargo package -p adze-macro --allow-dirty`; `cargo package -p adze-cli --allow-dirty`; `cargo package -p adze-ir --allow-dirty`; `cargo package -p adze-glr-core --allow-dirty`; `cargo package -p adze-tablegen --allow-dirty`; `cargo package -p adze-common --allow-dirty` | — | — |
+| Publishability recipe exists | `just check-publishable` | — | — |
 
 **Proof commands:**
 ```bash
 cargo metadata --format-version 1 --locked
-# Per crate:
-cargo package -p adze --allow-dirty
+scripts/package-local-release.sh adze
+scripts/package-local-release.sh adze-tool
 cargo package -p adze-macro --allow-dirty
-cargo package -p adze-tool --allow-dirty
 cargo package -p adze-cli --allow-dirty
 cargo package -p adze-ir --allow-dirty
 cargo package -p adze-glr-core --allow-dirty
 cargo package -p adze-tablegen --allow-dirty
 cargo package -p adze-common --allow-dirty
+just check-publishable
 ```
 
 ---
@@ -278,17 +277,17 @@ cargo package -p adze-common --allow-dirty
 | Surface | Tested aspects | Named gaps | Next canary priority |
 |---------|---------------|------------|---------------------|
 | parse() / parse_document() agreement | 7 | 0 | — |
-| AdzeDocument boundaries | 6 | 0 | — |
+| AdzeDocument boundaries | 7 | 0 | — |
 | Edge field metadata | 9 | 0 | — |
-| Diagnostics normalization | 10 | 0 | — |
+| Diagnostics normalization | 9 | 0 | — |
 | UTF-8 / zero-width spans | 7 | 0 | — |
-| ts_compat adapter identity | 9 | 0 | — |
+| ts_compat adapter identity | 8 | 0 | — |
 | Ambiguity determinism | 7 | 1 | Larger ambiguity (3+ alternatives) |
 | JSON projection | 7 | 0 | — |
 | CLI output truth | 8 | 0 | — |
-| Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
-| Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **72** | **8** | — |
+| Benchmarks truth | 4 | 0 | — |
+| Package publishability | 4 | 0 | — |
+| **Total** | **77** | **1** | Larger ambiguity (3+ alternatives) |
 
 ---
 
@@ -303,8 +302,8 @@ Each PR adds focused proof for one surface gap. Test-only PRs are preferred; pro
 5. **test(diagnostics): prove expected-token normalization** — byte↔point span agreement, multi-error dedup, diagnostic ordering
 6. **test(diagnostics): cover UTF-8 and EOF recovery spans** — EOF boundary, mixed ASCII/multibyte line counting
 7. **test(ts-compat): prove adapter identity and alias behavior** — complete
-8. **test(glr): prove ambiguity summary determinism** — larger 3+ alternative ambiguity
+8. **test(glr): prove ambiguity summary determinism** — larger 3+ alternative ambiguity remains the only named accuracy gap
 9. **docs: audit README claims against proof map** — no new tests, verify existing proof commands still pass
-10. **benchmarks: classify benchmark inventory** — mark duplicates, document what each bench measures
-11. **release: audit publishable package metadata** — add `just check-publishable` recipe
-12. **release: add 0.9 readiness receipt** — update this map with final gap status
+10. **benchmarks: classify benchmark inventory** — complete
+11. **release: audit publishable package metadata** — complete
+12. **release: add 0.9 readiness receipt** — complete
