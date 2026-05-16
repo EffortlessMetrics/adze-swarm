@@ -1,11 +1,12 @@
 //! Classification: real_parser
-//! Status: active
+//! Status: deprecated
 //! CI coverage: criterion-smoke.yml benchmark compile check (compile-only),
 //!   pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)
 //!
 //! NOTE: This bench substantially duplicates `parse_bench.rs`. Both benchmark
 //! arithmetic expression parsing using the same fixtures (small/medium/large).
-//! Consider consolidating or differentiating the two in a future cleanup pass.
+//! It remains registered only to keep compile-only benchmark evidence intact
+//! until a later cleanup removes the duplicate target.
 
 use adze_example::arithmetic::grammar::parse;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};

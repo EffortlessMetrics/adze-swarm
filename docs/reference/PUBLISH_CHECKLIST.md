@@ -46,7 +46,7 @@ the complete release surface.
 
 ```bash
 # Run the automated check (metadata + cargo package --list)
-./scripts/check-publish.sh
+just check-publishable
 
 # Validate the release surface and the microcrate-to-SRP release gate
 PACKAGE_BOUNDARY_RELEASE_GATE=1 ./scripts/validate-release-surface.sh
