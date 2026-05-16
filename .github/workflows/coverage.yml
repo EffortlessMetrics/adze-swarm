@@ -35,6 +35,11 @@ env:
 jobs:
   paths:
     name: Detect Coverage Paths
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.action != 'labeled' ||
+      github.event.label.name == 'coverage' ||
+      github.event.label.name == 'full-ci'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     outputs:

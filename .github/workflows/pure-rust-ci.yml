@@ -12,6 +12,10 @@ on:
     types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
+
 env:
   RUST_BACKTRACE: 1
   CARGO_TERM_COLOR: always
@@ -28,6 +32,11 @@ env:
 jobs:
   matrix-setup:
     name: Matrix Setup
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.action != 'labeled' ||
+      github.event.label.name == 'full-ci' ||
+      github.event.label.name == 'platform-matrix'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     outputs:

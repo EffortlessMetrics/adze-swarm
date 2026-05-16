@@ -33,6 +33,12 @@ WASM compile checks, and strict features run only for matching Rust/package
 paths. Markdown-only docs changes should rely on the base gate and docs/policy
 receipts instead of paying for workspace `cargo doc`.
 
+Workflows that listen for `labeled` events guard their setup jobs so unrelated
+labels do not restart path detectors or implementation lanes. Only labels that
+request that workflow's evidence, such as `full-ci`, `platform-matrix`,
+`coverage`, `ci:golden`, or `ci:microcrate`, should wake the matching routed
+lane.
+
 The Pure Rust workflow is code-path gated for ordinary PRs. Docs-only,
 policy-only, CI-doc-only, and excluded tool-island changes such as
 `tools/ts-bridge/**` should get the base `Rust Small Result` gate and their
