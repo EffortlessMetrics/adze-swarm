@@ -611,8 +611,30 @@ review_after = "2026-06-07"
 expires = "2026-11-07"
 
 # ---------------------------------------------------------------------------
-# Tier 3/4 — non-PR-default heavy lanes
+# Tier 2/3/4 — path-routed product proof and non-PR-default heavy lanes
 # ---------------------------------------------------------------------------
+
+[[lane]]
+id = "product-proof-stable"
+workflow = ".github/workflows/product-proof.yml"
+job = "ci-product-stable"
+display_name = "ci-product stable canaries"
+kind = "product-proof"
+tier = "product"
+default_pr = true
+blocking = false
+runner = "ubuntu_latest"
+base_lem = 25
+owner = "core/product"
+intent = "Run bounded Stable README/support-tier canaries when stable-claim surfaces change."
+failure_mode = "README Stable claims drift from the support-tier proof map or from clean downstream quickstart behavior."
+proof_obligation = "Run scripts/ci-product-stable.sh and fail on missing Stable-claim proof."
+evidence = ["job logs"]
+allowed_triggers = ["pull_request", "schedule", "workflow_dispatch"]
+routing_note = "Path-routed to README, support-tier/product-proof docs, quickstart tests, downstream demo, the stable canary script, and this workflow."
+duplicate_of = ["ci-supported"]
+review_after = "2026-06-15"
+expires = "2026-11-15"
 
 [[lane]]
 id = "product-proof-advisory"
@@ -626,12 +648,12 @@ blocking = false
 runner = "ubuntu_latest"
 base_lem = 25
 owner = "core/product"
-intent = "Validate stable and advisory product canaries."
+intent = "Validate broad advisory product canaries outside the Stable README contract."
 failure_mode = "README/support-tier product claims drift from actual proof commands."
-proof_obligation = "Run ci-product-stable and ci-product advisory lanes."
+proof_obligation = "Run scripts/ci-product.sh on schedule/manual dispatch."
 evidence = ["job logs"]
 allowed_triggers = ["schedule", "workflow_dispatch"]
-duplicate_of = ["golden-tests", "ci-supported"]
+duplicate_of = ["golden-tests", "product-proof-stable", "ci-supported"]
 review_after = "2026-06-07"
 expires = "2026-11-07"
 

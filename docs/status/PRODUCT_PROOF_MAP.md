@@ -33,7 +33,8 @@ do not have to mine the dense tier table for the common decision points.
 
 - A README Stable claim must have a matching `SUPPORT_TIERS.md` row and a
   repeatable proof command.
-- `ci-product-stable` is the bounded Stable-claim canary lane, but it remains
+- `ci-product stable canaries` is the bounded Stable-claim canary lane. It runs
+  on stable-claim PR surfaces, schedule, and manual dispatch, but remains
   advisory until branch protection explicitly promotes it.
 - Experimental, Stabilizing, and Advisory rows here are not marketing claims.
   They are current evidence snapshots.
