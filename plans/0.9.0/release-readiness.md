@@ -64,7 +64,7 @@ A 0.9.0 release is ready when all of the following are true:
 | 27 | Package publishability — adze-glr-core | pending | `cargo package -p adze-glr-core --allow-dirty` | — |
 | 28 | Package publishability — adze-tablegen | pending | `cargo package -p adze-tablegen --allow-dirty` | — |
 | 29 | Package publishability — adze-common | pending | `cargo package -p adze-common --allow-dirty` | — |
-| 30 | `just check-publishable` recipe exists | pending | `just check-publishable` | — |
+| 30 | `just check-publishable` recipe exists | covered | `just check-publishable` | #56 |
 
 ### CI gates
 
