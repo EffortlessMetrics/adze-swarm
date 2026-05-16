@@ -10,9 +10,9 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 # PowerShell-launched tools. Keep just recipes usable from a clean Windows shell.
 set windows-shell := ["C:\\Program Files\\Git\\bin\\bash.exe", "-eu", "-o", "pipefail", "-c"]
 
-# Format all code
+# Format declared workspace members
 fmt:
-    cargo fmt --all --check
+    ./scripts/fmt-workspace.sh --check
 
 # Run clippy on core workspace members
 clippy:
