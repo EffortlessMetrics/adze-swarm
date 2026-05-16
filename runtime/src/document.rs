@@ -7,8 +7,20 @@
 
 use crate::parser_v4::ParseNode;
 use adze_glr_core::{ParseTable, SymbolMetadata as TableSymbolMetadata};
+
+mod diagnostics;
+#[cfg(feature = "serialization")]
+mod json_projection;
+mod tree_builder;
+mod typed_conversion;
+
+use diagnostics::{attach_related_nodes, build_diagnostics, source_line};
+#[cfg(feature = "serialization")]
+use json_projection::{ambiguity_to_json, diagnostic_to_json, node_to_document_json};
+use tree_builder::{build_node_index, collect_edge_records, collect_node_records, insert_symbol};
+use typed_conversion::document_node_to_parsed_node;
+
 use adze_ir::{Grammar, SymbolId};
-use std::ffi::CStr;
 use std::num::NonZeroU16;
 use std::ops::Range;
 
@@ -1584,510 +1596,142 @@ pub trait SyntaxNode<'doc>: Copy {
     }
 }
 
-#[cfg(feature = "serialization")]
-fn diagnostic_to_json(diagnostic: &ParseDiagnostic) -> serde_json::Value {
-    serde_json::json!({
-        "start_byte": diagnostic.start_byte,
-        "end_byte": diagnostic.end_byte,
-        "point_range": point_range_to_json(diagnostic.point_range),
-        "found": diagnostic.found.as_deref(),
-        "expected": &diagnostic.expected,
-        "related_nodes": diagnostic
-            .related_nodes
-            .iter()
-            .map(|node_id| node_id.as_usize())
-            .collect::<Vec<_>>(),
-        "message": diagnostic.message.as_str(),
-    })
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[cfg(feature = "serialization")]
-fn ambiguity_to_json(ambiguity: &crate::glr_parser::AmbiguitySummary) -> serde_json::Value {
-    serde_json::json!({
-        "span": {
-            "start_byte": ambiguity.span.start,
-            "end_byte": ambiguity.span.end,
-        },
-        "selected": ambiguity.selected,
-        "selection_reason": format!("{:?}", ambiguity.selection_reason),
-        "alternatives": ambiguity
-            .alternatives
-            .iter()
-            .map(alternative_to_json)
-            .collect::<Vec<_>>(),
-    })
-}
-
-#[cfg(feature = "serialization")]
-fn alternative_to_json(alternative: &crate::glr_parser::AlternativeSummary) -> serde_json::Value {
-    serde_json::json!({
-        "index": alternative.index,
-        "root_symbol": alternative.root_symbol.0,
-        "span": {
-            "start_byte": alternative.span.start,
-            "end_byte": alternative.span.end,
-        },
-        "dynamic_precedence": alternative.dynamic_precedence,
-        "in_error": alternative.in_error,
-        "cost": alternative.cost,
-        "node_count": alternative.node_count,
-    })
-}
-
-#[cfg(feature = "serialization")]
-fn node_to_document_json(node: AdzeNode<'_>) -> serde_json::Value {
-    let identity = node.identity();
-    let flags = node.flags();
-    let text = if node.child_count() == 0 {
-        node.utf8_text().ok()
-    } else {
-        None
-    };
-    let children = node
-        .child_edges()
-        .filter_map(|edge| {
-            edge.child().map(|child| {
-                serde_json::json!({
-                    "child_index": edge.child_index(),
-                    "field_name": edge.field_name(),
-                    "field_id": edge.field_id().map(|field_id| field_id.get()),
-                    "node": node_to_document_json(child),
-                })
-            })
-        })
-        .collect::<Vec<_>>();
-
-    serde_json::json!({
-        "id": node.node_id().as_usize(),
-        "kind": identity.visible_name(),
-        "kind_id": identity.visible_id().0,
-        "grammar_kind": identity.grammar_name(),
-        "grammar_id": identity.grammar_id().0,
-        "alias_symbol_id": identity.alias_symbol_id().map(|symbol_id| symbol_id.0),
-        "has_alias": identity.has_alias(),
-        "range": {
-            "start_byte": node.start_byte(),
-            "end_byte": node.end_byte(),
-            "start_point": point_to_json(node.point_range().start),
-            "end_point": point_to_json(node.point_range().end),
-        },
-        "flags": {
-            "named": flags.is_named(),
-            "visible": flags.is_visible(),
-            "extra": flags.is_extra(),
-            "terminal": flags.is_terminal(),
-            "supertype": flags.is_supertype(),
-            "error": flags.is_error(),
-            "missing": flags.is_missing(),
-            "has_error": flags.has_error(),
-        },
-        "text": text,
-        "children": children,
-    })
-}
-
-#[cfg(feature = "serialization")]
-fn point_range_to_json(range: PointRange) -> serde_json::Value {
-    serde_json::json!({
-        "start": point_to_json(range.start),
-        "end": point_to_json(range.end),
-    })
-}
-
-#[cfg(feature = "serialization")]
-fn point_to_json(point: DocumentPoint) -> serde_json::Value {
-    serde_json::json!({
-        "row": point.row,
-        "column": point.column,
-    })
-}
-
-fn build_diagnostics(root: &ParseNode, error_count: usize, source: &str) -> Vec<ParseDiagnostic> {
-    if error_count == 0 {
-        return Vec::new();
-    }
-
-    let span = first_error_span(root).unwrap_or(root.start_byte..root.end_byte);
-    let start_byte = span.start.min(source.len());
-    let end_byte = span.end.min(source.len()).max(start_byte);
-    let point_range = PointRange::from_byte_range(source, start_byte..end_byte);
-
-    vec![ParseDiagnostic {
-        start_byte,
-        end_byte,
-        point_range,
-        found: None,
-        expected: Vec::new(),
-        related_nodes: Vec::new(),
-        message: format!("parser recorded {error_count} recovery/error event(s)"),
-    }]
-}
-
-fn attach_related_nodes(root: &ParseNode, diagnostics: &mut [ParseDiagnostic]) {
-    for diagnostic in diagnostics {
-        diagnostic.related_nodes = related_nodes_for_diagnostic(root, diagnostic);
-    }
-}
-
-fn related_nodes_for_diagnostic(root: &ParseNode, diagnostic: &ParseDiagnostic) -> Vec<NodeId> {
-    let mut related_errors = Vec::new();
-    let mut next_id = 0;
-    collect_related_error_nodes(root, diagnostic, &mut next_id, &mut related_errors);
-    if !related_errors.is_empty() {
-        return related_errors;
-    }
-
-    let mut best = None;
-    let mut next_id = 0;
-    collect_smallest_covering_node(root, diagnostic, &mut next_id, &mut best);
-    best.map(|(node_id, _)| vec![node_id]).unwrap_or_default()
-}
-
-fn collect_related_error_nodes(
-    node: &ParseNode,
-    diagnostic: &ParseDiagnostic,
-    next_id: &mut usize,
-    related: &mut Vec<NodeId>,
-) {
-    let node_id = NodeId::new(*next_id);
-    *next_id += 1;
-
-    if is_error_parse_node(node) && node_range_touches_diagnostic(node, diagnostic) {
-        related.push(node_id);
-    }
-
-    for child in &node.children {
-        collect_related_error_nodes(child, diagnostic, next_id, related);
-    }
-}
-
-fn collect_smallest_covering_node(
-    node: &ParseNode,
-    diagnostic: &ParseDiagnostic,
-    next_id: &mut usize,
-    best: &mut Option<(NodeId, usize)>,
-) {
-    let node_id = NodeId::new(*next_id);
-    *next_id += 1;
-
-    if node_covers_diagnostic(node, diagnostic) {
-        let width = node.end_byte.saturating_sub(node.start_byte);
-        if best
-            .map(|(_, best_width)| width < best_width)
-            .unwrap_or(true)
-        {
-            *best = Some((node_id, width));
+    fn symbol_metadata(name: &str, symbol_id: SymbolId, is_named: bool) -> TableSymbolMetadata {
+        TableSymbolMetadata {
+            name: name.to_string(),
+            is_visible: true,
+            is_named,
+            is_supertype: false,
+            is_terminal: !is_named,
+            is_extra: false,
+            is_fragile: false,
+            symbol_id,
         }
     }
 
-    for child in &node.children {
-        collect_smallest_covering_node(child, diagnostic, next_id, best);
-    }
-}
-
-fn is_error_parse_node(node: &ParseNode) -> bool {
-    node.symbol.0 == 0 && node.children.is_empty()
-}
-
-fn node_range_touches_diagnostic(node: &ParseNode, diagnostic: &ParseDiagnostic) -> bool {
-    if diagnostic.start_byte == diagnostic.end_byte {
-        node.start_byte <= diagnostic.start_byte && diagnostic.start_byte <= node.end_byte
-    } else {
-        node.start_byte < diagnostic.end_byte && diagnostic.start_byte < node.end_byte
-    }
-}
-
-fn node_covers_diagnostic(node: &ParseNode, diagnostic: &ParseDiagnostic) -> bool {
-    if diagnostic.start_byte == diagnostic.end_byte {
-        node.start_byte <= diagnostic.start_byte && diagnostic.start_byte <= node.end_byte
-    } else {
-        node.start_byte <= diagnostic.start_byte && diagnostic.end_byte <= node.end_byte
-    }
-}
-
-fn first_error_span(node: &ParseNode) -> Option<Range<usize>> {
-    if node.symbol.0 == 0 && node.children.is_empty() {
-        return Some(node.start_byte..node.end_byte);
-    }
-
-    node.children.iter().find_map(first_error_span)
-}
-
-fn source_line(source: &str, byte_offset: usize) -> Option<&str> {
-    if source.is_empty() {
-        return None;
-    }
-
-    let bytes = source.as_bytes();
-    let offset = byte_offset.min(bytes.len());
-    let mut start = offset;
-    while start > 0 && bytes[start - 1] != b'\n' && bytes[start - 1] != b'\r' {
-        start -= 1;
-    }
-
-    let mut end = offset;
-    while end < bytes.len() && bytes[end] != b'\n' && bytes[end] != b'\r' {
-        end += 1;
-    }
-
-    source.get(start..end)
-}
-
-fn build_node_index(root: &ParseNode) -> Vec<NodeIndex> {
-    let mut index = Vec::new();
-    let mut path = Vec::new();
-    collect_node_index(root, &mut path, &mut index);
-    index
-}
-
-fn collect_node_records(
-    node: &ParseNode,
-    source: &str,
-    language: &LanguageMetadata,
-    error_count: usize,
-    is_root: bool,
-    nodes: &mut Vec<NodeRecord>,
-) -> bool {
-    let id = NodeId::new(nodes.len());
-    let grammar_id = node.symbol_id;
-    let alias_symbol_id = node.alias_symbol_id;
-    let visible_id = alias_symbol_id.unwrap_or(grammar_id);
-
-    nodes.push(NodeRecord {
-        visible_id,
-        grammar_id,
-        byte_range: node.start_byte..node.end_byte,
-        point_range: PointRange::from_byte_range(source, node.start_byte..node.end_byte),
-        edge_range: EdgeRange::default(),
-        alias_symbol_id,
-        flags: NodeFlags::default(),
-    });
-
-    let mut child_has_error = false;
-    for child in &node.children {
-        child_has_error |= collect_node_records(child, source, language, error_count, false, nodes);
-    }
-
-    let error = is_error_parse_node(node);
-    let missing = node.start_byte == node.end_byte && error;
-    let has_error = error || child_has_error || (is_root && error_count > 0);
-    let kind = language.symbol(visible_id);
-    nodes[id.as_usize()].flags = NodeFlags {
-        named: kind.map(NodeKind::is_named).unwrap_or(false),
-        visible: kind.map(NodeKind::is_visible).unwrap_or(false),
-        extra: kind.map(NodeKind::is_extra).unwrap_or(false),
-        terminal: kind.map(NodeKind::is_terminal).unwrap_or(false),
-        supertype: kind.map(NodeKind::is_supertype).unwrap_or(false),
-        error,
-        missing,
-        has_error,
-    };
-
-    has_error
-}
-
-fn collect_edge_records(
-    node: &ParseNode,
-    node_id: NodeId,
-    node_index: &[NodeIndex],
-    language: &LanguageMetadata,
-    tree: &mut SyntaxTree,
-) {
-    let edge_start = tree.edges.len();
-    let child_ids = node_index
-        .get(node_id.as_usize())
-        .map(|index| index.child_ids.as_slice())
-        .unwrap_or(&[]);
-
-    for (child_index, child) in node.children.iter().enumerate() {
-        let Some(child_id) = child_ids.get(child_index).copied() else {
-            continue;
-        };
-        tree.edges.push(EdgeRecord {
-            parent_id: node_id,
-            child_id,
-            child_index,
-            field_id: child
-                .field_name
-                .as_deref()
-                .and_then(|field_name| language.field_id_for_name(field_name)),
-        });
-    }
-
-    let edge_len = tree.edges.len().saturating_sub(edge_start);
-    if let Some(record) = tree.nodes.get_mut(node_id.as_usize()) {
-        record.edge_range = EdgeRange::new(edge_start, edge_len);
-    }
-
-    for (child_index, child) in node.children.iter().enumerate() {
-        let Some(child_id) = child_ids.get(child_index).copied() else {
-            continue;
-        };
-        collect_edge_records(child, child_id, node_index, language, tree);
-    }
-}
-
-fn collect_node_index(
-    node: &ParseNode,
-    path: &mut Vec<usize>,
-    index: &mut Vec<NodeIndex>,
-) -> NodeId {
-    collect_node_index_with_parent(node, path, index, None)
-}
-
-fn collect_node_index_with_parent(
-    node: &ParseNode,
-    path: &mut Vec<usize>,
-    index: &mut Vec<NodeIndex>,
-    parent_id: Option<NodeId>,
-) -> NodeId {
-    let id = NodeId::new(index.len());
-    index.push(NodeIndex {
-        path: path.clone(),
-        parent_id,
-        child_ids: Vec::with_capacity(node.children.len()),
-    });
-
-    let mut child_ids = Vec::with_capacity(node.children.len());
-    for (child_index, child) in node.children.iter().enumerate() {
-        path.push(child_index);
-        child_ids.push(collect_node_index_with_parent(child, path, index, Some(id)));
-        path.pop();
-    }
-    index[id.as_usize()].child_ids = child_ids;
-
-    id
-}
-
-fn insert_symbol(symbols: &mut Vec<NodeKind>, symbol: NodeKind) {
-    if let Some(existing) = symbols
-        .iter_mut()
-        .find(|existing| existing.symbol_id == symbol.symbol_id)
-    {
-        *existing = symbol;
-    } else {
-        symbols.push(symbol);
-    }
-}
-
-fn document_node_to_parsed_node(
-    node: &ParseNode,
-    language: &'static crate::pure_parser::TSLanguage,
-    source: &[u8],
-) -> crate::pure_parser::ParsedNode {
-    let symbol = table_symbol_for_public_id(language, node.symbol_id);
-    let children = node
-        .children
-        .iter()
-        .map(|child| document_node_to_parsed_node(child, language, source))
-        .collect();
-    let (is_named, is_extra) = symbol_flags(language, symbol);
-    let is_empty_error_node =
-        node.symbol_id.0 == 0 && node.children.is_empty() && node.start_byte == node.end_byte;
-
-    crate::pure_parser::ParsedNode {
-        symbol,
-        children,
-        start_byte: node.start_byte,
-        end_byte: node.end_byte,
-        start_point: byte_to_point(source, node.start_byte),
-        end_point: byte_to_point(source, node.end_byte),
-        is_extra,
-        is_error: symbol_name(language, symbol) == Some("ERROR") || is_empty_error_node,
-        is_missing: is_empty_error_node,
-        is_named,
-        field_id: node
-            .field_name
-            .as_deref()
-            .and_then(|field_name| field_id_for_name(language, field_name)),
-        language: Some(language as *const _),
-    }
-}
-
-fn table_symbol_for_public_id(
-    language: &crate::pure_parser::TSLanguage,
-    public_symbol: SymbolId,
-) -> crate::pure_parser::TSSymbol {
-    if !language.public_symbol_map.is_null() {
-        // SAFETY: `public_symbol_map` has one entry per generated table symbol.
-        let public_symbols = unsafe {
-            std::slice::from_raw_parts(language.public_symbol_map, language.symbol_count as usize)
-        };
-        if let Some(index) = public_symbols
+    fn fielded_language() -> (Grammar, ParseTable) {
+        let mut table = ParseTable::default();
+        table.symbol_metadata = vec![
+            symbol_metadata("ERROR", SymbolId(0), true),
+            symbol_metadata("source_file", SymbolId(1), true),
+            symbol_metadata("expression", SymbolId(2), true),
+            symbol_metadata("number", SymbolId(3), true),
+            symbol_metadata("-", SymbolId(4), false),
+        ];
+        table.symbol_count = table.symbol_metadata.len();
+        table.index_to_symbol = table
+            .symbol_metadata
             .iter()
-            .position(|candidate| *candidate == public_symbol.0)
-        {
-            return index as crate::pure_parser::TSSymbol;
-        }
+            .map(|metadata| metadata.symbol_id)
+            .collect();
+        table.field_names = vec![
+            "left".to_string(),
+            "operator".to_string(),
+            "right".to_string(),
+        ];
+
+        (Grammar::new("fielded".to_string()), table)
     }
 
-    public_symbol.0
-}
+    #[test]
+    fn field_lookup_resolves_missing_error_child() {
+        let (grammar, table) = fielded_language();
+        let source_file = SymbolId(1);
+        let expression = SymbolId(2);
+        let number = SymbolId(3);
+        let operator = SymbolId(4);
+        let error = SymbolId(0);
+        let source = "1-";
 
-fn symbol_flags(
-    language: &crate::pure_parser::TSLanguage,
-    symbol: crate::pure_parser::TSSymbol,
-) -> (bool, bool) {
-    if language.symbol_metadata.is_null() || u32::from(symbol) >= language.symbol_count {
-        return (true, false);
-    }
+        let root = ParseNode {
+            symbol: source_file,
+            symbol_id: source_file,
+            start_byte: 0,
+            end_byte: source.len(),
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![ParseNode {
+                symbol: expression,
+                symbol_id: expression,
+                start_byte: 0,
+                end_byte: source.len(),
+                field_name: None,
+                alias_symbol_id: None,
+                children: vec![
+                    ParseNode {
+                        symbol: number,
+                        symbol_id: number,
+                        start_byte: 0,
+                        end_byte: 1,
+                        field_name: Some("left".to_string()),
+                        alias_symbol_id: None,
+                        children: Vec::new(),
+                    },
+                    ParseNode {
+                        symbol: operator,
+                        symbol_id: operator,
+                        start_byte: 1,
+                        end_byte: 2,
+                        field_name: Some("operator".to_string()),
+                        alias_symbol_id: None,
+                        children: Vec::new(),
+                    },
+                    ParseNode {
+                        symbol: error,
+                        symbol_id: error,
+                        start_byte: 2,
+                        end_byte: 2,
+                        field_name: Some("right".to_string()),
+                        alias_symbol_id: None,
+                        children: Vec::new(),
+                    },
+                ],
+            }],
+        };
+        let document =
+            AdzeDocument::from_parse_result(source, root, 1, "fielded", &grammar, &table);
 
-    // SAFETY: `symbol` is bounds-checked above, and `symbol_metadata` has one
-    // entry per generated table symbol.
-    let metadata = unsafe { *language.symbol_metadata.add(usize::from(symbol)) };
-    let is_named = (metadata & 0x02) != 0;
-    let is_extra = (metadata & 0x04) != 0;
-    (is_named, is_extra)
-}
+        let expression = document
+            .tree()
+            .root()
+            .child(0)
+            .expect("root should expose expression child");
+        let right_field = document
+            .language()
+            .field_id_for_name("right")
+            .expect("right field should resolve");
+        let right_edge = expression
+            .edge_by_field_name("right")
+            .expect("right edge should resolve even when its child is missing");
+        let right_child = right_edge.child().expect("right edge child should resolve");
 
-fn field_id_for_name(language: &crate::pure_parser::TSLanguage, field_name: &str) -> Option<u16> {
-    if language.field_count == 0 || language.field_names.is_null() {
-        return None;
-    }
-
-    // SAFETY: `field_names` points to a static array of `field_count` C string
-    // pointers generated with the language table.
-    let field_names =
-        unsafe { std::slice::from_raw_parts(language.field_names, language.field_count as usize) };
-    field_names
-        .iter()
-        .enumerate()
-        .find_map(|(index, name_ptr)| {
-            c_str_to_str(*name_ptr)
-                .filter(|candidate| *candidate == field_name)
-                .map(|_| index as u16)
-        })
-}
-
-fn symbol_name(
-    language: &crate::pure_parser::TSLanguage,
-    symbol: crate::pure_parser::TSSymbol,
-) -> Option<&'static str> {
-    if language.symbol_names.is_null() || u32::from(symbol) >= language.symbol_count {
-        return None;
-    }
-
-    // SAFETY: `symbol` is bounds-checked above, and `symbol_names` has one C
-    // string pointer per generated table symbol.
-    let symbol_names = unsafe {
-        std::slice::from_raw_parts(language.symbol_names, language.symbol_count as usize)
-    };
-    c_str_to_str(symbol_names[usize::from(symbol)])
-}
-
-fn c_str_to_str(ptr: *const u8) -> Option<&'static str> {
-    if ptr.is_null() {
-        return None;
-    }
-
-    // SAFETY: generated language tables store static NUL-terminated strings.
-    unsafe { CStr::from_ptr(ptr.cast()).to_str().ok() }
-}
-
-fn byte_to_point(source: &[u8], byte: usize) -> crate::pure_parser::Point {
-    let point = DocumentPoint::from_byte_offset(std::str::from_utf8(source).unwrap_or(""), byte);
-    crate::pure_parser::Point {
-        row: point.row,
-        column: point.column,
+        assert_eq!(expression.field_name_for_child(2), Some("right"));
+        assert_eq!(expression.field_id_for_child(2), Some(right_field));
+        assert_eq!(right_edge.field_name(), Some("right"));
+        assert_eq!(right_edge.field_id(), Some(right_field));
+        assert_eq!(
+            expression
+                .child_by_field_name("right")
+                .expect("right field lookup should return the missing child")
+                .node_id(),
+            right_child.node_id()
+        );
+        assert_eq!(
+            expression
+                .child_by_field_id(right_field)
+                .expect("right field-id lookup should return the missing child")
+                .node_id(),
+            right_child.node_id()
+        );
+        assert_eq!(right_child.field_name(), Some("right"));
+        assert_eq!(right_child.field_id(), Some(right_field));
+        assert!(right_child.is_error());
+        assert!(right_child.is_missing());
+        assert!(right_child.has_error());
+        assert!(document.tree().has_errors());
     }
 }

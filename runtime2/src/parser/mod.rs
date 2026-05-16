@@ -3,17 +3,17 @@
 //! The parser facade is intentionally small; parsing backends, pure-Rust GLR
 //! state, and `.parsetable` loading live in focused sibling modules.
 
+#[cfg(feature = "pure-rust")]
+mod glr;
 mod language_mode;
 #[cfg(all(feature = "pure-rust", feature = "serialization"))]
-mod parsetable_loader;
-#[cfg(feature = "pure-rust")]
-mod pure_glr;
+mod parsetable;
 
 use crate::{error::ParseError, language::Language, tree::Tree};
 #[cfg(all(feature = "pure-rust", feature = "serialization"))]
 use adze_parsetable_metadata::ParsetableMetadata;
 #[cfg(feature = "pure-rust")]
-use pure_glr::GlrState;
+use glr::GLRState;
 use std::time::Duration;
 
 /// A parser that can parse text into a syntax [`Tree`] using a [`Language`].
@@ -43,7 +43,7 @@ pub struct Parser {
     arena: Option<bumpalo::Bump>,
     /// GLR mode state (Phase 3.1)
     #[cfg(feature = "pure-rust")]
-    glr_state: Option<GlrState>,
+    glr_state: Option<GLRState>,
     /// Parsed metadata from `.parsetable` load.
     #[cfg(all(feature = "pure-rust", feature = "serialization"))]
     parsetable_metadata: Option<ParsetableMetadata>,
@@ -144,15 +144,6 @@ impl Parser {
         if let Some(arena) = &mut self.arena {
             arena.reset();
         }
-    }
-
-    /// Return metadata loaded from the last `.parsetable` file.
-    ///
-    /// Returns `None` when no `.parsetable` has been loaded in this parser
-    /// instance or when the method is called without the required features.
-    #[cfg(all(feature = "pure-rust", feature = "serialization"))]
-    pub fn parsetable_metadata(&self) -> Option<&ParsetableMetadata> {
-        self.parsetable_metadata.as_ref()
     }
 }
 

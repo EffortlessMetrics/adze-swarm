@@ -70,3 +70,6 @@ benchmarks/results/
 lcov.info
 coverage.json
 coverage.txt
+
+# Claude Code local state and ephemeral worktrees
+.claude/

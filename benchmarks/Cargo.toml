@@ -9,7 +9,7 @@ edition = "2024"
 [package.metadata.bench-classification]
 
 parse_bench = { classification = "real_parser", status = "active", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
-glr_performance = { classification = "real_parser", status = "active", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)", note = "substantially duplicates parse_bench.rs" }
+glr_performance = { classification = "real_parser", status = "deprecated", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)", note = "substantially duplicates parse_bench.rs; retained compile-only until removed in a later benchmark cleanup" }
 glr_hot = { classification = "real_parser", status = "active", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
 glr_performance_real = { classification = "real_parser", status = "active", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
 incremental_bench = { classification = "real_parser", status = "active", ci = "ci.yml Benchmark Compilation (compile-only), criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
