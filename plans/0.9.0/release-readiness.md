@@ -57,14 +57,21 @@ A 0.9.0 release is ready when all of the following are true:
 | 20 | Benchmark classification inventory | pending | `cargo test -p adze-benchmarks --test verify_fixture_parsing -- --nocapture` | — |
 | 21 | Duplicate bench deprecation (glr_performance.rs) | pending | `cargo bench -p adze-benchmarks --no-run` | — |
 | 22 | Package publishability — adze | pending | `cargo package -p adze --allow-dirty` | — |
-| 23 | Package publishability — adze-macro | pending | `cargo package -p adze-macro --allow-dirty` | — |
+| 23 | Package publishability — adze-macro | covered | `cargo package -p adze-macro --allow-dirty` | #58 |
 | 24 | Package publishability — adze-tool | pending | `cargo package -p adze-tool --allow-dirty` | — |
 | 25 | Package publishability — adze-cli | pending | `cargo package -p adze-cli --allow-dirty` | — |
 | 26 | Package publishability — adze-ir | covered | `cargo package -p adze-ir --allow-dirty` | #57 |
 | 27 | Package publishability — adze-glr-core | pending | `cargo package -p adze-glr-core --allow-dirty` | — |
-| 28 | Package publishability — adze-tablegen | pending | `cargo package -p adze-tablegen --allow-dirty` | — |
+| 28 | Package publishability — adze-tablegen | covered | `cargo package -p adze-tablegen --allow-dirty` | #58 |
 | 29 | Package publishability — adze-common | covered | `cargo package -p adze-common --allow-dirty` | #57 |
 | 30 | `just check-publishable` recipe exists | covered | `just check-publishable` | #56 |
+
+Current package blockers:
+
+- `cargo package -p adze --allow-dirty`: optional `ts-bridge` dependency resolves against crates.io, where `^0.1.0` is unavailable.
+- `cargo package -p adze-tool --allow-dirty`: package verification resolves crates.io `adze-tablegen v0.8.0`, which does not export `TypedCstGenerator`.
+- `cargo package -p adze-cli --allow-dirty`: package verification cannot resolve `adze-tool` from crates.io.
+- `cargo package -p adze-glr-core --allow-dirty`: package preparation cannot resolve the unpublished `glr-test-support` dev-dependency from crates.io.
 
 ### CI gates
 
