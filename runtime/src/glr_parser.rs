@@ -136,11 +136,15 @@ mod ambiguity;
 mod config;
 #[path = "glr_parser/parse_stack.rs"]
 mod parse_stack;
+#[path = "glr_parser/telemetry.rs"]
+mod telemetry;
 
 pub use ambiguity::{AlternativeSummary, AmbiguitySummary, SelectionReason};
 #[allow(unused_imports)]
 pub use config::{DEFAULT_SAFE_DEDUP_THRESHOLD, safe_dedup_threshold};
 pub use parse_stack::ParseStack;
+#[cfg(feature = "glr_telemetry")]
+use telemetry::TelemetryCounters;
 
 use ambiguity::{
     SelectedCompleteStack, subtree_node_count, subtree_selection_key, version_selection_reason,
@@ -202,84 +206,8 @@ pub struct GLRParser {
     telemetry: TelemetryCounters,
 }
 
-#[cfg(not(feature = "glr_telemetry"))]
-#[allow(dead_code)]
-struct TelemetryCounters;
-
-/// Telemetry counters for GLR performance monitoring
-#[cfg(feature = "glr_telemetry")]
-#[derive(Debug, Default, Clone)]
-struct TelemetryCounters {
-    /// Number of reduce operations performed
-    reduce_steps: usize,
-    /// Number of epsilon reductions
-    epsilon_reduces: usize,
-    /// Number of shift operations performed
-    shift_steps: usize,
-    /// Number of times parser forked
-    fork_count: usize,
-    /// Total stacks before compression
-    tops_before_compress: usize,
-    /// Total stacks after compression
-    tops_after_compress: usize,
-    /// Number of ambiguity packs created
-    alts_packed: usize,
-    /// Maximum active stacks at any point
-    max_active_stacks: usize,
-    /// Number of accept actions at EOF
-    accept_count: usize,
-}
-
 #[allow(dead_code)]
 impl GLRParser {
-    /// Get telemetry summary (only when telemetry feature is enabled)
-    #[cfg(feature = "glr_telemetry")]
-    pub fn telemetry_summary(&self) -> String {
-        format!(
-            "GLR Telemetry:\n  Shifts: {}\n  Reduces: {} (epsilon: {})\n  Forks: {}\n  Compression: {}/{} -> {} (packed: {})\n  Max stacks: {}\n  Accepts: {}",
-            self.telemetry.shift_steps,
-            self.telemetry.reduce_steps,
-            self.telemetry.epsilon_reduces,
-            self.telemetry.fork_count,
-            self.telemetry.tops_before_compress,
-            self.telemetry.tops_after_compress,
-            self.telemetry.tops_after_compress,
-            self.telemetry.alts_packed,
-            self.telemetry.max_active_stacks,
-            self.telemetry.accept_count
-        )
-    }
-
-    /// Return the number of runtime stack forks recorded during this parse.
-    #[cfg(feature = "glr_telemetry")]
-    pub fn telemetry_fork_count(&self) -> usize {
-        self.telemetry.fork_count
-    }
-
-    /// Helper to update telemetry counters (no-op when feature disabled)
-    #[cfg(feature = "glr_telemetry")]
-    #[inline]
-    fn bump_telemetry(&mut self, f: impl FnOnce(&mut TelemetryCounters)) {
-        f(&mut self.telemetry);
-    }
-
-    #[cfg(not(feature = "glr_telemetry"))]
-    #[inline]
-    #[allow(dead_code)]
-    fn bump_telemetry(&mut self, _f: impl FnOnce(&mut TelemetryCounters)) {
-        // No-op when telemetry is disabled
-    }
-
-    #[cfg(feature = "glr_telemetry")]
-    #[inline]
-    fn record_runtime_fork(&mut self) {
-        self.telemetry.fork_count += 1;
-    }
-
-    #[cfg(not(feature = "glr_telemetry"))]
-    #[inline]
-    fn record_runtime_fork(&mut self) {}
-
     /// Calculate priority for an action based on precedence
     #[inline]
     fn action_priority(&self, action: &Action) -> i32 {
