@@ -76,13 +76,14 @@ cargo test -p adze --features "pure-rust,serialization" --test adze_document_jso
 | Typed CST generated accessors agree with generic CST | `generated_parse_document_helper_feeds_generated_syntax_module` | — | — |
 | Fielded-struct fields survive Rust expansion → ABI → edge metadata | Covered in typed_cst_generated_document | — | — |
 | Empty field map (grammar with zero fields) | `parse_document_empty_field_map_has_no_edge_fields` | — | — |
-| Field values on missing/error nodes | none | No test for field lookup when child is ERROR or MISSING | Add test: error node → `child_by_field_name()` behavior |
+| Field values on missing/error nodes | `document::tests::field_lookup_resolves_missing_error_child` | — | — |
 | Repeated field (multiple children with same field name) | `parse_document_repeated_field_edges_remain_iterable` | — | — |
 
 **Proof commands:**
 ```bash
 cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_language_fields -- --nocapture
 cargo test -p adze --features pure-rust --test typed_cst_generated_document -- --nocapture
+cargo test -p adze --lib --features "pure-rust,ts-compat" document::tests::field_lookup_resolves_missing_error_child -- --exact --nocapture
 ```
 
 ---
@@ -99,9 +100,9 @@ cargo test -p adze --features pure-rust --test typed_cst_generated_document -- -
 | Byte span accuracy (ASCII, multibyte, EOF, multiline) | Covered in generated_parse_errors | — | — |
 | Source excerpt with caret marker | Covered in error_display_tests | — | — |
 | No internal symbol leaks in Display | Covered in error_display_tests | — | — |
-| Byte↔point span consistency | none | No test asserts byte range and point range describe the same position | Add test: assert `byte_span().start` maps to `point_range().start` via source text |
-| Multi-error deduplication | none | No test that the same diagnostic doesn't appear twice for one parse | Add test: grammar that triggers same error at same position → single diagnostic |
-| Diagnostic ordering | none | No test that diagnostics are sorted by byte position | Add test: multiple errors → diagnostics ordered by start byte |
+| Byte↔point span consistency | `generated_parse_document_diagnostics_byte_and_point_ranges_agree` | — | — |
+| Multi-error deduplication | `generated_parser_multi_error_diagnostics_are_not_duplicated` | — | — |
+| Diagnostic ordering | `generated_parser_multi_error_diagnostics_are_ordered` | — | — |
 
 **Proof commands:**
 ```bash
@@ -122,8 +123,8 @@ cargo test -p adze --features "pure-rust,glr" --test error_display_tests -- --no
 | EOF zero-width span | `generated_typed_parser_unexpected_eof_reports_zero_width_source_span` | — | — |
 | Multiline point range | `generated_parse_document_diagnostics_include_multiline_point_range` | — | — |
 | Source excerpt alignment with multibyte | Covered in error_display_tests | — | — |
-| Line/column rendering at file boundary | none | No test for error at very last byte of file | Add test: error at EOF → correct line/col |
-| Mixed ASCII/multibyte line counting | none | No test for line count accuracy with multibyte newlines | Add test: CJK text with embedded newlines |
+| Line/column rendering at file boundary | `generated_typed_parser_unexpected_eof_after_newline_reports_file_boundary_location` | — | — |
+| Mixed ASCII/multibyte line counting | `generated_object_like_parser_counts_mixed_ascii_multibyte_lines` | — | — |
 
 **Proof commands:**
 ```bash
@@ -144,14 +145,15 @@ cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_error 
 | S-expression uses alias-visible identity | `alias_visible_identity_is_used_in_sexp` | — | — |
 | Field labels in S-expression | `to_sexp_includes_field_labels_for_named_children` | — | — |
 | node-types.json projection | `ts_compat_node_types` suite | — | — |
-| Error/MISSING nodes in S-expression | none | No test for how ERROR and MISSING nodes render in S-expression | Add test: bad input → S-expression contains `(ERROR)` / `(MISSING)` |
-| Nested aliases (alias of alias) | none | No test for chained alias sequences | Add test: double-aliased production → `kind()` returns outer alias |
-| Supertype alias behavior | none | No test for supertype-style aliases | Add test when grammar supports supertypes |
+| Error/MISSING nodes in S-expression | `to_sexp_includes_missing_nodes_for_recovered_input`; `ts_compat::tests::node_to_sexp_renders_error_and_missing_nodes` | — | — |
+| Nested aliases (alias of alias) | `nested_alias_visible_identity_is_used_in_sexp`; `nested_aliases_preserve_visible_and_grammar_identity` | — | — |
+| Supertype alias behavior | `supertype_alias_preserves_visible_identity_and_metadata` | — | — |
 
 **Proof commands:**
 ```bash
 cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_metadata -- --nocapture
 cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_to_sexp -- --nocapture
+cargo test -p adze --lib --features "pure-rust,ts-compat" ts_compat::tests::node_to_sexp_renders_error_and_missing_nodes -- --exact --nocapture
 cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_types -- --nocapture
 ```
 
@@ -168,13 +170,14 @@ cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_types 
 | AST from selected tree matches summary | `generated_ambiguous_expr_parse_document_ast_matches_selected_parse` | — | — |
 | Multiple alternatives retained | `generated_ambiguous_expr_glr_runtime_retains_multiple_complete_alternatives` | — | — |
 | Selection reason present and stable | `SelectionReason::StableStructuralTieBreak` asserted | — | — |
-| CST-level determinism (not just AST) | none | No test comparing raw CST topology across repeated GLR parses | Add test: parse twice → compare tree node IDs, edge counts |
-| Fork count stability | none | No test that fork count is stable across runs | Add test: parse twice → same fork count |
+| CST-level determinism (not just AST) | `generated_ambiguous_expr_parse_document_cst_topology_is_deterministic` | — | — |
+| Fork count stability | `generated_ambiguous_expr_runtime_fork_count_is_deterministic` | — | — |
 | Larger ambiguity (3+ alternatives) | none | No test for input producing 3+ structurally distinct parse trees | Add test: grammar with 3-way ambiguity |
 
 **Proof commands:**
 ```bash
 cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_e2e_ambiguous_grammar_glr -- --nocapture
+cargo test -p adze --features "pure-rust,glr,glr_telemetry,runtime-e2e" --test test_e2e_ambiguous_grammar_glr generated_ambiguous_expr_runtime_fork_count_is_deterministic -- --exact --nocapture
 ```
 
 ---
@@ -190,8 +193,8 @@ cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_e2e_ambigu
 | Multibyte diagnostic JSON | `adze_document_json` multibyte fixture | — | — |
 | Multiline diagnostic JSON | `adze_document_json` multiline fixture | — | — |
 | GLR ambiguity JSON | `parse_document_json_serializes_glr_ambiguity_summary` | — | — |
-| Schema snapshot stability | Snapshots exist for each fixture | Snapshot drift across versions | Add schema version pin test: assert `schema_version` field matches expected value |
-| JSON ↔ native field parity | Clean fixture cross-checks edge/field/child data | No cross-check on diagnostic fixtures | Add test: diagnostic fixture JSON fields match native `ParseDiagnostic` values |
+| Schema snapshot stability | `adze_document_json_schema_identifier_is_pinned`; snapshots exist for each fixture | — | — |
+| JSON ↔ native field parity | Clean fixture cross-checks edge/field/child data; `parse_document_json_diagnostic_fields_match_native_diagnostic` | — | — |
 
 **Proof commands:**
 ```bash
@@ -213,8 +216,8 @@ cargo test -p adze --features "pure-rust,serialization,glr" --test adze_document
 | `adze stats` rejects non-grammar file | `test_stats_rejects_file_without_adze_grammar` | — | — |
 | `adze parse` documents available modes | `test_parse_help_documents_available_modes` | — | — |
 | `adze parse --mode document` output | none | No test for document-JSON parse output mode | Add test: `adze parse --mode document` → valid JSON with document envelope |
-| `adze check` with broken grammar | none | No test for check output on intentionally invalid grammar | Add test: syntax error in grammar → check reports error |
-| Error handling (bad path, permission) | none | No CLI error-path tests | Add test: nonexistent file → graceful error message |
+| `adze check` with broken grammar | `test_check_reports_invalid_grammar_syntax` | — | — |
+| Missing grammar path handling | `test_check_reports_missing_grammar_path` | — | — |
 
 **Proof commands:**
 ```bash
@@ -276,22 +279,22 @@ cargo package -p adze-common --allow-dirty
 |---------|---------------|------------|---------------------|
 | parse() / parse_document() agreement | 7 | 0 | — |
 | AdzeDocument boundaries | 6 | 0 | — |
-| Edge field metadata | 8 | 1 | Field values on missing/error nodes |
-| Diagnostics normalization | 7 | 3 | Byte↔point span agreement |
-| UTF-8 / zero-width spans | 5 | 2 | EOF boundary error test |
-| ts_compat adapter identity | 6 | 3 | ERROR/MISSING in S-expression |
-| Ambiguity determinism | 5 | 3 | CST-level determinism test |
-| JSON projection | 5 | 2 | Schema version pin test |
-| CLI output truth | 5 | 3 | `adze parse --mode document` test |
+| Edge field metadata | 9 | 0 | — |
+| Diagnostics normalization | 10 | 0 | — |
+| UTF-8 / zero-width spans | 7 | 0 | — |
+| ts_compat adapter identity | 9 | 0 | — |
+| Ambiguity determinism | 7 | 1 | Larger ambiguity (3+ alternatives) |
+| JSON projection | 7 | 0 | — |
+| CLI output truth | 7 | 1 | `adze parse --mode document` test |
 | Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
 | Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **57** | **23** | — |
+| **Total** | **72** | **8** | — |
 
 ---
 
 ## Recommended test PR sequence
 
-Each PR adds focused tests for one surface gap. No code changes to production crates.
+Each PR adds focused proof for one surface gap. Test-only PRs are preferred; production code changes stay limited to gaps where the claimed receipt is not wired honestly yet.
 
 1. **test(document): prove parse and parse_document agree** — GLR-path agreement and CST topology comparison
 2. **test(document): prove recovered-doc AST refusal** — strict AST extraction refuses recovered diagnostic documents through document AST entry points
@@ -299,8 +302,8 @@ Each PR adds focused tests for one surface gap. No code changes to production cr
 4. **test(document): prove edge field metadata invariants** — empty field map and repeated field iteration
 5. **test(diagnostics): prove expected-token normalization** — byte↔point span agreement, multi-error dedup, diagnostic ordering
 6. **test(diagnostics): cover UTF-8 and EOF recovery spans** — EOF boundary, mixed ASCII/multibyte line counting
-7. **test(ts-compat): prove adapter identity and alias behavior** — ERROR/MISSING S-expression, nested aliases
-8. **test(glr): prove ambiguity summary determinism** — CST-level determinism, fork count stability
+7. **test(ts-compat): prove adapter identity and alias behavior** — complete
+8. **test(glr): prove ambiguity summary determinism** — larger 3+ alternative ambiguity
 9. **docs: audit README claims against proof map** — no new tests, verify existing proof commands still pass
 10. **benchmarks: classify benchmark inventory** — mark duplicates, document what each bench measures
 11. **release: audit publishable package metadata** — add `just check-publishable` recipe
