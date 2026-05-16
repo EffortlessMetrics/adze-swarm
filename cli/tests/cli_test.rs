@@ -140,6 +140,34 @@ fn test_check_reports_missing_grammar_path() {
 }
 
 #[test]
+fn test_check_reports_invalid_grammar_syntax() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let broken_grammar = temp.path().join("broken.rs");
+    std::fs::write(
+        &broken_grammar,
+        r#"
+#[adze::grammar("broken")]
+pub mod grammar {
+    #[adze::language]
+    pub struct Program {
+        #[adze::leaf(pattern = r"\d+", text = true)]
+        pub number: String
+    }
+"#,
+    )
+    .expect("write broken grammar fixture");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("check")
+        .arg(&broken_grammar)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Grammar syntax is invalid"))
+        .stderr(predicate::str::contains("Grammar analysis panicked").not())
+        .stdout(predicate::str::contains("Grammar syntax is valid").not());
+}
+
+#[test]
 fn test_stats_rejects_file_without_adze_grammar() {
     let temp = tempfile::tempdir().expect("tempdir");
     let not_a_grammar = temp.path().join("not_a_grammar.rs");
