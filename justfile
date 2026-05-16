@@ -129,6 +129,10 @@ check-msrv:
 publish-order:
     ./scripts/publish-order.sh
 
+# Verify publish metadata and cargo package file lists for the release surface
+check-publishable:
+    ./scripts/check-publish.sh
+
 # Clean build artifacts
 clean:
     cargo clean
