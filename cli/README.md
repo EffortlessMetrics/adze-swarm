@@ -19,12 +19,13 @@ adze stats src/grammar.rs
 adze build .
 ```
 
-Static `adze parse` output is still developing. Use generated Rust parsers and
-the `parse()` / `parse_document()` APIs for product parsing contracts until the
-CLI parse surface is promoted with proof.
+Static `adze parse` output is still advisory. The document projection modes
+compile a temporary single-grammar runner, call the generated
+`parse_document()` helper, and serialize schema-tagged JSON projections. Use
+generated Rust parsers and the `parse()` / `parse_document()` APIs for stable
+product parsing contracts until the CLI parse surface is promoted with proof.
 
-The parse command reserves the ADZE-SPEC-0008 projection names so scripts can
-fail clearly before the implementation lands:
+The parse command exposes the ADZE-SPEC-0008 projection names:
 
 ```bash
 adze parse src/grammar.rs input.txt --output document-json
@@ -33,8 +34,8 @@ adze parse src/grammar.rs input.txt --output diagnostics-json
 adze parse src/grammar.rs input.txt --output ambiguity-json
 ```
 
-Those modes currently report an explicit unimplemented error instead of
-emitting partial or unschematized JSON.
+These modes are intended for single-file grammar smoke checks and tooling
+receipts. They are not a stable CLI/WASM schema contract.
 
 ## License
 
