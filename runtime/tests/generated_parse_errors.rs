@@ -108,6 +108,35 @@ fn generated_typed_parser_unexpected_eof_reports_zero_width_source_span() {
 }
 
 #[test]
+fn generated_typed_parser_unexpected_eof_after_newline_reports_file_boundary_location() {
+    let source = "1 +\n";
+    let errors = adze_example::typed_ast_contract::grammar::parse(source)
+        .expect_err("truncated expression at file boundary must fail");
+
+    let first = errors
+        .first()
+        .expect("generated parser should return at least one parse error");
+
+    assert_eq!(
+        first.byte_span(),
+        source.len()..source.len(),
+        "unexpected EOF after a trailing newline should point at end-of-input"
+    );
+
+    let span = first.source_span(source.as_bytes());
+    assert_eq!(span.start.line, 2);
+    assert_eq!(span.start.column, 1);
+    assert_eq!(span.end.line, 2);
+    assert_eq!(span.end.column, 1);
+
+    let rendered = first.display_with_source(source).to_string();
+    assert!(
+        rendered.contains("at 2:1 (bytes 4..4)"),
+        "rendered diagnostic should include file-boundary line/column and byte span: {rendered}"
+    );
+}
+
+#[test]
 fn generated_typed_parser_unexpected_eof_lists_expected_tokens() {
     let source = "1 +";
     let errors = adze_example::typed_ast_contract::grammar::parse(source)
@@ -1223,4 +1252,37 @@ fn generated_object_like_parser_error_contract_is_feature_stable() {
             case.label
         );
     }
+}
+
+#[test]
+fn generated_object_like_parser_counts_mixed_ascii_multibyte_lines() {
+    let source = "{\n namé: 1 }";
+    let errors = adze_example::object_like_contract::grammar::parse(source)
+        .expect_err("multibyte invalid identifier continuation on second line should fail");
+
+    let first = errors
+        .first()
+        .expect("generated parser should return at least one parse error");
+
+    assert_eq!(
+        first.byte_span(),
+        6..8,
+        "diagnostic should cover the full UTF-8 byte width of the invalid scalar"
+    );
+
+    let span = first.source_span(source.as_bytes());
+    assert_eq!(span.start.line, 2);
+    assert_eq!(span.start.column, 5);
+    assert_eq!(span.end.line, 2);
+    assert_eq!(span.end.column, 7);
+
+    let rendered = first.display_with_source(source).to_string();
+    assert!(
+        rendered.contains("at 2:5 (bytes 6..8)"),
+        "rendered diagnostic should count ASCII and multibyte columns on the second line: {rendered}"
+    );
+    assert!(
+        rendered.contains(" namé: 1 }\n    ^^"),
+        "rendered diagnostic should mark the multibyte scalar on the second line: {rendered}"
+    );
 }

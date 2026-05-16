@@ -122,8 +122,8 @@ cargo test -p adze --features "pure-rust,glr" --test error_display_tests -- --no
 | EOF zero-width span | `generated_typed_parser_unexpected_eof_reports_zero_width_source_span` | — | — |
 | Multiline point range | `generated_parse_document_diagnostics_include_multiline_point_range` | — | — |
 | Source excerpt alignment with multibyte | Covered in error_display_tests | — | — |
-| Line/column rendering at file boundary | none | No test for error at very last byte of file | Add test: error at EOF → correct line/col |
-| Mixed ASCII/multibyte line counting | none | No test for line count accuracy with multibyte newlines | Add test: CJK text with embedded newlines |
+| Line/column rendering at file boundary | `generated_typed_parser_unexpected_eof_after_newline_reports_file_boundary_location` | — | — |
+| Mixed ASCII/multibyte line counting | `generated_object_like_parser_counts_mixed_ascii_multibyte_lines` | — | — |
 
 **Proof commands:**
 ```bash
@@ -278,14 +278,14 @@ cargo package -p adze-common --allow-dirty
 | AdzeDocument boundaries | 6 | 0 | — |
 | Edge field metadata | 8 | 1 | Field values on missing/error nodes |
 | Diagnostics normalization | 10 | 0 | — |
-| UTF-8 / zero-width spans | 5 | 2 | EOF boundary error test |
+| UTF-8 / zero-width spans | 7 | 0 | — |
 | ts_compat adapter identity | 6 | 3 | ERROR/MISSING in S-expression |
 | Ambiguity determinism | 5 | 3 | CST-level determinism test |
 | JSON projection | 5 | 2 | Schema version pin test |
 | CLI output truth | 5 | 3 | `adze parse --mode document` test |
 | Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
 | Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **60** | **20** | — |
+| **Total** | **62** | **18** | — |
 
 ---
 
