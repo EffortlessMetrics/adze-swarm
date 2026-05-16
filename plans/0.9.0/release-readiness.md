@@ -74,12 +74,12 @@ Current package blockers:
 
 ### CI gates
 
-| # | Item | Status | Proof command |
-|---|------|--------|---------------|
-| 31 | `just ci-supported` passes | pending | `just ci-supported` |
-| 32 | `just ci-product-stable` passes | pending | `just ci-product-stable` |
-| 33 | `cargo fmt --all --check` passes | pending | `cargo fmt --all --check` |
-| 34 | `just clippy` passes | pending | `just clippy` |
+| # | Item | Status | Proof command | PR |
+|---|------|--------|---------------|----|
+| 31 | `just ci-supported` passes | pending | `just ci-supported` | — |
+| 32 | `just ci-product-stable` passes | pending | `just ci-product-stable` | — |
+| 33 | `cargo fmt --all --check` passes | pending | `cargo fmt --all --check` | — |
+| 34 | `just clippy` passes | covered | `just clippy` | #70 |
 
 ---
 
