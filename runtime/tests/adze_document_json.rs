@@ -6,6 +6,25 @@ use adze::document::ADZE_DOCUMENT_JSON_SCHEMA;
 use serde_json::Value;
 
 #[test]
+fn adze_document_json_schema_identifier_is_pinned() {
+    use adze_example::fielded_precedence_typed_cst_contract::grammar;
+
+    let document = grammar::parse_document("1+2")
+        .expect("generated parse_document helper should return an AdzeDocument");
+    let json = document.to_json_value();
+
+    assert_eq!(
+        ADZE_DOCUMENT_JSON_SCHEMA, "adze.document.v1",
+        "schema-family changes must be deliberate because CLI/WASM consumers key off this identifier"
+    );
+    assert_eq!(
+        json["schema"].as_str(),
+        Some("adze.document.v1"),
+        "document JSON should emit the pinned schema family"
+    );
+}
+
+#[test]
 fn parse_document_json_has_schema_and_tree_facts() {
     use adze_example::fielded_precedence_typed_cst_contract::grammar;
 
