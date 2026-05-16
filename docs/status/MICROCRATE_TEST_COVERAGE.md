@@ -9,7 +9,7 @@
 | Category | Count | Percentage |
 |----------|-------|------------|
 | Workspace support crates with BDD + Property | 4 | 100% |
-| Durable support crates with contract locks | 3 | 75% |
+| Durable support crates with contract locks | 4 | 100% |
 | Excluded harness crates | 1 | 100% classified |
 
 The remaining workspace support surfaces have BDD/property coverage where
@@ -24,7 +24,7 @@ tests:
 | Crate | BDD File | Property File | Contract Lock |
 |-------|----------|---------------|---------------|
 | `bdd-governance-core` | ✓ | ✓ | ✓ |
-| `common-type-ops-core` | ✓ | ✓ | - |
+| `common-type-ops-core` | ✓ | ✓ | ✓ |
 | `linecol-core` | ✓ | ✓ | ✓ |
 | `parsetable-metadata` | ✓ | ✓ | ✓ |
 
@@ -40,6 +40,7 @@ The following durable support crates have `contract_lock.rs` test files
 (contract verification):
 
 - `bdd-governance-core`
+- `common-type-ops-core`
 - `linecol-core`
 - `parsetable-metadata`
 
@@ -47,8 +48,6 @@ The following durable support crates have `contract_lock.rs` test files
 
 The following crates do not have contract lock tests (by design):
 
-- `common-type-ops-core` - type transformation helper coverage is BDD/property
-  based and does not expose a cross-crate serialized contract.
 - `ts-c-harness` - FFI test harness (excluded from workspace)
 
 ## Test Coverage Milestones
