@@ -371,4 +371,284 @@ mod tests {
         assert_eq!(language.field_names[1], "mango");
         assert_eq!(language.field_names[2], "zebra");
     }
+
+    // ---- Coverage additions for previously-untested branches ----
+
+    use crate::compress::{
+        CompressedActionEntry, CompressedActionTable, CompressedGotoEntry, CompressedGotoTable,
+        CompressedTables,
+    };
+    use adze_glr_core::{Action, LexMode, RuleId, StateId};
+
+    fn tiny_compressed_with_all_actions() -> CompressedTables {
+        // Symbols and a representative action per encodable variant
+        let data = vec![
+            CompressedActionEntry::new(1, Action::Shift(StateId(7))),
+            CompressedActionEntry::new(2, Action::Reduce(RuleId(3))),
+            CompressedActionEntry::new(3, Action::Accept),
+            CompressedActionEntry::new(4, Action::Error),
+            CompressedActionEntry::new(5, Action::Recover),
+            CompressedActionEntry::new(
+                6,
+                Action::Fork(vec![Action::Shift(StateId(1)), Action::Accept]),
+            ),
+        ];
+        CompressedTables {
+            action_table: CompressedActionTable {
+                data,
+                row_offsets: vec![0, 6],
+                default_actions: vec![
+                    Action::Shift(StateId(7)),
+                    Action::Reduce(RuleId(3)),
+                    Action::Accept,
+                    Action::Error,
+                    Action::Recover,
+                    Action::Fork(vec![Action::Accept]),
+                ],
+            },
+            goto_table: CompressedGotoTable {
+                data: vec![
+                    CompressedGotoEntry::Single(11),
+                    CompressedGotoEntry::RunLength {
+                        state: 22,
+                        count: 4,
+                    },
+                ],
+                row_offsets: vec![0, 2],
+            },
+            small_table_threshold: 32768,
+        }
+    }
+
+    #[test]
+    fn serialize_language_returns_parseable_json() {
+        let grammar = Grammar::new("g".to_string());
+        let parse_table = crate::empty_table!(states: 1, terms: 0, nonterms: 0);
+        let json = serialize_language(&grammar, &parse_table, None).unwrap();
+        // Round-trip into our serializable container.
+        let parsed: SerializableLanguage = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.version, TREE_SITTER_LANGUAGE_VERSION);
+        assert_eq!(parsed.alias_count, 0);
+        // symbol_count = 1 (EOF) + 0 tokens + 0 rules + 0 externals.
+        assert_eq!(parsed.symbol_count, 1);
+        assert_eq!(parsed.symbol_names, vec!["end".to_string()]);
+        assert_eq!(parsed.parse_table, Vec::<u16>::new());
+        assert_eq!(parsed.small_parse_table_map, Vec::<u32>::new());
+        // One lex mode per state.
+        assert_eq!(parsed.lex_modes.len(), 1);
+        assert_eq!(parsed.lex_modes[0].lex_state, 0);
+        assert_eq!(parsed.lex_modes[0].external_lex_state, 0);
+    }
+
+    #[test]
+    fn build_serializable_language_counts_externals_fields_and_productions() {
+        let mut grammar = Grammar::new("test".to_string());
+        // 2 tokens (one underscore-prefixed -> hidden), 2 rules (one with two productions),
+        // 1 external, 1 supertype-marked rule.
+        grammar.tokens.insert(
+            SymbolId(1),
+            Token {
+                name: "_internal".to_string(),
+                pattern: TokenPattern::String("x".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.tokens.insert(
+            SymbolId(2),
+            Token {
+                name: "ident".to_string(),
+                pattern: TokenPattern::Regex(r"[a-z]+".to_string()),
+                fragile: false,
+            },
+        );
+
+        // Rule with two productions for the same LHS.
+        grammar.add_rule(Rule {
+            lhs: SymbolId(10),
+            rhs: vec![Symbol::Terminal(SymbolId(2))],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        grammar.add_rule(Rule {
+            lhs: SymbolId(10),
+            rhs: vec![],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(1),
+        });
+        // Hidden internal rule and a supertype rule.
+        grammar.add_rule(Rule {
+            lhs: SymbolId(11),
+            rhs: vec![],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(2),
+        });
+        grammar.rule_names.insert(SymbolId(10), "expr".to_string());
+        grammar
+            .rule_names
+            .insert(SymbolId(11), "_hidden_rule".to_string());
+        grammar.supertypes.push(SymbolId(10));
+
+        grammar.externals.push(ExternalToken {
+            name: "ext".to_string(),
+            symbol_id: SymbolId(100),
+        });
+        grammar.fields.insert(FieldId(0), "name".to_string());
+
+        let parse_table = crate::empty_table!(states: 2, terms: 2, nonterms: 2);
+
+        let lang = build_serializable_language(&grammar, &parse_table, None);
+
+        // EOF + 2 tokens + 2 rule LHS + 1 external.
+        assert_eq!(lang.symbol_count, 1 + 2 + 2 + 1);
+        assert_eq!(lang.token_count, 2);
+        assert_eq!(lang.external_token_count, 1);
+        // Two rules with three total productions across them.
+        assert_eq!(lang.production_id_count, 3);
+        assert_eq!(lang.field_count, 1);
+        // State count comes from parse_table.
+        assert_eq!(lang.state_count, parse_table.state_count as u32);
+
+        // symbol_names: end, tokens by id, rules by id, externals.
+        assert_eq!(lang.symbol_names[0], "end");
+        assert_eq!(lang.symbol_names[1], "_internal");
+        assert_eq!(lang.symbol_names[2], "ident");
+        assert_eq!(lang.symbol_names[3], "expr");
+        assert_eq!(lang.symbol_names[4], "_hidden_rule");
+        assert_eq!(lang.symbol_names[5], "ext");
+
+        // symbol_metadata length matches symbol_count (EOF + tokens + rules + externals).
+        assert_eq!(lang.symbol_metadata.len() as u32, lang.symbol_count);
+    }
+
+    #[test]
+    fn build_serializable_language_synthesizes_missing_rule_names() {
+        // Add a rule with no entry in rule_names so the `rule_X` fallback fires.
+        let mut grammar = Grammar::new("g".to_string());
+        grammar.add_rule(Rule {
+            lhs: SymbolId(42),
+            rhs: vec![],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+
+        let parse_table = crate::empty_table!(states: 1, terms: 0, nonterms: 1);
+        let lang = build_serializable_language(&grammar, &parse_table, None);
+
+        assert!(
+            lang.symbol_names.iter().any(|n| n == "rule_42"),
+            "expected synthesized rule_42 name in {:?}",
+            lang.symbol_names,
+        );
+    }
+
+    #[test]
+    fn build_serializable_language_encodes_actions_from_compressed() {
+        let grammar = Grammar::new("g".to_string());
+        let parse_table = crate::empty_table!(states: 1, terms: 0, nonterms: 0);
+        let compressed = tiny_compressed_with_all_actions();
+
+        let lang = build_serializable_language(&grammar, &parse_table, Some(&compressed));
+
+        // The serializer emits (symbol, encoded_action) pairs per entry.
+        // 6 entries -> 12 u16 values.
+        assert_eq!(lang.parse_table.len(), 12);
+        // Shift(7) -> raw 7.
+        assert_eq!(lang.parse_table[0], 1);
+        assert_eq!(lang.parse_table[1], 7);
+        // Reduce(RuleId(3)) -> 0x8000 | (3 + 1) = 0x8004.
+        assert_eq!(lang.parse_table[2], 2);
+        assert_eq!(lang.parse_table[3], 0x8004);
+        // Accept -> 0xFFFF.
+        assert_eq!(lang.parse_table[4], 3);
+        assert_eq!(lang.parse_table[5], 0xFFFF);
+        // Error -> 0xFFFE.
+        assert_eq!(lang.parse_table[6], 4);
+        assert_eq!(lang.parse_table[7], 0xFFFE);
+        // Recover -> 0xFFFD.
+        assert_eq!(lang.parse_table[8], 5);
+        assert_eq!(lang.parse_table[9], 0xFFFD);
+        // Fork -> 0xFFFE (treated as error sentinel by this simplified encoder).
+        assert_eq!(lang.parse_table[10], 6);
+        assert_eq!(lang.parse_table[11], 0xFFFE);
+
+        // small_parse_table_map mirrors row_offsets widened to u32.
+        assert_eq!(lang.small_parse_table_map, vec![0u32, 6u32]);
+    }
+
+    #[test]
+    fn generate_lex_modes_pads_with_defaults_when_missing() {
+        // ParseTable with state_count=3 but only one lex mode populated.
+        let mut parse_table = crate::empty_table!(states: 3, terms: 0, nonterms: 0);
+        parse_table.lex_modes = vec![LexMode {
+            lex_state: 5,
+            external_lex_state: 9,
+        }];
+        let modes = generate_lex_modes(&parse_table);
+        assert_eq!(modes.len(), 3);
+        assert_eq!(modes[0].lex_state, 5);
+        assert_eq!(modes[0].external_lex_state, 9);
+        // Missing entries fall back to LexMode default (zeroes).
+        for missing in &modes[1..] {
+            assert_eq!(missing.lex_state, 0);
+            assert_eq!(missing.external_lex_state, 0);
+        }
+    }
+
+    #[test]
+    fn serialize_compressed_tables_emits_all_variant_strings() {
+        let tables = tiny_compressed_with_all_actions();
+        let json = serialize_compressed_tables(&tables).unwrap();
+        // Action variants rendered as human-readable strings.
+        assert!(json.contains("Shift(7)"));
+        assert!(json.contains("Reduce(3)"));
+        assert!(json.contains("Accept"));
+        assert!(json.contains("Error"));
+        assert!(json.contains("Recover"));
+        assert!(json.contains("Fork(2)"));
+        // Default actions render the same variants too.
+        assert!(json.contains("Fork(1)"));
+        // Goto entries render both variants.
+        assert!(json.contains("Single(11)"));
+        assert!(json.contains("RunLength(22, 4)"));
+        // small_table_threshold included.
+        assert!(json.contains("\"small_table_threshold\""));
+    }
+
+    #[test]
+    fn serializable_lex_state_round_trips_through_json() {
+        let original = SerializableLexState {
+            lex_state: 17,
+            external_lex_state: 42,
+        };
+        let s = serde_json::to_string(&original).unwrap();
+        let back: SerializableLexState = serde_json::from_str(&s).unwrap();
+        assert_eq!(back, original);
+    }
+
+    #[test]
+    fn serializable_language_round_trips_through_json() {
+        let mut grammar = Grammar::new("g".to_string());
+        grammar.tokens.insert(
+            SymbolId(1),
+            Token {
+                name: "tok".to_string(),
+                pattern: TokenPattern::String("t".to_string()),
+                fragile: false,
+            },
+        );
+        let parse_table = crate::empty_table!(states: 1, terms: 1, nonterms: 0);
+        let lang = build_serializable_language(&grammar, &parse_table, None);
+
+        let json = serde_json::to_string(&lang).unwrap();
+        let parsed: SerializableLanguage = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, lang);
+    }
 }

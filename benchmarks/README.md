@@ -10,7 +10,7 @@ each source file.
 | Bench | Classification | Status | Notes |
 |---|---|---|---|
 | `parse_bench` | real_parser | active | Baseline arithmetic parsing |
-| `glr_performance` | real_parser | active | Substantially duplicates `parse_bench` |
+| `glr_performance` | real_parser | deprecated | Substantially duplicates `parse_bench`; retained compile-only until a later cleanup removes it |
 | `glr_hot` | real_parser | active | Hot-path medium/large arithmetic fixtures |
 | `glr_performance_real` | real_parser | active | Full GLR parsing with valid arithmetic fixtures |
 | `incremental_bench` | real_parser | active | Full-reparse vs incremental reparse |
