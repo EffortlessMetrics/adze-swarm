@@ -60,10 +60,10 @@ A 0.9.0 release is ready when all of the following are true:
 | 23 | Package publishability — adze-macro | pending | `cargo package -p adze-macro --allow-dirty` | — |
 | 24 | Package publishability — adze-tool | pending | `cargo package -p adze-tool --allow-dirty` | — |
 | 25 | Package publishability — adze-cli | pending | `cargo package -p adze-cli --allow-dirty` | — |
-| 26 | Package publishability — adze-ir | pending | `cargo package -p adze-ir --allow-dirty` | — |
+| 26 | Package publishability — adze-ir | covered | `cargo package -p adze-ir --allow-dirty` | #57 |
 | 27 | Package publishability — adze-glr-core | pending | `cargo package -p adze-glr-core --allow-dirty` | — |
 | 28 | Package publishability — adze-tablegen | pending | `cargo package -p adze-tablegen --allow-dirty` | — |
-| 29 | Package publishability — adze-common | pending | `cargo package -p adze-common --allow-dirty` | — |
+| 29 | Package publishability — adze-common | covered | `cargo package -p adze-common --allow-dirty` | #57 |
 | 30 | `just check-publishable` recipe exists | covered | `just check-publishable` | #56 |
 
 ### CI gates
