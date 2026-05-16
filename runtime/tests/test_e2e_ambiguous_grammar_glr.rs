@@ -23,6 +23,60 @@ use adze_glr_core::Action;
 use adze_glr_core::conflict_inspection::cell_has_conflict;
 #[cfg(feature = "glr")]
 use std::collections::BTreeSet;
+#[cfg(feature = "glr")]
+use std::ops::Range;
+
+#[cfg(feature = "glr")]
+#[derive(Debug, Eq, PartialEq)]
+struct DocumentNodeShape {
+    node_id: usize,
+    kind_name: Option<String>,
+    grammar_name: Option<String>,
+    byte_range: Range<usize>,
+    child_count: usize,
+    edges: Vec<DocumentEdgeShape>,
+}
+
+#[cfg(feature = "glr")]
+#[derive(Debug, Eq, PartialEq)]
+struct DocumentEdgeShape {
+    child_index: usize,
+    child_id: usize,
+    field_name: Option<String>,
+    field_id: Option<u16>,
+}
+
+#[cfg(feature = "glr")]
+fn collect_document_topology(
+    node: adze::document::AdzeNode<'_>,
+    topology: &mut Vec<DocumentNodeShape>,
+) {
+    let edges = node
+        .child_edges()
+        .map(|edge| DocumentEdgeShape {
+            child_index: edge.child_index(),
+            child_id: edge.child_id().as_usize(),
+            field_name: edge.field_name().map(str::to_owned),
+            field_id: edge.field_id().map(|field_id| field_id.get()),
+        })
+        .collect::<Vec<_>>();
+
+    topology.push(DocumentNodeShape {
+        node_id: node.node_id().as_usize(),
+        kind_name: node.kind_name().map(str::to_owned),
+        grammar_name: node.grammar_name().map(str::to_owned),
+        byte_range: node.byte_range(),
+        child_count: node.child_count(),
+        edges,
+    });
+
+    for index in 0..node.child_count() {
+        let child = node
+            .child(index)
+            .expect("child index should resolve while collecting topology");
+        collect_document_topology(child, topology);
+    }
+}
 
 /// Helper: Count multi-action cells (GLR conflicts) in a parse table
 fn count_multi_action_cells(lang: &'static TSLanguage) -> usize {
@@ -457,6 +511,99 @@ fn generated_ambiguous_expr_parse_document_ast_matches_selected_parse() {
         node.utf8_text()
             .expect("provenance node should cover valid UTF-8 source"),
         input
+    );
+}
+
+#[test]
+#[cfg(feature = "glr")]
+fn generated_ambiguous_expr_parse_document_cst_topology_is_deterministic() {
+    use adze_example::ambiguous_expr::grammar;
+
+    let input = "1 + 2 + 3 + 4";
+    let first = grammar::parse_document(input)
+        .expect("first generated parse_document helper should return an AdzeDocument");
+    let second = grammar::parse_document(input)
+        .expect("second generated parse_document helper should return an AdzeDocument");
+
+    assert_eq!(first.tree().node_count(), second.tree().node_count());
+    assert_eq!(first.tree().edge_count(), second.tree().edge_count());
+    assert_eq!(first.tree().root_id(), second.tree().root_id());
+    assert_eq!(first.tree().root().byte_range(), 0..input.len());
+    assert_eq!(second.tree().root().byte_range(), 0..input.len());
+
+    let mut first_topology = Vec::new();
+    let mut second_topology = Vec::new();
+    collect_document_topology(first.tree().root(), &mut first_topology);
+    collect_document_topology(second.tree().root(), &mut second_topology);
+
+    assert_eq!(
+        first_topology, second_topology,
+        "selected CST topology should be deterministic across repeated GLR document parses"
+    );
+    assert_eq!(
+        first.tree().node_count(),
+        first_topology.len(),
+        "node_count should match collected selected-tree topology"
+    );
+    assert_eq!(
+        first.tree().edge_count(),
+        first_topology
+            .iter()
+            .map(|shape| shape.child_count)
+            .sum::<usize>(),
+        "edge_count should match collected selected-tree child counts"
+    );
+}
+
+#[test]
+#[cfg(all(feature = "glr", feature = "glr_telemetry"))]
+fn generated_ambiguous_expr_runtime_fork_count_is_deterministic() {
+    use adze_example::ambiguous_expr::grammar;
+
+    fn run(input: &str) -> (usize, usize) {
+        let language = grammar::language();
+        let mut parse_table = decoder::decode_parse_table(language);
+        adze::__private::align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
+        let grammar = decoder::decode_grammar(language);
+        let mut parser = GLRParser::new(parse_table, grammar);
+        let lex_fn = language
+            .lex_fn
+            .expect("generated language should expose a lex_fn");
+
+        for token in adze::__private::lex_with_language_fn(language, lex_fn, input.as_bytes())
+            .expect("generated lexer should tokenize ambiguous expression")
+        {
+            parser.process_token(token.symbol_id, &token.text, token.byte_offset);
+        }
+        parser.process_eof(input.len());
+        let summary = parser
+            .finish_ambiguity_summary()
+            .expect("ambiguous generated grammar should expose an ambiguity summary")
+            .expect("ambiguous generated grammar should retain alternatives");
+
+        assert!(
+            summary.selected.is_some(),
+            "ambiguous generated grammar should still choose one selected alternative"
+        );
+
+        (parser.telemetry_fork_count(), summary.alternatives.len())
+    }
+
+    let input = "1 + 2 + 3 + 4";
+    let first = run(input);
+    let second = run(input);
+
+    assert!(
+        first.0 > 0,
+        "ambiguous generated grammar should record at least one runtime fork"
+    );
+    assert!(
+        first.1 >= 2,
+        "ambiguous generated grammar should retain multiple complete alternatives"
+    );
+    assert_eq!(
+        first, second,
+        "runtime fork count and retained alternative count should be deterministic across repeated parses"
     );
 }
 

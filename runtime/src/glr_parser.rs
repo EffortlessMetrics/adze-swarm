@@ -250,6 +250,12 @@ impl GLRParser {
         )
     }
 
+    /// Return the number of runtime stack forks recorded during this parse.
+    #[cfg(feature = "glr_telemetry")]
+    pub fn telemetry_fork_count(&self) -> usize {
+        self.telemetry.fork_count
+    }
+
     /// Helper to update telemetry counters (no-op when feature disabled)
     #[cfg(feature = "glr_telemetry")]
     #[inline]
@@ -263,6 +269,16 @@ impl GLRParser {
     fn bump_telemetry(&mut self, _f: impl FnOnce(&mut TelemetryCounters)) {
         // No-op when telemetry is disabled
     }
+
+    #[cfg(feature = "glr_telemetry")]
+    #[inline]
+    fn record_runtime_fork(&mut self) {
+        self.telemetry.fork_count += 1;
+    }
+
+    #[cfg(not(feature = "glr_telemetry"))]
+    #[inline]
+    fn record_runtime_fork(&mut self) {}
 
     /// Calculate priority for an action based on precedence
     #[inline]
@@ -570,6 +586,7 @@ impl GLRParser {
                                     Action::Shift(new_state) => {
                                         let mut forked = stack.fork(self.next_stack_id);
                                         self.next_stack_id += 1;
+                                        self.record_runtime_fork();
 
                                         forked.push(
                                             *new_state,
@@ -591,6 +608,7 @@ impl GLRParser {
                                         // Reductions should have been handled in phase 1, but if not, handle them
                                         let mut forked = stack.fork(self.next_stack_id);
                                         self.next_stack_id += 1;
+                                        self.record_runtime_fork();
                                         self.perform_reduction_on_stack(
                                             &mut forked,
                                             *rule_id,
@@ -610,6 +628,7 @@ impl GLRParser {
                                         for nested_action in nested_actions {
                                             let mut nested_fork = stack.fork(self.next_stack_id);
                                             self.next_stack_id += 1;
+                                            self.record_runtime_fork();
 
                                             match nested_action {
                                                 Action::Shift(new_state) => {
@@ -1103,6 +1122,7 @@ impl GLRParser {
                 // Fork the stack for this reduction
                 let mut reduced_stack = stack.fork(self.next_stack_id);
                 self.next_stack_id += 1;
+                self.record_runtime_fork();
 
                 // Apply the reduction (this will pop symbols and push via GOTO)
                 self.perform_reduction_on_stack(&mut reduced_stack, rule_id, lookahead_end);

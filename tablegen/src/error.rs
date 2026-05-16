@@ -71,3 +71,102 @@ impl From<&str> for TableGenError {
         TableGenError::TableGeneration(s.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_invalid_input_includes_message() {
+        let err = TableGenError::InvalidInput("missing field");
+        assert_eq!(err.to_string(), "invalid input: missing field");
+    }
+
+    #[test]
+    fn display_automaton_includes_message() {
+        let err = TableGenError::Automaton("state explosion".into());
+        assert_eq!(err.to_string(), "automaton build failed: state explosion");
+    }
+
+    #[test]
+    fn display_compression_includes_message() {
+        let err = TableGenError::Compression("overflow".into());
+        assert_eq!(err.to_string(), "compression failed: overflow");
+    }
+
+    #[test]
+    fn display_table_generation_includes_message() {
+        let err = TableGenError::TableGeneration("downstream".into());
+        assert_eq!(err.to_string(), "table generation failed: downstream");
+    }
+
+    #[test]
+    fn display_invalid_table_includes_message() {
+        let err = TableGenError::InvalidTable("bad row offset".into());
+        assert_eq!(err.to_string(), "invalid table structure: bad row offset");
+    }
+
+    #[test]
+    fn display_invalid_symbol_index_includes_value() {
+        let err = TableGenError::InvalidSymbolIndex(42);
+        assert_eq!(err.to_string(), "symbol index out of bounds: 42");
+    }
+
+    #[test]
+    fn display_invalid_state_index_includes_value() {
+        let err = TableGenError::InvalidStateIndex(7);
+        assert_eq!(err.to_string(), "state index out of bounds: 7");
+    }
+
+    #[test]
+    fn display_empty_grammar_is_static() {
+        let err = TableGenError::EmptyGrammar;
+        assert_eq!(err.to_string(), "empty grammar");
+    }
+
+    #[test]
+    fn display_validation_error_includes_message() {
+        let err = TableGenError::ValidationError("undefined symbol".into());
+        assert_eq!(
+            err.to_string(),
+            "grammar validation failed: undefined symbol"
+        );
+    }
+
+    #[test]
+    fn from_string_routes_to_table_generation() {
+        let err: TableGenError = String::from("boom").into();
+        match err {
+            TableGenError::TableGeneration(msg) => assert_eq!(msg, "boom"),
+            other => panic!("expected TableGeneration, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn from_str_routes_to_table_generation() {
+        let err: TableGenError = "fizz".into();
+        match err {
+            TableGenError::TableGeneration(msg) => assert_eq!(msg, "fizz"),
+            other => panic!("expected TableGeneration, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn from_io_error_preserves_kind() {
+        let io = std::io::Error::new(std::io::ErrorKind::NotFound, "missing");
+        let err: TableGenError = io.into();
+        match err {
+            TableGenError::Io(inner) => {
+                assert_eq!(inner.kind(), std::io::ErrorKind::NotFound);
+            }
+            other => panic!("expected Io, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn from_json_error_carries_inner_message() {
+        let json_err = serde_json::from_str::<serde_json::Value>("{not json}").unwrap_err();
+        let err: TableGenError = json_err.into();
+        assert!(matches!(err, TableGenError::Json(_)));
+    }
+}
