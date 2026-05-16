@@ -208,25 +208,48 @@ fn test_parse_static_mode_is_explicitly_unimplemented() {
 }
 
 #[test]
-fn test_parse_document_json_mode_is_explicitly_reserved() {
+fn test_parse_document_json_mode_emits_schema_envelope() {
     let temp = tempfile::tempdir().expect("tempdir");
-    let grammar = temp.path().join("grammar.rs");
+    let project_name = "parsejson";
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg(project_name)
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    let project_dir = temp.path().join(project_name);
+    let grammar = project_dir.join("src/grammar.rs");
     let input = temp.path().join("input.txt");
-    std::fs::write(&grammar, "// dummy grammar").expect("write grammar");
-    std::fs::write(&input, "x").expect("write input");
+    std::fs::write(&input, "123").expect("write input");
 
     let mut cmd = cargo_bin_cmd!("adze");
-    cmd.arg("parse")
+    let output = cmd
+        .arg("parse")
         .arg(&grammar)
         .arg(&input)
         .arg("--output")
         .arg("document-json")
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("unimplemented"))
-        .stdout(predicate::str::contains("Output: document-json"))
-        .stdout(predicate::str::contains("ADZE-SPEC-0008"))
-        .stdout(predicate::str::contains("parse_document()"));
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("document-json output should be JSON");
+    assert_eq!(json["schema"].as_str(), Some("adze.document.v1"));
+    assert_eq!(json["language"]["name"].as_str(), Some("parsejson"));
+    assert_eq!(json["source"]["byte_len"].as_u64(), Some(3));
+    assert!(
+        json["tree"].is_object(),
+        "document-json should include selected tree facts"
+    );
+    assert!(
+        json["diagnostics"].is_array(),
+        "document-json should include diagnostics array"
+    );
 }
 
 #[test]

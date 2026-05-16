@@ -47,7 +47,7 @@ A 0.9.0 release is ready when all of the following are true:
 | 15 | CST-level GLR determinism | covered | `cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_e2e_ambiguous_grammar_glr generated_ambiguous_expr_parse_document_cst_topology_is_deterministic -- --exact --nocapture` | #48 |
 | 16 | Fork count stability | covered | `cargo test -p adze --features "pure-rust,glr,glr_telemetry,runtime-e2e" --test test_e2e_ambiguous_grammar_glr generated_ambiguous_expr_runtime_fork_count_is_deterministic -- --exact --nocapture` | #49 |
 | 17 | Schema version pin for JSON | covered | `cargo test -p adze --features "pure-rust,serialization" --test adze_document_json adze_document_json_schema_identifier_is_pinned -- --exact --nocapture` | #50 |
-| 18 | CLI `parse --mode document` output | pending | — | — |
+| 18 | CLI `parse --output document-json` output | covered | `cargo test -p adze-cli test_parse_document_json_mode_emits_schema_envelope -- --exact --nocapture` | #95 |
 
 ### Release quality
 
