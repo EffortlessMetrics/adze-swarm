@@ -13,6 +13,13 @@ pub(crate) fn analyze_grammar_file(
     grammar: &Path,
     compress_tables: bool,
 ) -> Result<Vec<BuildResult>> {
+    if !grammar.exists() {
+        anyhow::bail!("Grammar file does not exist: {}", grammar.display());
+    }
+    if !grammar.is_file() {
+        anyhow::bail!("Grammar path is not a file: {}", grammar.display());
+    }
+
     let temp_dir = tempfile::tempdir()?;
     let options = BuildOptions {
         out_dir: temp_dir.path().to_string_lossy().to_string(),
@@ -50,6 +57,19 @@ mod tests {
         assert!(
             message.contains("No adze grammar definitions found")
                 || message.contains("Could not find grammar file"),
+            "unexpected error: {message}"
+        );
+    }
+
+    #[test]
+    fn returns_error_when_grammar_file_is_missing() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let path = temp_dir.path().join("missing.rs");
+
+        let err = analyze_grammar_file(&path, false).expect_err("should fail");
+        let message = format!("{err:#}");
+        assert!(
+            message.contains("Grammar file does not exist"),
             "unexpected error: {message}"
         );
     }
