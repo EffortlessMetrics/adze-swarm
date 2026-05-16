@@ -169,7 +169,7 @@ cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_types 
 | AST from selected tree matches summary | `generated_ambiguous_expr_parse_document_ast_matches_selected_parse` | — | — |
 | Multiple alternatives retained | `generated_ambiguous_expr_glr_runtime_retains_multiple_complete_alternatives` | — | — |
 | Selection reason present and stable | `SelectionReason::StableStructuralTieBreak` asserted | — | — |
-| CST-level determinism (not just AST) | none | No test comparing raw CST topology across repeated GLR parses | Add test: parse twice → compare tree node IDs, edge counts |
+| CST-level determinism (not just AST) | `generated_ambiguous_expr_parse_document_cst_topology_is_deterministic` | — | — |
 | Fork count stability | none | No test that fork count is stable across runs | Add test: parse twice → same fork count |
 | Larger ambiguity (3+ alternatives) | none | No test for input producing 3+ structurally distinct parse trees | Add test: grammar with 3-way ambiguity |
 
@@ -281,12 +281,12 @@ cargo package -p adze-common --allow-dirty
 | Diagnostics normalization | 10 | 0 | — |
 | UTF-8 / zero-width spans | 7 | 0 | — |
 | ts_compat adapter identity | 9 | 0 | — |
-| Ambiguity determinism | 5 | 3 | CST-level determinism test |
+| Ambiguity determinism | 6 | 2 | Fork count stability |
 | JSON projection | 5 | 2 | Schema version pin test |
 | CLI output truth | 5 | 3 | `adze parse --mode document` test |
 | Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
 | Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **65** | **15** | — |
+| **Total** | **66** | **14** | — |
 
 ---
 
@@ -301,7 +301,7 @@ Each PR adds focused tests for one surface gap. No code changes to production cr
 5. **test(diagnostics): prove expected-token normalization** — byte↔point span agreement, multi-error dedup, diagnostic ordering
 6. **test(diagnostics): cover UTF-8 and EOF recovery spans** — EOF boundary, mixed ASCII/multibyte line counting
 7. **test(ts-compat): prove adapter identity and alias behavior** — complete
-8. **test(glr): prove ambiguity summary determinism** — CST-level determinism, fork count stability
+8. **test(glr): prove ambiguity summary determinism** — fork count stability
 9. **docs: audit README claims against proof map** — no new tests, verify existing proof commands still pass
 10. **benchmarks: classify benchmark inventory** — mark duplicates, document what each bench measures
 11. **release: audit publishable package metadata** — add `just check-publishable` recipe

@@ -44,7 +44,7 @@ A 0.9.0 release is ready when all of the following are true:
 | 12 | Mixed ASCII/multibyte line counting | covered | `cargo test -p adze --features pure-rust --test generated_parse_errors -- --nocapture` | #36 |
 | 13 | ERROR/MISSING nodes in S-expression | covered | `cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_to_sexp -- --nocapture`; `cargo test -p adze --lib --features "pure-rust,ts-compat" ts_compat::tests::node_to_sexp_renders_error_and_missing_nodes -- --exact --nocapture` | #37 |
 | 14 | Nested alias behavior | covered | `cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_to_sexp nested_alias_visible_identity_is_used_in_sexp -- --exact --nocapture`; `cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_metadata nested_aliases_preserve_visible_and_grammar_identity -- --exact --nocapture` | #46 |
-| 15 | CST-level GLR determinism | pending | — | — |
+| 15 | CST-level GLR determinism | covered | `cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_e2e_ambiguous_grammar_glr generated_ambiguous_expr_parse_document_cst_topology_is_deterministic -- --exact --nocapture` | #48 |
 | 16 | Fork count stability | pending | — | — |
 | 17 | Schema version pin for JSON | pending | — | — |
 | 18 | CLI `parse --mode document` output | pending | — | — |
