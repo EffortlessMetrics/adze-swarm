@@ -167,19 +167,21 @@ The table below classifies every benchmark file under:
 - `tablegen/benches/**`
 
 Use this inventory to distinguish **real parser/GLR evidence** from
-**placeholder** and **utility** microbenchmarks.
+build-pipeline and infrastructure microbenchmarks. For the
+`adze-benchmarks` package, `benchmarks/README.md` and
+`benchmarks/Cargo.toml` carry the package-local source of truth.
 
 | Benchmark file | Classification | Notes |
 |---|---|---|
-| `benchmarks/benches/glr_performance.rs` | real parser workload | Parses real arithmetic fixtures with `adze_example::arithmetic::grammar::parse`. |
-| `benchmarks/benches/glr_hot.rs` | real parser workload | Hot-path fixture parsing only (medium/large). |
-| `benchmarks/benches/glr_performance_real.rs` | real parser workload | Primary fixture-driven GLR parser benchmark. |
-| `benchmarks/benches/incremental_bench.rs` | GLR forest/fork workload | Measures incremental parser behavior using grammar/token/edit helpers. |
-| `benchmarks/benches/core_baselines.rs` | tablegen workload | IR normalize, FIRST/FOLLOW, LR(1) automaton, and table compression generation steps. |
-| `benchmarks/benches/arena_vs_box_allocation.rs` | utility microbenchmark | Allocation strategy benchmark; not an end-to-end parser benchmark. |
-| `benchmarks/benches/optimization_bench.rs` | placeholder/mock | Simulated parse/fork loops (`parse_simulation`), not a parser run. |
-| `benchmarks/benches/stack_optimization.rs` | utility microbenchmark | Stack/pool/fork-pattern data-structure costs, synthetic workload. |
-| `benchmarks/benches/parse_bench.rs` | placeholder/mock | Explicit placeholder target (`placeholder_no_parser_workload`). |
+| `benchmarks/benches/parse_bench.rs` | real parser workload | Baseline arithmetic parsing with generated parser fixtures. |
+| `benchmarks/benches/glr_performance.rs` | real parser workload | Arithmetic parser benchmark that substantially duplicates `parse_bench.rs`. |
+| `benchmarks/benches/glr_hot.rs` | real parser workload | Hot-path medium/large arithmetic fixtures. |
+| `benchmarks/benches/glr_performance_real.rs` | real parser workload | Full GLR parsing with valid arithmetic fixtures. |
+| `benchmarks/benches/incremental_bench.rs` | real parser workload | Full-reparse vs incremental reparse behavior. |
+| `benchmarks/benches/core_baselines.rs` | build-pipeline workload | IR normalize, FIRST/FOLLOW, LR(1) automaton, and table compression generation steps. |
+| `benchmarks/benches/arena_vs_box_allocation.rs` | infrastructure microbenchmark | Arena vs Box allocation comparison. |
+| `benchmarks/benches/optimization_bench.rs` | legacy infrastructure microbenchmark | Superseded by `arena_vs_box_allocation.rs` and `stack_optimization.rs`. |
+| `benchmarks/benches/stack_optimization.rs` | infrastructure microbenchmark | Vec vs persistent stack micro-benchmarks. |
 | `runtime/benches/glr_parser_bench.rs` | GLR forest/fork workload | GLR parsing stress cases, including ambiguous grammars. |
 | `runtime/benches/runtime_parse_serialize_bench.rs` | compression/decode workload | Runtime parse + JSON/S-expression serialization traversal costs. |
 | `runtime/benches/parser_benchmark.rs` | real parser workload | Pure-Rust parser over expression inputs. |
