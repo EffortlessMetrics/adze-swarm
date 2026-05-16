@@ -144,14 +144,15 @@ cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_error 
 | S-expression uses alias-visible identity | `alias_visible_identity_is_used_in_sexp` | — | — |
 | Field labels in S-expression | `to_sexp_includes_field_labels_for_named_children` | — | — |
 | node-types.json projection | `ts_compat_node_types` suite | — | — |
-| Error/MISSING nodes in S-expression | none | No test for how ERROR and MISSING nodes render in S-expression | Add test: bad input → S-expression contains `(ERROR)` / `(MISSING)` |
-| Nested aliases (alias of alias) | none | No test for chained alias sequences | Add test: double-aliased production → `kind()` returns outer alias |
+| Error/MISSING nodes in S-expression | `to_sexp_includes_missing_nodes_for_recovered_input`; `ts_compat::tests::node_to_sexp_renders_error_and_missing_nodes` | — | — |
+| Nested aliases (alias of alias) | `nested_alias_visible_identity_is_used_in_sexp`; `nested_aliases_preserve_visible_and_grammar_identity` | — | — |
 | Supertype alias behavior | none | No test for supertype-style aliases | Add test when grammar supports supertypes |
 
 **Proof commands:**
 ```bash
 cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_metadata -- --nocapture
 cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_to_sexp -- --nocapture
+cargo test -p adze --lib --features "pure-rust,ts-compat" ts_compat::tests::node_to_sexp_renders_error_and_missing_nodes -- --exact --nocapture
 cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_types -- --nocapture
 ```
 
@@ -279,13 +280,13 @@ cargo package -p adze-common --allow-dirty
 | Edge field metadata | 8 | 1 | Field values on missing/error nodes |
 | Diagnostics normalization | 10 | 0 | — |
 | UTF-8 / zero-width spans | 7 | 0 | — |
-| ts_compat adapter identity | 6 | 3 | ERROR/MISSING in S-expression |
+| ts_compat adapter identity | 8 | 1 | Supertype alias behavior |
 | Ambiguity determinism | 5 | 3 | CST-level determinism test |
 | JSON projection | 5 | 2 | Schema version pin test |
 | CLI output truth | 5 | 3 | `adze parse --mode document` test |
 | Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
 | Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **62** | **18** | — |
+| **Total** | **64** | **16** | — |
 
 ---
 
@@ -299,7 +300,7 @@ Each PR adds focused tests for one surface gap. No code changes to production cr
 4. **test(document): prove edge field metadata invariants** — empty field map and repeated field iteration
 5. **test(diagnostics): prove expected-token normalization** — byte↔point span agreement, multi-error dedup, diagnostic ordering
 6. **test(diagnostics): cover UTF-8 and EOF recovery spans** — EOF boundary, mixed ASCII/multibyte line counting
-7. **test(ts-compat): prove adapter identity and alias behavior** — ERROR/MISSING S-expression, nested aliases
+7. **test(ts-compat): prove adapter identity and alias behavior** — supertype alias behavior
 8. **test(glr): prove ambiguity summary determinism** — CST-level determinism, fork count stability
 9. **docs: audit README claims against proof map** — no new tests, verify existing proof commands still pass
 10. **benchmarks: classify benchmark inventory** — mark duplicates, document what each bench measures

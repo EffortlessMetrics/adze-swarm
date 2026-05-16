@@ -4,7 +4,7 @@
 
 use adze::{
     adze_glr_core::SymbolMetadata,
-    adze_ir::SymbolId,
+    adze_ir::{RuleId, SymbolId},
     ts_compat::{Language, Parser},
 };
 use std::sync::Arc;
@@ -28,13 +28,7 @@ fn minus_symbol(lang: &Language) -> SymbolId {
     symbol_named(lang, "-")
 }
 
-fn arithmetic_with_expression_child_alias(
-    alias_name: &str,
-    alias_is_named: bool,
-) -> (Language, SymbolId, SymbolId) {
-    let mut lang = (*adze_example::ts_langs::arithmetic()).clone();
-    let source_file = symbol_named(&lang, "source_file");
-    let expression = symbol_named(&lang, "expression");
+fn push_alias_symbol(lang: &mut Language, alias_name: &str, alias_is_named: bool) -> SymbolId {
     let alias_symbol = SymbolId(lang.table.symbol_metadata.len() as u16);
 
     lang.table.symbol_metadata.push(SymbolMetadata {
@@ -56,6 +50,18 @@ fn arithmetic_with_expression_child_alias(
         .resize(lang.table.symbol_metadata.len(), SymbolId(0));
     lang.table.index_to_symbol[alias_symbol.0 as usize] = alias_symbol;
 
+    alias_symbol
+}
+
+fn arithmetic_with_expression_child_alias(
+    alias_name: &str,
+    alias_is_named: bool,
+) -> (Language, SymbolId, SymbolId) {
+    let mut lang = (*adze_example::ts_langs::arithmetic()).clone();
+    let source_file = symbol_named(&lang, "source_file");
+    let expression = symbol_named(&lang, "expression");
+    let alias_symbol = push_alias_symbol(&mut lang, alias_name, alias_is_named);
+
     let source_file_rule = lang
         .table
         .rules
@@ -68,6 +74,38 @@ fn arithmetic_with_expression_child_alias(
     lang.table.alias_sequences[source_file_rule] = vec![Some(alias_symbol)];
 
     (lang, expression, alias_symbol)
+}
+
+fn arithmetic_with_nested_expression_aliases() -> (Language, SymbolId, SymbolId, SymbolId) {
+    let mut lang = (*adze_example::ts_langs::arithmetic()).clone();
+    let source_file = symbol_named(&lang, "source_file");
+    let expression = symbol_named(&lang, "expression");
+    let outer_alias = push_alias_symbol(&mut lang, "outer_expression", true);
+    let inner_alias = push_alias_symbol(&mut lang, "inner_expression", true);
+
+    let source_file_rule = lang
+        .table
+        .rules
+        .iter()
+        .position(|rule| rule.lhs == source_file && rule.rhs_len == 1)
+        .expect("arithmetic fixture should reduce source_file from expression");
+    let binary_expression_rule = RuleId(2).0 as usize;
+    assert!(
+        lang.table
+            .rules
+            .get(binary_expression_rule)
+            .is_some_and(|rule| rule.lhs == expression && rule.rhs_len == 3),
+        "arithmetic fixture should keep rule 2 as the subtraction expression rule"
+    );
+
+    lang.table
+        .alias_sequences
+        .resize_with(binary_expression_rule.max(source_file_rule) + 1, Vec::new);
+    lang.table.alias_sequences[source_file_rule] = vec![Some(outer_alias)];
+    lang.table.alias_sequences[binary_expression_rule] =
+        vec![Some(inner_alias), None, Some(inner_alias)];
+
+    (lang, expression, outer_alias, inner_alias)
 }
 
 #[test]
@@ -194,6 +232,56 @@ fn alias_visible_kind_and_grammar_identity_are_distinct() {
     );
     assert_ne!(expression.kind_id(), expression.grammar_id());
     assert_ne!(expression.kind(), expression.grammar_name());
+}
+
+#[test]
+fn nested_aliases_preserve_visible_and_grammar_identity() {
+    let (lang, expression_symbol, outer_alias, inner_alias) =
+        arithmetic_with_nested_expression_aliases();
+
+    let mut parser = Parser::new();
+    parser
+        .set_language(Arc::new(lang))
+        .expect("Failed to set language");
+
+    let tree = parser.parse("1-2", None).expect("Parse failed");
+    let outer = tree
+        .root_node()
+        .child(0)
+        .expect("root should expose outer aliased expression child");
+    let left = outer
+        .child(0)
+        .expect("outer expression should expose left aliased child");
+    let operator = outer
+        .child(1)
+        .expect("outer expression should expose operator child");
+    let right = outer
+        .child(2)
+        .expect("outer expression should expose right aliased child");
+
+    assert_eq!(outer.kind(), "outer_expression");
+    assert_eq!(outer.kind_id(), outer_alias.0);
+    assert_eq!(outer.grammar_name(), "expression");
+    assert_eq!(outer.grammar_id(), expression_symbol.0);
+
+    for child in [&left, &right] {
+        assert_eq!(child.kind(), "inner_expression");
+        assert_eq!(child.kind_id(), inner_alias.0);
+        assert_eq!(child.grammar_name(), "expression");
+        assert_eq!(child.grammar_id(), expression_symbol.0);
+        assert_ne!(child.kind_id(), child.grammar_id());
+    }
+
+    assert_eq!(operator.kind(), "-");
+    assert_eq!(operator.grammar_name(), "-");
+    assert_eq!(
+        tree.language().node_kind_for_id(outer.kind_id()),
+        Some("outer_expression")
+    );
+    assert_eq!(
+        tree.language().node_kind_for_id(left.kind_id()),
+        Some("inner_expression")
+    );
 }
 
 #[test]
