@@ -1,7 +1,11 @@
 # Support Tiers and Proof Surface
 
-**Last updated:** 2026-05-14
+**Last updated:** 2026-05-16
 **Source of truth for:** README feature claims, `docs/status/KNOWN_RED.md`, and CI expectations.
+
+For a release-readable summary of the most common product claims, see
+`PRODUCT_PROOF_MAP.md`. This file remains the authoritative tier and proof
+ledger.
 
 This document maps major Adze surfaces to five tiers:
 
