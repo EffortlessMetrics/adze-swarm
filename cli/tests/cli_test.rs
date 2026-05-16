@@ -208,7 +208,7 @@ fn test_parse_static_mode_is_explicitly_unimplemented() {
 }
 
 #[test]
-fn test_parse_document_json_mode_emits_schema_envelope() {
+fn test_parse_document_projection_modes_emit_schema_envelopes() {
     let temp = tempfile::tempdir().expect("tempdir");
     let project_name = "parsejson";
     let mut init = cargo_bin_cmd!("adze");
@@ -224,32 +224,45 @@ fn test_parse_document_json_mode_emits_schema_envelope() {
     let input = temp.path().join("input.txt");
     std::fs::write(&input, "123").expect("write input");
 
-    let mut cmd = cargo_bin_cmd!("adze");
-    let output = cmd
-        .arg("parse")
-        .arg(&grammar)
-        .arg(&input)
-        .arg("--output")
-        .arg("document-json")
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
+    for (mode, schema, required_field) in [
+        ("document-json", "adze.document.v1", "tree"),
+        ("tree-json", "adze.tree.v1", "tree"),
+        ("diagnostics-json", "adze.diagnostics.v1", "diagnostics"),
+        ("ambiguity-json", "adze.ambiguity.v1", "ambiguities"),
+    ] {
+        let mut cmd = cargo_bin_cmd!("adze");
+        let output = cmd
+            .arg("parse")
+            .arg(&grammar)
+            .arg(&input)
+            .arg("--output")
+            .arg(mode)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
 
-    let json: serde_json::Value =
-        serde_json::from_slice(&output).expect("document-json output should be JSON");
-    assert_eq!(json["schema"].as_str(), Some("adze.document.v1"));
-    assert_eq!(json["language"]["name"].as_str(), Some("parsejson"));
-    assert_eq!(json["source"]["byte_len"].as_u64(), Some(3));
-    assert!(
-        json["tree"].is_object(),
-        "document-json should include selected tree facts"
-    );
-    assert!(
-        json["diagnostics"].is_array(),
-        "document-json should include diagnostics array"
-    );
+        let json: serde_json::Value = serde_json::from_slice(&output)
+            .unwrap_or_else(|err| panic!("{mode} output should be JSON: {err}"));
+        assert_eq!(json["schema"].as_str(), Some(schema), "{mode} schema");
+        assert_eq!(json["language"]["name"].as_str(), Some("parsejson"));
+        assert!(
+            !json[required_field].is_null(),
+            "{mode} should include `{required_field}` projection facts"
+        );
+
+        if mode == "document-json" {
+            assert_eq!(json["source"]["byte_len"].as_u64(), Some(3));
+            assert!(json["diagnostics"].is_array());
+        } else {
+            assert_eq!(
+                json["document_schema"].as_str(),
+                Some("adze.document.v1"),
+                "{mode} should declare its source document schema"
+            );
+        }
+    }
 }
 
 #[test]
