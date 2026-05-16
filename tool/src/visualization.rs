@@ -493,4 +493,471 @@ mod tests {
         assert!(dot.contains("digraph Grammar"));
         assert!(dot.contains("rankdir=LR"));
     }
+
+    // --- Helpers ----------------------------------------------------------
+
+    fn empty_visualizer() -> GrammarVisualizer {
+        GrammarVisualizer::new(Grammar::new("g".to_string()))
+    }
+
+    fn make_token(name: &str) -> Token {
+        Token {
+            name: name.to_string(),
+            pattern: TokenPattern::String(name.to_string()),
+            fragile: false,
+        }
+    }
+
+    // --- escape_dot / escape_xml ----------------------------------------
+
+    #[test]
+    fn escape_dot_escapes_backslash_quote_and_newline() {
+        let v = empty_visualizer();
+        assert_eq!(v.escape_dot("plain"), "plain");
+        assert_eq!(v.escape_dot("a\\b"), "a\\\\b");
+        assert_eq!(v.escape_dot("he said \"hi\""), "he said \\\"hi\\\"");
+        assert_eq!(v.escape_dot("one\ntwo"), "one\\ntwo");
+        // Combinations apply in the documented order: backslash first.
+        assert_eq!(v.escape_dot("\\\"\n"), "\\\\\\\"\\n");
+    }
+
+    #[test]
+    fn escape_xml_escapes_all_five_xml_entities() {
+        let v = empty_visualizer();
+        assert_eq!(v.escape_xml(""), "");
+        assert_eq!(v.escape_xml("ok"), "ok");
+        assert_eq!(v.escape_xml("a&b"), "a&amp;b");
+        assert_eq!(v.escape_xml("a<b>c"), "a&lt;b&gt;c");
+        assert_eq!(v.escape_xml("\"quoted\""), "&quot;quoted&quot;");
+        assert_eq!(v.escape_xml("it's"), "it&apos;s");
+        // The replacement of `&` happens first, so previously-introduced `&`
+        // markers from later passes are not double-escaped.
+        assert_eq!(v.escape_xml("<&>"), "&lt;&amp;&gt;");
+    }
+
+    // --- format_symbol_simple -------------------------------------------
+
+    #[test]
+    fn format_symbol_simple_known_terminal_uses_token_name() {
+        let mut grammar = Grammar::new("g".to_string());
+        let id = SymbolId(7);
+        grammar.tokens.insert(id, make_token("plus"));
+        let v = GrammarVisualizer::new(grammar);
+        assert_eq!(v.format_symbol_simple(&Symbol::Terminal(id)), "plus");
+    }
+
+    #[test]
+    fn format_symbol_simple_unknown_terminal_falls_back_to_t_prefix() {
+        let v = empty_visualizer();
+        assert_eq!(v.format_symbol_simple(&Symbol::Terminal(SymbolId(9))), "T9");
+    }
+
+    #[test]
+    fn format_symbol_simple_handles_all_compound_variants() {
+        let v = empty_visualizer();
+        let term = Box::new(Symbol::Terminal(SymbolId(1)));
+
+        assert_eq!(
+            v.format_symbol_simple(&Symbol::Optional(term.clone())),
+            "T1?"
+        );
+        assert_eq!(v.format_symbol_simple(&Symbol::Repeat(term.clone())), "T1*");
+        assert_eq!(
+            v.format_symbol_simple(&Symbol::RepeatOne(term.clone())),
+            "T1+"
+        );
+        assert_eq!(
+            v.format_symbol_simple(&Symbol::External(SymbolId(3))),
+            "External3"
+        );
+        assert_eq!(v.format_symbol_simple(&Symbol::Epsilon), "ε");
+
+        let choice = Symbol::Choice(vec![Symbol::Terminal(SymbolId(1)), Symbol::Epsilon]);
+        assert_eq!(v.format_symbol_simple(&choice), "(T1|ε)");
+
+        let seq = Symbol::Sequence(vec![
+            Symbol::Terminal(SymbolId(1)),
+            Symbol::Terminal(SymbolId(2)),
+        ]);
+        assert_eq!(v.format_symbol_simple(&seq), "T1 T2");
+    }
+
+    #[test]
+    fn format_symbol_simple_nests_through_modifiers() {
+        let v = empty_visualizer();
+        // Optional(Repeat(Terminal)) — exercises recursion through two layers.
+        let inner = Box::new(Symbol::Repeat(Box::new(Symbol::Terminal(SymbolId(5)))));
+        assert_eq!(v.format_symbol_simple(&Symbol::Optional(inner)), "T5*?");
+    }
+
+    #[test]
+    fn format_symbol_simple_nonterminal_uses_rule_id_when_unnamed() {
+        let mut grammar = Grammar::new("g".to_string());
+        let id = SymbolId(4);
+        grammar.rules.insert(id, vec![]);
+        let v = GrammarVisualizer::new(grammar);
+        assert_eq!(v.format_symbol_simple(&Symbol::NonTerminal(id)), "rule_4");
+    }
+
+    // --- get_symbol_name ------------------------------------------------
+
+    #[test]
+    fn get_symbol_name_returns_token_name_first() {
+        let mut grammar = Grammar::new("g".to_string());
+        let id = SymbolId(1);
+        grammar.tokens.insert(id, make_token("ident"));
+        let v = GrammarVisualizer::new(grammar);
+        assert_eq!(v.get_symbol_name(id), "ident");
+    }
+
+    #[test]
+    fn get_symbol_name_returns_rule_id_label_for_rules() {
+        let mut grammar = Grammar::new("g".to_string());
+        let id = SymbolId(2);
+        grammar.rules.insert(id, vec![]);
+        let v = GrammarVisualizer::new(grammar);
+        assert_eq!(v.get_symbol_name(id), "rule_2");
+    }
+
+    #[test]
+    fn get_symbol_name_returns_external_name() {
+        let mut grammar = Grammar::new("g".to_string());
+        grammar.externals.push(adze_ir::ExternalToken {
+            name: "newline".to_string(),
+            symbol_id: SymbolId(8),
+        });
+        let v = GrammarVisualizer::new(grammar);
+        assert_eq!(v.get_symbol_name(SymbolId(8)), "newline");
+    }
+
+    #[test]
+    fn get_symbol_name_falls_back_to_symbol_prefix() {
+        let v = empty_visualizer();
+        assert_eq!(v.get_symbol_name(SymbolId(42)), "symbol_42");
+    }
+
+    // --- to_dot ---------------------------------------------------------
+
+    #[test]
+    fn to_dot_emits_terminal_nonterminal_external_and_edges() {
+        let mut grammar = Grammar::new("g".to_string());
+
+        let tok = SymbolId(1);
+        grammar.tokens.insert(tok, make_token("\"id\""));
+
+        let rule_sym = SymbolId(2);
+        grammar.rules.insert(
+            rule_sym,
+            vec![Rule {
+                lhs: rule_sym,
+                rhs: vec![
+                    Symbol::Terminal(tok),
+                    Symbol::NonTerminal(rule_sym),
+                    Symbol::External(SymbolId(3)),
+                    Symbol::Epsilon,
+                ],
+                precedence: None,
+                associativity: None,
+                fields: vec![],
+                production_id: ProductionId(0),
+            }],
+        );
+
+        grammar.externals.push(adze_ir::ExternalToken {
+            name: "ext".to_string(),
+            symbol_id: SymbolId(3),
+        });
+
+        let dot = GrammarVisualizer::new(grammar).to_dot();
+
+        // Terminal node + escaped quote in the label.
+        assert!(dot.contains("t1 [label=\"\\\"id\\\"\""));
+        // Non-terminal node.
+        assert!(dot.contains("n2 [label=\"rule_2\""));
+        // External node.
+        assert!(dot.contains("e3 [label=\"ext\""));
+        // Edges for terminal, nonterminal and external — labels reflect rhs index.
+        assert!(dot.contains("n2 -> t1 [label=\"1\"]"));
+        assert!(dot.contains("n2 -> n2 [label=\"2\"]"));
+        assert!(dot.contains("n2 -> e3 [label=\"3\"]"));
+        // Epsilon is skipped — no edge for position 4.
+        assert!(!dot.contains("[label=\"4\"]"));
+    }
+
+    #[test]
+    fn to_dot_uses_empty_edge_label_for_single_rhs() {
+        let mut grammar = Grammar::new("g".to_string());
+        let tok = SymbolId(1);
+        grammar.tokens.insert(tok, make_token("t"));
+        let lhs = SymbolId(2);
+        grammar.rules.insert(
+            lhs,
+            vec![Rule {
+                lhs,
+                rhs: vec![Symbol::Terminal(tok)],
+                precedence: None,
+                associativity: None,
+                fields: vec![],
+                production_id: ProductionId(0),
+            }],
+        );
+
+        let dot = GrammarVisualizer::new(grammar).to_dot();
+        assert!(dot.contains("n2 -> t1 [label=\"\"]"));
+    }
+
+    #[test]
+    fn to_dot_emits_compound_placeholder_targets() {
+        let mut grammar = Grammar::new("g".to_string());
+        let tok = SymbolId(1);
+        grammar.tokens.insert(tok, make_token("t"));
+        let lhs = SymbolId(2);
+        grammar.rules.insert(
+            lhs,
+            vec![Rule {
+                lhs,
+                rhs: vec![
+                    Symbol::Optional(Box::new(Symbol::Terminal(tok))),
+                    Symbol::Repeat(Box::new(Symbol::Terminal(tok))),
+                    Symbol::RepeatOne(Box::new(Symbol::Terminal(tok))),
+                    Symbol::Choice(vec![Symbol::Terminal(tok)]),
+                    Symbol::Sequence(vec![Symbol::Terminal(tok)]),
+                ],
+                precedence: None,
+                associativity: None,
+                fields: vec![],
+                production_id: ProductionId(0),
+            }],
+        );
+
+        let dot = GrammarVisualizer::new(grammar).to_dot();
+        // Each compound symbol creates a synthetic target name keyed on the rhs index.
+        assert!(dot.contains("n2 -> opt0"));
+        assert!(dot.contains("n2 -> rep1"));
+        assert!(dot.contains("n2 -> rep12"));
+        assert!(dot.contains("n2 -> choice3"));
+        assert!(dot.contains("n2 -> seq4"));
+    }
+
+    // --- to_railroad_svg ------------------------------------------------
+
+    #[test]
+    fn to_railroad_svg_renders_each_symbol_variant() {
+        let mut grammar = Grammar::new("g".to_string());
+        let tok = SymbolId(1);
+        grammar.tokens.insert(tok, make_token("kw"));
+
+        let lhs = SymbolId(2);
+        grammar.rules.insert(
+            lhs,
+            vec![Rule {
+                lhs,
+                rhs: vec![
+                    Symbol::Terminal(tok),
+                    Symbol::NonTerminal(lhs),
+                    Symbol::External(SymbolId(3)),
+                    Symbol::Optional(Box::new(Symbol::Terminal(tok))),
+                    Symbol::Repeat(Box::new(Symbol::Terminal(tok))),
+                    Symbol::RepeatOne(Box::new(Symbol::Terminal(tok))),
+                    Symbol::Choice(vec![
+                        Symbol::Terminal(tok),
+                        Symbol::Terminal(SymbolId(99)), // unknown -> T99 fallback
+                    ]),
+                    Symbol::Sequence(vec![Symbol::Terminal(tok), Symbol::Epsilon]),
+                    Symbol::Epsilon,
+                ],
+                precedence: None,
+                associativity: None,
+                fields: vec![],
+                production_id: ProductionId(0),
+            }],
+        );
+
+        let svg = GrammarVisualizer::new(grammar).to_railroad_svg();
+        assert!(svg.starts_with("<svg"));
+        assert!(svg.contains(r#"<text x="10""#));
+        assert!(svg.contains("rule_2 ::="));
+        assert!(svg.contains("kw"));
+        assert!(svg.contains("External3"));
+        assert!(svg.contains("kw?"));
+        assert!(svg.contains("kw*"));
+        assert!(svg.contains("kw+"));
+        // Choice formatting and unknown-terminal fallback both render.
+        assert!(svg.contains("(kw | T99)"));
+        // Epsilon symbol is present.
+        assert!(svg.contains("ε"));
+        assert!(svg.trim_end().ends_with("</svg>"));
+    }
+
+    // --- to_text --------------------------------------------------------
+
+    #[test]
+    fn to_text_renders_empty_grammar_header_only() {
+        let text = empty_visualizer().to_text();
+        assert!(text.starts_with("Grammar: g\n"));
+        assert!(text.contains("Tokens:"));
+        assert!(text.contains("Rules:"));
+        // Empty grammar has no externals / precedences / conflicts sections.
+        assert!(!text.contains("External Tokens:"));
+        assert!(!text.contains("Precedence Declarations:"));
+        assert!(!text.contains("Conflict Declarations:"));
+    }
+
+    #[test]
+    fn to_text_renders_all_symbol_kinds_and_metadata() {
+        let mut grammar = Grammar::new("g".to_string());
+        let tok_str = SymbolId(1);
+        let tok_re = SymbolId(2);
+        grammar.tokens.insert(
+            tok_str,
+            Token {
+                name: "plus".to_string(),
+                pattern: TokenPattern::String("+".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.tokens.insert(
+            tok_re,
+            Token {
+                name: "ident".to_string(),
+                pattern: TokenPattern::Regex(r"[a-z]+".to_string()),
+                fragile: false,
+            },
+        );
+
+        grammar.externals.push(adze_ir::ExternalToken {
+            name: "newline".to_string(),
+            symbol_id: SymbolId(7),
+        });
+
+        let lhs = SymbolId(3);
+        grammar.rules.insert(
+            lhs,
+            vec![Rule {
+                lhs,
+                rhs: vec![
+                    Symbol::Terminal(tok_str),
+                    Symbol::NonTerminal(lhs),
+                    Symbol::External(SymbolId(7)),
+                    Symbol::Optional(Box::new(Symbol::Terminal(tok_str))),
+                    Symbol::Repeat(Box::new(Symbol::Terminal(tok_str))),
+                    Symbol::RepeatOne(Box::new(Symbol::Terminal(tok_str))),
+                    Symbol::Choice(vec![Symbol::Terminal(tok_str), Symbol::Terminal(tok_re)]),
+                    Symbol::Sequence(vec![Symbol::Terminal(tok_str), Symbol::Epsilon]),
+                    Symbol::Epsilon,
+                ],
+                precedence: Some(adze_ir::PrecedenceKind::Static(2)),
+                associativity: Some(adze_ir::Associativity::Left),
+                fields: vec![],
+                production_id: ProductionId(0),
+            }],
+        );
+
+        grammar.precedences.push(adze_ir::Precedence {
+            level: 5,
+            associativity: adze_ir::Associativity::Right,
+            symbols: vec![tok_str],
+        });
+
+        grammar.conflicts.push(adze_ir::ConflictDeclaration {
+            symbols: vec![tok_str, tok_re],
+            resolution: adze_ir::ConflictResolution::GLR,
+        });
+
+        let text = GrammarVisualizer::new(grammar).to_text();
+
+        // String + regex token formatting both appear.
+        assert!(text.contains("plus (SymbolId(1)) = \"+\""));
+        assert!(text.contains("ident (SymbolId(2)) = /[a-z]+/"));
+        // Externals section renders.
+        assert!(text.contains("External Tokens:"));
+        assert!(text.contains("newline (SymbolId(7))"));
+        // Compound formatting on rhs.
+        assert!(text.contains("'plus'"));
+        assert!(text.contains("$7"));
+        assert!(text.contains("plus?"));
+        assert!(text.contains("plus*"));
+        assert!(text.contains("plus+"));
+        assert!(text.contains("(plus | ident)"));
+        assert!(text.contains(" ε"));
+        // Metadata for precedence + associativity.
+        assert!(text.contains("[precedence: Static(2)]"));
+        assert!(text.contains("[associativity: Left]"));
+        // Precedence + conflict sections.
+        assert!(text.contains("Precedence Declarations:"));
+        assert!(text.contains("Level 5:"));
+        assert!(text.contains("Conflict Declarations:"));
+        assert!(text.contains("Resolution: GLR"));
+    }
+
+    #[test]
+    fn to_text_uses_t_prefix_for_unknown_terminal_in_rule() {
+        let mut grammar = Grammar::new("g".to_string());
+        let lhs = SymbolId(1);
+        // Terminal id (99) not present in tokens map — exercises the fallback branch.
+        grammar.rules.insert(
+            lhs,
+            vec![Rule {
+                lhs,
+                rhs: vec![Symbol::Terminal(SymbolId(99))],
+                precedence: None,
+                associativity: None,
+                fields: vec![],
+                production_id: ProductionId(0),
+            }],
+        );
+        let text = GrammarVisualizer::new(grammar).to_text();
+        assert!(text.contains("'T99'"));
+    }
+
+    // --- dependency_graph ----------------------------------------------
+
+    #[test]
+    fn dependency_graph_lists_nonterminal_dependencies() {
+        let mut grammar = Grammar::new("g".to_string());
+        let a = SymbolId(1);
+        let b = SymbolId(2);
+        let tok = SymbolId(3);
+        grammar.tokens.insert(tok, make_token("t"));
+        // A depends on B and itself, B has no nonterminal deps.
+        grammar.rules.insert(
+            a,
+            vec![Rule {
+                lhs: a,
+                rhs: vec![
+                    Symbol::NonTerminal(b),
+                    Symbol::NonTerminal(a),
+                    Symbol::Terminal(tok), // terminals do not contribute deps
+                ],
+                precedence: None,
+                associativity: None,
+                fields: vec![],
+                production_id: ProductionId(0),
+            }],
+        );
+        grammar.rules.insert(
+            b,
+            vec![Rule {
+                lhs: b,
+                rhs: vec![Symbol::Terminal(tok)],
+                precedence: None,
+                associativity: None,
+                fields: vec![],
+                production_id: ProductionId(0),
+            }],
+        );
+
+        let graph = GrammarVisualizer::new(grammar).dependency_graph();
+        assert!(graph.starts_with("Symbol Dependencies:\n"));
+        assert!(graph.contains("rule_1 depends on: rule_1 rule_2"));
+        assert!(graph.contains("rule_2 depends on: (none)"));
+    }
+
+    #[test]
+    fn dependency_graph_empty_grammar_emits_header_only() {
+        let graph = empty_visualizer().dependency_graph();
+        assert!(graph.contains("Symbol Dependencies:"));
+        // No `depends on` lines for an empty grammar.
+        assert!(!graph.contains(" depends on:"));
+    }
 }
