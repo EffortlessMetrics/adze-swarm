@@ -1,8 +1,9 @@
 # 0.9 API Foundation Implementation Plan
 
-Status: active
+Status: complete
 Owner: runtime/api
 Created: 2026-05-13
+Completed: 2026-05-16
 Linked proposal: ../../docs/proposals/ADZE-PROP-0002-api-foundation.md
 Linked specs:
 - ../../docs/specs/ADZE-SPEC-0003-canonical-parse-document.md
@@ -19,6 +20,7 @@ Linked ADRs:
 - ../../docs/adr/ADZE-ADR-0004-schema-versioned-projections.md
 Active goal: ../../.adze/goals/active.toml
 Support-tier map: ../../docs/status/SUPPORT_TIERS.md
+Closeout: ./closeout.md
 
 ## Goal
 
@@ -28,6 +30,10 @@ output toward projections over one parse truth.
 
 This plan sequences implementation. It does not promote support tiers by
 itself; `../../docs/status/SUPPORT_TIERS.md` owns product claims and proof.
+
+The planned 0.9 API-foundation implementation slices are complete. Future API
+work should open a new plan or active goal rather than reusing this closed work
+queue.
 
 ## Work Item: api-foundation-spec-stack
 
@@ -302,3 +308,5 @@ git diff --check
 10. `document-json-schema-alpha`
 11. `language-schema-node-types`
 12. support-tier promotion pass
+
+All listed 0.9 work items are complete as of the 2026-05-16 closeout.
