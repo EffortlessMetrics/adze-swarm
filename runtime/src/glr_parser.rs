@@ -74,30 +74,13 @@
 //! # }
 //! ```
 
-/// Default threshold for pointer-based dedup.
-pub const DEFAULT_SAFE_DEDUP_THRESHOLD: usize = 10;
-
-#[inline]
-pub fn safe_dedup_threshold() -> usize {
-    if let Some(s) = option_env!("ADZE_SAFE_DEDUP_N")
-        && let Ok(n) = s.parse::<usize>()
-    {
-        return n;
-    }
-    std::env::var("ADZE_SAFE_DEDUP_N")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_SAFE_DEDUP_THRESHOLD)
-}
-
 use crate::error_recovery::{ErrorRecoveryConfig, ErrorRecoveryState, RecoveryAction};
 use crate::subtree::{Subtree, SubtreeNode};
-use adze_glr_core::{Action, CompareResult, ParseTable, VersionInfo, compare_versions};
+use adze_glr_core::{Action, CompareResult, ParseTable, compare_versions};
 use adze_glr_core::{FirstFollowSets, VecWrapperResolver};
 use adze_ir::{Grammar, PrecedenceKind, Rule, Symbol};
 use adze_ir::{RuleId, StateId, SymbolId};
 use std::collections::VecDeque;
-use std::ops::Range;
 use std::sync::Arc;
 
 /// Error types specific to GLR parsing operations.
@@ -128,51 +111,6 @@ pub enum GLRError {
 /// Result type for GLR parsing operations.
 pub type GLRResult<T> = Result<T, GLRError>;
 
-/// Summary of retained complete alternatives for an ambiguous GLR parse.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AmbiguitySummary {
-    /// Byte span covered by the complete alternatives.
-    pub span: Range<usize>,
-    /// Retained complete alternatives in runtime order.
-    pub alternatives: Vec<AlternativeSummary>,
-    /// Index of the selected alternative within [`Self::alternatives`].
-    pub selected: Option<usize>,
-    /// Reason the selected alternative won.
-    pub selection_reason: SelectionReason,
-}
-
-/// Public metadata for one retained complete GLR parse alternative.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AlternativeSummary {
-    /// Index within the ambiguity summary.
-    pub index: usize,
-    /// Root symbol of this complete alternative.
-    pub root_symbol: SymbolId,
-    /// Byte span covered by this complete alternative.
-    pub span: Range<usize>,
-    /// Dynamic-precedence score accumulated for this parse version.
-    pub dynamic_precedence: i32,
-    /// Whether this parse version entered error recovery.
-    pub in_error: bool,
-    /// Error/recovery cost for this parse version.
-    pub cost: usize,
-    /// Structural node count for this retained alternative tree.
-    pub node_count: usize,
-}
-
-/// Reason the GLR runtime selected one complete alternative.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SelectionReason {
-    /// Only one complete parse was retained.
-    SingleParse,
-    /// Parse-version comparison selected a lower-cost non-error path.
-    ErrorCost,
-    /// Parse-version comparison selected higher dynamic precedence.
-    DynamicPrecedence,
-    /// Parse versions tied and the stable structural key selected a tree.
-    StableStructuralTieBreak,
-}
-
 // Debug macro for GLR parser
 #[cfg(feature = "debug_glr")]
 macro_rules! debug_glr {
@@ -192,138 +130,21 @@ macro_rules! debug_glr {
     ($($arg:tt)*) => {};
 }
 
-/// A parse stack version (fork) in GLR parsing
-#[derive(Debug, Clone)]
-pub struct ParseStack {
-    /// Stack of states
-    states: Vec<StateId>,
+#[path = "glr_parser/ambiguity.rs"]
+mod ambiguity;
+#[path = "glr_parser/config.rs"]
+mod config;
+#[path = "glr_parser/parse_stack.rs"]
+mod parse_stack;
 
-    /// Stack of subtrees
-    nodes: Vec<Arc<Subtree>>,
+pub use ambiguity::{AlternativeSummary, AmbiguitySummary, SelectionReason};
+#[allow(unused_imports)]
+pub use config::{DEFAULT_SAFE_DEDUP_THRESHOLD, safe_dedup_threshold};
+pub use parse_stack::ParseStack;
 
-    /// Version tracking info for conflict resolution
-    version: VersionInfo,
-
-    /// Unique ID for this fork
-    #[allow(dead_code)]
-    id: usize,
-}
-
-impl ParseStack {
-    fn new(initial_state: StateId, id: usize) -> Self {
-        Self {
-            states: vec![initial_state],
-            nodes: vec![],
-            version: VersionInfo::new(),
-            id,
-        }
-    }
-
-    /// Get the current state
-    fn current_state(&self) -> StateId {
-        self.states.last().copied().unwrap_or(StateId(0))
-    }
-
-    /// Push a new state and node
-    fn push(&mut self, state: StateId, node: Arc<Subtree>) {
-        // Update version info with dynamic precedence
-        self.version.add_dynamic_prec(node.dynamic_prec);
-
-        self.states.push(state);
-        self.nodes.push(node);
-    }
-
-    /// Pop n states and nodes for a reduction
-    fn pop(&mut self, n: usize) -> Vec<Arc<Subtree>> {
-        if n >= self.states.len() {
-            // Should not happen in valid LR parsing, but protect against overflow
-            self.states.truncate(1); // Keep initial state
-            return self.nodes.split_off(0);
-        }
-        self.states.truncate(self.states.len() - n);
-        self.nodes.split_off(self.nodes.len() - n)
-    }
-
-    /// Clone this stack for forking
-    fn fork(&self, new_id: usize) -> Self {
-        Self {
-            states: self.states.clone(),
-            nodes: self.nodes.clone(),
-            version: self.version.clone(),
-            id: new_id,
-        }
-    }
-
-    /// Print tree structure for debugging
-    #[allow(dead_code)]
-    fn print_tree_structure(node: &Arc<Subtree>, indent: usize) {
-        let _prefix = "  ".repeat(indent);
-        debug_glr!(
-            "{}Symbol {}, range {:?}",
-            _prefix,
-            node.node.symbol_id.0,
-            node.node.byte_range
-        );
-        for edge in &node.children {
-            Self::print_tree_structure(&edge.subtree, indent + 1);
-        }
-    }
-
-    /// Check if two stacks have structurally equivalent parse trees
-    #[allow(dead_code)]
-    fn has_equivalent_parse_tree(&self, other: &ParseStack) -> bool {
-        // First check if they have the same number of nodes
-        if self.nodes.len() != other.nodes.len() {
-            return false;
-        }
-
-        // Check each node for structural equivalence
-        for (node1, node2) in self.nodes.iter().zip(other.nodes.iter()) {
-            if !Self::nodes_structurally_equivalent(node1, node2) {
-                return false;
-            }
-        }
-
-        true
-    }
-
-    /// Check if two subtree nodes are structurally equivalent
-    #[allow(dead_code)]
-    fn nodes_structurally_equivalent(node1: &Arc<Subtree>, node2: &Arc<Subtree>) -> bool {
-        // Check symbol and span
-        if node1.node.symbol_id != node2.node.symbol_id {
-            return false;
-        }
-
-        if node1.node.byte_range != node2.node.byte_range {
-            return false;
-        }
-
-        // Check if both are error nodes
-        if node1.node.is_error != node2.node.is_error {
-            return false;
-        }
-
-        // Check children structure
-        if node1.children.len() != node2.children.len() {
-            return false;
-        }
-
-        // Recursively check all children
-        for (edge1, edge2) in node1.children.iter().zip(node2.children.iter()) {
-            // Check field IDs match
-            if edge1.field_id != edge2.field_id {
-                return false;
-            }
-            // Check subtrees match
-            if !Self::nodes_structurally_equivalent(&edge1.subtree, &edge2.subtree) {
-                return false;
-            }
-        }
-
-        true
-    }
-}
+use ambiguity::{
+    SelectedCompleteStack, subtree_node_count, subtree_selection_key, version_selection_reason,
+};
 
 /// Recovery event for tracking what recovery actions were taken
 #[derive(Clone, Copy, Debug)]
@@ -381,56 +202,6 @@ pub struct GLRParser {
     telemetry: TelemetryCounters,
 }
 
-type SubtreeSelectionKey = Vec<(usize, usize, u16, u16, usize)>;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct SelectedCompleteStack {
-    stack_index: usize,
-    reason: SelectionReason,
-}
-
-fn subtree_selection_key(node: &Subtree) -> SubtreeSelectionKey {
-    let mut key = Vec::new();
-    append_subtree_selection_key(node, &mut key);
-    key
-}
-
-fn append_subtree_selection_key(node: &Subtree, key: &mut SubtreeSelectionKey) {
-    key.push((
-        node.node.byte_range.start,
-        node.node.byte_range.end,
-        node.node.symbol_id.0,
-        u16::from(node.node.is_error),
-        node.children.len(),
-    ));
-
-    for edge in &node.children {
-        key.push((usize::MAX, usize::MAX, edge.field_id, 0, 0));
-        append_subtree_selection_key(&edge.subtree, key);
-    }
-}
-
-fn subtree_node_count(node: &Subtree) -> usize {
-    1 + node
-        .children
-        .iter()
-        .map(|edge| subtree_node_count(&edge.subtree))
-        .sum::<usize>()
-}
-
-fn version_selection_reason(left: &ParseStack, right: &ParseStack) -> SelectionReason {
-    if left.version.in_error != right.version.in_error || left.version.cost != right.version.cost {
-        return SelectionReason::ErrorCost;
-    }
-
-    if left.version.dynamic_prec != right.version.dynamic_prec {
-        return SelectionReason::DynamicPrecedence;
-    }
-
-    SelectionReason::StableStructuralTieBreak
-}
-
-/// Dummy telemetry type when feature is disabled
 #[cfg(not(feature = "glr_telemetry"))]
 #[allow(dead_code)]
 struct TelemetryCounters;
@@ -479,6 +250,12 @@ impl GLRParser {
         )
     }
 
+    /// Return the number of runtime stack forks recorded during this parse.
+    #[cfg(feature = "glr_telemetry")]
+    pub fn telemetry_fork_count(&self) -> usize {
+        self.telemetry.fork_count
+    }
+
     /// Helper to update telemetry counters (no-op when feature disabled)
     #[cfg(feature = "glr_telemetry")]
     #[inline]
@@ -492,6 +269,16 @@ impl GLRParser {
     fn bump_telemetry(&mut self, _f: impl FnOnce(&mut TelemetryCounters)) {
         // No-op when telemetry is disabled
     }
+
+    #[cfg(feature = "glr_telemetry")]
+    #[inline]
+    fn record_runtime_fork(&mut self) {
+        self.telemetry.fork_count += 1;
+    }
+
+    #[cfg(not(feature = "glr_telemetry"))]
+    #[inline]
+    fn record_runtime_fork(&mut self) {}
 
     /// Calculate priority for an action based on precedence
     #[inline]
@@ -799,6 +586,7 @@ impl GLRParser {
                                     Action::Shift(new_state) => {
                                         let mut forked = stack.fork(self.next_stack_id);
                                         self.next_stack_id += 1;
+                                        self.record_runtime_fork();
 
                                         forked.push(
                                             *new_state,
@@ -820,6 +608,7 @@ impl GLRParser {
                                         // Reductions should have been handled in phase 1, but if not, handle them
                                         let mut forked = stack.fork(self.next_stack_id);
                                         self.next_stack_id += 1;
+                                        self.record_runtime_fork();
                                         self.perform_reduction_on_stack(
                                             &mut forked,
                                             *rule_id,
@@ -839,6 +628,7 @@ impl GLRParser {
                                         for nested_action in nested_actions {
                                             let mut nested_fork = stack.fork(self.next_stack_id);
                                             self.next_stack_id += 1;
+                                            self.record_runtime_fork();
 
                                             match nested_action {
                                                 Action::Shift(new_state) => {
@@ -1332,6 +1122,7 @@ impl GLRParser {
                 // Fork the stack for this reduction
                 let mut reduced_stack = stack.fork(self.next_stack_id);
                 self.next_stack_id += 1;
+                self.record_runtime_fork();
 
                 // Apply the reduction (this will pop symbols and push via GOTO)
                 self.perform_reduction_on_stack(&mut reduced_stack, rule_id, lookahead_end);
