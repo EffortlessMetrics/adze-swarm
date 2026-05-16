@@ -81,7 +81,6 @@ mod build_parsers;
 pub use build_parsers::build_parsers;
 
 use std::path::Path;
-
 #[cfg(test)]
 mod tests {
     use syn::parse_quote;
