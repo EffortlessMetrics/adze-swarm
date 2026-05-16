@@ -215,7 +215,7 @@ cargo test -p adze --features "pure-rust,serialization,glr" --test adze_document
 | `adze check` rejects non-grammar file | `test_check_rejects_file_without_adze_grammar` | — | — |
 | `adze stats` rejects non-grammar file | `test_stats_rejects_file_without_adze_grammar` | — | — |
 | `adze parse` documents available modes | `test_parse_help_documents_available_modes` | — | — |
-| `adze parse --output document-json` output | `test_parse_document_json_mode_emits_schema_envelope` | — | — |
+| `adze parse --output document-json/tree-json/diagnostics-json/ambiguity-json` output | `test_parse_document_projection_modes_emit_schema_envelopes` | — | — |
 | `adze check` with broken grammar | `test_check_reports_invalid_grammar_syntax` | — | — |
 | Missing grammar path handling | `test_check_reports_missing_grammar_path` | — | — |
 

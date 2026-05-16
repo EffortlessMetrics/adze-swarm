@@ -53,7 +53,7 @@ cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_to_sexp -- 
 cargo test -p adze --features "pure-rust,serialization" --test adze_document_json -- --nocapture
 cargo test -p adze --features "pure-rust,serialization,glr" --test adze_document_json parse_document_json_serializes_glr_ambiguity_summary -- --exact --nocapture
 cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_e2e_ambiguous_grammar_glr generated_ambiguous_expr_glr_runtime_retains_three_or_more_complete_alternatives -- --exact --nocapture
-cargo test -p adze-cli test_parse_document_json_mode_emits_schema_envelope -- --exact --nocapture
+cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
 ```
 
 Release-quality receipts:
