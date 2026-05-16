@@ -1,7 +1,7 @@
 # 0.9.0 Release Readiness
 
 **Last updated:** 2026-05-16
-**Status:** In progress — accuracy map landed, test PRs queued
+**Status:** Ready for release closeout — all tracked items covered
 
 This document tracks the release-readiness checklist for Adze 0.9.0.
 It is a receipt, not a plan: each item must have a proof command that passes before the item is marked complete.
@@ -21,6 +21,11 @@ A 0.9.0 release is ready when all of the following are true:
 5. Benchmarks are classified (real / synthetic / placeholder / duplicate).
 6. `just ci-supported` passes on `main`.
 7. `just ci-product-stable` passes on `main`.
+
+As of PR #97, every tracked checklist item below is covered and
+`docs/status/ACCURACY_PROOF_MAP.md` has zero named gaps. Tagging and publishing
+remain explicit release operations and should be performed from the release
+surface after a fresh final proof run.
 
 ---
 
@@ -111,5 +116,5 @@ Items 1–18 are blocking for the surfaces they cover. Items 19–34 are release
 10. docs: audit README claims against proof map              ← item 19
 11. benchmarks: classify benchmark inventory                 ← items 20-21
 12. release: audit publishable package metadata              ← items 22-30
-13. release: update this receipt, tag 0.9.0
+13. release: update this receipt, tag 0.9.0              ← receipt complete; tag/publish remains explicit release operation
 ```
