@@ -59,7 +59,7 @@ A 0.9.0 release is ready when all of the following are true:
 | 22 | Package publishability — adze | pending | `cargo package -p adze --allow-dirty` | — |
 | 23 | Package publishability — adze-macro | covered | `cargo package -p adze-macro --allow-dirty` | #58 |
 | 24 | Package publishability — adze-tool | pending | `cargo package -p adze-tool --allow-dirty` | — |
-| 25 | Package publishability — adze-cli | pending | `cargo package -p adze-cli --allow-dirty` | — |
+| 25 | Package publishability — adze-cli | covered | `cargo package -p adze-cli --allow-dirty` | #90 |
 | 26 | Package publishability — adze-ir | covered | `cargo package -p adze-ir --allow-dirty` | #57 |
 | 27 | Package publishability — adze-glr-core | covered | `cargo package -p adze-glr-core --allow-dirty` | #59 |
 | 28 | Package publishability — adze-tablegen | covered | `cargo package -p adze-tablegen --allow-dirty` | #58 |
@@ -70,7 +70,6 @@ Current package blockers:
 
 - `cargo package -p adze --allow-dirty`: package verification resolves older crates.io governance/support crates that do not expose the runtime parser-selection APIs used by the local `adze` crate.
 - `cargo package -p adze-tool --allow-dirty`: package verification resolves crates.io `adze-tablegen v0.8.0`, which does not export `TypedCstGenerator`.
-- `cargo package -p adze-cli --allow-dirty`: package verification cannot resolve `adze-tool` from crates.io.
 
 ### CI gates
 

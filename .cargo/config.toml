@@ -12,6 +12,12 @@ rustflags = [
 color = "never"
 progress.when = "never"
 
+[patch.crates-io]
+# Let `cargo package -p adze-cli --allow-dirty` verify before the matching
+# unpublished adze-tool crate exists on crates.io. Published manifests still
+# carry the normal version requirement; this is workspace verification config.
+adze-tool = { path = "tool" }
+
 [profile.dev]
 # Faster compilation at the cost of runtime performance
 opt-level = 0
