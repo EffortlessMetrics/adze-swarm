@@ -68,7 +68,7 @@ A 0.9.0 release is ready when all of the following are true:
 
 Current package blockers:
 
-- `cargo package -p adze --allow-dirty`: optional `ts-bridge` dependency resolves against crates.io, where `^0.1.0` is unavailable.
+- `cargo package -p adze --allow-dirty`: package verification resolves older crates.io governance/support crates that do not expose the runtime parser-selection APIs used by the local `adze` crate.
 - `cargo package -p adze-tool --allow-dirty`: package verification resolves crates.io `adze-tablegen v0.8.0`, which does not export `TypedCstGenerator`.
 - `cargo package -p adze-cli --allow-dirty`: package verification cannot resolve `adze-tool` from crates.io.
 
