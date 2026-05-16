@@ -37,6 +37,7 @@ AREAS: dict[str, list[str]] = {
     "docs": [
         r"^docs/",
         r"^book/",
+        r"^\.adze/goals/",
         r"\.md$",
         r"^README",
         r"^CHANGELOG",

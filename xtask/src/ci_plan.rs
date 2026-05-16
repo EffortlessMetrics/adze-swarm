@@ -131,7 +131,10 @@ const FRONTDOOR_DEFAULTS: &[&str] = &[
 /// Mirrors the top-level area classifier in scripts/ci/pr-plan.py so the
 /// canonical Rust planner emits `changed.areas` with the same vocabulary.
 const AREAS: &[(&str, &[&str])] = &[
-    ("docs", &["docs/", "book/", "README", "CHANGELOG"]),
+    (
+        "docs",
+        &["docs/", "book/", ".adze/goals/", "README", "CHANGELOG"],
+    ),
     (
         "workflow",
         &[
@@ -673,6 +676,16 @@ mod tests {
         let files = vec!["docs/ci/ripr.md".to_string(), "README.md".to_string()];
         let areas = classify_areas(&files);
         assert!(areas.contains(&"docs".to_string()), "got: {areas:?}");
+    }
+
+    #[test]
+    fn classify_areas_treats_goal_manifests_as_docs() {
+        let files = vec![
+            ".adze/goals/active.toml".to_string(),
+            ".adze/goals/archive/2026-05-16-0.9-contract-convergence.toml".to_string(),
+        ];
+        let areas = classify_areas(&files);
+        assert_eq!(areas, vec!["docs".to_string()]);
     }
 
     #[test]

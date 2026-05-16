@@ -25,7 +25,7 @@ plan into job conditions.
 
 | Output | Use |
 | --- | --- |
-| `docs_only` | true when the PR only touches docs/README/changelog |
+| `docs_only` | true when the PR only touches docs, README/changelog, or `.adze/goals/**` source-of-truth manifests |
 | `estimated_lem` | sum of `base_lem` across selected lanes |
 | `band` | `ordinary` / `elevated` / `high` / `over-ceiling` |
 | artifact `ci-plan` | the full `ci-plan.json` |
