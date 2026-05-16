@@ -1,0 +1,109 @@
+# 0.9.0 Release Readiness
+
+**Last updated:** 2026-05-15
+**Status:** In progress — accuracy map landed, test PRs queued
+
+This document tracks the release-readiness checklist for Adze 0.9.0.
+It is a receipt, not a plan: each item must have a proof command that passes before the item is marked complete.
+
+**Source of truth for gaps:** [`docs/status/ACCURACY_PROOF_MAP.md`](../../docs/status/ACCURACY_PROOF_MAP.md)
+
+---
+
+## Release criteria
+
+A 0.9.0 release is ready when all of the following are true:
+
+1. All **Stable** and **Stabilizing** support-tier surfaces have named proof commands that pass.
+2. No **Stable** claim in README lacks a proof command in `SUPPORT_TIERS.md`.
+3. The accuracy proof map has zero "Missing" entries for Stable surfaces.
+4. All publishable crates pass `cargo package --allow-dirty`.
+5. Benchmarks are classified (real / synthetic / placeholder / duplicate).
+6. `just ci-supported` passes on `main`.
+7. `just ci-product-stable` passes on `main`.
+
+---
+
+## Checklist
+
+### Product proof (accuracy map gaps)
+
+| # | Item | Status | Proof command | PR |
+|---|------|--------|---------------|----|
+| 1 | parse() / parse_document() GLR-path agreement | pending | — | — |
+| 2 | parse() / parse_document() CST topology comparison | pending | — | — |
+| 3 | Recovered document refuses strict AST extraction | pending | — | — |
+| 4 | AdzeDocument source_slice() boundary test | pending | — | — |
+| 5 | Empty field map canary | pending | — | — |
+| 6 | Field lookup on error/missing nodes | pending | — | — |
+| 7 | Repeated field iteration | pending | — | — |
+| 8 | Byte↔point span agreement | pending | — | — |
+| 9 | Multi-error deduplication | pending | — | — |
+| 10 | Diagnostic ordering by position | pending | — | — |
+| 11 | EOF boundary error span | pending | — | — |
+| 12 | Mixed ASCII/multibyte line counting | pending | — | — |
+| 13 | ERROR/MISSING nodes in S-expression | pending | — | — |
+| 14 | Nested alias behavior | pending | — | — |
+| 15 | CST-level GLR determinism | pending | — | — |
+| 16 | Fork count stability | pending | — | — |
+| 17 | Schema version pin for JSON | pending | — | — |
+| 18 | CLI `parse --mode document` output | pending | — | — |
+
+### Release quality
+
+| # | Item | Status | Proof command | PR |
+|---|------|--------|---------------|----|
+| 19 | README claims audit against proof map | pending | `cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exact --nocapture` | — |
+| 20 | Benchmark classification inventory | pending | `cargo test -p adze-benchmarks --test verify_fixture_parsing -- --nocapture` | — |
+| 21 | Duplicate bench deprecation (glr_performance.rs) | pending | `cargo bench -p adze-benchmarks --no-run` | — |
+| 22 | Package publishability — adze | pending | `cargo package -p adze --allow-dirty` | — |
+| 23 | Package publishability — adze-macro | pending | `cargo package -p adze-macro --allow-dirty` | — |
+| 24 | Package publishability — adze-tool | pending | `cargo package -p adze-tool --allow-dirty` | — |
+| 25 | Package publishability — adze-cli | pending | `cargo package -p adze-cli --allow-dirty` | — |
+| 26 | Package publishability — adze-ir | pending | `cargo package -p adze-ir --allow-dirty` | — |
+| 27 | Package publishability — adze-glr-core | pending | `cargo package -p adze-glr-core --allow-dirty` | — |
+| 28 | Package publishability — adze-tablegen | pending | `cargo package -p adze-tablegen --allow-dirty` | — |
+| 29 | Package publishability — adze-common | pending | `cargo package -p adze-common --allow-dirty` | — |
+| 30 | `just check-publishable` recipe exists | pending | `just check-publishable` | — |
+
+### CI gates
+
+| # | Item | Status | Proof command |
+|---|------|--------|---------------|
+| 31 | `just ci-supported` passes | pending | `just ci-supported` |
+| 32 | `just ci-product-stable` passes | pending | `just ci-product-stable` |
+| 33 | `cargo fmt --all --check` passes | pending | `cargo fmt --all --check` |
+| 34 | `just clippy` passes | pending | `just clippy` |
+
+---
+
+## Blocking definition
+
+An item is **blocking** if:
+- It covers a Stable support-tier surface with no existing proof.
+- It covers a README claim with no proof command.
+- It exposes a correctness gap that would mislead users if released.
+
+An item is **advisory** if:
+- It covers Experimental or Advisory surfaces.
+- It improves quality signal but does not affect correctness of Stable claims.
+
+Items 1–18 are blocking for the surfaces they cover. Items 19–34 are release quality, not correctness blockers — but all must pass before `0.9.0` is tagged.
+
+---
+
+## Recommended PR sequence
+
+```
+1. docs(status): add 0.9 accuracy and coverage map         ← this document
+2. test(document): prove parse and parse_document agree     ← items 1-3
+3. test(document): prove edge field metadata invariants     ← items 5-7
+4. test(diagnostics): prove expected-token normalization    ← items 8-10
+5. test(diagnostics): cover UTF-8 and EOF recovery spans    ← items 11-12
+6. test(ts-compat): prove adapter identity and alias        ← items 13-14
+7. test(glr): prove ambiguity summary determinism           ← items 15-16
+8. docs: audit README claims against proof map              ← item 19
+9. benchmarks: classify benchmark inventory                 ← items 20-21
+10. release: audit publishable package metadata             ← items 22-30
+11. release: update this receipt, tag 0.9.0
+```
