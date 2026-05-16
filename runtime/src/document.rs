@@ -1595,3 +1595,143 @@ pub trait SyntaxNode<'doc>: Copy {
         self.document().ast_from_node(self.node_id())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn symbol_metadata(name: &str, symbol_id: SymbolId, is_named: bool) -> TableSymbolMetadata {
+        TableSymbolMetadata {
+            name: name.to_string(),
+            is_visible: true,
+            is_named,
+            is_supertype: false,
+            is_terminal: !is_named,
+            is_extra: false,
+            is_fragile: false,
+            symbol_id,
+        }
+    }
+
+    fn fielded_language() -> (Grammar, ParseTable) {
+        let mut table = ParseTable::default();
+        table.symbol_metadata = vec![
+            symbol_metadata("ERROR", SymbolId(0), true),
+            symbol_metadata("source_file", SymbolId(1), true),
+            symbol_metadata("expression", SymbolId(2), true),
+            symbol_metadata("number", SymbolId(3), true),
+            symbol_metadata("-", SymbolId(4), false),
+        ];
+        table.symbol_count = table.symbol_metadata.len();
+        table.index_to_symbol = table
+            .symbol_metadata
+            .iter()
+            .map(|metadata| metadata.symbol_id)
+            .collect();
+        table.field_names = vec![
+            "left".to_string(),
+            "operator".to_string(),
+            "right".to_string(),
+        ];
+
+        (Grammar::new("fielded".to_string()), table)
+    }
+
+    #[test]
+    fn field_lookup_resolves_missing_error_child() {
+        let (grammar, table) = fielded_language();
+        let source_file = SymbolId(1);
+        let expression = SymbolId(2);
+        let number = SymbolId(3);
+        let operator = SymbolId(4);
+        let error = SymbolId(0);
+        let source = "1-";
+
+        let root = ParseNode {
+            symbol: source_file,
+            symbol_id: source_file,
+            start_byte: 0,
+            end_byte: source.len(),
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![ParseNode {
+                symbol: expression,
+                symbol_id: expression,
+                start_byte: 0,
+                end_byte: source.len(),
+                field_name: None,
+                alias_symbol_id: None,
+                children: vec![
+                    ParseNode {
+                        symbol: number,
+                        symbol_id: number,
+                        start_byte: 0,
+                        end_byte: 1,
+                        field_name: Some("left".to_string()),
+                        alias_symbol_id: None,
+                        children: Vec::new(),
+                    },
+                    ParseNode {
+                        symbol: operator,
+                        symbol_id: operator,
+                        start_byte: 1,
+                        end_byte: 2,
+                        field_name: Some("operator".to_string()),
+                        alias_symbol_id: None,
+                        children: Vec::new(),
+                    },
+                    ParseNode {
+                        symbol: error,
+                        symbol_id: error,
+                        start_byte: 2,
+                        end_byte: 2,
+                        field_name: Some("right".to_string()),
+                        alias_symbol_id: None,
+                        children: Vec::new(),
+                    },
+                ],
+            }],
+        };
+        let document =
+            AdzeDocument::from_parse_result(source, root, 1, "fielded", &grammar, &table);
+
+        let expression = document
+            .tree()
+            .root()
+            .child(0)
+            .expect("root should expose expression child");
+        let right_field = document
+            .language()
+            .field_id_for_name("right")
+            .expect("right field should resolve");
+        let right_edge = expression
+            .edge_by_field_name("right")
+            .expect("right edge should resolve even when its child is missing");
+        let right_child = right_edge.child().expect("right edge child should resolve");
+
+        assert_eq!(expression.field_name_for_child(2), Some("right"));
+        assert_eq!(expression.field_id_for_child(2), Some(right_field));
+        assert_eq!(right_edge.field_name(), Some("right"));
+        assert_eq!(right_edge.field_id(), Some(right_field));
+        assert_eq!(
+            expression
+                .child_by_field_name("right")
+                .expect("right field lookup should return the missing child")
+                .node_id(),
+            right_child.node_id()
+        );
+        assert_eq!(
+            expression
+                .child_by_field_id(right_field)
+                .expect("right field-id lookup should return the missing child")
+                .node_id(),
+            right_child.node_id()
+        );
+        assert_eq!(right_child.field_name(), Some("right"));
+        assert_eq!(right_child.field_id(), Some(right_field));
+        assert!(right_child.is_error());
+        assert!(right_child.is_missing());
+        assert!(right_child.has_error());
+        assert!(document.tree().has_errors());
+    }
+}

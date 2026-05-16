@@ -37,15 +37,13 @@ fn symbol_named(lang: &Language, name: &str) -> SymbolId {
     symbol
 }
 
-fn arithmetic_with_expression_child_alias(alias_name: &str) -> Language {
-    let mut lang = (*adze_example::ts_langs::arithmetic()).clone();
-    let source_file = symbol_named(&lang, "source_file");
+fn push_alias_symbol(lang: &mut Language, alias_name: &str, alias_is_named: bool) -> SymbolId {
     let alias_symbol = SymbolId(lang.table.symbol_metadata.len() as u16);
 
     lang.table.symbol_metadata.push(SymbolMetadata {
         name: alias_name.to_string(),
         is_visible: true,
-        is_named: true,
+        is_named: alias_is_named,
         is_supertype: false,
         is_terminal: false,
         is_extra: false,
@@ -61,6 +59,14 @@ fn arithmetic_with_expression_child_alias(alias_name: &str) -> Language {
         .resize(lang.table.symbol_metadata.len(), SymbolId(0));
     lang.table.index_to_symbol[alias_symbol.0 as usize] = alias_symbol;
 
+    alias_symbol
+}
+
+fn arithmetic_with_expression_child_alias(alias_name: &str) -> Language {
+    let mut lang = (*adze_example::ts_langs::arithmetic()).clone();
+    let source_file = symbol_named(&lang, "source_file");
+    let alias_symbol = push_alias_symbol(&mut lang, alias_name, true);
+
     let source_file_rule = lang
         .table
         .rules
@@ -71,6 +77,38 @@ fn arithmetic_with_expression_child_alias(alias_name: &str) -> Language {
         .alias_sequences
         .resize_with(source_file_rule + 1, Vec::new);
     lang.table.alias_sequences[source_file_rule] = vec![Some(alias_symbol)];
+
+    lang
+}
+
+fn arithmetic_with_nested_expression_aliases() -> Language {
+    let mut lang = (*adze_example::ts_langs::arithmetic()).clone();
+    let source_file = symbol_named(&lang, "source_file");
+    let expression = symbol_named(&lang, "expression");
+    let outer_alias = push_alias_symbol(&mut lang, "outer_expression", true);
+    let inner_alias = push_alias_symbol(&mut lang, "inner_expression", true);
+
+    let source_file_rule = lang
+        .table
+        .rules
+        .iter()
+        .position(|rule| rule.lhs == source_file && rule.rhs_len == 1)
+        .expect("arithmetic fixture should reduce source_file from expression");
+    let binary_expression_rule = RuleId(2).0 as usize;
+    assert!(
+        lang.table
+            .rules
+            .get(binary_expression_rule)
+            .is_some_and(|rule| rule.lhs == expression && rule.rhs_len == 3),
+        "arithmetic fixture should keep rule 2 as the subtraction expression rule"
+    );
+
+    lang.table
+        .alias_sequences
+        .resize_with(binary_expression_rule.max(source_file_rule) + 1, Vec::new);
+    lang.table.alias_sequences[source_file_rule] = vec![Some(outer_alias)];
+    lang.table.alias_sequences[binary_expression_rule] =
+        vec![Some(inner_alias), None, Some(inner_alias)];
 
     lang
 }
@@ -133,6 +171,29 @@ fn alias_visible_identity_is_used_in_sexp() {
     assert_eq!(
         expression.to_sexp(),
         "(binary_expression (expression) (expression))"
+    );
+}
+
+#[test]
+fn nested_alias_visible_identity_is_used_in_sexp() {
+    let mut parser = Parser::new();
+    parser
+        .set_language(Arc::new(arithmetic_with_nested_expression_aliases()))
+        .expect("Failed to set language");
+
+    let tree = parser.parse("1-2", None).expect("Parse failed");
+    let expression = tree
+        .root_node()
+        .child(0)
+        .expect("root should expose outer aliased expression child");
+
+    assert_eq!(
+        tree.root_node().to_sexp(),
+        "(source_file (outer_expression (inner_expression) (inner_expression)))"
+    );
+    assert_eq!(
+        expression.to_sexp(),
+        "(outer_expression (inner_expression) (inner_expression))"
     );
 }
 
@@ -244,4 +305,26 @@ fn to_sexp_remains_named_only_when_anonymous_child_has_field_id() {
     );
     assert!(!expression.to_sexp().contains("operator:"));
     assert!(!expression.to_sexp().contains("-"));
+}
+
+#[test]
+fn to_sexp_includes_missing_nodes_for_recovered_input() {
+    let mut parser = Parser::new();
+    parser
+        .set_language(adze_example::ts_langs::arithmetic())
+        .expect("Failed to set language");
+
+    let tree = parser
+        .parse("1-", None)
+        .expect("parser should return an inspectable recovered tree");
+    let sexp = tree.root_node().to_sexp();
+
+    assert!(
+        sexp.contains("(MISSING)"),
+        "S-expression should expose recovered missing nodes: {sexp}"
+    );
+    assert!(
+        !sexp.contains("(ERROR)"),
+        "zero-width recovery should render as MISSING rather than ERROR: {sexp}"
+    );
 }
