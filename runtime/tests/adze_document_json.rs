@@ -175,6 +175,85 @@ fn parse_document_json_serializes_diagnostics_and_error_flags() {
 }
 
 #[test]
+fn parse_document_json_diagnostic_fields_match_native_diagnostic() {
+    use adze_example::typed_ast_contract::grammar;
+
+    let source = "1 + \u{03bb}";
+    let document = grammar::parse_document(source)
+        .expect("generated parse_document helper should return multibyte partial parse facts");
+    let json = document.to_json_value();
+    let native = document
+        .diagnostics()
+        .first()
+        .expect("multibyte bad token should produce a native diagnostic");
+    let diagnostic = json["diagnostics"]
+        .as_array()
+        .and_then(|diagnostics| diagnostics.first())
+        .expect("multibyte bad token should serialize a diagnostic");
+
+    let expected = diagnostic["expected"]
+        .as_array()
+        .expect("diagnostic JSON should serialize expected tokens")
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .expect("expected token JSON values should be strings")
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    let related_nodes = diagnostic["related_nodes"]
+        .as_array()
+        .expect("diagnostic JSON should serialize related node IDs")
+        .iter()
+        .map(|value| {
+            value
+                .as_u64()
+                .expect("related node JSON values should be numeric") as usize
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        diagnostic["start_byte"].as_u64(),
+        Some(native.start_byte as u64)
+    );
+    assert_eq!(
+        diagnostic["end_byte"].as_u64(),
+        Some(native.end_byte as u64)
+    );
+    assert_eq!(diagnostic["found"].as_str(), native.found.as_deref());
+    assert_eq!(expected, native.expected);
+    assert_eq!(
+        related_nodes,
+        native
+            .related_nodes
+            .iter()
+            .map(|node_id| node_id.as_usize())
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        diagnostic["message"].as_str(),
+        Some(native.message.as_str())
+    );
+    assert_eq!(
+        diagnostic["point_range"]["start"]["row"].as_u64(),
+        Some(native.point_range.start.row as u64)
+    );
+    assert_eq!(
+        diagnostic["point_range"]["start"]["column"].as_u64(),
+        Some(native.point_range.start.column as u64)
+    );
+    assert_eq!(
+        diagnostic["point_range"]["end"]["row"].as_u64(),
+        Some(native.point_range.end.row as u64)
+    );
+    assert_eq!(
+        diagnostic["point_range"]["end"]["column"].as_u64(),
+        Some(native.point_range.end.column as u64)
+    );
+}
+
+#[test]
 fn parse_document_json_serializes_multibyte_diagnostic_span() {
     use adze_example::typed_ast_contract::grammar;
 
