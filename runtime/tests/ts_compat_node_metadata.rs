@@ -28,14 +28,19 @@ fn minus_symbol(lang: &Language) -> SymbolId {
     symbol_named(lang, "-")
 }
 
-fn push_alias_symbol(lang: &mut Language, alias_name: &str, alias_is_named: bool) -> SymbolId {
+fn push_alias_symbol_with_supertype(
+    lang: &mut Language,
+    alias_name: &str,
+    alias_is_named: bool,
+    alias_is_supertype: bool,
+) -> SymbolId {
     let alias_symbol = SymbolId(lang.table.symbol_metadata.len() as u16);
 
     lang.table.symbol_metadata.push(SymbolMetadata {
         name: alias_name.to_string(),
         is_visible: true,
         is_named: alias_is_named,
-        is_supertype: false,
+        is_supertype: alias_is_supertype,
         is_terminal: false,
         is_extra: false,
         is_fragile: false,
@@ -53,6 +58,10 @@ fn push_alias_symbol(lang: &mut Language, alias_name: &str, alias_is_named: bool
     alias_symbol
 }
 
+fn push_alias_symbol(lang: &mut Language, alias_name: &str, alias_is_named: bool) -> SymbolId {
+    push_alias_symbol_with_supertype(lang, alias_name, alias_is_named, false)
+}
+
 fn arithmetic_with_expression_child_alias(
     alias_name: &str,
     alias_is_named: bool,
@@ -61,6 +70,28 @@ fn arithmetic_with_expression_child_alias(
     let source_file = symbol_named(&lang, "source_file");
     let expression = symbol_named(&lang, "expression");
     let alias_symbol = push_alias_symbol(&mut lang, alias_name, alias_is_named);
+
+    let source_file_rule = lang
+        .table
+        .rules
+        .iter()
+        .position(|rule| rule.lhs == source_file && rule.rhs_len == 1)
+        .expect("arithmetic fixture should reduce source_file from expression");
+    lang.table
+        .alias_sequences
+        .resize_with(source_file_rule + 1, Vec::new);
+    lang.table.alias_sequences[source_file_rule] = vec![Some(alias_symbol)];
+
+    (lang, expression, alias_symbol)
+}
+
+fn arithmetic_with_expression_child_supertype_alias(
+    alias_name: &str,
+) -> (Language, SymbolId, SymbolId) {
+    let mut lang = (*adze_example::ts_langs::arithmetic()).clone();
+    let source_file = symbol_named(&lang, "source_file");
+    let expression = symbol_named(&lang, "expression");
+    let alias_symbol = push_alias_symbol_with_supertype(&mut lang, alias_name, true, true);
 
     let source_file_rule = lang
         .table
@@ -281,6 +312,39 @@ fn nested_aliases_preserve_visible_and_grammar_identity() {
     assert_eq!(
         tree.language().node_kind_for_id(left.kind_id()),
         Some("inner_expression")
+    );
+}
+
+#[test]
+fn supertype_alias_preserves_visible_identity_and_metadata() {
+    let (lang, expression_symbol, alias_symbol) =
+        arithmetic_with_expression_child_supertype_alias("expression_supertype");
+
+    let mut parser = Parser::new();
+    parser
+        .set_language(Arc::new(lang))
+        .expect("Failed to set language");
+
+    let tree = parser.parse("1-2", None).expect("Parse failed");
+    let expression = tree
+        .root_node()
+        .child(0)
+        .expect("root should expose supertype aliased expression child");
+
+    assert_eq!(expression.kind(), "expression_supertype");
+    assert_eq!(expression.kind_id(), alias_symbol.0);
+    assert_eq!(expression.grammar_name(), "expression");
+    assert_eq!(expression.grammar_id(), expression_symbol.0);
+    assert!(tree.language().node_kind_is_supertype(expression.kind_id()));
+    assert!(
+        !tree
+            .language()
+            .node_kind_is_supertype(expression.grammar_id())
+    );
+    assert_eq!(
+        tree.language()
+            .id_for_node_kind("expression_supertype", true),
+        alias_symbol.0
     );
 }
 
