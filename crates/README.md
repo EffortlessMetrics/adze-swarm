@@ -1,170 +1,69 @@
-# SRP Microcrates
+# Durable Support Crates
 
-This directory contains single-responsibility principle (SRP) support modules that implement governance-as-code for the Adze parser toolchain. During the 0.9 release work, transitional façade crates are being retired or moved into owner submodules before release.
-
-## Overview
-
-Each microcrate follows the single-responsibility principle, focusing on one specific concern:
-
-- **Contract crates** define traits and types for inter-module communication
-- **Core crates** provide concrete implementations
-- **Fixture crates** supply test data and scenarios
-
-This modular architecture enables:
-
-- Independent testing and validation
-- Clear dependency boundaries
-- Feature-gated compilation
-- Contract-based verification
-
-## Categories
-
-### BDD Framework
-
-Behavior-driven development infrastructure for scenario tracking and progress reporting.
-
-| Crate | Purpose |
-|-------|---------|
-| [`bdd-governance-core`](bdd-governance-core) | Core implementation of BDD governance |
-
-### Governance
-
-Parser backend selection, metadata management, and policy enforcement.
-
-| Crate | Purpose |
-|-------|---------|
-
-### Utilities (3 crates)
-
-Shared utilities, metadata, and support structures.
-
-| Crate | Purpose |
-|-------|---------|
-| [`linecol-core`](linecol-core) | Line/column byte-position tracking |
-| [`parsetable-metadata`](parsetable-metadata) | Parse table and governance metadata structures |
-| [`ts-c-harness`](ts-c-harness) | Tree-sitter C FFI test harness *(excluded from workspace)* |
-
-## Dependency Graph
-
-The dependency graph is intentionally not maintained by hand during the 0.9
-microcrate transition. Use these source-of-truth commands instead:
+This directory contains the remaining SRP support crates after the 0.9
+microcrate-to-owner-module collapse. The package-boundary ledger is the source
+of truth for whether a package is part of the release workspace:
 
 ```bash
 cargo metadata --format-version 1 --no-deps
 cargo run -q -p xtask -- check-package-boundary
+cargo run -q -p xtask -- check-package-boundary --release-gate
 ```
 
-## Feature Flag Matrix
+The release gate must stay free of `owner-module-migration-target` entries.
 
-All crates support standard governance features for parser backend selection:
+## Workspace Support Crates
 
-| Feature | Description |
-|---------|-------------|
-| `pure-rust` | Enable pure-Rust GLR backend |
-| `tree-sitter-standard` | Enable standard Tree-sitter backend |
-| `tree-sitter-c2rust` | Enable c2rust Tree-sitter backend |
-| `glr` | Enable GLR parsing (implies `pure-rust`) |
-| `strict_api` | Deny unreachable public items |
-| `strict_docs` | Deny missing documentation |
+| Crate | Purpose | Boundary |
+|-------|---------|----------|
+| [`bdd-governance-core`](bdd-governance-core) | BDD governance matrix primitives and parser feature policy helpers. | Published support crate |
+| [`common-type-ops-core`](common-type-ops-core) | Shared type-shape transformation helpers for macro/tool syntax handling. | Published support crate |
+| [`linecol-core`](linecol-core) | Byte-to-line/column position tracking for diagnostics and scanner/lexer surfaces. | Published support crate |
+| [`parsetable-metadata`](parsetable-metadata) | Shared `.parsetable` metadata model and parsing helpers. | Published support crate |
 
-### Feature Propagation
+## Excluded Harness
 
-Features propagate through the dependency chain:
+| Crate | Purpose | Boundary |
+|-------|---------|----------|
+| [`ts-c-harness`](ts-c-harness) | Tree-sitter C FFI parity test harness. | Excluded from workspace; build explicitly when the C/Tree-sitter environment is present |
 
-```text
-bdd-governance-core
-  └── bdd-governance-core::grid
-```
+## Boundary Rules
 
-Enabling `glr` on `bdd-governance-core` automatically enables `pure-rust` and propagates down the chain.
+- Do not add a new crate under `crates/` without updating
+  [`../policy/package-boundary.toml`](../policy/package-boundary.toml).
+- Do not reintroduce durable unpublished production crates.
+- Temporary owner-module migration targets are release blockers.
+- Product claims for support crates must map through
+  [`../docs/status/SUPPORT_TIERS.md`](../docs/status/SUPPORT_TIERS.md).
 
-## Test Coverage Summary
+See:
 
-The microcrate list is actively shrinking during the 0.9 SRP owner-module
-transition. See
-[MICROCRATE_TEST_COVERAGE.md](../docs/status/MICROCRATE_TEST_COVERAGE.md)
-for the current tracked crate count and coverage analysis.
+- [`../docs/adr/ADZE-ADR-0002-no-durable-unpublished-production-crates.md`](../docs/adr/ADZE-ADR-0002-no-durable-unpublished-production-crates.md)
+- [`../docs/adr/ADZE-ADR-0005-durable-published-support-crates.md`](../docs/adr/ADZE-ADR-0005-durable-published-support-crates.md)
+- [`../plans/0.9.0/microcrate-collapse.md`](../plans/0.9.0/microcrate-collapse.md)
+- [`../docs/status/MICROCRATE_TEST_COVERAGE.md`](../docs/status/MICROCRATE_TEST_COVERAGE.md)
 
-## Quick Start
+## Features
 
-### Adding a Dependency
+Support crates keep feature flags scoped to their actual responsibility. Common
+workspace feature names may appear where they are part of the crate contract:
 
-Add microcrates to your `Cargo.toml` using workspace dependencies:
+| Feature | Meaning |
+|---------|---------|
+| `pure-rust` | Enables pure-Rust parser/governance support where applicable. |
+| `tree-sitter-standard` | Enables standard Tree-sitter backend policy where applicable. |
+| `tree-sitter-c2rust` | Enables c2rust Tree-sitter backend policy where applicable. |
+| `glr` | Enables GLR-related policy or parser support where applicable. |
+| `strict_api` | Denies unreachable public items for the crate. |
+| `strict_docs` | Denies missing documentation for the crate. |
+
+## Adding Dependencies
+
+These support crates are ordinary workspace members, but they are not currently
+registered under `[workspace.dependencies]`. Use explicit package-local paths
+unless a later PR promotes a support crate into the shared dependency table:
 
 ```toml
 [dependencies]
-adze-bdd-governance-core = { workspace = true }
+adze-bdd-governance-core = { version = "0.1.0", path = "../bdd-governance-core" }
 ```
-
-### Enabling Features
-
-Select your parser backend via feature flags:
-
-```toml
-[dependencies]
-adze-bdd-governance-core = { workspace = true, features = ["glr"] }
-```
-
-### Using BDD Progress Tracking
-
-```rust
-use adze_bdd_contract::{bdd_progress_report, BddPhase};
-
-// Generate a progress report for the Core phase
-let report = bdd_progress_report(BddPhase::Core);
-println!("{}", report);
-```
-
-### Using Governance Contracts
-
-```rust
-use adze_bdd_governance_core::{ParserBackend, ParserFeatureProfile};
-
-// Get the current feature profile
-let profile = ParserFeatureProfile::current();
-
-// Select the appropriate backend
-let backend = profile.preferred_backend();
-```
-
-### Using Concurrency Initialization
-
-```rust
-use adze::concurrency_caps::init_concurrency_caps;
-
-// Initialize concurrency caps (idempotent)
-init_concurrency_caps();
-```
-
-### Using Line/Column Tracking
-
-```rust
-use adze_linecol_core::LineCol;
-
-let lc = LineCol::at_position(b"hello\nworld", 8);
-assert_eq!(lc.line, 1);
-assert_eq!(lc.column(8), 2);
-```
-
-## Crate Naming Conventions
-
-| Suffix | Meaning |
-|--------|---------|
-| `-contract` | Trait and type definitions only |
-| `-core` | Concrete implementations |
-| `-fixtures` | Test data and scenarios |
-| `-impl` | Specific implementations of contracts |
-
-## Architecture Principles
-
-1. **Single Responsibility**: Each crate has one clear purpose
-2. **Contract-First**: Traits defined in `-contract` crates
-3. **Feature-Gated**: All crates support standard feature flags
-4. **Test Coverage**: 100% BDD + property test coverage
-5. **Documentation**: All public APIs documented with `//!` comments
-
-## Related Documentation
-
-- [MICROCRATE_TEST_COVERAGE.md](../docs/status/MICROCRATE_TEST_COVERAGE.md) - Detailed test coverage analysis
-- [API_STABILITY.md](../docs/status/API_STABILITY.md) - API stability guarantees
-- [AGENTS.md](../AGENTS.md) - Development guidelines

@@ -1,5 +1,6 @@
 # Auto-generated release surface from workspace metadata (publishable crates only).
 adze-common
+adze-common-type-ops-core
 adze-linecol-core
 adze-lsp-generator
 adze-macro

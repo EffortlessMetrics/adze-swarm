@@ -253,7 +253,7 @@ cargo bench -p adze-benchmarks --no-run
 |--------|--------------|---------|-----------|
 | Core crates have correct metadata | `cargo metadata --format-version 1` succeeds | — | — |
 | Local package verification for co-release siblings | `scripts/package-local-release.sh adze`; `scripts/package-local-release.sh adze-tool` | — | — |
-| Direct package verification for independent publishable crates | `cargo package -p adze-macro --allow-dirty`; `cargo package -p adze-cli --allow-dirty`; `cargo package -p adze-ir --allow-dirty`; `cargo package -p adze-glr-core --allow-dirty`; `cargo package -p adze-tablegen --allow-dirty`; `cargo package -p adze-common --allow-dirty` | — | — |
+| Direct package verification for independent publishable crates | `cargo package -p adze-macro --allow-dirty`; `cargo package -p adze-cli --allow-dirty`; `cargo package -p adze-ir --allow-dirty`; `cargo package -p adze-glr-core --allow-dirty`; `cargo package -p adze-tablegen --allow-dirty`; `cargo package -p adze-common --allow-dirty`; `cargo package -p adze-common-type-ops-core --allow-dirty` | — | — |
 | Publishability recipe exists | `just check-publishable` | — | — |
 
 **Proof commands:**

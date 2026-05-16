@@ -24,7 +24,8 @@ operations.
 - `AdzeDocument` product-proof coverage for document boundaries, typed AST/CST
   projections, diagnostics, GLR ambiguity summaries, Tree-sitter compatibility
   adapters, and experimental document JSON.
-- Advisory CLI document JSON output via `adze parse --output document-json`.
+- Advisory CLI document projection output via `adze parse --output
+  document-json/tree-json/diagnostics-json/ambiguity-json`.
 - Publishability receipts for tracked release crates, using local release
   packaging for co-release siblings that cannot resolve against older crates.io
   versions.
@@ -71,6 +72,7 @@ cargo package -p adze-ir --allow-dirty
 cargo package -p adze-glr-core --allow-dirty
 cargo package -p adze-tablegen --allow-dirty
 cargo package -p adze-common --allow-dirty
+cargo package -p adze-common-type-ops-core --allow-dirty
 ```
 
 Source-of-truth receipts:

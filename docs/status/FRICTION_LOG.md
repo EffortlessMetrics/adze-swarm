@@ -127,7 +127,7 @@ If it happens twice, it's not "user error". It's friction we own until we remove
 minutes on standard hardware when the workspace included 47 governance/support
 microcrates plus the full core pipeline.
 **Expected:** Developers can iterate quickly on individual crates.
-**Actual:** The 0.9 microcrate-to-SRP collapse reduced the workspace to 28
+**Actual:** The 0.9 microcrate-to-SRP collapse reduced the workspace to 29
 packages, but full workspace builds can still be heavier than focused
 iteration because grammar/tooling/golden surfaces remain outside the core
 supported lane.
