@@ -72,9 +72,9 @@ impl<'a> AbiLanguageBuilder<'a> {
     /// Generate the complete language module.
     ///
     /// Orchestrates the SRP-decomposed helpers: diagnostic logging
-    /// ([`Self::log_generation_start`], etc.), per-field static-array
-    /// generators (`generate_*` methods), conditional fragment builders
-    /// ([`Self::build_external_scanner_pieces`], etc.), and the final
+    /// (`log_generation_start`, etc.), per-field static-array generators
+    /// (`generate_*` methods), conditional fragment builders
+    /// (`build_external_scanner_pieces`, etc.), and the final
     /// `TSLanguage` assembly below.
     pub fn generate(&self) -> TokenStream {
         let language_name = &self.grammar.name;

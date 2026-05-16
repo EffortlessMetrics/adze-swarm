@@ -1,5 +1,5 @@
 #![cfg_attr(feature = "strict_docs", allow(missing_docs))]
-//! Diagnostic tracing for [`AbiLanguageBuilder::generate`].
+//! Diagnostic tracing for `AbiLanguageBuilder::generate`.
 //!
 //! These helpers exist solely to keep verbose `debug_trace!` calls out of the
 //! generation orchestrator. They have no effect on the produced TokenStream

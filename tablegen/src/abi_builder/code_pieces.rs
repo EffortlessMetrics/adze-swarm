@@ -1,6 +1,6 @@
 #![cfg_attr(feature = "strict_docs", allow(missing_docs))]
-//! Conditional [`TokenStream`] fragments emitted by
-//! [`AbiLanguageBuilder::generate`].
+//! Conditional `TokenStream` fragments emitted by
+//! `AbiLanguageBuilder::generate`.
 //!
 //! The generation orchestrator threads several optional fragments through its
 //! final `quote!` template: the external-scanner interface, the alias-table
