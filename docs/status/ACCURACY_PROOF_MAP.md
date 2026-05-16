@@ -170,12 +170,13 @@ cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_types 
 | Multiple alternatives retained | `generated_ambiguous_expr_glr_runtime_retains_multiple_complete_alternatives` | — | — |
 | Selection reason present and stable | `SelectionReason::StableStructuralTieBreak` asserted | — | — |
 | CST-level determinism (not just AST) | `generated_ambiguous_expr_parse_document_cst_topology_is_deterministic` | — | — |
-| Fork count stability | none | No test that fork count is stable across runs | Add test: parse twice → same fork count |
+| Fork count stability | `generated_ambiguous_expr_runtime_fork_count_is_deterministic` | — | — |
 | Larger ambiguity (3+ alternatives) | none | No test for input producing 3+ structurally distinct parse trees | Add test: grammar with 3-way ambiguity |
 
 **Proof commands:**
 ```bash
 cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_e2e_ambiguous_grammar_glr -- --nocapture
+cargo test -p adze --features "pure-rust,glr,glr_telemetry,runtime-e2e" --test test_e2e_ambiguous_grammar_glr generated_ambiguous_expr_runtime_fork_count_is_deterministic -- --exact --nocapture
 ```
 
 ---
@@ -281,18 +282,18 @@ cargo package -p adze-common --allow-dirty
 | Diagnostics normalization | 10 | 0 | — |
 | UTF-8 / zero-width spans | 7 | 0 | — |
 | ts_compat adapter identity | 9 | 0 | — |
-| Ambiguity determinism | 6 | 2 | Fork count stability |
+| Ambiguity determinism | 7 | 1 | Larger ambiguity (3+ alternatives) |
 | JSON projection | 5 | 2 | Schema version pin test |
 | CLI output truth | 5 | 3 | `adze parse --mode document` test |
 | Benchmarks truth | 2 | 4 | Deprecate duplicate bench |
 | Package publishability | 1 | 2 | `just check-publishable` recipe |
-| **Total** | **66** | **14** | — |
+| **Total** | **67** | **13** | — |
 
 ---
 
 ## Recommended test PR sequence
 
-Each PR adds focused tests for one surface gap. No code changes to production crates.
+Each PR adds focused proof for one surface gap. Test-only PRs are preferred; production code changes stay limited to gaps where the claimed receipt is not wired honestly yet.
 
 1. **test(document): prove parse and parse_document agree** — GLR-path agreement and CST topology comparison
 2. **test(document): prove recovered-doc AST refusal** — strict AST extraction refuses recovered diagnostic documents through document AST entry points
@@ -301,7 +302,7 @@ Each PR adds focused tests for one surface gap. No code changes to production cr
 5. **test(diagnostics): prove expected-token normalization** — byte↔point span agreement, multi-error dedup, diagnostic ordering
 6. **test(diagnostics): cover UTF-8 and EOF recovery spans** — EOF boundary, mixed ASCII/multibyte line counting
 7. **test(ts-compat): prove adapter identity and alias behavior** — complete
-8. **test(glr): prove ambiguity summary determinism** — fork count stability
+8. **test(glr): prove ambiguity summary determinism** — larger 3+ alternative ambiguity
 9. **docs: audit README claims against proof map** — no new tests, verify existing proof commands still pass
 10. **benchmarks: classify benchmark inventory** — mark duplicates, document what each bench measures
 11. **release: audit publishable package metadata** — add `just check-publishable` recipe
