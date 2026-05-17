@@ -222,11 +222,12 @@ commands = [
 
 [[work_item]]
 id = "query-field-constraints-and-anchors"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0013"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [142]
 commands = [
   "cargo test -p adze --lib query::matcher_v2 -- --nocapture",
   "cargo test -p adze --lib query -- --nocapture",
@@ -235,12 +236,11 @@ commands = [
 
 [[work_item]]
 id = "query-predicate-parity"
-status = "blocked"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0013"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
-blocked_by = ["query-compatibility-spec"]
 commands = [
   "cargo test -p adze --lib query -- --nocapture",
   "git diff --check",

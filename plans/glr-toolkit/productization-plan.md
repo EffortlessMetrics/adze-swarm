@@ -261,7 +261,7 @@ Define the supported Tree-sitter query subset and the explicit known gaps.
 
 ### Work Item: query-field-constraints-and-anchors
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -269,7 +269,7 @@ Implement field constraints and anchor behavior for the documented subset.
 
 ### Work Item: query-predicate-parity
 
-Status: blocked by `query-compatibility-spec`
+Status: active
 
 #### Goal
 

@@ -92,6 +92,7 @@ Covered source-aware predicates:
 | `#any-of?` | capture text equals one listed literal |
 
 When source text is unavailable, text predicates and literal token patterns must
+fail closed. Missing captures, invalid regexes, and invalid source ranges also
 fail closed.
 
 ## Field Constraints And Anchors
