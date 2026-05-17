@@ -1,13 +1,13 @@
 # GLR Toolkit Productization Plan
 
-Status: active
+Status: complete
 Owner: runtime/product
 Created: 2026-05-17
 Linked proposal: ../../docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md
 Linked specs:
-- planned: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
-- planned: ../../docs/specs/ADZE-SPEC-0013-query-compatibility.md
-- planned: ../../docs/specs/ADZE-SPEC-0014-performance-and-regression.md
+- ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
+- ../../docs/specs/ADZE-SPEC-0013-query-compatibility.md
+- ../../docs/specs/ADZE-SPEC-0014-performance-and-regression.md
 Linked ADRs:
 - ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 - ../../docs/adr/ADZE-ADR-0003-summary-first-glr-ambiguity.md
@@ -66,7 +66,7 @@ git diff --check
 
 ### Work Item: glr-toolkit-campaign-source-of-truth
 
-Status: active
+Status: complete
 Proposal: ../../docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md
 Active goal: ../../.adze/goals/active.toml
 
@@ -92,7 +92,7 @@ git diff --check
 
 ### Work Item: glr-toolkit-product-contract
 
-Status: ready
+Status: complete
 Planned spec: ADZE-SPEC-0012-glr-toolkit-product-contract
 
 #### Goal
@@ -115,7 +115,7 @@ performance evidence without promoting any claim by itself.
 
 ### Work Item: canonical-starter-project
 
-Status: ready
+Status: complete
 
 #### Goal
 
@@ -145,7 +145,7 @@ bad input.
 
 ### Work Item: quickstart-and-mental-model
 
-Status: blocked by `glr-toolkit-product-contract`
+Status: complete
 
 #### Goal
 
@@ -242,7 +242,7 @@ known alias-visible gaps explicit until proven.
 
 ### Work Item: error-missing-node-compat
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -379,3 +379,53 @@ Status: complete
 
 Promote only proven slices in `../../docs/status/SUPPORT_TIERS.md`, with proof
 commands, limitations, and README claim alignment.
+
+## Campaign Closeout
+
+Status: complete
+Closed: 2026-05-17
+
+### What Shipped
+
+- Repo-target sync and `EffortlessMetrics/adze-swarm` operating discipline.
+- Product contract, first-use CLI/docs path, fixture taxonomy, and projection
+  equivalence proof.
+- Generated GLR conflict matrix, tablegen ABI roundtrip, and GOTO/symbol
+  indexing invariant proof.
+- Tree-sitter selected-tree, node-types, and error/missing-node compatibility
+  receipts for the documented subset.
+- Query compatibility spec, field constraints, anchors, predicates, and
+  supported-subset differential corpus.
+- Recovery matrix and CLI diagnostic projection proof.
+- Canonical parser cookbook and Tree-sitter migration guide.
+- Incremental lifecycle acceptance and full-reparse fallback metadata.
+- Performance contract plus benchmark fixture and projection receipts.
+- Support-tier proof receipts without broad over-promotion.
+
+### What Did Not Ship
+
+- Stable full GLR forest export.
+- Full Tree-sitter API or query parity.
+- Stable document JSON or WASM schema.
+- Stable incremental reuse or performance guarantees.
+- Blocking performance thresholds.
+
+### Proof Commands
+
+```bash
+cargo run -q -p xtask -- check-active-goal --mode blocking
+cargo run -q -p xtask -- check-doc-artifacts --mode blocking
+git diff --check
+```
+
+The work-item proof commands above and the support-tier proof map remain the
+receipts for individual product slices.
+
+### Next Campaign Candidates
+
+- Promote specific proven slices after user-facing docs and support-tier rows
+  line up with repeatable proof.
+- Close remaining Tree-sitter and query compatibility gaps.
+- Harden stable document, CLI, and WASM serialized schemas.
+- Add measured regression thresholds once benchmark baselines have enough
+  history.
