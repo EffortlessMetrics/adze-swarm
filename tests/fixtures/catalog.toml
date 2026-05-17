@@ -97,13 +97,16 @@ known_gaps = [
 [[fixture]]
 id = "recovery-unexpected-eof"
 family = "recovery"
-class = "unexpected EOF"
-grammar = "planned"
-input = "1 +"
+class = "generated bad-input matrix"
+grammar = "adze_example::typed_ast_contract::grammar, adze_example::ambiguous_expr::grammar, adze_example::ts_langs::arithmetic"
+input = "1 +; 1 + newline; 1 + @; 1 + lambda; multiline @; 1-@"
 selected_tree = "recovered document tree when trustworthy"
 ambiguity = "none unless grammar is ambiguous"
-diagnostics = "EOF diagnostic with expected tokens"
+diagnostics = "byte span, point range, expected tokens, related nodes, and JSON diagnostic projection"
 ts_compat = "has_error agrees with document error facts"
 support_tier = "structured parse errors"
-proof = "cargo test -p adze --features \"pure-rust,glr\" generated_parse_errors -- --nocapture"
-known_gaps = ["full recovery matrix pending"]
+proof = "cargo test -p adze --features \"pure-rust,glr,serialization,ts-compat\" --test recovery_matrix -- --nocapture"
+known_gaps = [
+  "missing close delimiter and external scanner cases remain future fixture classes",
+  "diagnostic wording is still not a frozen stable contract",
+]
