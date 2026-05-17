@@ -97,6 +97,12 @@ mod tests {
         query_with_root(root)
     }
 
+    fn literal_child_query(root_symbol: u16, literal: &str) -> Query {
+        let mut root = PatternNode::new(SymbolId(root_symbol), true);
+        root.add_child(PatternChild::Token(literal.to_string()));
+        query_with_root(root)
+    }
+
     fn query_with_root(root: PatternNode) -> Query {
         let mut capture_names = HashMap::new();
         capture_names.insert("node".to_string(), 0);
@@ -197,5 +203,16 @@ mod tests {
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].captures[0].node.start_byte, 0);
         assert_eq!(matches[0].captures[0].node.end_byte, 5);
+    }
+
+    #[test]
+    fn test_literal_child_when_source_text_unavailable_returns_no_match() {
+        let query = literal_child_query(1, "+");
+        let tree = parse_node(1, 0, 1, vec![parse_node(2, 0, 1, Vec::new())]);
+
+        let mut cursor = QueryCursor::new();
+        let matches = cursor.collect_matches(&query, &tree);
+
+        assert!(matches.is_empty());
     }
 }

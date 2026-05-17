@@ -284,17 +284,24 @@ impl<'a> QueryMatcher<'a> {
                     false
                 }
             }
-            PatternChild::Token(_token) => {
-                // For now, assume tokens match (would need lexer info)
-                self.match_child_sequence(
-                    pattern_children,
-                    node_children,
-                    pattern_idx + 1,
-                    node_idx + 1,
-                    state,
-                )
+            PatternChild::Token(token) => {
+                if self.node_text(&node_children[node_idx]) == Some(token.as_str()) {
+                    self.match_child_sequence(
+                        pattern_children,
+                        node_children,
+                        pattern_idx + 1,
+                        node_idx + 1,
+                        state,
+                    )
+                } else {
+                    false
+                }
             }
         }
+    }
+
+    fn node_text(&self, node: &ParseNode) -> Option<&str> {
+        self.source.get(node.start_byte..node.end_byte)
     }
 }
 
@@ -364,6 +371,18 @@ mod tests {
         }
     }
 
+    fn make_root(children: Vec<ParseNode>, end_byte: usize) -> ParseNode {
+        ParseNode {
+            symbol: SymbolId(0),
+            symbol_id: SymbolId(0),
+            children,
+            start_byte: 0,
+            end_byte,
+            field_name: None,
+            alias_symbol_id: None,
+        }
+    }
+
     fn create_test_grammar() -> Grammar {
         let mut grammar = Grammar::new("test".to_string());
         grammar.tokens.insert(
@@ -400,6 +419,23 @@ mod tests {
                 symbol_id: SymbolId(1),
             },
         ]
+    }
+
+    fn literal_child_query(literal: &str) -> Query {
+        let mut root = PatternNode::new(SymbolId(0), true);
+        root.add_child(PatternChild::Token(literal.to_string()));
+
+        Query {
+            source: String::new(),
+            patterns: vec![Pattern {
+                root,
+                predicates: Vec::new(),
+                start_byte: 0,
+            }],
+            capture_names: HashMap::new(),
+            property_settings: Vec::new(),
+            property_predicates: Vec::new(),
+        }
     }
 
     #[test]
@@ -508,5 +544,31 @@ mod tests {
 
         // Should not match anything
         assert_eq!(matches.len(), 0);
+    }
+
+    #[test]
+    fn test_literal_child_when_text_matches_returns_match() {
+        let source = "+";
+        let root = make_root(vec![make_node(1, 0, 1)], source.len());
+        let query = literal_child_query("+");
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+    }
+
+    #[test]
+    fn test_literal_child_when_text_differs_returns_no_match() {
+        let source = "-";
+        let root = make_root(vec![make_node(1, 0, 1)], source.len());
+        let query = literal_child_query("+");
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+
+        assert!(matches.is_empty());
     }
 }
