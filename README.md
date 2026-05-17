@@ -172,7 +172,15 @@ Contributions are welcome. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for guidel
 
 ## Development
 
+Start by checking your local toolchain and optional dependencies:
+
 ```bash
+./scripts/dev-doctor.sh  # works even before `just` is installed
+just doctor              # same check through the command runner
+```
+
+```bash
+just                    # list available development recipes
 just ci-supported      # required PR gate — fmt + clippy + tests on core crates
 just ci-product-stable # optional Stable README product canaries
 just test              # core lib tests

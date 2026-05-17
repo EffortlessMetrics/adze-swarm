@@ -10,6 +10,14 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 # PowerShell-launched tools. Keep just recipes usable from a clean Windows shell.
 set windows-shell := ["C:\\Program Files\\Git\\bin\\bash.exe", "-eu", "-o", "pipefail", "-c"]
 
+# Show available development shortcuts when running bare `just`.
+default:
+    @just --list --unsorted
+
+# Check required and optional local development tools with actionable fixes.
+doctor:
+    ./scripts/dev-doctor.sh
+
 # Format declared workspace members
 fmt:
     ./scripts/fmt-workspace.sh --check

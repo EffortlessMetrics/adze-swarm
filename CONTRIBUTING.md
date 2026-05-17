@@ -11,13 +11,16 @@ git clone https://github.com/<you>/adze.git && cd adze
 # 2. Toolchain installs automatically via rust-toolchain.toml (Rust 1.95+)
 rustup show  # verify toolchain
 
-# 3. Build
+# 3. Check local development tools and get the shortest supported-lane path
+./scripts/dev-doctor.sh
+
+# 4. Build
 cargo build
 
-# 4. Test
+# 5. Test
 cargo test
 
-# 5. Lint
+# 6. Lint
 cargo fmt --all --check && cargo clippy --all -- -D warnings
 ```
 
@@ -30,6 +33,10 @@ cargo fmt --all --check && cargo clippy --all -- -D warnings
 - **rg** (ripgrep) — optional but recommended
 - **libtree-sitter-dev** — only needed for the `ts-bridge` tool
 - **libclang** — only needed for binding generation in some features
+
+Run `./scripts/dev-doctor.sh` after cloning to verify required tools and see
+actionable install hints. If `just` is already installed, `just doctor` runs the
+same check.
 
 ### Enable Git Hooks
 

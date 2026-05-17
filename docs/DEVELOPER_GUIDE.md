@@ -10,6 +10,14 @@
 - **C Compiler**: Required for `tree-sitter` C integration
 - **just**: Command runner (optional but recommended)
 
+Run the local doctor script before your first build or whenever the environment
+looks suspicious:
+
+```bash
+./scripts/dev-doctor.sh  # direct path, works before just is installed
+just doctor              # equivalent just recipe
+```
+
 ## Maintenance Lanes
 
 Adze uses a "Support Lane" model to keep the core green while allowing experimental features to evolve.
@@ -77,6 +85,12 @@ The helper refuses to remove the main repository root and refuses standalone clo
 
 ### Core Development
 ```bash
+# Check required tools and optional dependencies
+just doctor
+
+# List available development recipes
+just
+
 # Run tests for core crates only (fast)
 just test
 
