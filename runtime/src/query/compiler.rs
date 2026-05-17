@@ -13,6 +13,7 @@ pub fn compile_query(source: &str, grammar: &Grammar) -> Result<Query, super::Qu
 mod tests {
     use super::*;
     use crate::query::QueryError;
+    use crate::query::ast::PatternChild;
     use adze_ir::{Grammar, SymbolId, Token, TokenPattern};
 
     fn create_test_grammar() -> Grammar {
@@ -190,5 +191,16 @@ mod tests {
             }
             Err(e) => panic!("Query compilation failed: {:?}", e),
         }
+    }
+
+    #[test]
+    fn test_query_with_anchors() {
+        let grammar = create_test_grammar();
+        let query = compile_query(r#"(statement . (expression) .)"#, &grammar).unwrap();
+        let children = &query.patterns[0].root.children;
+
+        assert!(matches!(children.first(), Some(PatternChild::Anchor)));
+        assert!(matches!(children.get(1), Some(PatternChild::Node(_))));
+        assert!(matches!(children.get(2), Some(PatternChild::Anchor)));
     }
 }

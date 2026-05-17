@@ -1,6 +1,90 @@
-# Tree-sitter Format Specification
+# Tree-sitter Compatibility Reference
 
-> **This spec governs encoder, decoder, runtime, tests, and CI. Any changes to tags/columns/reduce/goto/Accept must update all of: encoder, decoder, tests, `docs/ts_spec.md`, `docs/MERGE_CHECKLIST.md`.**
+This reference defines Adze's current Tree-sitter compatibility contract. It
+covers two related but separate surfaces:
+
+- generated `TSLanguage` table-format and decode invariants;
+- the `ts_compat` selected-tree adapter that projects from native Adze document
+  facts.
+
+Tree-sitter compatibility is an adapter surface. It does not define Adze's
+native parse truth. `AdzeDocument` remains the canonical parse product, and
+`ts_compat` exposes the selected tree for ecosystem interop.
+
+Do not read this page as a full Tree-sitter parity claim. The supported subset
+below is the current product contract; broader query, node-types, corpus, and
+error-recovery parity remain explicitly tiered in
+[`SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md).
+
+Query compatibility has its own subset reference:
+[`query-compatibility.md`](query-compatibility.md).
+
+## Selected-tree Compatibility Subset
+
+The compatibility adapter exposes one selected tree. Native GLR ambiguity
+summaries stay on `AdzeDocument`; `ts_compat` does not expose raw forest data or
+multiple parse alternatives.
+
+### Supported now
+
+These method families are covered by current canaries and are the main
+selected-tree subset users should build against:
+
+| Area | Supported surface |
+| --- | --- |
+| Tree entry | `Tree::root_node()`, `Tree::language()`, document-backed tree creation |
+| Child traversal | `child(i)`, `named_child(i)`, `child_count()`, `named_child_count()` |
+| Sibling and parent traversal | `parent()`, `next_sibling()`, `prev_sibling()`, named sibling filtering |
+| Cursor traversal | forward, reverse/end, reset/reuse, depth, descendant indexing |
+| Ranges | `start_byte()`, `end_byte()`, `start_position()`, `end_position()` |
+| Descendant lookup | byte-range and point-range descendant lookup |
+| Field lookup | `child_by_field_name()`, public field IDs, child field-name lookup |
+| Identity | alias-visible `kind()` / `kind_id()`, raw `grammar_name()` / `grammar_id()` |
+| Node flags | `is_named()`, `is_extra()`, `is_error()`, `has_error()`, `is_missing()` where facts exist |
+| S-expression | named-node S-expression output using alias-visible identity |
+| Language metadata | field-name/id lookup and node-kind metadata lookup |
+
+### Stabilizing
+
+These surfaces are useful and covered by targeted tests, but still need broader
+fixture and imported-grammar proof before promotion:
+
+- alias-visible identity across all generated parser paths;
+- selected-tree error and missing-node projection for recovered generated input;
+- node-types metadata generated from the same language schema;
+- GLR selected-tree determinism for a broader conflict matrix;
+- parity against imported grammar fixtures beyond the current smoke/canary set.
+
+### Advisory or future
+
+These are not product claims yet:
+
+- full Tree-sitter query parity;
+- alias-visible node-types parity;
+- parse-state metadata;
+- changed-range/incremental edit parity;
+- C ABI stability for arbitrary external consumers;
+- full imported grammar corpus compatibility;
+- raw GLR forest exposure through `ts_compat`.
+
+### Proof commands
+
+Representative selected-tree proof is tracked in
+[`SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md). The main local canaries are:
+
+```bash
+cargo test -p adze --features "pure-rust,glr,ts-compat" --test ts_compat_selected_tree -- --nocapture
+cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_tree_children -- --nocapture
+cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_tree_cursor -- --nocapture
+cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_language_fields -- --nocapture
+cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_metadata -- --nocapture
+cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_error -- --nocapture
+cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_to_sexp -- --nocapture
+```
+
+Promotion of this subset should use the consolidated `ts_compat_selected_tree`
+matrix plus targeted method-family canaries rather than relying only on
+scattered tests.
 
 ## Critical ABI Contract
 
@@ -63,7 +147,10 @@ This document defines the exact binary format and invariants that must be mainta
 - Minimum Compatible: Version 13
 
 ## ABI Stability
-The GLR implementation maintains bit-for-bit compatibility with Tree-sitter's C runtime for all table formats and action encodings.
+The table ABI targets Tree-sitter language version 15 for the covered table
+formats and action encodings. Compatibility claims are proof-driven: do not
+claim full Tree-sitter runtime parity until the relevant method family, query
+behavior, node-types metadata, and imported grammar corpus proof exist.
 
 ## Runtime Node Identity
 

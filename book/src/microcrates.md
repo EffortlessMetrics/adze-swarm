@@ -1,103 +1,104 @@
-# Microcrate Guide
+# Crate And Package Boundary Guide
 
-Adze follows a **single-responsibility-principle (SRP) microcrate** architecture. Each crate owns one concern, keeps a narrow public API, and declares its dependencies explicitly. This page catalogues every workspace crate, grouped by layer.
+> **Doc status:** `policy/package-boundary.toml` is the source of truth for
+> package classification. This page is an explanatory map, not the policy
+> ledger.
 
-## Core pipeline crates
+Adze used to describe its workspace as a broad microcrate architecture. The
+current rule is narrower:
 
-These crates form the main grammar-to-parser pipeline:
+```text
+Prefer owner modules inside existing packages.
+Create or keep a package only when the package-boundary ledger justifies it.
+```
 
-| Crate | Path | Responsibility |
-|---|---|---|
-| `adze-macro` | `macro/` | Proc-macro attributes (`#[adze::grammar]`, `#[adze::leaf]`, etc.) |
-| `adze-common` | `common/` | Shared grammar expansion logic used by both the macro and the build tool |
-| `adze-ir` | `ir/` | Grammar intermediate representation, normalization, validation, and optimization |
-| `adze-glr-core` | `glr-core/` | FIRST/FOLLOW sets, LR(1) item sets, canonical collection, conflict detection |
-| `adze-tablegen` | `tablegen/` | Table compression and static `Language` struct generation (Tree-sitter ABI) |
-| `adze-tool` | `tool/` | Build-time driver (`build_parsers()`), code emission, visualization |
-| `adze` | `runtime/` | Runtime library: `Extract` trait, error recovery, visitor, serialization |
-| `adze-runtime2` | `runtime2/` | Production GLR runtime: `Parser`, `Tree`, forest builder, incremental editing |
+Every workspace package should be classified as one of:
 
-## Concurrency crates
+- published product or support crate;
+- dev-only tooling/test crate;
+- owner-module migration target.
 
-No standalone concurrency microcrates remain. Concurrency caps, environment
-contracts, normalization, planning, and bounded-map helpers now live under the
-runtime owner module `adze::concurrency_caps`.
+There is no durable category for an unpublished production package without a
+clear owner, proof impact, and review path.
 
-## Governance and BDD crates
+## Core Product Pipeline
 
-Quality-assurance infrastructure for feature tracking and behavioral contracts:
+These crates form the supported grammar-to-parser pipeline:
 
 | Crate | Path | Responsibility |
 |---|---|---|
-| `bdd-contract` | `crates/bdd-contract/` | Shared BDD scenario and phase contracts |
-| `bdd-governance-core` | `crates/bdd-governance-core/` | Governance BDD snapshots/matrix composition |
-| `bdd-governance-reporting-core` | `crates/bdd-governance-reporting-core/` | Profile-aware governance report/status formatting |
-| `bdd-grid-contract` | `crates/bdd-grid-contract/` | Grid/matrix BDD contracts |
-| `feature-policy-contract` | `crates/feature-policy-contract/` | Feature-flag policy contracts |
-| `parser-contract` | `crates/parser-contract/` | Parser trait contracts |
-| `parser-governance-contract` | `crates/parser-governance-contract/` | Parser governance contracts |
-| `parser-feature-contract` | `crates/parser-feature-contract/` | Parser feature contracts |
-| `parser-backend-core` | `crates/parser-backend-core/` | Backend abstraction |
+| `adze` | `runtime/` | Main runtime library: generated `parse()`, `parse_document()`, `Extract`, diagnostics, document/projection APIs |
+| `adze-macro` | `macro/` | Proc-macro attributes such as `#[adze::grammar]` and `#[adze::leaf]` |
+| `adze-tool` | `tool/` | Build-time parser generation and code emission |
+| `adze-common` | `common/` | Shared grammar expansion logic |
+| `adze-ir` | `ir/` | Grammar intermediate representation and normalization |
+| `adze-glr-core` | `glr-core/` | LR/GLR table construction and conflict representation |
+| `adze-tablegen` | `tablegen/` | Table compression, metadata, and ABI-oriented generation |
 
-## Utility and supporting crates
+These are the crates covered by the supported PR gate.
+
+## Experimental Runtime Surface
+
+| Crate | Path | Posture |
+|---|---|---|
+| `adze-runtime` | `runtime2/` | Experimental proving ground; not the public-primary runtime contract |
+
+`runtime2/` can remain useful for implementation experiments, but user-facing
+docs should not describe it as the production runtime. Stable product claims
+must route through generated parser APIs and support-tier proof.
+
+## Durable Support Crates
+
+The post-collapse support crates are intentionally few:
 
 | Crate | Path | Responsibility |
 |---|---|---|
-| `parsetable-metadata` | `crates/parsetable-metadata/` | Parse-table metadata types |
-| `ts-format-core` | `crates/ts-format-core/` | Tree-sitter format utilities |
-| `stack-pool-core` | `crates/stack-pool-core/` | Stack-based object pooling |
-| `glr-versioning` | `crates/glr-versioning/` | GLR version tracking |
-| `glr-test-support` | `glr-test-support/` | Test helpers for GLR crates |
-| `linecol-core` | `crates/linecol-core/` | Line/column position computation |
-| `error-location-core` | `crates/error-location-core/` | Shared parse error location type and offset conversion |
+| `adze-bdd-governance-core` | `crates/bdd-governance-core/` | Governance BDD snapshots and matrix composition |
+| `adze-common-type-ops-core` | `crates/common-type-ops-core/` | Shared type-shape helpers used by macro/tool code |
+| `adze-linecol-core` | `crates/linecol-core/` | Byte/line/column source location support |
+| `adze-parsetable-metadata` | `crates/parsetable-metadata/` | Shared parse-table metadata contracts |
 
-## Application and tooling crates
+`crates/ts-c-harness/` is excluded from ordinary workspace commands and should
+not be treated as a supported product package.
 
-| Crate | Path | Responsibility |
+## Tooling, Tests, And Fixtures
+
+| Area | Examples | Product posture |
 |---|---|---|
-| `adze-cli` | `cli/` | Command-line interface |
-| `lsp-generator` | `lsp-generator/` | LSP server code generation |
-| `playground` | `playground/` | Interactive grammar playground |
-| `wasm-demo` | `wasm-demo/` | Browser-based WASM demo |
-| `ts-bridge` | `tools/ts-bridge/` | Extracts parse tables from compiled Tree-sitter grammars |
+| CLI/tooling | `cli/`, `lsp-generator/`, `xtask/` | Support-tiered; not automatically stable |
+| Benchmarks/perf | `benchmarks/` | Advisory receipts, not merge-blocking product proof by default |
+| Golden/test support | `golden-tests/`, `testing/`, `glr-test-support/`, `test-mini/` | Dev/test proof infrastructure |
+| Grammar fixtures | `grammars/python/`, `grammars/javascript/`, `grammars/go/`, `grammars/python-simple/`, `grammars/test-vec-wrapper/` | Reference/dev fixtures unless promoted by support tiers |
+| Demos | `playground/`, `wasm-demo/`, `samples/downstream-demo/` | Advisory/demo surfaces |
 
-## Test and example crates
+## Adding Or Keeping A Package
 
-| Crate | Path | Responsibility |
-|---|---|---|
-| `example` | `example/` | Example grammars (arithmetic, optionals, repetitions, etc.) |
-| `golden-tests` | `golden-tests/` | Tree-sitter compatibility verification |
-| `testing` | `testing/` | Shared test utilities |
-| `test-mini` | `test-mini/` | Minimal integration smoke tests |
-| `benchmarks` | `benchmarks/` | Performance benchmarks |
-| `downstream-demo` | `samples/downstream-demo/` | Demonstrates downstream consumption |
-| `xtask` | `xtask/` | Workspace automation tasks |
+Before adding a package, ask:
 
-## Grammar crates
+1. Can this be an owner module inside an existing crate?
+2. Is the package public, dev-only, or a temporary migration target?
+3. Who owns it?
+4. Which support-tier or policy row does it affect?
+5. Which proof command covers it?
+6. What is the rollback or owner-module collapse path?
 
-| Crate | Path | Language |
-|---|---|---|
-| `adze-javascript` | `grammars/javascript/` | JavaScript grammar |
-| `adze-python` | `grammars/python/` | Python grammar (with external scanner) |
-| `adze-python-simple` | `grammars/python-simple/` | Simplified Python grammar |
-| `adze-go` | `grammars/go/` | Go grammar |
-| `test-vec-wrapper` | `grammars/test-vec-wrapper/` | Test helper grammar |
+If a new package is still justified, update:
 
-## How crates relate
+```text
+Cargo.toml
+policy/package-boundary.toml
+docs/status/SUPPORT_TIERS.md, if the package affects a product claim
+```
 
-The dependency graph is intentionally acyclic and layered. A quick rule of thumb:
+Then run:
 
-- **Contract crates** (`*-contract`) define traits. They have no logic and no dependencies beyond `std`.
-- **Core crates** (`*-core`) implement those traits. They depend only on their contract crate.
-- **Integration crates** wire cores together behind an owner-facing module or crate.
-- **Application crates** (`cli`, `playground`, `tool`) sit at the top and pull in whatever they need.
+```bash
+cargo run -q -p xtask -- check-package-boundary
+git diff --check
+```
 
-This keeps compile times low, enforces API boundaries, and makes it straightforward to swap implementations.
+## Rule Of Thumb
 
-## Adding a new microcrate
-
-1. `cargo init crates/my-new-core --lib`
-2. Add it to the `[workspace] members` list in the root `Cargo.toml`.
-3. Give it a narrow, descriptive name following the `<domain>-<layer>-core` convention.
-4. If it defines a public API contract, split the trait into a `<domain>-<layer>-contract` crate first.
-5. Wire it into the integration crate that needs it.
+Use packages for durable ownership boundaries. Use modules for ordinary
+implementation structure. Support-tier claims should depend on repeatable proof,
+not on the presence of another crate.

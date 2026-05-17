@@ -1,6 +1,10 @@
 # Architecture
 
-Adze transforms annotated Rust types into high-performance GLR parsers. This page explains the crate organization, build pipeline, and runtime.
+Adze transforms annotated Rust types into generated parsers. The stable front
+door is `grammar::parse()`, which returns typed Rust values directly. Tooling
+uses `grammar::parse_document()` and projects diagnostics, CST, GLR ambiguity,
+Tree-sitter-compatible selected-tree output, and JSON from the same
+`AdzeDocument`.
 
 ## Crate Organization
 
@@ -22,8 +26,8 @@ The workspace is split into focused microcrates (see the [Microcrate Guide](micr
           │  emits parser code
           ▼
 ┌─ Runtime Execution ───────────┐
-│  runtime/    legacy + Extract  │
-│  runtime2/   production GLR    │
+│  runtime/    generated API     │
+│  runtime2/   experimental lab  │
 └────────────────────────────────┘
 ```
 
@@ -65,24 +69,27 @@ Parse tables are compressed using Tree-sitter-compatible algorithms and emitted 
 
 ### Stage 5 — Code Emission (`tool/`)
 
-`adze_tool::build_parsers()` ties the stages together. It writes generated Rust (or C) source files and compile instructions for Cargo.
+`adze_tool::build_parsers()` ties the stages together. It writes generated Rust
+source files and compile instructions for Cargo.
 
 ## Runtime
 
 ### The `Extract` trait
 
-The runtime crate (`runtime/`) provides `Extract`, the core trait that converts a raw parse tree node into a typed Rust value. The generated code implements `Extract` for every type in your grammar module.
+The runtime crate (`runtime/`) provides `Extract`, the core trait that converts
+selected parse facts into typed Rust values. The generated code implements
+`Extract` for every type in your grammar module.
 
-### GLR Engine (`runtime2/`)
+### Generated parser and document path
 
-`runtime2` is the production runtime:
+The generated parser module is the user-facing runtime surface:
 
 | Component | File | Purpose |
 |---|---|---|
-| Parser API | `parser.rs` | Tree-sitter-compatible `Parser` struct |
-| GLR Engine | `engine.rs` | Fork/merge driver over parse tables |
-| Tree Builder | `builder.rs` | Converts GLR forests to trees |
-| Tree | `tree.rs` | Node API with incremental edit support |
+| Typed parse | generated module | `grammar::parse(source)` returns typed AST values |
+| Document parse | generated module + `runtime/` | `grammar::parse_document(source)` returns `AdzeDocument` |
+| Extraction | `runtime/` | Generated `Extract` implementations build typed values |
+| Compatibility projections | `runtime/` | Tree-sitter-shaped selected-tree and JSON/document views |
 
 Parsing flow:
 
@@ -90,27 +97,28 @@ Parsing flow:
 source text
     │
     ▼
-  Lexer ──▶ Token stream
-                │
-                ▼
-          GLR Driver ──▶ Parse forest (may contain ambiguity)
-                              │
-                              ▼
-                        Tree Builder ──▶ Tree-sitter compatible Tree
-                                              │
-                                              ▼
-                                        Extract ──▶ Typed AST
+generated parser ──▶ AdzeDocument
+                         │
+                         ├─▶ Extract ──▶ typed AST
+                         ├─▶ diagnostics
+                         ├─▶ ambiguity summaries
+                         └─▶ compatibility / JSON projections
 ```
+
+`runtime2/` remains an experimental proving ground, not the public-primary
+runtime contract.
 
 ### Performance monitoring
 
-Set `ADZE_LOG_PERFORMANCE=true` to log forest-to-tree conversion statistics (node count, tree depth, elapsed time).
+Set `ADZE_LOG_PERFORMANCE=true` for diagnostic runtime logging where supported.
+Performance claims still need benchmark fixtures and receipts.
 
 ## Key Design Decisions
 
 1. **Two-stage processing** — macros mark types; the build tool generates the parser. This avoids proc-macro limitations (no file I/O, no cross-crate state).
 2. **Conflict preservation** — GLR tables keep all shift/reduce and reduce/reduce conflicts so the parser can fork at runtime, enabling ambiguous-grammar support.
-3. **Tree-sitter ABI compatibility** — generated `Language` structs match Tree-sitter's C ABI exactly, allowing interop with existing Tree-sitter tooling.
+3. **Document-centered compatibility** — Tree-sitter compatibility is a
+   selected-tree adapter over `AdzeDocument`, not the core parse product.
 4. **Bounded concurrency** — all parallel work respects configurable caps (`RUST_TEST_THREADS`, `RAYON_NUM_THREADS`) to prevent resource exhaustion.
 
 ## Further Reading
