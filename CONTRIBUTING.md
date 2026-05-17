@@ -11,13 +11,16 @@ git clone https://github.com/<you>/adze.git && cd adze
 # 2. Toolchain installs automatically via rust-toolchain.toml (Rust 1.95+)
 rustup show  # verify toolchain
 
-# 3. Build
+# 3. Check local setup
+scripts/dev-doctor.sh
+
+# 4. Build
 cargo build
 
-# 4. Test
+# 5. Test
 cargo test
 
-# 5. Lint
+# 6. Lint
 cargo fmt --all --check && cargo clippy --all -- -D warnings
 ```
 

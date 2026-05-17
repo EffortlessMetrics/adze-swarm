@@ -26,6 +26,10 @@ test:
 check-fast:
     cargo check -p adze -p adze-ir -p adze-glr-core --profile dev-fast
 
+# Check local developer prerequisites and repository setup
+doctor:
+    ./scripts/dev-doctor.sh
+
 # Run pre-commit checks
 pre:
     .githooks/pre-commit

@@ -32,6 +32,11 @@ These crates are useful but may break during major refactors.
 - `cli/`
 - `playground/`
 
+To check local tool availability, hooks, and common setup drift before running a heavier gate:
+```bash
+just doctor              # or: scripts/dev-doctor.sh if just is not installed yet
+```
+
 To run the supported gate locally:
 ```bash
 just ci-supported
@@ -77,6 +82,9 @@ The helper refuses to remove the main repository root and refuses standalone clo
 
 ### Core Development
 ```bash
+# Check local prerequisites and repository setup
+just doctor              # or: scripts/dev-doctor.sh if just is not installed yet
+
 # Run tests for core crates only (fast)
 just test
 
