@@ -2,6 +2,16 @@
 
 Instructions for autonomous AI agents (OpenAI Codex, etc.) working on this repository.
 
+## Operating Repo
+
+Active swarm implementation, CI, source-hygiene, and productization work targets
+`EffortlessMetrics/adze-swarm`.
+
+Public `EffortlessMetrics/adze` remains the release, publishing, and external
+contribution intake surface. Do not open new swarm work against public `adze`
+or `adze-dev` unless the user explicitly asks for a public-repo promotion or
+sync.
+
 ## Project Overview
 
 Adze is an AST-first grammar toolchain for Rust. It generates Tree-sitter parsers from Rust type annotations using a pure-Rust GLR implementation.
