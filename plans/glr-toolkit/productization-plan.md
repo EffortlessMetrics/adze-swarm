@@ -341,7 +341,7 @@ current immutable-document, edit-to-new-document, explicit-fallback model.
 
 ### Work Item: reparse-fallback-metadata
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -352,7 +352,7 @@ claim.
 
 ### Work Item: performance-contract
 
-Status: ready
+Status: active
 
 #### Goal
 

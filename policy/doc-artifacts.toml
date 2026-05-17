@@ -54,6 +54,7 @@ source_of_truth_for = ["GLR toolkit productization rationale", "post-0.9 product
 links_to = [
   "ADZE-SPEC-0012",
   "ADZE-SPEC-0013",
+  "ADZE-SPEC-0014",
   "ADZE-ADR-0001",
   "ADZE-ADR-0003",
   "ADZE-ADR-0004",
@@ -192,6 +193,16 @@ owner = "runtime/query"
 milestone = "post-0.9"
 source_of_truth_for = ["Tree-sitter query compatibility subset", "query support-tier promotion behavior"]
 links_to = ["ADZE-PROP-0003", "plans/glr-toolkit/productization-plan.md", "docs/reference/query-compatibility.md", "docs/status/SUPPORT_TIERS.md"]
+
+[[artifact]]
+id = "ADZE-SPEC-0014"
+kind = "spec"
+path = "docs/specs/ADZE-SPEC-0014-performance-and-regression.md"
+status = "accepted"
+owner = "runtime/perf"
+milestone = "post-0.9"
+source_of_truth_for = ["performance evidence contract", "benchmark regression receipt policy"]
+links_to = ["ADZE-PROP-0003", "plans/glr-toolkit/productization-plan.md", "docs/perf/baselines.md", "docs/status/SUPPORT_TIERS.md"]
 
 [[artifact]]
 id = "ADZE-ADR-0001"

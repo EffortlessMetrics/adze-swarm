@@ -80,6 +80,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Correctness Push Plan**](./status/CORRECTNESS_PUSH.md) - Current merge/proof sequence for parser, GLR, tablegen ABI, CLI, and product-proof convergence.
 - [**Support Tiers**](./status/SUPPORT_TIERS.md) - Feature claims mapped to proof commands and CI lanes.
 - [**Product Proof Map**](./status/PRODUCT_PROOF_MAP.md) - Release-readable summary of product claims and their representative proof.
+- [**Performance Baselines**](./perf/baselines.md) - Advisory benchmark baseline policy, receipt fields, and non-claims.
 - [**Friction Log**](./status/FRICTION_LOG.md) - Current developer pain points we are burning down.
 - [**Now / Next / Later**](./status/NOW_NEXT_LATER.md) - Rolling execution plan.
 - [**Known Red**](./status/KNOWN_RED.md) - Exclusions from the supported CI lane.
