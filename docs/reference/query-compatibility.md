@@ -24,8 +24,8 @@ iterate every GLR forest alternative by default.
 | Child sequences | Supported subset | Ordered child patterns are matched. |
 | Child quantifiers | Supported subset | `?`, `*`, and `+` have targeted backtracking canaries. |
 | Anonymous token patterns | Source-aware only | Source-free matching fails closed. |
-| Field constraints | Target | Next implementation target; not promoted yet. |
-| Anchors | Target | First, last, and adjacent constraints need explicit proof. |
+| Field constraints | Supported subset | Covered by matcher canaries for matching and missing/wrong-field rejection. |
+| Anchors | Supported subset | Covered for first-child, last-child, and adjacent sibling constraints. |
 | Alternation | Advisory/future | Requires parser and matcher matrix coverage. |
 | Predicates | Source-aware subset | Text predicates need source text. |
 | Directives | Parsed/advisory | No highlighting or injection semantics claim yet. |
@@ -94,9 +94,9 @@ Covered source-aware predicates:
 When source text is unavailable, text predicates and literal token patterns must
 fail closed.
 
-## Target Subset
+## Field Constraints And Anchors
 
-The next implementation targets are field constraints and anchors:
+Field constraints and anchors are part of the covered subset:
 
 ```scheme
 (binary_expression
@@ -109,8 +109,8 @@ The next implementation targets are field constraints and anchors:
   . (identifier) @first)
 ```
 
-These are target behavior, not stable product claims. They need parser,
-matcher, negative, and differential canaries before support-tier promotion.
+These are covered behavior, not a Stable support-tier claim. They still need
+differential fixtures before broader Tree-sitter query parity promotion.
 
 ## Advisory Or Future
 
