@@ -213,7 +213,7 @@ action encode/decode canaries into one GLR ABI roundtrip matrix.
 
 ### Work Item: goto-symbol-indexing-proof
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -223,7 +223,7 @@ Make GOTO and symbol-indexing invariants part of the GLR/tablegen proof lane.
 
 ### Work Item: ts-compat-selected-tree-parity
 
-Status: blocked by `projection-equivalence-harness`
+Status: active
 
 #### Goal
 
