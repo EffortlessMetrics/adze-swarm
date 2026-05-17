@@ -36,6 +36,24 @@ pub struct QueryMatcher<'a> {
     query: &'a Query,
 }
 
+fn node_overlaps_range(node: &ParseNode, range: &std::ops::Range<usize>) -> bool {
+    node.start_byte <= range.end && node.end_byte >= range.start
+}
+
+fn match_overlaps_range(
+    captures: &HashMap<u32, ParseNode>,
+    node: &ParseNode,
+    range: &std::ops::Range<usize>,
+) -> bool {
+    if captures.is_empty() {
+        return node_overlaps_range(node, range);
+    }
+
+    captures
+        .values()
+        .any(|capture| node_overlaps_range(capture, range))
+}
+
 impl<'a> QueryMatcher<'a> {
     /// Create a new query matcher
     pub fn new(query: &'a Query) -> Self {
@@ -44,11 +62,28 @@ impl<'a> QueryMatcher<'a> {
 
     /// Match all patterns in the query against a parse tree
     pub fn matches(&self, root: &ParseNode) -> Vec<QueryMatch> {
+        self.matches_with_options(root, None, false)
+    }
+
+    /// Match all patterns in the query against a parse tree using cursor options.
+    pub(crate) fn matches_with_options(
+        &self,
+        root: &ParseNode,
+        byte_range: Option<&std::ops::Range<usize>>,
+        match_root: bool,
+    ) -> Vec<QueryMatch> {
         let mut matches = Vec::new();
 
         // Try each pattern
         for (pattern_index, pattern) in self.query.patterns.iter().enumerate() {
-            self.match_pattern(pattern_index, pattern, root, &mut matches);
+            self.match_pattern(
+                pattern_index,
+                pattern,
+                root,
+                byte_range,
+                match_root,
+                &mut matches,
+            );
         }
 
         matches
@@ -60,10 +95,19 @@ impl<'a> QueryMatcher<'a> {
         pattern_index: usize,
         pattern: &Pattern,
         root: &ParseNode,
+        byte_range: Option<&std::ops::Range<usize>>,
+        match_root: bool,
         matches: &mut Vec<QueryMatch>,
     ) {
         // Walk the tree and try to match at each node
-        self.match_pattern_at_node(pattern_index, pattern, root, matches);
+        self.match_pattern_at_node(
+            pattern_index,
+            pattern,
+            root,
+            byte_range,
+            match_root,
+            matches,
+        );
     }
 
     /// Try to match pattern starting at a specific node
@@ -72,15 +116,25 @@ impl<'a> QueryMatcher<'a> {
         pattern_index: usize,
         pattern: &Pattern,
         node: &ParseNode,
+        byte_range: Option<&std::ops::Range<usize>>,
+        match_root: bool,
         matches: &mut Vec<QueryMatch>,
     ) {
+        if let Some(range) = byte_range
+            && !node_overlaps_range(node, range)
+        {
+            return;
+        }
+
         // Try to match the pattern at this node
         let mut state = MatchState {
             captures: HashMap::new(),
             success: false,
         };
 
-        if self.match_node(&pattern.root, node, &mut state) {
+        if self.match_node(&pattern.root, node, &mut state)
+            && byte_range.is_none_or(|range| match_overlaps_range(&state.captures, node, range))
+        {
             // Check predicates
             if self.check_predicates(&pattern.predicates, &state.captures) {
                 // Create match
@@ -98,9 +152,13 @@ impl<'a> QueryMatcher<'a> {
             }
         }
 
+        if match_root {
+            return;
+        }
+
         // Recursively try to match in children
         for child in &node.children {
-            self.match_pattern_at_node(pattern_index, pattern, child, matches);
+            self.match_pattern_at_node(pattern_index, pattern, child, byte_range, false, matches);
         }
     }
 
@@ -332,8 +390,18 @@ pub struct QueryMatches<'a> {
 impl<'a> QueryMatches<'a> {
     /// Create a new query matches iterator
     pub fn new(query: &'a Query, root: &'a ParseNode) -> Self {
+        Self::new_with_options(query, root, None, false)
+    }
+
+    /// Create a new query matches iterator using cursor options.
+    pub(crate) fn new_with_options(
+        query: &'a Query,
+        root: &'a ParseNode,
+        byte_range: Option<&std::ops::Range<usize>>,
+        match_root: bool,
+    ) -> Self {
         let matcher = QueryMatcher::new(query);
-        let matches = matcher.matches(root);
+        let matches = matcher.matches_with_options(root, byte_range, match_root);
         QueryMatches {
             matcher,
             root,
