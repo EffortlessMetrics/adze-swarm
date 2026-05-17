@@ -249,11 +249,12 @@ commands = [
 
 [[work_item]]
 id = "query-differential-corpus"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0013"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [144]
 commands = [
   "cargo test -p adze --features \"pure-rust,ts-compat\" --test query_differential -- --nocapture",
   "git diff --check",
@@ -261,15 +262,13 @@ commands = [
 
 [[work_item]]
 id = "recovery-matrix"
-status = "blocked"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
-blocked_by = ["fixture-taxonomy"]
 commands = [
-  "cargo test -p adze --features \"pure-rust,glr\" generated_parse_errors -- --nocapture",
-  "cargo test -p adze --features \"pure-rust,glr\" error_display -- --nocapture",
+  "cargo test -p adze --features \"pure-rust,glr,serialization,ts-compat\" --test recovery_matrix -- --nocapture",
   "git diff --check",
 ]
 

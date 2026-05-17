@@ -278,7 +278,7 @@ source-free matching.
 
 ### Work Item: query-differential-corpus
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -289,7 +289,7 @@ unsupported features as expected gaps.
 
 ### Work Item: recovery-matrix
 
-Status: blocked by `fixture-taxonomy`
+Status: active
 
 #### Goal
 
