@@ -14,7 +14,7 @@
 
 use adze::{
     adze_ir::RuleId,
-    document::{ADZE_DOCUMENT_JSON_SCHEMA, AdzeDocument, AdzeNode, SyntaxNode},
+    document::{ADZE_DOCUMENT_JSON_SCHEMA, AdzeNode, SyntaxNode},
     parser_v4::Parser as CoreParser,
     ts_compat::{Language, Node as TsNode, Tree},
 };
