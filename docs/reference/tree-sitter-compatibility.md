@@ -70,6 +70,7 @@ Representative selected-tree proof is tracked in
 [`SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md). The main local canaries are:
 
 ```bash
+cargo test -p adze --features "pure-rust,glr,ts-compat" --test ts_compat_selected_tree -- --nocapture
 cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_tree_children -- --nocapture
 cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_tree_cursor -- --nocapture
 cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_language_fields -- --nocapture
@@ -78,8 +79,9 @@ cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_error 
 cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_to_sexp -- --nocapture
 ```
 
-Future promotion of this subset should use a consolidated
-`ts_compat_selected_tree` matrix rather than relying only on scattered canaries.
+Promotion of this subset should use the consolidated `ts_compat_selected_tree`
+matrix plus targeted method-family canaries rather than relying only on
+scattered tests.
 
 ## Critical ABI Contract
 
