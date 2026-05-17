@@ -2,7 +2,17 @@
 
 ## Overview
 
-This document outlines the comprehensive testing strategy for the pure-Rust Tree-sitter implementation. Given the complexity of parser generation and the requirement for 100% compatibility with Tree-sitter, testing must be extensive and multi-layered.
+This document outlines the test strategy for Adze's Rust-native parser
+toolchain. The goal is not to claim blanket Tree-sitter parity; it is to prove
+the advertised product surfaces:
+
+- Rust types define the grammar.
+- Generated parsers return typed AST values through `grammar::parse()`.
+- `parse_document()` returns the canonical document for tooling.
+- GLR conflict handling is deterministic and honest about ambiguity.
+- Diagnostics, Tree-sitter-compatible projections, queries, JSON, CLI, WASM,
+  and broader grammar support are promoted only when their support-tier rows
+  have repeatable proof commands.
 
 ## Test Categories
 
@@ -51,7 +61,7 @@ Using `proptest` or `quickcheck`:
 
 ### 3. Golden File Tests
 
-Compare against Tree-sitter's output:
+Compare the supported compatibility subset against Tree-sitter's output:
 - [ ] Grammar JSON generation
 - [ ] Parse table binary format
 - [ ] NODE_TYPES JSON format
@@ -202,7 +212,7 @@ Before any release:
 ## Test Development Process
 
 1. **Test First**: Write tests before implementation
-2. **Golden Files**: Capture Tree-sitter outputs as references
+2. **Golden Files**: Capture supported Tree-sitter-compatible outputs as references
 3. **Incremental**: Test each layer independently
 4. **Automate**: All tests must be automated
 5. **Document**: Each test should explain what it validates
@@ -230,10 +240,12 @@ Before any release:
 ## Next Steps
 
 1. Set up property-based testing framework
-2. Create grammar corpus from Tree-sitter repos
+2. Create or import grammar corpus fixtures for the documented compatibility subset
 3. Build golden file test infrastructure
 4. Implement differential testing harness
 5. Set up fuzzing infrastructure
 6. Create performance benchmarking suite
 
-This comprehensive testing approach will ensure the pure-Rust implementation is production-ready and maintains complete compatibility with Tree-sitter.
+This testing approach should make support-tier claims auditable. A surface is
+not Stable because many tests exist; it is Stable only when the user-facing
+claim, proof command, CI lane, examples, and known limitations agree.

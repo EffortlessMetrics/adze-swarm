@@ -7,16 +7,17 @@ each source file.
 
 ## Inventory
 
-| Bench | Classification | Status | Notes |
-|---|---|---|---|
-| `parse_bench` | real_parser | active | Baseline arithmetic parsing |
-| `glr_hot` | real_parser | active | Hot-path medium/large arithmetic fixtures |
-| `glr_performance_real` | real_parser | active | Full GLR parsing with valid arithmetic fixtures |
-| `incremental_bench` | real_parser | active | Full-reparse vs incremental reparse |
-| `optimization_bench` | infrastructure | legacy | Superseded by `arena_vs_box_allocation` and `stack_optimization` |
-| `stack_optimization` | infrastructure | active | Vec vs persistent stack micro-benchmarks |
-| `arena_vs_box_allocation` | infrastructure | active | Arena vs Box allocation comparison |
-| `core_baselines` | build_pipeline | active | IR normalization, FIRST/FOLLOW, table compression |
+| Bench | Classification | Status | Fixture family | Notes |
+|---|---|---|---|---|
+| `parse_bench` | real_parser | active | arithmetic | Baseline arithmetic parsing |
+| `document_projection` | projection | active | arithmetic | Advisory `parse_document`, typed AST projection, and JSON projection fixture bench |
+| `glr_hot` | real_parser | active | arithmetic | Hot-path medium/large arithmetic fixtures |
+| `glr_performance_real` | real_parser | active | arithmetic | Full GLR parsing with valid arithmetic fixtures |
+| `incremental_bench` | real_parser | active | synthetic_arithmetic | Full-reparse vs incremental reparse |
+| `optimization_bench` | infrastructure | legacy | synthetic_infrastructure | Superseded by `arena_vs_box_allocation` and `stack_optimization` |
+| `stack_optimization` | infrastructure | active | synthetic_infrastructure | Vec vs persistent stack micro-benchmarks |
+| `arena_vs_box_allocation` | infrastructure | active | synthetic_infrastructure | Arena vs Box allocation comparison |
+| `core_baselines` | build_pipeline | active | synthetic_build_pipeline | IR normalization, FIRST/FOLLOW, table compression |
 
 ## Running
 

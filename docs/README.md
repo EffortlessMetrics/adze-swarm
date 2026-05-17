@@ -9,6 +9,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 ## 🎓 Tutorials
 *Learning-oriented: guided lessons to help you get started.*
 
+- [**Quickstart: First Parser In 10 Minutes**](./tutorials/quickstart-10-minutes.md) - Generate, test, and run the canonical starter parser.
 - [**Your First Parser**](./tutorials/getting-started.md) - Build a working calculator parser in 5 minutes.
 - [**GLR Quickstart**](./tutorials/glr-quickstart.md) - Understanding and building your first ambiguous grammar.
 
@@ -24,7 +25,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Optimizing Performance**](./how-to/optimize-performance.md) - SIMD, GLR tuning, and profiling your parser.
 - [**LSP Generation**](./how-to/generate-lsp.md) - Generating a Language Server for your grammar.
 - [**Using the Playground**](./how-to/use-playground.md) - Developing grammars interactively in the browser.
-- [**Visualizing GLR**](./how-to/visualize-glr.md) - Debugging forks and stacks with visual tools.
+- [**Visualizing GLR**](./how-to/visualize-glr.md) - Inspecting conflict reports and DOT automaton graphs.
 - [**Querying with Metadata**](./how-to/query-with-metadata.md) - Using symbol metadata in Tree-sitter queries.
 - [**C++ Templates Cookbook**](./how-to/cookbook-cpp-templates.md) - Best practices for parsing complex C++ constructs.
 
@@ -35,10 +36,13 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 
 - [**API Reference**](./reference/api.md) - Detailed docs for the `adze` crate and macro attributes.
 - [**Grammar Examples**](./reference/grammar-examples.md) - Patterns for common constructs (Choices, Repeats, Optionals).
+- [**Parser Cookbook**](./reference/parser-cookbook.md) - Tested recipes for typed parsers, documents, diagnostics, GLR ambiguity, Tree-sitter-compatible output, and query captures.
 - [**Usage Examples**](./reference/usage-examples.md) - Practical code snippets for common tasks.
 - [**Language Support**](./reference/language-support.md) - Status of built-in grammars (Python, JS, Go).
 - [**Known Limitations**](./reference/known-limitations.md) - Current status of experimental features.
-- [**Tree-sitter Compatibility**](./reference/tree-sitter-compatibility.md) - Adze's implementation of the Tree-sitter table format.
+- [**Tree-sitter Compatibility**](./reference/tree-sitter-compatibility.md) - Supported selected-tree adapter subset and table-format invariants.
+- [**Migrating From Tree-sitter**](./reference/migrating-from-tree-sitter.md) - Mapping from Tree-sitter trees, nodes, fields, node-types, queries, errors, and ambiguity to Adze's document-centered model.
+- [**Query Compatibility**](./reference/query-compatibility.md) - Supported Tree-sitter query subset, source-aware behavior, and known gaps.
 - [**Tree-sitter Alias Semantics**](./reference/ts-compat-alias-semantics.md) - Draft target contract for alias-visible compatibility behavior.
 - [**Empty Rules Reference**](./reference/empty-rules-reference.md) - Quick reference for handling ε-productions.
 
@@ -47,6 +51,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 ## 💡 Explanations
 *Understanding-oriented: conceptual background and architectural theory.*
 
+- [**Mental Model**](./explanations/mental-model.md) - How Rust types, generated parsers, `parse()`, `AdzeDocument`, and projections fit together.
 - [**Architecture Overview**](./explanations/architecture.md) - How the Macro, Tool, and Runtime fit together.
 - [**AdzeDocument Design Contract**](./design/adze-document.md) - Draft native parse-product contract for future CST, typed AST, diagnostics, and compatibility projections.
 - [**Typed CST Design Contract**](./design/typed-cst.md) - Draft generated typed syntax view over the native parse document.
@@ -75,8 +80,10 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Correctness Push Plan**](./status/CORRECTNESS_PUSH.md) - Current merge/proof sequence for parser, GLR, tablegen ABI, CLI, and product-proof convergence.
 - [**Support Tiers**](./status/SUPPORT_TIERS.md) - Feature claims mapped to proof commands and CI lanes.
 - [**Product Proof Map**](./status/PRODUCT_PROOF_MAP.md) - Release-readable summary of product claims and their representative proof.
+- [**Performance Baselines**](./perf/baselines.md) - Advisory benchmark baseline policy, receipt fields, and non-claims.
 - [**Friction Log**](./status/FRICTION_LOG.md) - Current developer pain points we are burning down.
 - [**Now / Next / Later**](./status/NOW_NEXT_LATER.md) - Rolling execution plan.
 - [**Known Red**](./status/KNOWN_RED.md) - Exclusions from the supported CI lane.
 - [**PR Template**](./PR_TEMPLATE.md) - Checklist for contributors.
 - [**Verification**](./VERIFICATION.md) - README badge meanings, generated endpoints, and PR evidence boundaries.
+- [**GLR Toolkit Fixture Taxonomy**](./testing/glr-fixture-taxonomy.md) - Shared fixture classes for GLR, compatibility, query, recovery, and benchmark proof.

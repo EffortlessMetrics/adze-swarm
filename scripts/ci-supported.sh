@@ -4,14 +4,14 @@ set -euo pipefail
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
 export RUST_TEST_THREADS="${RUST_TEST_THREADS:-2}"
 
-supported_crate_names=(
-  adze
-  adze-macro
-  adze-tool
-  adze-common
-  adze-ir
-  adze-glr-core
-  adze-tablegen
+supported_crate_paths=(
+  runtime
+  macro
+  tool
+  common
+  ir
+  glr-core
+  tablegen
 )
 
 supported_crates=(
@@ -24,9 +24,7 @@ supported_crates=(
   -p adze-tablegen
 )
 
-for crate in "${supported_crate_names[@]}"; do
-  cargo fmt -p "$crate" -- --check
-done
+./scripts/fmt-workspace.sh --check "${supported_crate_paths[@]}"
 
 cargo clippy "${supported_crates[@]}" --all-targets -- -D warnings
 cargo test "${supported_crates[@]}" --lib --tests --bins -- --test-threads="$RUST_TEST_THREADS"

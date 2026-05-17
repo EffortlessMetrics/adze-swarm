@@ -93,6 +93,22 @@ impl NodeFlags {
     }
 }
 
+macro_rules! node_flag_accessors {
+    ($(#[$get_doc:meta] $get:ident, #[$set_doc:meta] $set:ident, $flag:ident;)+) => {
+        $(
+            #[$get_doc]
+            pub fn $get(&self) -> bool {
+                self.flags.get(NodeFlags::$flag)
+            }
+
+            #[$set_doc]
+            pub fn $set(&mut self, value: bool) {
+                self.flags.set(NodeFlags::$flag, value);
+            }
+        )+
+    };
+}
+
 impl TreeNodeData {
     /// Create a new node with symbol and byte range
     ///
@@ -152,16 +168,9 @@ impl TreeNodeData {
         end_byte: u32,
         children: impl IntoIterator<Item = NodeHandle>,
     ) -> Self {
-        let children_vec: SmallVec<[NodeHandle; 3]> = children.into_iter().collect();
-        TreeNodeData {
-            symbol,
-            start_byte,
-            end_byte,
-            children: children_vec,
-            named_child_count: 0,
-            field_id: None,
-            flags: NodeFlags::new(),
-        }
+        let mut node = Self::new(symbol, start_byte, end_byte);
+        node.children = children.into_iter().collect();
+        node
     }
 
     // ========================================================================
@@ -243,44 +252,30 @@ impl TreeNodeData {
     // Flags
     // ========================================================================
 
-    /// Check if node is named
-    pub fn is_named(&self) -> bool {
-        self.flags.get(NodeFlags::IS_NAMED)
-    }
+    node_flag_accessors! {
+        /// Check if node is named
+        is_named,
+        /// Set named flag
+        set_named,
+        IS_NAMED;
 
-    /// Set named flag
-    pub fn set_named(&mut self, value: bool) {
-        self.flags.set(NodeFlags::IS_NAMED, value);
-    }
+        /// Check if node is error
+        is_error,
+        /// Set error flag
+        set_error,
+        IS_ERROR;
 
-    /// Check if node is error
-    pub fn is_error(&self) -> bool {
-        self.flags.get(NodeFlags::IS_ERROR)
-    }
+        /// Check if node is missing
+        is_missing,
+        /// Set missing flag
+        set_missing,
+        IS_MISSING;
 
-    /// Set error flag
-    pub fn set_error(&mut self, value: bool) {
-        self.flags.set(NodeFlags::IS_ERROR, value);
-    }
-
-    /// Check if node is missing
-    pub fn is_missing(&self) -> bool {
-        self.flags.get(NodeFlags::IS_MISSING)
-    }
-
-    /// Set missing flag
-    pub fn set_missing(&mut self, value: bool) {
-        self.flags.set(NodeFlags::IS_MISSING, value);
-    }
-
-    /// Check if node is extra
-    pub fn is_extra(&self) -> bool {
-        self.flags.get(NodeFlags::IS_EXTRA)
-    }
-
-    /// Set extra flag
-    pub fn set_extra(&mut self, value: bool) {
-        self.flags.set(NodeFlags::IS_EXTRA, value);
+        /// Check if node is extra
+        is_extra,
+        /// Set extra flag
+        set_extra,
+        IS_EXTRA;
     }
 
     // ========================================================================

@@ -69,7 +69,7 @@ snap:
 # Required PR gate: this is the single supported CI lane for branch protection
 # See docs/status/KNOWN_RED.md; update it whenever ci-supported command targets change.
 ci-supported:
-    bash ./scripts/ci-supported.sh
+    ./scripts/ci-supported.sh
 
 # Candidate product lane for README Stable claims. This is advisory until
 # branch protection explicitly promotes it.

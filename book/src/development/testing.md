@@ -8,7 +8,7 @@ adze uses a comprehensive testing strategy combining multiple test types to ensu
 adze testing ecosystem:
 ├── Unit Tests           # Individual component testing
 ├── Integration Tests    # Cross-component workflow testing  
-├── Golden Tests        # Tree-sitter compatibility verification
+├── Golden Tests        # Advisory Tree-sitter compatibility receipts
 ├── Property Tests      # Grammar-agnostic behavior validation
 ├── Snapshot Tests      # Visual regression testing with insta
 ├── Benchmark Tests     # Performance measurement and regression detection
@@ -17,7 +17,8 @@ adze testing ecosystem:
 
 ## Golden Tests: Compatibility Verification
 
-Golden tests ensure byte-for-byte compatibility with official Tree-sitter parsers.
+Golden tests compare selected fixture outputs with Tree-sitter references. They
+are advisory compatibility receipts, not a blanket full-parity claim.
 
 ### Quick Start
 
@@ -26,10 +27,10 @@ Golden tests ensure byte-for-byte compatibility with official Tree-sitter parser
 cd golden-tests
 ./generate_references.sh
 
-# Run all golden tests
-cargo test --features all-grammars
+# Run the current focused advisory canary
+cargo test -p adze-golden-tests javascript_canary_expression_golden --features javascript-grammar -- --nocapture
 
-# Run language-specific tests
+# Run language-specific packages when that surface changed
 cargo test --features python-grammar
 cargo test --features javascript-grammar
 ```
@@ -54,11 +55,11 @@ git commit -m "Update golden tests for parser changes"
 ```
 
 **When to Use Golden Tests:**
-- Verifying parser output matches Tree-sitter exactly
+- Checking selected-tree output against documented Tree-sitter references
 - Testing real-world code samples
 - Regression testing after parser modifications  
 - Cross-platform compatibility validation
-- CI/CD compatibility gates
+- Advisory compatibility receipts
 
 ## Unit Tests: Component Testing
 
@@ -269,23 +270,22 @@ cargo test test_external_lexer_column_tracking
 cargo test test_external_lexer_eof
 cargo test test_external_lexer_included_range_start
 
-# Run runtime tests with external lexer integration
-cargo test -p adze --features all-features
+# Run runtime tests with explicit external-scanner coverage
+cargo test -p adze --features external_scanners
 ```
 
 ### Integration Testing
 
 External lexer utilities are tested for integration with:
-- **Tree-sitter FFI Interface**: Ensuring full compatibility with `TSLexer` API
+- **Tree-sitter FFI Interface**: Exercising the supported `TSLexer` adapter subset
 - **Memory Safety**: Pointer handling and null checks
 - **Position Tracking**: Accurate byte and column position management
 - **Error Handling**: Graceful handling of boundary conditions
 
-**Test Results Summary (PR #67)**:
-- ✅ All external lexer tests (column tracking, EOF, range detection) pass
-- ✅ Full runtime test suite passes (128/128 tests)
-- ✅ Clippy passes without warnings
-- ✅ Tree-sitter FFI compatibility verified
+**Support posture:**
+- External scanners are experimental until promoted in `docs/status/SUPPORT_TIERS.md`.
+- Focused tests should name the feature and parser surface they prove.
+- Broad feature piles are avoided in ordinary PR guidance.
 
 ## Snapshot Tests: Visual Regression Testing
 
@@ -471,7 +471,7 @@ jobs:
       - run: |
           cd golden-tests
           ./generate_references.sh
-          cargo test --features all-grammars
+          cargo test --features javascript-grammar
           
   property-tests:
     runs-on: ubuntu-latest
@@ -526,15 +526,13 @@ fn test_parser()
 #[test]
 fn test_specific_behavior() {
     // Arrange: Set up test data
-    let source = "def foo(): pass";
-    let mut parser = Parser::new();
+    let source = "1 + 2";
     
     // Act: Perform the operation
-    let result = parser.parse(source);
+    let result = grammar::parse(source);
     
     // Assert: Verify expected behavior
     assert!(result.is_ok());
-    assert_eq!(result.tree.root_node().kind(), "module");
 }
 ```
 
@@ -543,16 +541,10 @@ fn test_specific_behavior() {
 #[test]
 fn test_error_conditions() {
     // Test both success and failure cases
-    assert!(parser.parse("valid input").is_ok());
-    assert!(parser.parse("invalid input").is_err());
-    
-    // Verify specific error types
-    match parser.parse("malformed") {
-        Err(ParseError::UnexpectedToken { position, .. }) => {
-            assert_eq!(position, 42);
-        }
-        _ => panic!("Expected UnexpectedToken error"),
-    }
+    assert!(grammar::parse("1 + 2").is_ok());
+
+    let report = grammar::parse_document("1 +");
+    assert!(!report.diagnostics().is_empty());
 }
 ```
 
@@ -570,15 +562,15 @@ let source = load_entire_django_codebase();  // Bad for unit tests
 // Each test should be independent
 #[test]
 fn test_independent_parsing() {
-    let parser = Parser::new();  // Fresh parser for each test
-    // ...
+    let ast = grammar::parse("1 + 2").unwrap();
+    assert_eq!(format!("{ast:?}"), "Add(Number(1), (), Number(2))");
 }
 ```
 
 **Use Appropriate Test Types:**
 - **Unit tests**: Single function behavior
 - **Integration tests**: Multi-component workflows  
-- **Golden tests**: Compatibility verification
+- **Golden tests**: Advisory compatibility receipts
 - **Property tests**: Universal invariants
 - **Benchmarks**: Performance characteristics
 
@@ -589,4 +581,7 @@ fn test_independent_parsing() {
 - **Read [Contributing Guide](contributing.md)** for development workflows
 - **See [Performance Guide](../guide/performance.md)** for optimization strategies
 
-A robust testing strategy ensures adze remains reliable, performant, and compatible with Tree-sitter's reference implementations across all supported use cases.
+A robust testing strategy keeps Adze reliable while preserving support-tier
+truthfulness: generated typed parsing is the stable user path, document and
+compatibility surfaces are promoted only when their proof commands, examples,
+and limitations line up.

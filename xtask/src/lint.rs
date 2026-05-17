@@ -2,6 +2,7 @@ use anyhow::{Context, Result, bail};
 use std::process::Command;
 
 use crate::debug_blocks::{self, DebugBlockOptions};
+use crate::no_mangle;
 use xshell::{Shell, cmd};
 
 pub fn lint(
@@ -30,7 +31,7 @@ pub fn lint(
     }
 
     // 2) no-mangle check
-    run_script(sh, "scripts/check-no-mangle.sh", &[]).context("no-mangle check failed")?;
+    no_mangle::run(Vec::new()).context("no-mangle check failed")?;
 
     // 3) debug-block validator
     debug_blocks::run(DebugBlockOptions {
@@ -106,31 +107,6 @@ pub fn lint(
         println!("✓ lint passed (fast mode)");
     } else {
         println!("✓ lint passed");
-    }
-    Ok(())
-}
-
-fn run_script(_sh: &Shell, script: &str, args: &[&str]) -> Result<()> {
-    #[cfg(windows)]
-    {
-        let status = Command::new("bash")
-            .arg(script)
-            .args(args)
-            .status()
-            .with_context(|| format!("failed to spawn bash {script}"))?;
-        if !status.success() {
-            bail!("bash {script} {args:?} failed with {status}");
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        let status = Command::new(script)
-            .args(args)
-            .status()
-            .with_context(|| format!("failed to spawn {script}"))?;
-        if !status.success() {
-            bail!("{script} {args:?} failed with {status}");
-        }
     }
     Ok(())
 }

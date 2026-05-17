@@ -1,0 +1,112 @@
+schema_version = "1.0"
+owner = "runtime/product"
+status = "active"
+
+[[fixture]]
+id = "glr-shift-reduce-expression"
+family = "glr"
+class = "single shift/reduce conflict"
+grammar = "adze_example::ambiguous_expr"
+input = "1 + 2 * 3"
+selected_tree = "Add(Number(1), Mul(Number(2), Number(3)))"
+ambiguity = "conflict cell retained; selected tree deterministic"
+diagnostics = "none"
+ts_compat = "selected tree S-expression matches documented subset"
+support_tier = "GLR conflict routing"
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" glr_conflict_matrix -- --nocapture"
+known_gaps = ["broader generated reduce/reduce fixture pending"]
+
+[[fixture]]
+id = "glr-dangling-else"
+family = "glr"
+class = "single shift/reduce conflict"
+grammar = "adze_example::dangling_else"
+input = "if a then if b then other else other"
+selected_tree = "pending generated runtime selected-tree proof"
+ambiguity = "else conflict retained in generated table"
+diagnostics = "runtime selected-tree parse currently pending"
+ts_compat = "selected tree only"
+support_tier = "GLR conflict routing"
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" glr_conflict_matrix -- --nocapture"
+known_gaps = [
+  "generated dangling-else selected-tree runtime parse pending",
+  "broader imported grammar dangling-else parity pending",
+]
+
+[[fixture]]
+id = "glr-reduce-reduce-minimal"
+family = "glr"
+class = "single reduce/reduce conflict"
+grammar = "planned"
+input = "ambiguous minimal reduce/reduce source"
+selected_tree = "deterministic selected alternative"
+ambiguity = "retained alternatives reported"
+diagnostics = "none"
+ts_compat = "selected tree only"
+support_tier = "GLR conflict routing"
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" glr_conflict_matrix -- --nocapture"
+known_gaps = ["concrete fixture source pending"]
+
+[[fixture]]
+id = "ts-compat-field-heavy"
+family = "ts-compat"
+class = "field-heavy grammar"
+grammar = "planned"
+input = "field-bearing source"
+selected_tree = "document edge order"
+ambiguity = "none"
+diagnostics = "none"
+ts_compat = "child_by_field_name, child_by_field_id, field_name_for_child"
+support_tier = "Tree-sitter compatibility API"
+proof = "cargo test -p adze --features \"pure-rust,glr,ts-compat\" ts_compat_selected_tree -- --nocapture"
+known_gaps = ["concrete fixture source pending"]
+
+[[fixture]]
+id = "query-child-quantifiers"
+family = "query"
+class = "child quantifiers"
+grammar = "planned"
+input = "sibling sequence source"
+selected_tree = "document-backed selected tree"
+ambiguity = "none"
+diagnostics = "none"
+ts_compat = "query cursor over selected tree"
+query = "?, *, and + repeat/backtrack across sibling nodes"
+support_tier = "query compatibility subset"
+proof = "cargo test -p adze --lib query -- --nocapture"
+known_gaps = ["differential Tree-sitter corpus pending"]
+
+[[fixture]]
+id = "query-supported-subset-differential"
+family = "query"
+class = "named node patterns"
+grammar = "runtime/tests/query_differential.rs synthetic query fixture grammar"
+input = "1 foo; a+1; foo 1"
+selected_tree = "synthetic selected tree with root, identifier, number, and operator nodes"
+ambiguity = "none"
+diagnostics = "none"
+ts_compat = "Tree-sitter-shaped expected query captures over selected tree"
+query = "named nodes, field constraints, anchors, and source-aware predicates"
+support_tier = "query compatibility subset"
+proof = "cargo test -p adze --features \"pure-rust,ts-compat\" --test query_differential -- --nocapture"
+known_gaps = [
+  "uses Tree-sitter-shaped expected facts rather than an imported Tree-sitter runtime oracle",
+  "alternation and directives remain future work",
+]
+
+[[fixture]]
+id = "recovery-unexpected-eof"
+family = "recovery"
+class = "generated bad-input matrix"
+grammar = "adze_example::typed_ast_contract::grammar, adze_example::ambiguous_expr::grammar, adze_example::ts_langs::arithmetic"
+input = "1 +; 1 + newline; 1 + @; 1 + lambda; multiline @; 1-@"
+selected_tree = "recovered document tree when trustworthy"
+ambiguity = "none unless grammar is ambiguous"
+diagnostics = "byte span, point range, expected tokens, related nodes, and JSON diagnostic projection"
+ts_compat = "has_error agrees with document error facts"
+support_tier = "structured parse errors"
+proof = "cargo test -p adze --features \"pure-rust,glr,serialization,ts-compat\" --test recovery_matrix -- --nocapture"
+known_gaps = [
+  "missing close delimiter and external scanner cases remain future fixture classes",
+  "diagnostic wording is still not a frozen stable contract",
+]

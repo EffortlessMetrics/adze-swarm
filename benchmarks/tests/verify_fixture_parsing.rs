@@ -18,6 +18,7 @@ const ARITH_LARGE: &str = include_str!("../fixtures/arithmetic/large.expr");
 const PARSE_BENCH_SOURCE: &str = include_str!("../benches/parse_bench.rs");
 const BENCHMARK_CARGO_TOML: &str = include_str!("../Cargo.toml");
 const BENCHMARK_README: &str = include_str!("../README.md");
+const FIXTURE_METADATA: &str = include_str!("../fixtures/metadata.toml");
 
 fn registered_bench_names() -> Vec<String> {
     let mut names = Vec::new();
@@ -72,6 +73,10 @@ fn classified_bench_names() -> Vec<String> {
             assert!(
                 metadata.contains("ci = "),
                 "benchmark metadata for {name} must include CI coverage"
+            );
+            assert!(
+                metadata.contains("fixture_family = "),
+                "benchmark metadata for {name} must include a fixture family"
             );
             names.push(name.to_owned());
         }
@@ -141,6 +146,14 @@ fn benchmark_metadata_field(name: &str, field: &str) -> Option<String> {
     }
 
     None
+}
+
+fn fixture_metadata_has_family(family: &str) -> bool {
+    let prefix = format!("[{family}.");
+    FIXTURE_METADATA
+        .lines()
+        .map(str::trim)
+        .any(|line| line.starts_with(&prefix))
 }
 
 fn readme_inventory_status(name: &str) -> Option<String> {
@@ -266,6 +279,23 @@ fn verify_benchmark_inventory_is_exhaustive() {
         registered, documented,
         "benchmarks/README.md must document every registered benchmark"
     );
+}
+
+#[test]
+fn verify_benchmark_fixture_families_are_documented() {
+    for bench in registered_bench_names() {
+        let family = benchmark_metadata_field(&bench, "fixture_family")
+            .unwrap_or_else(|| panic!("benchmark metadata for {bench} must name fixture_family"));
+
+        if family.starts_with("synthetic_") {
+            continue;
+        }
+
+        assert!(
+            fixture_metadata_has_family(&family),
+            "fixture family {family} for benchmark {bench} must be documented in fixtures metadata"
+        );
+    }
 }
 
 #[test]

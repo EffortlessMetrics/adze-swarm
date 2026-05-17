@@ -12,8 +12,10 @@
 
 use adze_common::{filter_inner_type, try_extract_inner_type, wrap_leaf_type};
 use proptest::prelude::*;
+mod support;
 use quote::ToTokens;
 use std::collections::HashSet;
+use support::{container_name_with_rc, distinct_lower_idents, symbol_leaf_type_name};
 use syn::{Type, parse_str};
 
 // ---------------------------------------------------------------------------
@@ -21,31 +23,15 @@ use syn::{Type, parse_str};
 // ---------------------------------------------------------------------------
 
 fn leaf_type_name() -> impl Strategy<Value = &'static str> {
-    prop::sample::select(
-        &[
-            "i32", "u32", "i64", "u64", "f32", "f64", "bool", "char", "String", "usize", "isize",
-            "Token", "Expr", "Stmt", "Node", "Ident", "Literal",
-        ][..],
-    )
-}
-
-fn ident_strategy() -> impl Strategy<Value = String> {
-    prop::string::string_regex("[a-z][a-z0-9_]{0,7}")
-        .unwrap()
-        .prop_filter("must be valid ident", |s| {
-            !s.is_empty() && syn::parse_str::<syn::Ident>(s).is_ok()
-        })
+    symbol_leaf_type_name()
 }
 
 fn distinct_idents(max: usize) -> impl Strategy<Value = Vec<String>> {
-    prop::collection::vec(ident_strategy(), 1..=max).prop_map(|v| {
-        let mut seen = std::collections::HashSet::new();
-        v.into_iter().filter(|s| seen.insert(s.clone())).collect()
-    })
+    distinct_lower_idents(max, 7)
 }
 
 fn container_name() -> impl Strategy<Value = &'static str> {
-    prop::sample::select(&["Box", "Vec", "Option", "Arc", "Rc"][..])
+    container_name_with_rc()
 }
 
 fn skip_set_strategy() -> impl Strategy<Value = HashSet<&'static str>> {

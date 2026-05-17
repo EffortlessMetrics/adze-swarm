@@ -5,20 +5,26 @@ license = "MIT OR Apache-2.0"
 edition = "2024"
 
 # Benchmark classification metadata.
-# Each entry maps a bench name to its classification, status, and CI coverage.
+# Each entry maps a bench name to its classification, status, fixture family,
+# and CI coverage.
 [package.metadata.bench-classification]
 
-parse_bench = { classification = "real_parser", status = "active", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
-glr_hot = { classification = "real_parser", status = "active", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
-glr_performance_real = { classification = "real_parser", status = "active", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
-incremental_bench = { classification = "real_parser", status = "active", ci = "ci.yml Benchmark Compilation (compile-only), criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
-optimization_bench = { classification = "infrastructure", status = "legacy", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)", note = "superseded by arena_vs_box_allocation and stack_optimization" }
-stack_optimization = { classification = "infrastructure", status = "active", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
-arena_vs_box_allocation = { classification = "infrastructure", status = "active", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
-core_baselines = { classification = "build_pipeline", status = "active", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
+parse_bench = { classification = "real_parser", status = "active", fixture_family = "arithmetic", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
+document_projection = { classification = "projection", status = "active", fixture_family = "arithmetic", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)", note = "advisory parse_document, typed AST projection, and JSON projection fixture bench" }
+glr_hot = { classification = "real_parser", status = "active", fixture_family = "arithmetic", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
+glr_performance_real = { classification = "real_parser", status = "active", fixture_family = "arithmetic", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
+incremental_bench = { classification = "real_parser", status = "active", fixture_family = "synthetic_arithmetic", ci = "ci.yml Benchmark Compilation (compile-only), criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
+optimization_bench = { classification = "infrastructure", status = "legacy", fixture_family = "synthetic_infrastructure", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)", note = "superseded by arena_vs_box_allocation and stack_optimization" }
+stack_optimization = { classification = "infrastructure", status = "active", fixture_family = "synthetic_infrastructure", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
+arena_vs_box_allocation = { classification = "infrastructure", status = "active", fixture_family = "synthetic_infrastructure", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
+core_baselines = { classification = "build_pipeline", status = "active", fixture_family = "synthetic_build_pipeline", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
 
 [[bench]]
 name = "parse_bench"
+harness = false
+
+[[bench]]
+name = "document_projection"
 harness = false
 
 [[bench]]
@@ -51,7 +57,7 @@ name = "core_baselines"
 harness = false
 
 [dependencies]
-adze = { path = "../runtime", features = ["pure-rust"] }
+adze = { path = "../runtime", features = ["pure-rust", "serialization"] }
 adze-example = { path = "../example" }
 adze-python = { path = "../grammars/python" }
 adze-ir = { path = "../ir" }

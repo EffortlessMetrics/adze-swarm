@@ -52,25 +52,24 @@ Grammar size affects two separate phases:
 
 ## Optimization Tips
 
-### Use the Pure-Rust Backend for WASM
+### Prefer the Rust-Native Generated Parser Path
 
-The default `tree-sitter-c2rust` backend compiles to pure Rust, making it
-WASM-compatible without a C toolchain:
+The supported product path is Rust-native generated parsing:
 
-```toml
-[dependencies]
-adze = { version = "0.8" }  # c2rust backend is the default
+```text
+Rust grammar types
+  -> generated parser
+  -> grammar::parse()
+  -> grammar::parse_document()
 ```
 
-For native builds where you want the standard C runtime:
+`grammar::parse()` is the ergonomic typed AST path. `parse_document()` is the
+tooling path for diagnostics, ranges, ambiguity summaries, JSON, and
+Tree-sitter-compatible selected-tree projections.
 
-```toml
-[dependencies]
-adze = { version = "0.8", features = ["tree-sitter-standard"] }
-```
-
-The pure-Rust backend avoids FFI overhead in WASM and produces smaller binaries
-for `wasm32-unknown-unknown` targets.
+Do not treat historical C-backend feature flags as current performance advice.
+WASM, CLI JSON, and Tree-sitter-compatible projections are measured and promoted
+through their own support-tier rows and proof commands.
 
 ### Design Grammars for Performance
 
@@ -315,18 +314,19 @@ longer to compile than small arithmetic grammars.
 tables are embedded as static data and impose no runtime penalty. Use
 `cargo build --release` to speed up the generation itself.
 
-### Incremental Parsing (Disabled)
+### Incremental Parsing (Experimental)
 
-The GLR incremental parsing path (`runtime/src/glr_incremental.rs`) is
-currently **disabled** and falls back to fresh parsing. The infrastructure exists
-but has known architectural issues:
+Incremental lifecycle support is experimental. The accepted contract is
+document-centered: edit requests produce a new `AdzeDocument`, and metadata must
+say whether the request reused structure or fell back to a full reparse.
 
-- Error tracking uses hardcoded `is_error: false` in subtree creation
-- Root kind determination diverges between forest symbols and parse results
-- Token-level vs grammar-level parsing produces inconsistent trees
+Adze does not currently publish stable reuse percentages, stable
+cross-document node handles, or incremental speedup guarantees.
 
-The conservative fallback ensures correctness at the cost of not reusing
-subtrees from previous parses. See `glr_incremental.rs:281-297` for details.
+For the lifecycle contract, see
+`docs/specs/ADZE-SPEC-0009-incremental-document-lifecycle.md`. For user-facing
+guidance, see `docs/how-to/incremental-parsing.md` and
+`docs/explanations/incremental-parsing-theory.md`.
 
 ### Fork/Merge Overhead
 
