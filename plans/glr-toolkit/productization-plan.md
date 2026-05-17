@@ -332,7 +332,7 @@ queries, ERROR/MISSING, and ambiguity.
 
 ### Work Item: incremental-lifecycle-acceptance
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -341,7 +341,7 @@ current immutable-document, edit-to-new-document, explicit-fallback model.
 
 ### Work Item: reparse-fallback-metadata
 
-Status: blocked by `incremental-lifecycle-acceptance`
+Status: active
 
 #### Goal
 
