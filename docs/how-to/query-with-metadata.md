@@ -1,455 +1,266 @@
-# How-To: Query Matching with Node Metadata
+# How To: Query With Language Metadata
 
-This guide shows you how to use adze's enhanced query engine with symbol metadata validation for accurate pattern matching on parsed trees (PR #54).
+This guide covers Adze's metadata-aware query surface. It is an advanced,
+advisory API for editor and tooling experiments, not the beginner parser path.
 
-## Problem: Inaccurate Query Matching
-
-Without proper metadata validation, query patterns may:
-- Match anonymous tokens when expecting named nodes
-- Include unwanted "extra" nodes (comments, whitespace)
-- Crash on malformed or missing symbol metadata
-- Produce inconsistent results across different grammar types
-
-## Solution: QueryMatcher with Symbol Metadata
-
-The enhanced `QueryMatcher` API uses `SymbolMetadata` to provide accurate, memory-safe query matching.
-
-### Step 1: Basic Setup with Metadata
+For application parsing, prefer the generated APIs:
 
 ```rust
-use adze_runtime::{Parser, query::{QueryMatcher, compile_query}};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize parser with your language
-    let language = my_language::language();
-    let metadata = language.symbol_metadata(); // Get metadata array
-    let mut parser = Parser::new();
-    parser.set_language(language)?;
-    
-    // Parse source code
-    let source = r#"
-    function calculateSum(a, b) {
-        // Add two numbers
-        return a + b;
-    }
-    "#;
-    let tree = parser.parse_utf8(source, None)?;
-    
-    // Create query with proper metadata validation
-    let query = compile_query(r#"
-        (function_declaration
-          name: (identifier) @func_name
-          parameters: (parameter_list) @params
-          body: (block) @body)
-    "#)?;
-    
-    // Create matcher with metadata - this is the key difference
-    let matcher = QueryMatcher::new(&query, source, &metadata);
-    let matches = matcher.matches(&tree.root());
-    
-    for m in matches {
-        println!("Found {} captures", m.captures.len());
-        for capture in m.captures {
-            println!("  Capture {}: {:?}", capture.index, capture.node);
-        }
-    }
-    
-    Ok(())
-}
+let ast = grammar::parse(source)?;
+let report = grammar::parse_document(source);
+let document = report.document();
 ```
 
-### Step 2: Understanding Named vs Anonymous Nodes
+Use the query layer when you need Tree-sitter-like pattern matching over a
+selected parse tree and the language metadata that names nodes, tokens, fields,
+and captures.
 
-The metadata-aware matcher automatically handles node type filtering:
+## Contract
 
-```rust
-// Example metadata-aware query patterns
-let query = compile_query(r#"
-  (function_declaration           ; Named node - only matches actual function declarations
-    "function"                    ; Anonymous token - matches literal "function" keyword
-    name: (identifier) @name      ; Named node - only matches identifier nodes
-    "(" @lparen                   ; Anonymous token - matches literal "(" character
-    parameters: (parameter_list)  ; Named node - only matches parameter list structures
-    ")" @rparen                   ; Anonymous token - matches literal ")" character
-    body: (block) @body)          ; Named node - only matches block structures
-"#)?;
+Adze's query compatibility is a documented subset:
 
-let matcher = QueryMatcher::new(&query, source, &metadata);
-
-// The engine automatically uses metadata to:
-// 1. Check metadata.named to filter named vs anonymous nodes
-// 2. Skip nodes where metadata.is_extra == true (comments/whitespace)
-// 3. Use null-safe access to prevent crashes on missing metadata
+```text
+AdzeDocument is the native parse truth.
+Tree-sitter compatibility exposes the selected tree.
+Queries match selected-tree facts and language metadata.
 ```
 
-### Step 3: Memory-Safe Metadata Access
+Query matching must not invent node identity, field identity, alias identity, or
+range information locally. Those facts belong to the document and language
+schema.
 
-The internal implementation uses safe patterns that you can apply in your code:
+See [Query Compatibility](../reference/query-compatibility.md) and
+[ADZE-SPEC-0013](../specs/ADZE-SPEC-0013-query-compatibility.md) for the
+current support matrix.
 
-```rust
-// Safe metadata access pattern (internal to QueryMatcher)
-fn node_is_named(&self, node: &ParseNode) -> bool {
-    self.symbol_metadata
-        .get(node.symbol.0 as usize)  // Bounds-checked access
-        .map(|m| m.named)             // Safe field access
-        .unwrap_or(true)              // Conservative fallback
-}
+## When To Use It
 
-fn node_is_extra(&self, node: &ParseNode) -> bool {
-    self.symbol_metadata
-        .get(node.symbol.0 as usize)  // Bounds-checked access
-        .map(|m| m.is_extra)          // Safe field access
-        .unwrap_or(false)             // Safe fallback
-}
+Use metadata-aware queries when you are building:
 
-// Apply this pattern in your own code:
-fn check_node_properties(node: &ParseNode, metadata: &[SymbolMetadata]) -> (bool, bool) {
-    let symbol_meta = metadata
-        .get(node.symbol.0 as usize)
-        .unwrap_or(&SymbolMetadata::default());
-        
-    (symbol_meta.named, symbol_meta.is_extra)
-}
-```
+- syntax highlighting experiments;
+- editor or LSP integration prototypes;
+- Tree-sitter migration tests;
+- selected-tree compatibility canaries;
+- fixture-level checks for captures, fields, predicates, or anchors.
 
-### Step 4: Advanced Query Patterns
+Do not use this guide as a claim that Adze has full Tree-sitter query parity.
+Unsupported features are expected gaps until the support-tier ledger promotes
+them with proof commands.
 
-#### Pattern 1: Context-Sensitive Matching
-```rust
-// Match function calls only in specific contexts
-let query = compile_query(r#"
-  (block
-    (expression_statement
-      (call_expression
-        function: (identifier) @func_name
-        arguments: (argument_list) @args))
-    
-    ; Only match functions called inside if statements  
-    (if_statement
-      condition: (call_expression
-        function: (identifier) @conditional_func)))
-"#)?;
+## Source-Aware Matcher
 
-let matcher = QueryMatcher::new(&query, source, &metadata);
-let matches = matcher.matches(&tree.root());
-
-// Separate matches by capture type
-for m in matches {
-    for capture in m.captures {
-        match capture.index {
-            0 => println!("Function call: {:?}", capture.node),
-            1 => println!("Arguments: {:?}", capture.node),
-            2 => println!("Conditional function: {:?}", capture.node),
-            _ => {}
-        }
-    }
-}
-```
-
-#### Pattern 2: Multi-Language Pattern Matching
-```rust
-// Use different patterns based on language type
-fn create_language_specific_query(language_name: &str) -> Result<Query, QueryError> {
-    let query_text = match language_name {
-        "javascript" | "typescript" => r#"
-            (function_declaration
-              name: (identifier) @func_name
-              parameters: (parameter_list) @params)
-              
-            (arrow_function
-              parameters: (parameter_list) @params)
-        "#,
-        "python" => r#"
-            (function_definition
-              name: (identifier) @func_name
-              parameters: (parameters) @params)
-        "#,
-        "rust" => r#"
-            (function_item
-              name: (identifier) @func_name
-              parameters: (parameters) @params)
-        "#,
-        _ => r#"
-            (identifier) @any_identifier
-        "#,
-    };
-    
-    compile_query(query_text)
-}
-
-// Use with proper metadata
-let language = detect_language(&source);
-let metadata = language.symbol_metadata();
-let query = create_language_specific_query(&language.name())?;
-let matcher = QueryMatcher::new(&query, source, &metadata);
-```
-
-#### Pattern 3: Error-Tolerant Matching
-```rust
-// Handle parsing errors gracefully
-let query = compile_query(r#"
-  [
-    (function_declaration) @func
-    (ERROR) @error  ; Match error nodes
-  ]
-"#)?;
-
-let matcher = QueryMatcher::new(&query, source, &metadata);
-let matches = matcher.matches(&tree.root());
-
-for m in matches {
-    for capture in m.captures {
-        match capture.index {
-            0 => {
-                println!("Found valid function");
-                // Process successful parse
-            }
-            1 => {
-                println!("Found parse error at: {:?}", capture.node);
-                // Handle error gracefully
-            }
-            _ => {}
-        }
-    }
-}
-```
-
-### Step 5: Iterator-Based Processing
-
-Use the `QueryMatches` iterator for efficient large-file processing:
+The source-aware matcher uses source text plus `SymbolMetadata` to evaluate
+literal token patterns and text predicates honestly.
 
 ```rust
-use adze_runtime::query::QueryMatches;
+use adze::parser_v4::ParseNode;
+use adze::query::{compile_query, matcher_v2::QueryMatcher};
+use adze_glr_core::SymbolMetadata;
+use adze_ir::Grammar;
 
-fn process_large_file(
-    query: &Query, 
-    root: &ParseNode, 
-    source: &str, 
-    metadata: &[SymbolMetadata]
-) -> Result<Vec<String>, ProcessingError> {
-    let mut results = Vec::new();
-    
-    // Use iterator for memory-efficient processing
-    let matches = QueryMatches::new(query, root, source, metadata);
-    
-    for m in matches {
-        for capture in m.captures {
-            // Extract text for each capture
-            let start = capture.node.start_byte;
-            let end = capture.node.end_byte;
-            let text = &source[start..end];
-            
-            results.push(format!("Capture {}: {}", capture.index, text));
-        }
-        
-        // Limit results to prevent memory exhaustion
-        if results.len() > 1000 {
-            break;
-        }
-    }
-    
-    Ok(results)
-}
-```
-
-### Step 6: Performance Optimization
-
-#### Pattern 1: Metadata Caching
-```rust
-use std::sync::Arc;
-
-struct CachedQueryMatcher<'a> {
-    query: &'a Query,
-    source: &'a str,
-    metadata: Arc<[SymbolMetadata]>,  // Shared metadata
-}
-
-impl<'a> CachedQueryMatcher<'a> {
-    fn new(
-        query: &'a Query, 
-        source: &'a str, 
-        metadata: Arc<[SymbolMetadata]>
-    ) -> Self {
-        Self { query, source, metadata }
-    }
-    
-    fn matches(&self, root: &ParseNode) -> Vec<QueryMatch> {
-        let matcher = QueryMatcher::new(self.query, self.source, &self.metadata);
-        matcher.matches(root)
-    }
-}
-```
-
-#### Pattern 2: Batch Query Processing
-```rust
-fn batch_process_queries(
-    queries: &[Query],
-    trees: &[ParseNode],
-    sources: &[&str],
+fn collect_names(
+    grammar: &Grammar,
     metadata: &[SymbolMetadata],
-) -> Vec<Vec<QueryMatch>> {
-    queries
-        .iter()
-        .zip(trees.iter().zip(sources.iter()))
-        .map(|(query, (tree, source))| {
-            let matcher = QueryMatcher::new(query, source, metadata);
-            matcher.matches(tree)
-        })
-        .collect()
-}
-```
-
-## Migration from Old API
-
-### Before (v0.5.x)
-```rust
-// Old API without metadata validation
-let matcher = QueryMatcher::new(&query, source);
-let matches = matcher.matches(&tree.root());
-```
-
-### After (v0.6.x)
-```rust
-// New API with metadata validation
-let metadata = language.symbol_metadata();
-let matcher = QueryMatcher::new(&query, source, &metadata);
-let matches = matcher.matches(&tree.root());
-```
-
-### Migration Helper Function
-```rust
-fn migrate_query_usage(
-    query: &Query,
+    root: &ParseNode,
     source: &str,
-    tree: &ParseNode,
-    language: &Language,
-) -> Vec<QueryMatch> {
-    // Get metadata from language
-    let metadata = language.symbol_metadata();
-    
-    // Use new API
-    let matcher = QueryMatcher::new(query, source, &metadata);
-    matcher.matches(tree)
+) -> Result<usize, adze::query::QueryError> {
+    let query = compile_query(
+        r#"
+        (function_declaration
+          name: (identifier) @name)
+        "#,
+        grammar,
+    )?;
+
+    let matches = QueryMatcher::new(&query, source, metadata).matches(root);
+    Ok(matches.iter().map(|m| m.captures.len()).sum())
 }
 ```
 
-## Testing Your Queries
+The exact way you obtain `Grammar`, `SymbolMetadata`, and the selected
+`ParseNode` depends on the generated language or fixture harness. Product APIs
+should flow from `parse_document()` first; lower-level query canaries may build
+these values directly.
+
+## Source-Free Cursor
+
+`QueryCursor` is useful when the query does not need source text. It can also
+apply cursor-level restrictions:
 
 ```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn test_metadata_query_matching() {
-        let language = test_language::language();
-        let metadata = language.symbol_metadata();
-        let mut parser = Parser::new();
-        parser.set_language(language).unwrap();
-        
-        let source = "function test() { return 42; }";
-        let tree = parser.parse_utf8(source, None).unwrap();
-        
-        let query = compile_query(r#"
-            (function_declaration
-              name: (identifier) @name)
-        "#).unwrap();
-        
-        let matcher = QueryMatcher::new(&query, source, &metadata);
-        let matches = matcher.matches(&tree.root());
-        
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].captures.len(), 1);
-        assert_eq!(matches[0].captures[0].index, 0);
-    }
-    
-    #[test]  
-    fn test_named_vs_anonymous_filtering() {
-        // Test that named patterns only match named nodes
-        // and anonymous patterns only match anonymous tokens
-        let metadata = create_test_metadata();
-        let query = compile_query(r#"
-            (identifier) @named      ; Should only match named identifier nodes
-            "(" @anonymous          ; Should only match anonymous "(" tokens
-        "#).unwrap();
-        
-        let tree = create_test_tree();
-        let matcher = QueryMatcher::new(&query, "test()", &metadata);
-        let matches = matcher.matches(&tree);
-        
-        // Verify correct filtering based on metadata.named
-        for m in matches {
-            for capture in m.captures {
-                match capture.index {
-                    0 => assert!(is_named_node(&capture.node, &metadata)),
-                    1 => assert!(!is_named_node(&capture.node, &metadata)),
-                    _ => {}
-                }
-            }
-        }
-    }
+use adze::parser_v4::ParseNode;
+use adze::query::{compile_query, QueryCursor};
+use adze_ir::Grammar;
+
+fn names_in_range(
+    grammar: &Grammar,
+    root: &ParseNode,
+    byte_start: usize,
+    byte_end: usize,
+) -> Result<usize, adze::query::QueryError> {
+    let query = compile_query("(identifier) @name", grammar)?;
+
+    let mut cursor = QueryCursor::new();
+    cursor.set_byte_range(byte_start..byte_end);
+
+    Ok(cursor.matches(&query, root).count())
 }
 ```
 
-## Troubleshooting Common Issues
+Source-free matching intentionally fails closed for source-sensitive behavior.
+Use the source-aware matcher for literal token patterns and text predicates.
 
-### Issue 1: No Matches Found
+## Supported Shapes
+
+The documented subset currently includes:
+
+- named node patterns;
+- captures by capture index;
+- ordered child sequences;
+- child quantifiers: no suffix, `?`, `*`, and `+`;
+- field constraints for the covered matcher fixtures;
+- first-child, last-child, and adjacent-sibling anchors;
+- source-aware predicates: `#eq?`, `#not-eq?`, `#match?`, `#not-match?`, and
+  `#any-of?`;
+- cursor byte-range filtering;
+- root-only matching.
+
+These are subset claims. Imported grammar differential parity and full
+Tree-sitter query compatibility remain future work.
+
+## Named Nodes And Anonymous Tokens
+
+Metadata tells the matcher whether a symbol is a named node, an anonymous token,
+extra trivia, or another language-specific symbol class. That distinction keeps
+queries from matching too broadly.
+
+```scheme
+(function_declaration
+  "function"
+  name: (identifier) @name
+  parameters: (parameter_list) @params
+  body: (block) @body)
+```
+
+In this pattern:
+
+- `function_declaration`, `identifier`, `parameter_list`, and `block` are named
+  node patterns;
+- `"function"` is a literal token pattern and needs source-aware matching;
+- `name:`, `parameters:`, and `body:` are field constraints and depend on field
+  metadata.
+
+## Predicates
+
+Text predicates need source text:
+
+```scheme
+((identifier) @name
+ (#match? @name "^[a-z_][a-z0-9_]*$"))
+```
+
+The source-aware matcher can compare capture text to literals or to other
+captures. If source text is unavailable, if a capture is missing, or if a node
+range cannot be sliced from the source, predicate evaluation fails closed.
+
+## Error Nodes
+
+Querying error nodes is useful for diagnostics and editor experiments:
+
+```scheme
+[
+  (function_declaration) @function
+  (ERROR) @error
+]
+```
+
+Native diagnostics still live on `AdzeDocument`. Tree-sitter-compatible selected
+trees can expose `ERROR`, missing, and `has_error` facts, but those facts should
+remain projections from document/parser data.
+
+## Safe Metadata Access
+
+When writing custom fixture code around metadata, use bounds-checked access:
+
 ```rust
-// Check metadata availability
-if metadata.is_empty() {
-    eprintln!("Warning: No symbol metadata available");
-    // Consider using legacy API or providing default metadata
-}
+use adze::parser_v4::ParseNode;
+use adze_glr_core::SymbolMetadata;
 
-// Check query syntax
-match compile_query(query_text) {
-    Ok(query) => { /* proceed */ }
-    Err(e) => eprintln!("Query compilation failed: {}", e),
+fn node_flags(node: &ParseNode, metadata: &[SymbolMetadata]) -> (bool, bool) {
+    metadata
+        .get(node.symbol.0 as usize)
+        .map(|m| (m.is_named, m.is_extra))
+        .unwrap_or((true, false))
 }
 ```
 
-### Issue 2: Unexpected Match Behavior  
+The fallback should be conservative. Missing metadata must not panic, and it
+must not silently turn an advisory compatibility surface into a Stable claim.
+
+## Testing Query Behavior
+
+Use small fixture tests for individual features:
+
 ```rust
-// Debug metadata properties
-for (i, meta) in metadata.iter().enumerate() {
-    println!("Symbol {}: name={}, named={}, is_extra={}", 
-             i, meta.name, meta.named, meta.is_extra);
-}
+#[test]
+fn query_byte_range_keeps_matching_capture() {
+    let grammar = fixture_grammar();
+    let root = fixture_tree();
 
-// Check node types in your tree
-fn debug_tree_structure(node: &ParseNode, depth: usize) {
-    let indent = "  ".repeat(depth);
-    println!("{}Node: symbol={}, children={}", 
-             indent, node.symbol.0, node.children.len());
-    
-    for child in &node.children {
-        debug_tree_structure(child, depth + 1);
-    }
+    let query = adze::query::compile_query("(identifier) @name", &grammar)
+        .expect("query should compile");
+
+    let mut cursor = adze::query::QueryCursor::new();
+    cursor.set_byte_range(3..8);
+
+    let matches: Vec<_> = cursor.matches(&query, &root).collect();
+    assert!(!matches.is_empty());
 }
 ```
 
-### Issue 3: Performance Problems
-```rust
-// Monitor query performance
-use std::time::Instant;
+Prefer one fixture per behavior: fields, anchors, predicates, literal tokens,
+byte ranges, and root-only matching. That makes support-tier promotion possible
+without relying on broad, noisy compatibility claims.
 
-let start = Instant::now();
-let matches = matcher.matches(&root);
-let duration = start.elapsed();
+## Troubleshooting
 
-if duration.as_millis() > 100 {
-    println!("Slow query detected: {}ms", duration.as_millis());
-    // Consider optimizing query or using caching
-}
+### No Matches
+
+Check these in order:
+
+- the query compiles against the same `Grammar` used to build the tree;
+- node names and field names exist in language metadata;
+- source-aware patterns are not being run through the source-free cursor;
+- byte-range or root-only cursor options are not filtering out the match.
+
+### Unexpected Matches
+
+Inspect:
+
+- named versus anonymous metadata;
+- extra-node metadata;
+- alias-visible identity versus grammar identity;
+- field names attached to parent-child edges;
+- whether the query is matching descendants because root-only mode is disabled.
+
+### Predicate Failures
+
+Text predicates fail closed when source text, captures, regexes, or byte ranges
+are invalid. That is intentional; matching by node kind alone would overclaim
+compatibility.
+
+## Proof Commands
+
+Representative query proof:
+
+```bash
+cargo test -p adze --lib query -- --nocapture
+cargo test -p adze --lib query::matcher_v2 -- --nocapture
+git diff --check
 ```
 
-## Best Practices
+Future promotion requires differential fixtures for the supported subset:
 
-1. **Always Use Metadata**: Prefer the new API with symbol metadata validation
-2. **Cache Metadata**: Reuse metadata arrays when processing multiple queries
-3. **Handle Missing Metadata**: Provide fallback behavior when metadata is unavailable
-4. **Test Both Paths**: Test queries with both named and anonymous node patterns
-5. **Monitor Performance**: Profile query performance on large files
-6. **Use Safe Patterns**: Follow bounds-checking patterns for custom metadata access
-
-This metadata-aware query system provides accurate, memory-safe pattern matching while maintaining high performance and Tree-sitter compatibility.
+```bash
+cargo test -p adze --features "pure-rust,ts-compat" --test query_differential -- --nocapture
+```

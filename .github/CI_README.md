@@ -49,7 +49,9 @@ Everything else is optional signal unless explicitly promoted in
 
 ### Recommended Settings
 - Require branches to be up to date before merging
-- Require conversation resolution
+- Do not require conversation resolution in `adze-swarm`; bot review
+  conversations are advisory and must not block the single-operator merge loop
+  once `Rust Small Result` is green.
 
 ## Local Development
 

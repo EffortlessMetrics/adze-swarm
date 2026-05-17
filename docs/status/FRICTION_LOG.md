@@ -1,6 +1,6 @@
 # Adze Friction Log
 
-**Last updated:** 2026-05-11
+**Last updated:** 2026-05-17
 
 If it happens twice, it's not "user error". It's friction we own until we remove it or document it well enough that it stops recurring.
 
@@ -29,6 +29,7 @@ If it happens twice, it's not "user error". It's friction we own until we remove
 | FR-017 | Testing | Backend-selection expectations drift across feature-unified test surfaces | Head-specific CI red and ad hoc panic matching | Resolved | [Issue #267](https://github.com/EffortlessMetrics/adze/issues/267) |
 | FR-018 | CI | Pure-rust benchmark compilation tail in PRs | Routine PRs no longer block on low-signal benchmark compilation | Resolved for routine PRs | [Issue #269](https://github.com/EffortlessMetrics/adze/issues/269) |
 | FR-019 | Tooling | Temp worktree cleanup can drift when a `/tmp` path becomes a standalone repo | Cleanup requires manual removal and prune steps | Resolved | [Issue #268](https://github.com/EffortlessMetrics/adze/issues/268) |
+| FR-020 | CI | `just ci-supported` formatting can hit Windows command-line length limits | Blocks the local supported proof on Windows | Resolved | `adze-swarm#157` |
 
 ---
 
@@ -127,7 +128,7 @@ If it happens twice, it's not "user error". It's friction we own until we remove
 minutes on standard hardware when the workspace included 47 governance/support
 microcrates plus the full core pipeline.
 **Expected:** Developers can iterate quickly on individual crates.
-**Actual:** The 0.9 microcrate-to-SRP collapse reduced the workspace to 28
+**Actual:** The 0.9 microcrate-to-SRP collapse reduced the workspace to 29
 packages, but full workspace builds can still be heavier than focused
 iteration because grammar/tooling/golden surfaces remain outside the core
 supported lane.
@@ -242,6 +243,22 @@ microcrates do not return before release.
 **Fix:** Added `scripts/cleanup-worktrees.sh` with classification, safe cleanup, stale listing, and stale metadata pruning helpers. `just worktree-list` and `just worktree-prune-stale` expose the common commands, and [`DEVELOPER_GUIDE.md`](../DEVELOPER_GUIDE.md) documents the closeout workflow for linked worktrees versus standalone clones.
 **Status:** Resolved
 **Links:** [Issue #268](https://github.com/EffortlessMetrics/adze/issues/268), `scripts/cleanup-worktrees.sh`
+
+### FR-020 - Windows Supported-Gate Formatter Length
+
+**Area:** ci
+**Symptom:** Running `just ci-supported` on Windows failed during formatting
+with `The filename or extension is too long. (os error 206)`.
+**Expected:** The local supported proof should run on the same Windows checkout
+used for swarm work.
+**Actual:** Per-crate `cargo fmt`/Cargo-driven rustfmt invocation could exceed
+the Windows command-line limit before reaching clippy and tests.
+**Repro:** `just ci-supported` from `C:\Code\Rust2\adze-swarm` on 2026-05-17.
+**Fix:** `just ci-supported` now invokes `scripts/ci-supported.sh` directly,
+and the supported lane formats normal crate source roots through
+`scripts/fmt-workspace.sh`, which chunks direct `rustfmt` calls.
+**Status:** Resolved
+**Links:** `adze-swarm#157`
 
 ---
 

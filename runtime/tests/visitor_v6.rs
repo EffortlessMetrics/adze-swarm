@@ -6,42 +6,12 @@ use adze::visitor::{
     TransformWalker, TreeWalker, Visitor, VisitorAction,
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+mod common;
 
-/// Construct a synthetic `ParsedNode` with standard defaults.
-fn make_node(
-    symbol: u16,
-    children: Vec<ParsedNode>,
-    start: usize,
-    end: usize,
-    is_error: bool,
-    is_named: bool,
-) -> ParsedNode {
-    ParsedNode::builder(symbol, children, start, end)
-        .is_error(is_error)
-        .is_named(is_named)
-        .build()
-}
-
-fn leaf(sym: u16, start: usize, end: usize) -> ParsedNode {
-    make_node(sym, vec![], start, end, false, true)
-}
-
-fn unnamed_leaf(sym: u16, start: usize, end: usize) -> ParsedNode {
-    make_node(sym, vec![], start, end, false, false)
-}
-
-fn interior(sym: u16, children: Vec<ParsedNode>) -> ParsedNode {
-    let start = children.first().map_or(0, |c| c.start_byte);
-    let end = children.last().map_or(0, |c| c.end_byte);
-    make_node(sym, children, start, end, false, true)
-}
-
-fn error_node(start: usize, end: usize) -> ParsedNode {
-    make_node(0, vec![], start, end, true, false)
-}
+use common::{
+    error_node, interior_node as interior, make_test_node as make_node, named_leaf as leaf,
+    unnamed_leaf,
+};
 
 /// root(10)( a(1), mid(11)( b(2), c(3) ), d(4) )  — source "abcd"
 fn sample_tree() -> (ParsedNode, Vec<u8>) {

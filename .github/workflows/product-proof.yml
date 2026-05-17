@@ -1,6 +1,20 @@
-name: Product Proof (Advisory)
+name: Product Proof
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - README.md
+      - book/src/getting-started/quickstart.md
+      - cli/tests/readme_quickstart.rs
+      - docs/tutorials/getting-started.md
+      - docs/status/SUPPORT_TIERS.md
+      - docs/status/PRODUCT_PROOF_MAP.md
+      - docs/status/KNOWN_RED.md
+      - docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
+      - samples/downstream-demo/**
+      - scripts/ci-product-stable.sh
+      - .github/workflows/product-proof.yml
   workflow_dispatch:
   schedule:
     - cron: '20 4 * * 1' # weekly Monday advisory canary
@@ -8,9 +22,33 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: product-proof-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
+
 jobs:
+  ci-product-stable:
+    name: ci-product stable canaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Show stable canary plan (dry-run)
+        run: scripts/ci-product-stable.sh --dry-run
+
+      - name: Run stable product lane
+        run: scripts/ci-product-stable.sh
+
   ci-product:
     name: ci-product advisory canaries
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -32,12 +70,6 @@ jobs:
 
       - name: Show canary plan (dry-run)
         run: scripts/ci-product.sh --dry-run
-
-      - name: Show stable canary plan (dry-run)
-        run: scripts/ci-product-stable.sh --dry-run
-
-      - name: Run stable product lane
-        run: scripts/ci-product-stable.sh
 
       - name: Run ci-product advisory lane
         run: scripts/ci-product.sh

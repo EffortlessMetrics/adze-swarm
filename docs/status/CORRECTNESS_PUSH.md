@@ -1,6 +1,6 @@
 # Correctness Push Plan
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-17
 **Scope:** current parser/runtime, GLR, tablegen ABI, CLI, and product-proof convergence.
 
 This is the execution playbook for moving Adze from "bounded core lane is green" to "the product claims are behavior-proven." It is intentionally narrower than a roadmap: keep the required lane bounded, land focused correctness work only when it has receipts, and track remaining product gaps without hiding them inside broad policy or infrastructure PRs.
@@ -10,6 +10,10 @@ This is the execution playbook for moving Adze from "bounded core lane is green"
 - Required `adze-swarm` GitHub gate is `Rust Small Result`.
 - Fast local supported proof stays `just ci-supported`.
 - `ci-supported` covers the seven core crates: `adze`, `adze-macro`, `adze-tool`, `adze-common`, `adze-ir`, `adze-glr-core`, and `adze-tablegen`.
+- As of `adze-swarm` PR #157, the supported proof uses
+  `scripts/fmt-workspace.sh` for formatting so Windows local runs avoid
+  Cargo/rustfmt command-line length failures while keeping the same supported
+  crate set and clippy/test/doc-test scope.
 - The broader product lane is advisory until each canary proves real behavior instead of only compile/no-run smoke.
 - README-stable claims must map to a proof command in `docs/status/SUPPORT_TIERS.md`.
 - Runtime2 remains an experimental proving ground unless a later promotion plan gives it required behavior tests and a public support contract.

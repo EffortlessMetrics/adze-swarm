@@ -1,7 +1,7 @@
 // LSP feature implementations for adze grammars
 
 use adze_ir::{Grammar, TokenPattern};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 /// Trait for LSP features
 pub trait LspFeature: Send + Sync {
@@ -26,27 +26,46 @@ pub struct CompletionProvider {
 
 impl CompletionProvider {
     pub fn new(grammar: &Grammar) -> Self {
-        let mut keywords = BTreeSet::new();
-        let mut symbols = BTreeSet::new();
+        let keywords = grammar
+            .tokens
+            .values()
+            .filter_map(|token| match &token.pattern {
+                TokenPattern::String(value) if Self::is_word_keyword(value) => Some(value.clone()),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
 
-        // Extract keywords from tokens
-        for (_id, token) in &grammar.tokens {
-            if let TokenPattern::String(value) = &token.pattern
-                && value.chars().all(|c| c.is_alphabetic() || c == '_')
-            {
-                keywords.insert(value.clone());
-            }
-        }
+        let symbols = grammar
+            .rule_names
+            .values()
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
 
-        // Extract symbols from rule names
-        for (_symbol_id, name) in &grammar.rule_names {
-            symbols.insert(name.clone());
-        }
+        Self { keywords, symbols }
+    }
 
-        Self {
-            keywords: keywords.into_iter().collect(),
-            symbols: symbols.into_iter().collect(),
-        }
+    fn is_word_keyword(value: &str) -> bool {
+        value.chars().all(|c| c.is_alphabetic() || c == '_')
+    }
+
+    fn render_completion_items(labels: &[String], kind: &str, indent: &str) -> String {
+        labels
+            .iter()
+            .map(|label| {
+                format!(
+                    r#"lsp_types::CompletionItem {{
+{indent}    label: "{label}".to_string(),
+{indent}    kind: Some(lsp_types::CompletionItemKind::{kind}),
+{indent}    ..Default::default()
+{indent}}}"#
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(&format!(",\n{indent}"))
     }
 }
 
@@ -56,14 +75,16 @@ impl LspFeature for CompletionProvider {
     }
 
     fn generate_handler(&self) -> String {
+        let keyword_items = Self::render_completion_items(&self.keywords, "KEYWORD", "        ");
+        let symbol_items = Self::render_completion_items(&self.symbols, "CLASS", "        ");
+
         format!(
             r#"
 pub async fn handle_completion(
     params: lsp_types::CompletionParams,
 ) -> Result<Option<lsp_types::CompletionResponse>> {{
-    let items = vec![
-        {}
-    ];
+    let mut items = create_keyword_completions();
+    items.extend(create_symbol_completions());
     
     Ok(Some(lsp_types::CompletionResponse::Array(items)))
 }}
@@ -79,45 +100,7 @@ fn create_symbol_completions() -> Vec<lsp_types::CompletionItem> {{
         {}
     ]
 }}"#,
-            // Keywords completion items
-            self.keywords
-                .iter()
-                .map(|k| format!(
-                    r#"lsp_types::CompletionItem {{
-                        label: "{}".to_string(),
-                        kind: Some(lsp_types::CompletionItemKind::KEYWORD),
-                        ..Default::default()
-                    }}"#,
-                    k
-                ))
-                .collect::<Vec<_>>()
-                .join(",\n        "),
-            // Keyword function
-            self.keywords
-                .iter()
-                .map(|k| format!(
-                    r#"lsp_types::CompletionItem {{
-                        label: "{}".to_string(),
-                        kind: Some(lsp_types::CompletionItemKind::KEYWORD),
-                        ..Default::default()
-                    }}"#,
-                    k
-                ))
-                .collect::<Vec<_>>()
-                .join(",\n        "),
-            // Symbol function
-            self.symbols
-                .iter()
-                .map(|s| format!(
-                    r#"lsp_types::CompletionItem {{
-                        label: "{}".to_string(),
-                        kind: Some(lsp_types::CompletionItemKind::CLASS),
-                        ..Default::default()
-                    }}"#,
-                    s
-                ))
-                .collect::<Vec<_>>()
-                .join(",\n        ")
+            keyword_items, symbol_items
         )
     }
 
@@ -140,12 +123,12 @@ fn create_symbol_completions() -> Vec<lsp_types::CompletionItem> {{
 /// Hover provider for LSP
 pub struct HoverProvider {
     #[allow(dead_code)]
-    pub documentation: std::collections::HashMap<String, String>,
+    pub documentation: HashMap<String, String>,
 }
 
 impl HoverProvider {
     pub fn new(grammar: &Grammar) -> Self {
-        let mut documentation = std::collections::HashMap::new();
+        let mut documentation = HashMap::new();
 
         // Generate documentation from grammar rules
         for (_symbol_id, rule_name) in &grammar.rule_names {
@@ -586,7 +569,9 @@ mod tests {
             provider.symbols,
             vec!["a_statement".to_string(), "z_statement".to_string()]
         );
-        assert_eq!(handler.matches("label: \"if\".to_string()").count(), 2);
+        assert_eq!(handler.matches("label: \"if\".to_string()").count(), 1);
+        assert!(handler.contains("let mut items = create_keyword_completions();"));
+        assert!(handler.contains("items.extend(create_symbol_completions());"));
     }
 
     #[test]

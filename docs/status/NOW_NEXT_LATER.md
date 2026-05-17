@@ -1,6 +1,6 @@
 # Now / Next / Later
 
-**Last updated:** 2026-05-11
+**Last updated:** 2026-05-17
 **Status:** **Post-queue correctness proof** — `adze` 0.8.0 is live on crates.io, the supported proof remains bounded, and `adze-swarm` uses `Rust Small Result` as its single required GitHub merge gate. Remaining work is tracked as focused proof issues rather than a broad merge queue. The current push is tracked in [`CORRECTNESS_PUSH.md`](./CORRECTNESS_PUSH.md).
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
@@ -35,7 +35,10 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [ ] For any new correctness PR, keep the one-PR loop: rebase on current `main`, run focused proof, require hosted `Rust Small Result`, and report red checks before merge.
 
 ### Product proof alignment
-- [ ] Keep `just ci-supported` as the fast local supported proof.
+- [x] Keep `just ci-supported` as the fast local supported proof. `adze-swarm`
+      PR #157 restored the exact local gate on Windows by routing formatting
+      through the portable chunked formatter instead of per-crate `cargo fmt`
+      invocations that can exceed command-line limits.
 - [x] Convert `scripts/ci-product.sh` from compile-only advisory smoke to bounded behavior canaries where behavior is currently truthful; benchmarks and WASM remain explicit compile/no-run canaries.
 - [x] Track GLR product proof in [#460](https://github.com/EffortlessMetrics/adze/issues/460), tablegen ABI completeness in [#461](https://github.com/EffortlessMetrics/adze/issues/461), and parse diagnostics in [#463](https://github.com/EffortlessMetrics/adze/issues/463).
 - [x] Close out CLI clean-room quickstart/truthfulness and README/support-tier reconciliation as landed proof work ([#464](https://github.com/EffortlessMetrics/adze/issues/464), [#465](https://github.com/EffortlessMetrics/adze/issues/465)).

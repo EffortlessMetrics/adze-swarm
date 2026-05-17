@@ -23,8 +23,8 @@ impl<'a> PredicateContext<'a> {
     }
 
     /// Get text for a node
-    pub fn node_text(&self, node: &ParseNode) -> &str {
-        &self.source[node.start_byte..node.end_byte]
+    pub fn node_text(&self, node: &ParseNode) -> Option<&str> {
+        self.source.get(node.start_byte..node.end_byte)
     }
 
     /// Evaluate a predicate
@@ -55,9 +55,10 @@ impl<'a> PredicateContext<'a> {
 
             Predicate::Match { capture, regex } => self.evaluate_match(*capture, regex, captures),
 
-            Predicate::NotMatch { capture, regex } => {
-                !self.evaluate_match(*capture, regex, captures)
-            }
+            Predicate::NotMatch { capture, regex } => self
+                .evaluate_match_result(*capture, regex, captures)
+                .map(|matched| !matched)
+                .unwrap_or(false),
 
             Predicate::AnyOf { capture, values } => {
                 self.evaluate_any_of(*capture, values, captures)
@@ -84,13 +85,14 @@ impl<'a> PredicateContext<'a> {
         value: Option<&String>,
         captures: &HashMap<u32, ParseNode>,
     ) -> bool {
-        if let Some(node1) = captures.get(&capture1) {
-            let text1 = self.node_text(node1);
-
+        if let Some(node1) = captures.get(&capture1)
+            && let Some(text1) = self.node_text(node1)
+        {
             if let Some(capture2) = capture2 {
                 // Compare with another capture
-                if let Some(node2) = captures.get(capture2) {
-                    let text2 = self.node_text(node2);
+                if let Some(node2) = captures.get(capture2)
+                    && let Some(text2) = self.node_text(node2)
+                {
                     return text1 == text2;
                 }
             } else if let Some(value) = value {
@@ -108,32 +110,38 @@ impl<'a> PredicateContext<'a> {
         regex_str: &str,
         captures: &HashMap<u32, ParseNode>,
     ) -> bool {
-        if let Some(node) = captures.get(&capture) {
-            let text = self.node_text(node);
+        self.evaluate_match_result(capture, regex_str, captures)
+            .unwrap_or(false)
+    }
 
+    fn evaluate_match_result(
+        &self,
+        capture: u32,
+        regex_str: &str,
+        captures: &HashMap<u32, ParseNode>,
+    ) -> Option<bool> {
+        if let Some(node) = captures.get(&capture)
+            && let Some(text) = self.node_text(node)
+        {
             // Get or compile regex
             let mut cache = self.regex_cache.borrow_mut();
             let regex = if let Some(regex) = cache.get(regex_str).cloned() {
                 regex
             } else {
                 let Ok(regex) = Regex::new(regex_str) else {
-                    return false;
+                    return None;
                 };
                 cache.insert(regex_str.to_string(), regex);
-                if let Some(regex) = cache.get(regex_str).cloned() {
-                    regex
-                } else {
-                    return false;
-                }
+                cache.get(regex_str).cloned()?
             };
 
             // Full-string match: the entire text must match the regex
             if let Some(m) = regex.find(text) {
-                return m.start() == 0 && m.end() == text.len();
+                return Some(m.start() == 0 && m.end() == text.len());
             }
-            return false;
+            return Some(false);
         }
-        false
+        None
     }
 
     /// Evaluate #any-of? predicate
@@ -143,8 +151,9 @@ impl<'a> PredicateContext<'a> {
         values: &[String],
         captures: &HashMap<u32, ParseNode>,
     ) -> bool {
-        if let Some(node) = captures.get(&capture) {
-            let text = self.node_text(node);
+        if let Some(node) = captures.get(&capture)
+            && let Some(text) = self.node_text(node)
+        {
             return values.iter().any(|v| text == v);
         }
         false
@@ -222,6 +231,37 @@ mod tests {
     }
 
     #[test]
+    fn test_not_eq_literal_and_capture() {
+        let source = "hello world";
+        let ctx = PredicateContext::new(source);
+
+        let mut captures = HashMap::new();
+        captures.insert(0, make_node(0, 5)); // "hello"
+        captures.insert(1, make_node(6, 11)); // "world"
+
+        let pred = Predicate::NotEq {
+            capture1: 0,
+            capture2: None,
+            value: Some("world".to_string()),
+        };
+        assert!(ctx.evaluate(&pred, &captures));
+
+        let pred = Predicate::NotEq {
+            capture1: 0,
+            capture2: Some(1),
+            value: None,
+        };
+        assert!(ctx.evaluate(&pred, &captures));
+
+        let pred = Predicate::NotEq {
+            capture1: 0,
+            capture2: None,
+            value: Some("hello".to_string()),
+        };
+        assert!(!ctx.evaluate(&pred, &captures));
+    }
+
+    #[test]
     fn test_match_regex() {
         let source = "variable_123";
         let ctx = PredicateContext::new(source);
@@ -240,6 +280,27 @@ mod tests {
         let pred = Predicate::Match {
             capture: 0,
             regex: r"^\d+$".to_string(),
+        };
+        assert!(!ctx.evaluate(&pred, &captures));
+    }
+
+    #[test]
+    fn test_not_match_regex() {
+        let source = "variable_123";
+        let ctx = PredicateContext::new(source);
+
+        let mut captures = HashMap::new();
+        captures.insert(0, make_node(0, 12)); // "variable_123"
+
+        let pred = Predicate::NotMatch {
+            capture: 0,
+            regex: r"^\d+$".to_string(),
+        };
+        assert!(ctx.evaluate(&pred, &captures));
+
+        let pred = Predicate::NotMatch {
+            capture: 0,
+            regex: r"^[a-z_]\w*$".to_string(),
         };
         assert!(!ctx.evaluate(&pred, &captures));
     }
@@ -269,5 +330,90 @@ mod tests {
             values: vec!["const".to_string(), "let".to_string(), "var".to_string()],
         };
         assert!(!ctx.evaluate(&pred, &captures));
+    }
+
+    #[test]
+    fn test_predicates_fail_closed_for_missing_capture() {
+        let ctx = PredicateContext::new("hello");
+        let captures = HashMap::new();
+
+        let predicates = [
+            Predicate::Eq {
+                capture1: 0,
+                capture2: None,
+                value: Some("hello".to_string()),
+            },
+            Predicate::NotEq {
+                capture1: 0,
+                capture2: None,
+                value: Some("hello".to_string()),
+            },
+            Predicate::Match {
+                capture: 0,
+                regex: "hello".to_string(),
+            },
+            Predicate::NotMatch {
+                capture: 0,
+                regex: "hello".to_string(),
+            },
+            Predicate::AnyOf {
+                capture: 0,
+                values: vec!["hello".to_string()],
+            },
+        ];
+
+        for predicate in predicates {
+            assert!(!ctx.evaluate(&predicate, &captures));
+        }
+    }
+
+    #[test]
+    fn test_invalid_regex_fails_closed() {
+        let ctx = PredicateContext::new("hello");
+        let mut captures = HashMap::new();
+        captures.insert(0, make_node(0, 5));
+
+        let pred = Predicate::Match {
+            capture: 0,
+            regex: "(".to_string(),
+        };
+        assert!(!ctx.evaluate(&pred, &captures));
+
+        let pred = Predicate::NotMatch {
+            capture: 0,
+            regex: "(".to_string(),
+        };
+        assert!(!ctx.evaluate(&pred, &captures));
+    }
+
+    #[test]
+    fn test_invalid_node_range_fails_closed() {
+        let ctx = PredicateContext::new("hello");
+        let mut captures = HashMap::new();
+        captures.insert(0, make_node(0, 50));
+
+        let predicates = [
+            Predicate::Eq {
+                capture1: 0,
+                capture2: None,
+                value: Some("hello".to_string()),
+            },
+            Predicate::Match {
+                capture: 0,
+                regex: "hello".to_string(),
+            },
+            Predicate::NotMatch {
+                capture: 0,
+                regex: "world".to_string(),
+            },
+            Predicate::AnyOf {
+                capture: 0,
+                values: vec!["hello".to_string()],
+            },
+        ];
+
+        for predicate in predicates {
+            assert!(!ctx.evaluate(&predicate, &captures));
+        }
     }
 }

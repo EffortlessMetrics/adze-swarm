@@ -22,7 +22,7 @@ pub struct QueryCapture {
 }
 
 /// State for matching a pattern
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct MatchState {
     /// Current captures
     captures: HashMap<u32, ParseNode>,
@@ -31,9 +31,33 @@ struct MatchState {
     success: bool,
 }
 
+#[derive(Clone, Copy)]
+struct RepeatSearch {
+    min_count: usize,
+    anchored_next: bool,
+}
+
 /// Query pattern matcher
 pub struct QueryMatcher<'a> {
     query: &'a Query,
+}
+
+fn node_overlaps_range(node: &ParseNode, range: &std::ops::Range<usize>) -> bool {
+    node.start_byte <= range.end && node.end_byte >= range.start
+}
+
+fn match_overlaps_range(
+    captures: &HashMap<u32, ParseNode>,
+    node: &ParseNode,
+    range: &std::ops::Range<usize>,
+) -> bool {
+    if captures.is_empty() {
+        return node_overlaps_range(node, range);
+    }
+
+    captures
+        .values()
+        .any(|capture| node_overlaps_range(capture, range))
 }
 
 impl<'a> QueryMatcher<'a> {
@@ -44,11 +68,28 @@ impl<'a> QueryMatcher<'a> {
 
     /// Match all patterns in the query against a parse tree
     pub fn matches(&self, root: &ParseNode) -> Vec<QueryMatch> {
+        self.matches_with_options(root, None, false)
+    }
+
+    /// Match all patterns in the query against a parse tree using cursor options.
+    pub(crate) fn matches_with_options(
+        &self,
+        root: &ParseNode,
+        byte_range: Option<&std::ops::Range<usize>>,
+        match_root: bool,
+    ) -> Vec<QueryMatch> {
         let mut matches = Vec::new();
 
         // Try each pattern
         for (pattern_index, pattern) in self.query.patterns.iter().enumerate() {
-            self.match_pattern(pattern_index, pattern, root, &mut matches);
+            self.match_pattern(
+                pattern_index,
+                pattern,
+                root,
+                byte_range,
+                match_root,
+                &mut matches,
+            );
         }
 
         matches
@@ -60,10 +101,19 @@ impl<'a> QueryMatcher<'a> {
         pattern_index: usize,
         pattern: &Pattern,
         root: &ParseNode,
+        byte_range: Option<&std::ops::Range<usize>>,
+        match_root: bool,
         matches: &mut Vec<QueryMatch>,
     ) {
         // Walk the tree and try to match at each node
-        self.match_pattern_at_node(pattern_index, pattern, root, matches);
+        self.match_pattern_at_node(
+            pattern_index,
+            pattern,
+            root,
+            byte_range,
+            match_root,
+            matches,
+        );
     }
 
     /// Try to match pattern starting at a specific node
@@ -72,15 +122,25 @@ impl<'a> QueryMatcher<'a> {
         pattern_index: usize,
         pattern: &Pattern,
         node: &ParseNode,
+        byte_range: Option<&std::ops::Range<usize>>,
+        match_root: bool,
         matches: &mut Vec<QueryMatch>,
     ) {
+        if let Some(range) = byte_range
+            && !node_overlaps_range(node, range)
+        {
+            return;
+        }
+
         // Try to match the pattern at this node
         let mut state = MatchState {
             captures: HashMap::new(),
             success: false,
         };
 
-        if self.match_node(&pattern.root, node, &mut state) {
+        if self.match_node(&pattern.root, node, &mut state)
+            && byte_range.is_none_or(|range| match_overlaps_range(&state.captures, node, range))
+        {
             // Check predicates
             if self.check_predicates(&pattern.predicates, &state.captures) {
                 // Create match
@@ -98,9 +158,13 @@ impl<'a> QueryMatcher<'a> {
             }
         }
 
+        if match_root {
+            return;
+        }
+
         // Recursively try to match in children
         for child in &node.children {
-            self.match_pattern_at_node(pattern_index, pattern, child, matches);
+            self.match_pattern_at_node(pattern_index, pattern, child, byte_range, false, matches);
         }
     }
 
@@ -206,44 +270,258 @@ impl<'a> QueryMatcher<'a> {
         node_idx: usize,
         state: &mut MatchState,
     ) -> bool {
+        if let Some(next_state) = self.match_child_sequence_from(
+            patterns,
+            nodes,
+            pattern_idx,
+            node_idx,
+            state.clone(),
+            false,
+        ) {
+            *state = next_state;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn match_child_sequence_from(
+        &self,
+        patterns: &[PatternChild],
+        nodes: &[ParseNode],
+        pattern_idx: usize,
+        node_idx: usize,
+        state: MatchState,
+        anchored_next: bool,
+    ) -> Option<MatchState> {
         // Base case: all patterns matched
         if pattern_idx >= patterns.len() {
-            return node_idx >= nodes.len(); // All nodes must be consumed
+            return Some(state);
         }
 
         // Base case: no more nodes but patterns remain
         if node_idx >= nodes.len() {
-            // Check if remaining patterns are all optional
-            for i in pattern_idx..patterns.len() {
-                if let PatternChild::Node(ref pattern_node) = patterns[i]
-                    && pattern_node.quantifier != Quantifier::Optional
-                    && pattern_node.quantifier != Quantifier::Star
-                {
-                    return false;
-                }
-            }
-            return true;
+            return patterns[pattern_idx..]
+                .iter()
+                .all(|pattern| {
+                    matches!(pattern, PatternChild::Anchor)
+                        || matches!(
+                            pattern,
+                            PatternChild::Node(node)
+                                if matches!(node.quantifier, Quantifier::Optional | Quantifier::Star)
+                        )
+                })
+                .then_some(state);
         }
 
         match &patterns[pattern_idx] {
-            PatternChild::Token(_expected_text) => {
-                // Match anonymous token
-                // In a real implementation, would need to check node text
-                if node_idx < nodes.len() {
-                    self.match_child_sequence(patterns, nodes, pattern_idx + 1, node_idx + 1, state)
-                } else {
-                    false
-                }
-            }
-            PatternChild::Node(pattern_node) => {
-                // Try to match this pattern node
-                if self.match_node(pattern_node, &nodes[node_idx], state) {
-                    self.match_child_sequence(patterns, nodes, pattern_idx + 1, node_idx + 1, state)
-                } else {
-                    false
-                }
-            }
+            PatternChild::Anchor => self
+                .anchor_satisfied(patterns, pattern_idx, nodes, node_idx)
+                .then(|| {
+                    self.match_child_sequence_from(
+                        patterns,
+                        nodes,
+                        pattern_idx + 1,
+                        node_idx,
+                        state,
+                        true,
+                    )
+                })
+                .flatten(),
+            PatternChild::Token(_) => None,
+            PatternChild::Node(pattern_node) => match pattern_node.quantifier {
+                Quantifier::One => self.match_single_child_candidate(
+                    pattern_node,
+                    patterns,
+                    nodes,
+                    (pattern_idx, node_idx),
+                    state,
+                    anchored_next,
+                ),
+                Quantifier::Optional => self
+                    .match_single_child_candidate(
+                        pattern_node,
+                        patterns,
+                        nodes,
+                        (pattern_idx, node_idx),
+                        state.clone(),
+                        anchored_next,
+                    )
+                    .or_else(|| {
+                        self.match_child_sequence_from(
+                            patterns,
+                            nodes,
+                            pattern_idx + 1,
+                            node_idx,
+                            state,
+                            anchored_next,
+                        )
+                    }),
+                Quantifier::Plus => self.match_repeated_child_candidates(
+                    pattern_node,
+                    patterns,
+                    nodes,
+                    (pattern_idx, node_idx),
+                    state,
+                    RepeatSearch {
+                        min_count: 1,
+                        anchored_next,
+                    },
+                ),
+                Quantifier::Star => self
+                    .match_repeated_child_candidates(
+                        pattern_node,
+                        patterns,
+                        nodes,
+                        (pattern_idx, node_idx),
+                        state.clone(),
+                        RepeatSearch {
+                            min_count: 0,
+                            anchored_next,
+                        },
+                    )
+                    .or_else(|| {
+                        self.match_child_sequence_from(
+                            patterns,
+                            nodes,
+                            pattern_idx + 1,
+                            node_idx,
+                            state,
+                            anchored_next,
+                        )
+                    }),
+            },
         }
+    }
+
+    fn anchor_satisfied(
+        &self,
+        patterns: &[PatternChild],
+        pattern_idx: usize,
+        nodes: &[ParseNode],
+        node_idx: usize,
+    ) -> bool {
+        if pattern_idx == 0 {
+            node_idx == 0
+        } else if pattern_idx + 1 == patterns.len() {
+            node_idx >= nodes.len()
+        } else {
+            true
+        }
+    }
+
+    fn match_single_child_candidate(
+        &self,
+        pattern_node: &PatternNode,
+        patterns: &[PatternChild],
+        nodes: &[ParseNode],
+        position: (usize, usize),
+        state: MatchState,
+        anchored_next: bool,
+    ) -> Option<MatchState> {
+        let (pattern_idx, node_idx) = position;
+        let candidates: Box<dyn Iterator<Item = usize>> = if anchored_next {
+            Box::new((node_idx < nodes.len()).then_some(node_idx).into_iter())
+        } else {
+            Box::new(node_idx..nodes.len())
+        };
+
+        candidates
+            .filter_map(|candidate_idx| {
+                self.match_child_node_once(pattern_node, &nodes[candidate_idx], state.clone())
+                    .and_then(|next_state| {
+                        self.match_child_sequence_from(
+                            patterns,
+                            nodes,
+                            pattern_idx + 1,
+                            candidate_idx + 1,
+                            next_state,
+                            false,
+                        )
+                    })
+            })
+            .next()
+    }
+
+    fn match_repeated_child_candidates(
+        &self,
+        pattern_node: &PatternNode,
+        patterns: &[PatternChild],
+        nodes: &[ParseNode],
+        position: (usize, usize),
+        state: MatchState,
+        repeat: RepeatSearch,
+    ) -> Option<MatchState> {
+        let (_, node_idx) = position;
+        let mut candidates: Box<dyn Iterator<Item = usize>> = if repeat.anchored_next {
+            Box::new((node_idx < nodes.len()).then_some(node_idx).into_iter())
+        } else {
+            Box::new(node_idx..nodes.len())
+        };
+
+        candidates.find_map(|candidate_idx| {
+            self.match_repeated_child_node(
+                pattern_node,
+                patterns,
+                nodes,
+                (position.0, candidate_idx),
+                state.clone(),
+                repeat.min_count,
+            )
+        })
+    }
+
+    fn match_child_node_once(
+        &self,
+        pattern_node: &PatternNode,
+        node: &ParseNode,
+        mut state: MatchState,
+    ) -> Option<MatchState> {
+        let mut single = pattern_node.clone();
+        single.quantifier = Quantifier::One;
+
+        self.match_node(&single, node, &mut state).then_some(state)
+    }
+
+    fn match_repeated_child_node(
+        &self,
+        pattern_node: &PatternNode,
+        patterns: &[PatternChild],
+        nodes: &[ParseNode],
+        position: (usize, usize),
+        state: MatchState,
+        min_count: usize,
+    ) -> Option<MatchState> {
+        let (pattern_idx, node_idx) = position;
+        let mut candidates = vec![(node_idx, state)];
+        let mut cursor = node_idx;
+
+        while cursor < nodes.len() {
+            let (_, last_state) = candidates.last().expect("candidate seed exists");
+            let Some(next_state) =
+                self.match_child_node_once(pattern_node, &nodes[cursor], last_state.clone())
+            else {
+                break;
+            };
+            cursor += 1;
+            candidates.push((cursor, next_state));
+        }
+
+        candidates
+            .into_iter()
+            .enumerate()
+            .rev()
+            .filter(|(count, _)| *count >= min_count)
+            .find_map(|(_, (next_node_idx, next_state))| {
+                self.match_child_sequence_from(
+                    patterns,
+                    nodes,
+                    pattern_idx + 1,
+                    next_node_idx,
+                    next_state,
+                    false,
+                )
+            })
     }
 
     /// Check if predicates are satisfied
@@ -271,14 +549,12 @@ impl<'a> QueryMatcher<'a> {
                 if let Some(node1) = captures.get(capture1) {
                     if let Some(capture2) = capture2 {
                         if let Some(node2) = captures.get(capture2) {
-                            // Compare node texts (simplified)
+                            // Source-free matching can only compare captured spans.
                             return node1.start_byte == node2.start_byte
                                 && node1.end_byte == node2.end_byte;
                         }
-                    } else if let Some(_value) = value {
-                        // Compare node text with value
-                        // In real implementation, would extract actual text
-                        return true;
+                    } else if value.is_some() {
+                        return false;
                     }
                 }
                 false
@@ -286,33 +562,27 @@ impl<'a> QueryMatcher<'a> {
             Predicate::NotEq {
                 capture1,
                 capture2,
-                value,
-            } => !self.check_predicate(
-                &Predicate::Eq {
-                    capture1: *capture1,
-                    capture2: *capture2,
-                    value: value.clone(),
-                },
-                captures,
-            ),
-            Predicate::Match {
-                capture: _,
-                regex: _,
+                value: _,
             } => {
-                // In real implementation, would compile regex and match
-                true
+                if let Some(capture2) = capture2 {
+                    if let (Some(node1), Some(node2)) =
+                        (captures.get(capture1), captures.get(capture2))
+                    {
+                        return node1.start_byte != node2.start_byte
+                            || node1.end_byte != node2.end_byte;
+                    }
+                    false
+                } else {
+                    false
+                }
             }
-            Predicate::NotMatch { capture, regex } => !self.check_predicate(
-                &Predicate::Match {
-                    capture: *capture,
-                    regex: regex.clone(),
-                },
-                captures,
-            ),
-            _ => {
-                // Other predicates not implemented yet
-                true
-            }
+            Predicate::Set { .. } => true,
+            Predicate::Match { .. }
+            | Predicate::NotMatch { .. }
+            | Predicate::AnyOf { .. }
+            | Predicate::Is { .. }
+            | Predicate::IsNot { .. }
+            | Predicate::Custom { .. } => false,
         }
     }
 }
@@ -332,8 +602,18 @@ pub struct QueryMatches<'a> {
 impl<'a> QueryMatches<'a> {
     /// Create a new query matches iterator
     pub fn new(query: &'a Query, root: &'a ParseNode) -> Self {
+        Self::new_with_options(query, root, None, false)
+    }
+
+    /// Create a new query matches iterator using cursor options.
+    pub(crate) fn new_with_options(
+        query: &'a Query,
+        root: &'a ParseNode,
+        byte_range: Option<&std::ops::Range<usize>>,
+        match_root: bool,
+    ) -> Self {
         let matcher = QueryMatcher::new(query);
-        let matches = matcher.matches(root);
+        let matches = matcher.matches_with_options(root, byte_range, match_root);
         QueryMatches {
             matcher,
             root,

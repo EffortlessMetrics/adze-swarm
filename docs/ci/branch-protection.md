@@ -14,6 +14,10 @@ routed Rust Small lane runs on CX43 or GitHub-hosted fallback.
 `just ci-supported` remains the local supported/product proof command. It is
 not the required GitHub branch-protection context in `adze-swarm`.
 
+Conversation resolution is intentionally disabled in `adze-swarm`. Review bots
+can still leave useful comments, but unresolved advisory threads must not block
+the single-operator swarm merge path after the required gate is green.
+
 ## Future
 
 The public-era rollout also defines an aggregated check called

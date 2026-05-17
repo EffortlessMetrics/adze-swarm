@@ -11,7 +11,10 @@ expression: "serde_json::to_string_pretty(&json).expect(\"diagnostic document JS
     "name": "typed_ast_contract"
   },
   "metadata": {
-    "error_count": 1
+    "error_count": 1,
+    "incremental_requested": false,
+    "incremental_used": false,
+    "fallback_reason": null
   },
   "diagnostics": [
     {

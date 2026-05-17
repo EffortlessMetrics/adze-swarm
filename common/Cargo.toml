@@ -25,6 +25,7 @@ path = "src/lib.rs"
 strict_docs = [] # Enable strict documentation requirements
 
 [dependencies]
+adze-common-type-ops-core = { version = "0.1.0", path = "../crates/common-type-ops-core" }
 syn = { version = "2", features = [ "full", "extra-traits" ] }
 quote = "1"
 

@@ -9,185 +9,21 @@
 //! Tests the builder's tree construction, forest-to-tree pipeline via the
 //! Parser API, Tree/Node/TreeCursor behaviour, Language builder, and edge cases.
 
-use adze_glr_core::{FirstFollowSets, build_lr1_automaton};
-use adze_ir::{Grammar, ProductionId, Rule, Symbol, SymbolId, Token as IrToken, TokenPattern};
 use adze_runtime::language::SymbolMetadata;
+use adze_runtime::test_helpers::linear_token_language;
 use adze_runtime::tree::TreeCursor;
-use adze_runtime::{Language, Parser, Token, Tree};
+use adze_runtime::{Language, Parser, Tree};
 
 // ---------------------------------------------------------------------------
-// Helper: build a minimal grammar  start → a
-// Symbols: 0=EOF, 1=a, 2=start
+// Helpers: build the small linear grammars used by parser/builder tests.
 // ---------------------------------------------------------------------------
 
 fn make_single_token_language() -> Language {
-    let mut grammar = Grammar::new("single".to_string());
-    let a_id = SymbolId(1);
-    grammar.tokens.insert(
-        a_id,
-        IrToken {
-            name: "a".to_string(),
-            pattern: TokenPattern::String("a".to_string()),
-            fragile: false,
-        },
-    );
-    let start_id = SymbolId(2);
-    grammar.rule_names.insert(start_id, "start".to_string());
-    grammar.rules.insert(
-        start_id,
-        vec![Rule {
-            lhs: start_id,
-            rhs: vec![Symbol::Terminal(a_id)],
-            precedence: None,
-            associativity: None,
-            production_id: ProductionId(0),
-            fields: vec![],
-        }],
-    );
-
-    let ff = FirstFollowSets::compute(&grammar).unwrap();
-    let table = build_lr1_automaton(&grammar, &ff)
-        .expect("table")
-        .normalize_eof_to_zero()
-        .with_detected_goto_indexing();
-    let table: &'static _ = Box::leak(Box::new(table));
-
-    Language::builder()
-        .parse_table(table)
-        .symbol_names(vec!["EOF".into(), "a".into(), "start".into()])
-        .symbol_metadata(vec![
-            SymbolMetadata {
-                is_terminal: true,
-                is_visible: false,
-                is_supertype: false,
-            },
-            SymbolMetadata {
-                is_terminal: true,
-                is_visible: true,
-                is_supertype: false,
-            },
-            SymbolMetadata {
-                is_terminal: false,
-                is_visible: true,
-                is_supertype: false,
-            },
-        ])
-        .tokenizer(|input: &[u8]| {
-            let mut toks = Vec::new();
-            for (i, &byte) in input.iter().enumerate() {
-                if byte == b'a' {
-                    toks.push(Token {
-                        kind: 1,
-                        start: i as u32,
-                        end: (i + 1) as u32,
-                    });
-                }
-            }
-            toks.push(Token {
-                kind: 0,
-                start: input.len() as u32,
-                end: input.len() as u32,
-            });
-            Box::new(toks.into_iter()) as Box<dyn Iterator<Item = Token> + '_>
-        })
-        .build()
-        .unwrap()
+    linear_token_language("single", &["a"])
 }
 
-// ---------------------------------------------------------------------------
-// Helper: build a two-token grammar  start → a b
-// Symbols: 0=EOF, 1=a, 2=b, 3=start
-// ---------------------------------------------------------------------------
-
 fn make_two_token_language() -> Language {
-    let mut grammar = Grammar::new("two_tok".to_string());
-    let a_id = SymbolId(1);
-    grammar.tokens.insert(
-        a_id,
-        IrToken {
-            name: "a".to_string(),
-            pattern: TokenPattern::String("a".to_string()),
-            fragile: false,
-        },
-    );
-    let b_id = SymbolId(2);
-    grammar.tokens.insert(
-        b_id,
-        IrToken {
-            name: "b".to_string(),
-            pattern: TokenPattern::String("b".to_string()),
-            fragile: false,
-        },
-    );
-    let start_id = SymbolId(3);
-    grammar.rule_names.insert(start_id, "start".to_string());
-    grammar.rules.insert(
-        start_id,
-        vec![Rule {
-            lhs: start_id,
-            rhs: vec![Symbol::Terminal(a_id), Symbol::Terminal(b_id)],
-            precedence: None,
-            associativity: None,
-            production_id: ProductionId(0),
-            fields: vec![],
-        }],
-    );
-
-    let ff = FirstFollowSets::compute(&grammar).unwrap();
-    let table = build_lr1_automaton(&grammar, &ff)
-        .expect("table")
-        .normalize_eof_to_zero()
-        .with_detected_goto_indexing();
-    let table: &'static _ = Box::leak(Box::new(table));
-
-    Language::builder()
-        .parse_table(table)
-        .symbol_names(vec!["EOF".into(), "a".into(), "b".into(), "start".into()])
-        .symbol_metadata(vec![
-            SymbolMetadata {
-                is_terminal: true,
-                is_visible: false,
-                is_supertype: false,
-            },
-            SymbolMetadata {
-                is_terminal: true,
-                is_visible: true,
-                is_supertype: false,
-            },
-            SymbolMetadata {
-                is_terminal: true,
-                is_visible: true,
-                is_supertype: false,
-            },
-            SymbolMetadata {
-                is_terminal: false,
-                is_visible: true,
-                is_supertype: false,
-            },
-        ])
-        .tokenizer(|input: &[u8]| {
-            let mut toks = Vec::new();
-            for (i, &byte) in input.iter().enumerate() {
-                let kind = match byte {
-                    b'a' => 1u32,
-                    b'b' => 2u32,
-                    _ => continue,
-                };
-                toks.push(Token {
-                    kind,
-                    start: i as u32,
-                    end: (i + 1) as u32,
-                });
-            }
-            toks.push(Token {
-                kind: 0,
-                start: input.len() as u32,
-                end: input.len() as u32,
-            });
-            Box::new(toks.into_iter()) as Box<dyn Iterator<Item = Token> + '_>
-        })
-        .build()
-        .unwrap()
+    linear_token_language("two_tok", &["a", "b"])
 }
 
 fn parse_single(input: &[u8]) -> Tree {

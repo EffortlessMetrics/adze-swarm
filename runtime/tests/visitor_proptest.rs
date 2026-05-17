@@ -9,62 +9,12 @@ use adze::visitor::{
     TransformWalker, TreeWalker, Visitor, VisitorAction,
 };
 use proptest::prelude::*;
+mod common;
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Construct a synthetic `ParsedNode` with standard defaults.
-fn make_node(
-    symbol: u16,
-    children: Vec<ParsedNode>,
-    start: usize,
-    end: usize,
-    is_error: bool,
-    is_named: bool,
-) -> ParsedNode {
-    ParsedNode::builder(symbol, children, start, end)
-        .is_error(is_error)
-        .is_named(is_named)
-        .build()
-}
-
-fn leaf(symbol: u16, start: usize, end: usize) -> ParsedNode {
-    make_node(symbol, vec![], start, end, false, true)
-}
-
-fn interior(symbol: u16, children: Vec<ParsedNode>) -> ParsedNode {
-    let start = children.first().map_or(0, |c| c.start_byte);
-    let end = children.last().map_or(0, |c| c.end_byte);
-    make_node(symbol, children, start, end, false, true)
-}
-
-fn error_node(start: usize, end: usize) -> ParsedNode {
-    make_node(0, vec![], start, end, true, false)
-}
-
-/// Count every node in a tree recursively (including the root).
-fn count_nodes(node: &ParsedNode) -> usize {
-    1 + node.children().iter().map(count_nodes).sum::<usize>()
-}
-
-/// Compute tree depth (root-only = 1).
-fn tree_depth(node: &ParsedNode) -> usize {
-    if node.children().is_empty() {
-        1
-    } else {
-        1 + node.children().iter().map(tree_depth).max().unwrap_or(0)
-    }
-}
-
-/// Count leaf nodes in a tree.
-fn count_leaves(node: &ParsedNode) -> usize {
-    if node.children().is_empty() {
-        1
-    } else {
-        node.children().iter().map(count_leaves).sum()
-    }
-}
+use common::{
+    count_leaves, count_nodes, error_node, interior_node as interior, named_leaf as leaf,
+    tree_depth,
+};
 
 // ---------------------------------------------------------------------------
 // Proptest strategies

@@ -1,4 +1,4 @@
-use crate::{Action, ActionCell};
+use crate::{Action, ActionCell, action_utils::action_eq};
 use std::collections::BTreeMap;
 
 pub(super) fn normalize_action_table(action_table: &mut Vec<Vec<ActionCell>>) {
@@ -73,19 +73,6 @@ pub(super) fn add_action_with_conflict(
                 .or_default();
             *entry = current_cell.clone();
         }
-    }
-}
-
-fn action_eq(a: &Action, b: &Action) -> bool {
-    match (a, b) {
-        (Action::Shift(s1), Action::Shift(s2)) => s1 == s2,
-        (Action::Reduce(r1), Action::Reduce(r2)) => r1 == r2,
-        (Action::Accept, Action::Accept) => true,
-        (Action::Error, Action::Error) => true,
-        (Action::Fork(a1), Action::Fork(a2)) => {
-            a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| action_eq(x, y))
-        }
-        _ => false,
     }
 }
 

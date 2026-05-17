@@ -228,12 +228,20 @@ fn main() {
 
 #[adze::grammar("{}")]
 pub mod grammar {{
-    /// Root node of the grammar
+    /// Arithmetic expression grammar.
     #[adze::language]
-    #[derive(Debug, PartialEq, Eq)]
-    pub struct Program {{
-        #[adze::leaf(pattern = r"\d+", text = true)]
-        pub number: String,
+    #[derive(Debug, PartialEq)]
+    pub enum Expr {{
+        Number(
+            #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+            i32,
+        ),
+
+        #[adze::prec_left(1)]
+        Add(Box<Expr>, #[adze::leaf(text = "+")] (), Box<Expr>),
+
+        #[adze::prec_left(2)]
+        Mul(Box<Expr>, #[adze::leaf(text = "*")] (), Box<Expr>),
     }}
 
     /// Whitespace ignored between tokens.
@@ -262,30 +270,100 @@ pub use grammar_file::grammar;
     // Create example test
     let crate_name = name.replace('-', "_");
     let test_rs = format!(
-        r#"use {}::grammar;
+        r#"use {}::grammar::{{self, Expr}};
 
 #[test]
-fn test_generated_parser_returns_number_ast() {{
-    let program = grammar::parse("42").expect("number program should parse");
+fn test_generated_parser_respects_precedence() {{
+    let expr = grammar::parse("1 + 2 * 3").expect("expression should parse");
 
-    assert_eq!(program.number, "42");
+    assert_eq!(
+        expr,
+        Expr::Add(
+            Box::new(Expr::Number(1)),
+            (),
+            Box::new(Expr::Mul(
+                Box::new(Expr::Number(2)),
+                (),
+                Box::new(Expr::Number(3)),
+            )),
+        )
+    );
+}}
+
+#[test]
+fn test_bad_input_reports_diagnostics() {{
+    let source = "1 + @";
+    let errors = grammar::parse(source).expect_err("bad input should fail");
+    let first = errors
+        .first()
+        .expect("bad input should produce at least one parse error");
+
+    assert_eq!(first.byte_span(), 4..5);
+    assert!(
+        first.expected.iter().any(|name| name == r"/\d+/"),
+        "diagnostic should name the expected number token, got {{:?}}",
+        first.expected
+    );
+
+    let rendered = first.display_with_source(source).to_string();
+    assert!(rendered.contains("bytes 4..5"));
+    assert!(rendered.contains("expected one of:"));
+}}
+
+#[test]
+fn test_parse_document_exposes_recovered_document() {{
+    let document = grammar::parse_document("1 +")
+        .expect("parse_document should return partial document facts for recoverable input");
+
+    assert!(document.tree().has_errors());
+    assert!(!document.diagnostics().is_empty());
 }}
 "#,
         crate_name
     );
 
-    fs::write(project_dir.join("tests/basic.rs"), test_rs)?;
+    fs::write(project_dir.join("tests/parse.rs"), test_rs)?;
+
+    let example_rs = format!(
+        r#"use {}::grammar;
+
+fn main() {{
+    let source = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "1 + 2 * 3".to_string());
+
+    match grammar::parse(&source) {{
+        Ok(expr) => println!("{{expr:?}}"),
+        Err(errors) => {{
+            for error in &errors {{
+                eprintln!("{{}}", error.display_with_source(&source));
+            }}
+            std::process::exit(1);
+        }}
+    }}
+}}
+"#,
+        crate_name
+    );
+
+    fs::write(project_dir.join("examples/parse.rs"), example_rs)?;
 
     // Create README
     let readme = format!(
         r#"# {}
 
-A adze grammar for {}.
+An Adze arithmetic grammar for {}.
 
 ## Usage
 
 ```rust
-let program = {}::grammar::parse("42")?;
+let expr = {}::grammar::parse("1 + 2 * 3")?;
+```
+
+Run the generated example:
+
+```bash
+cargo run --example parse -- "1 + 2 * 3"
 ```
 
 ## Development
@@ -316,8 +394,8 @@ MIT
     );
     println!("\n{}", "Next steps:".bright_yellow());
     println!("  cd {}", name);
-    println!("  cargo build");
     println!("  cargo test");
+    println!("  cargo run --example parse -- \"1 + 2 * 3\"");
 
     Ok(())
 }
