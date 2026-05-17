@@ -352,7 +352,7 @@ claim.
 
 ### Work Item: performance-contract
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -362,7 +362,7 @@ tablegen, and ABI decode paths.
 
 ### Work Item: benchmark-fixtures
 
-Status: blocked by `performance-contract`
+Status: active
 
 #### Goal
 

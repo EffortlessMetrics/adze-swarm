@@ -339,11 +339,12 @@ commands = [
 
 [[work_item]]
 id = "performance-contract"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0014"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [151]
 commands = [
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",
@@ -351,12 +352,11 @@ commands = [
 
 [[work_item]]
 id = "benchmark-fixtures"
-status = "blocked"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0014"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
-blocked_by = ["performance-contract"]
 commands = [
   "cargo bench -p adze-benchmarks --no-run",
   "git diff --check",
