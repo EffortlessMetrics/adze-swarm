@@ -242,7 +242,7 @@ known alias-visible gaps explicit until proven.
 
 ### Work Item: error-missing-node-compat
 
-Status: blocked by `projection-equivalence-harness`
+Status: active
 
 #### Goal
 
@@ -373,7 +373,7 @@ default PR gates.
 
 ### Work Item: support-tier-promotion-pass
 
-Status: active
+Status: complete
 
 #### Goal
 
