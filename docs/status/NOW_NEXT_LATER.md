@@ -44,6 +44,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Close out CLI clean-room quickstart/truthfulness and README/support-tier reconciliation as landed proof work ([#464](https://github.com/EffortlessMetrics/adze/issues/464), [#465](https://github.com/EffortlessMetrics/adze/issues/465)).
 - [x] Keep README feature claims aligned with [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md): no Stable claim without a named proof command; guarded by `readme_stable_claims_are_in_stable_product_lane`.
 - [x] Add stable-product canaries for the checked-in downstream demo, README quickstart, and Getting Started tutorial so clean downstream crates prove typed parsing and useful bad-input diagnostics.
+- [x] Latest local stable-product receipt: `just ci-product-stable` passed on
+      2026-05-17 after the `adze-swarm` queue cleanup through PR #194. This is
+      evidence for the README Stable claim lane, not a branch-protection change.
 
 ### Operational tail
 - [x] [Issue #269](https://github.com/EffortlessMetrics/adze/issues/269): pure-rust benchmark-compilation tail is removed from routine PRs; benchmark compile/performance signal remains in explicit performance and benchmark lanes.
