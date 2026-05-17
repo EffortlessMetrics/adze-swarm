@@ -25,7 +25,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Optimizing Performance**](./how-to/optimize-performance.md) - SIMD, GLR tuning, and profiling your parser.
 - [**LSP Generation**](./how-to/generate-lsp.md) - Generating a Language Server for your grammar.
 - [**Using the Playground**](./how-to/use-playground.md) - Developing grammars interactively in the browser.
-- [**Visualizing GLR**](./how-to/visualize-glr.md) - Debugging forks and stacks with visual tools.
+- [**Visualizing GLR**](./how-to/visualize-glr.md) - Inspecting conflict reports and DOT automaton graphs.
 - [**Querying with Metadata**](./how-to/query-with-metadata.md) - Using symbol metadata in Tree-sitter queries.
 - [**C++ Templates Cookbook**](./how-to/cookbook-cpp-templates.md) - Best practices for parsing complex C++ constructs.
 
