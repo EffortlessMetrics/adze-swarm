@@ -114,7 +114,8 @@ The supported predicate family is:
 | `#any-of?` | captured source text equals one listed literal |
 
 When source text is unavailable, text predicates must fail closed. They must not
-return matches on node kind alone.
+return matches on node kind alone. Missing captures, invalid regexes, and node
+ranges that cannot be sliced from the source must also fail closed.
 
 ### B10. Directives are parsed before they are product claims
 
