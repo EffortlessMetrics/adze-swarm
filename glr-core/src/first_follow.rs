@@ -32,7 +32,13 @@ impl<'grammar> FirstFollowBuilder<'grammar> {
         let mut first = IndexMap::new();
         let mut follow = IndexMap::new();
 
-        for &symbol_id in grammar.rules.keys().chain(grammar.tokens.keys()) {
+        for symbol_id in grammar
+            .rules
+            .keys()
+            .chain(grammar.tokens.keys())
+            .copied()
+            .chain(grammar.externals.iter().map(|external| external.symbol_id))
+        {
             first.insert(symbol_id, FixedBitSet::with_capacity(symbol_count));
             follow.insert(symbol_id, FixedBitSet::with_capacity(symbol_count));
         }
@@ -82,13 +88,18 @@ impl<'grammar> FirstFollowBuilder<'grammar> {
                     rule_nullable = false;
                     break;
                 }
-                Symbol::NonTerminal(id) | Symbol::External(id) => {
+                Symbol::NonTerminal(id) => {
                     changed |= union_symbol_set(&mut self.first, rule.lhs, *id);
 
                     if !self.nullable.contains(id.0 as usize) {
                         rule_nullable = false;
                         break;
                     }
+                }
+                Symbol::External(id) => {
+                    changed |= insert_symbol(&mut self.first, rule.lhs, *id);
+                    rule_nullable = false;
+                    break;
                 }
                 Symbol::Epsilon => {
                     // Epsilon doesn't contribute to FIRST set but keeps the rule nullable.
@@ -313,7 +324,7 @@ fn first_of_sequence_static(
             Symbol::Epsilon => {
                 // Epsilon doesn't contribute to FIRST set, continue to next symbol
             }
-            Symbol::NonTerminal(id) | Symbol::External(id) => {
+            Symbol::NonTerminal(id) => {
                 if let Some(symbol_first) = first.get(id) {
                     result.union_with(symbol_first);
                 }
@@ -321,6 +332,10 @@ fn first_of_sequence_static(
                 if !nullable.contains(id.0 as usize) {
                     break;
                 }
+            }
+            Symbol::External(id) => {
+                result.insert(id.0 as usize);
+                break;
             }
             Symbol::Optional(_)
             | Symbol::Repeat(_)
@@ -335,8 +350,8 @@ fn first_of_sequence_static(
 
 fn sequence_is_nullable(symbols: &[Symbol], nullable: &FixedBitSet) -> bool {
     symbols.iter().all(|symbol| match symbol {
-        Symbol::Terminal(_) => false,
-        Symbol::NonTerminal(id) | Symbol::External(id) => nullable.contains(id.0 as usize),
+        Symbol::Terminal(_) | Symbol::External(_) => false,
+        Symbol::NonTerminal(id) => nullable.contains(id.0 as usize),
         Symbol::Epsilon => true,
         Symbol::Optional(_)
         | Symbol::Repeat(_)
@@ -407,5 +422,182 @@ fn union_fixed_set(
 fn complex_symbol_error() -> GLRError {
     GLRError::ComplexSymbolsNotNormalized {
         operation: FIRST_FOLLOW_OPERATION.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn grammar_with_rules(
+        rules: impl IntoIterator<Item = (SymbolId, &'static str, Vec<Vec<Symbol>>)>,
+    ) -> Grammar {
+        let mut grammar = Grammar::new("first_follow_test".to_string());
+
+        for (lhs, name, productions) in rules {
+            grammar.rule_names.insert(lhs, name.to_string());
+            for (index, rhs) in productions.into_iter().enumerate() {
+                grammar.add_rule(Rule {
+                    lhs,
+                    rhs,
+                    precedence: None,
+                    associativity: None,
+                    fields: vec![],
+                    production_id: ProductionId(index as u16),
+                });
+            }
+        }
+
+        grammar
+    }
+
+    fn add_token(grammar: &mut Grammar, id: SymbolId, name: &str) {
+        grammar.tokens.insert(
+            id,
+            Token {
+                name: name.to_string(),
+                pattern: TokenPattern::String(name.to_string()),
+                fragile: false,
+            },
+        );
+    }
+
+    fn assert_set_contains_exactly(set: &FixedBitSet, expected: &[SymbolId]) {
+        let mut actual = set.ones().map(|id| SymbolId(id as u16)).collect::<Vec<_>>();
+        let mut expected = expected.to_vec();
+        actual.sort();
+        expected.sort();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_nullable_prefix_allows_first_to_continue_to_next_symbol() {
+        let s = SymbolId(10);
+        let maybe_a = SymbolId(11);
+        let a = SymbolId(1);
+        let b = SymbolId(2);
+
+        let mut grammar = grammar_with_rules([
+            (
+                s,
+                "Program",
+                vec![vec![Symbol::NonTerminal(maybe_a), Symbol::Terminal(b)]],
+            ),
+            (
+                maybe_a,
+                "MaybeA",
+                vec![vec![Symbol::Terminal(a)], vec![Symbol::Epsilon]],
+            ),
+        ]);
+        add_token(&mut grammar, a, "a");
+        add_token(&mut grammar, b, "b");
+
+        let sets = FirstFollowSets::compute(&grammar).expect("FIRST/FOLLOW computation succeeds");
+
+        assert!(sets.is_nullable(maybe_a));
+        assert!(!sets.is_nullable(s));
+        assert_set_contains_exactly(sets.first(s).unwrap(), &[a, b]);
+        assert_set_contains_exactly(sets.first(maybe_a).unwrap(), &[a]);
+    }
+
+    #[test]
+    fn test_follow_propagates_first_of_suffix_and_lhs_follow_when_suffix_nullable() {
+        let s = SymbolId(10);
+        let item = SymbolId(11);
+        let maybe_tail = SymbolId(12);
+        let tail = SymbolId(1);
+
+        let mut grammar = grammar_with_rules([
+            (
+                s,
+                "Program",
+                vec![vec![
+                    Symbol::NonTerminal(item),
+                    Symbol::NonTerminal(maybe_tail),
+                ]],
+            ),
+            (item, "Item", vec![vec![Symbol::Epsilon]]),
+            (
+                maybe_tail,
+                "MaybeTail",
+                vec![vec![Symbol::Terminal(tail)], vec![Symbol::Epsilon]],
+            ),
+        ]);
+        add_token(&mut grammar, tail, "tail");
+
+        let sets = FirstFollowSets::compute(&grammar).expect("FIRST/FOLLOW computation succeeds");
+
+        assert_set_contains_exactly(sets.follow(s).unwrap(), &[SymbolId(0)]);
+        assert_set_contains_exactly(sets.follow(item).unwrap(), &[SymbolId(0), tail]);
+        assert_set_contains_exactly(sets.follow(maybe_tail).unwrap(), &[SymbolId(0)]);
+    }
+
+    #[test]
+    fn test_first_of_sequence_skips_epsilon_and_nullable_nonterminals() {
+        let nullable = SymbolId(10);
+        let a = SymbolId(1);
+        let b = SymbolId(2);
+
+        let mut grammar = grammar_with_rules([(nullable, "Program", vec![vec![Symbol::Epsilon]])]);
+        add_token(&mut grammar, a, "a");
+        add_token(&mut grammar, b, "b");
+
+        let sets = FirstFollowSets::compute(&grammar).expect("FIRST/FOLLOW computation succeeds");
+        let first = sets
+            .first_of_sequence(&[
+                Symbol::Epsilon,
+                Symbol::NonTerminal(nullable),
+                Symbol::Terminal(b),
+            ])
+            .expect("normalized sequence is accepted");
+
+        assert!(sets.is_nullable(nullable));
+        assert_set_contains_exactly(&first, &[b]);
+    }
+
+    #[test]
+    fn test_complex_symbols_are_normalized_before_computation() {
+        let s = SymbolId(10);
+        let a = SymbolId(1);
+        let b = SymbolId(2);
+
+        let mut grammar = grammar_with_rules([(
+            s,
+            "Program",
+            vec![vec![
+                Symbol::Optional(Box::new(Symbol::Terminal(a))),
+                Symbol::Choice(vec![Symbol::Terminal(a), Symbol::Terminal(b)]),
+            ]],
+        )]);
+        add_token(&mut grammar, a, "a");
+        add_token(&mut grammar, b, "b");
+
+        let sets = FirstFollowSets::compute(&grammar).expect("normalization permits computation");
+
+        assert!(!sets.is_nullable(s));
+        assert_set_contains_exactly(sets.first(s).unwrap(), &[a, b]);
+    }
+
+    #[test]
+    fn test_external_symbols_participate_in_first_and_follow_sets() {
+        let s = SymbolId(10);
+        let external = SymbolId(20);
+        let trailing = SymbolId(1);
+
+        let mut grammar = grammar_with_rules([(
+            s,
+            "Program",
+            vec![vec![Symbol::External(external), Symbol::Terminal(trailing)]],
+        )]);
+        grammar.externals.push(ExternalToken {
+            name: "indent".to_string(),
+            symbol_id: external,
+        });
+        add_token(&mut grammar, trailing, "trailing");
+
+        let sets = FirstFollowSets::compute(&grammar).expect("FIRST/FOLLOW computation succeeds");
+
+        assert_set_contains_exactly(sets.first(s).unwrap(), &[external]);
+        assert_set_contains_exactly(sets.follow(external).unwrap(), &[trailing]);
     }
 }
