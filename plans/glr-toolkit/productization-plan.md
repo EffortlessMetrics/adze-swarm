@@ -223,7 +223,7 @@ Make GOTO and symbol-indexing invariants part of the GLR/tablegen proof lane.
 
 ### Work Item: ts-compat-selected-tree-parity
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -233,7 +233,7 @@ field lookup.
 
 ### Work Item: node-types-parity
 
-Status: blocked by `projection-equivalence-harness`
+Status: active
 
 #### Goal
 
