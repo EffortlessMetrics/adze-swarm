@@ -299,7 +299,7 @@ scanner errors.
 
 ### Work Item: cli-diagnostic-projection
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -310,7 +310,7 @@ and ambiguity JSON projections read from `parse_document`.
 
 ### Work Item: canonical-parser-cookbook
 
-Status: blocked by `projection-equivalence-harness`, `query-compatibility-spec`
+Status: active
 
 #### Goal
 
