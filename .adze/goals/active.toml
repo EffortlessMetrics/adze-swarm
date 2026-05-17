@@ -275,11 +275,12 @@ commands = [
 
 [[work_item]]
 id = "cli-diagnostic-projection"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0004"
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [146]
 commands = [
   "cargo test -p adze-cli parse_document_json -- --nocapture",
   "git diff --check",
@@ -287,12 +288,11 @@ commands = [
 
 [[work_item]]
 id = "canonical-parser-cookbook"
-status = "blocked"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
-blocked_by = ["projection-equivalence-harness", "query-compatibility-spec"]
 commands = [
   "cargo test -p adze --features \"pure-rust,glr,ts-compat\" cookbook -- --nocapture",
   "git diff --check",
