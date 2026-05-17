@@ -231,6 +231,28 @@ review_after = "2026-06-07"
 expires = "2026-11-07"
 
 [[lane]]
+id = "glr-invariants"
+workflow = ".github/workflows/ci-policy.yml"
+job = "glr-invariants"
+display_name = "GLR Invariants"
+kind = "policy"
+tier = "frontdoor"
+default_pr = true
+blocking = false
+runner = "ubuntu_latest"
+base_lem = 2
+owner = "core/parser"
+intent = "Run GOTO indexing and symbol-indexing guardrails on GLR, runtime parser, and tablegen changes."
+failure_mode = "A parser/tablegen change can corrupt GOTO indexing or SymbolId(0) conventions without an explicit receipt."
+proof_obligation = "Run cargo xtask check-goto-indexing and the xtask goto_indexing tests when invariant-sensitive paths change."
+evidence = ["target/policy/goto-indexing.log", "target/policy/goto-indexing-tests.log"]
+allowed_triggers = ["pull_request", "push", "workflow_dispatch"]
+routing_note = "The job wakes with ci-policy but runs the guard only for runtime/parser/tablegen/glr-core/goto-indexing paths, push, or manual dispatch."
+duplicate_of = []
+review_after = "2026-06-15"
+expires = "2026-11-15"
+
+[[lane]]
 id = "ripr-advisory"
 workflow = ".github/workflows/ripr.yml"
 job = "ripr"

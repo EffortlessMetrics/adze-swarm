@@ -204,7 +204,7 @@ prefix/postfix-style grammars.
 
 ### Work Item: tablegen-conflict-abi-roundtrip
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -213,7 +213,7 @@ action encode/decode canaries into one GLR ABI roundtrip matrix.
 
 ### Work Item: goto-symbol-indexing-proof
 
-Status: ready
+Status: active
 
 #### Goal
 
