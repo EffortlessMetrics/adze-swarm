@@ -2,7 +2,7 @@
 
 use crate::{
     Action, ActionCell, FirstFollowSets, GotoIndexing, ItemSetCollection, LexMode, ParseRule,
-    ParseTable, StateId, SymbolId, SymbolMetadata,
+    ParseTable, StateId, SymbolId, SymbolMetadata, action_utils::action_eq,
 };
 use adze_ir::{Grammar, Symbol, TokenPattern};
 use std::collections::{BTreeMap, HashMap};
@@ -256,19 +256,5 @@ fn add_action_with_conflict(
         if !entry.iter().any(|a| action_eq(a, &new_action)) {
             entry.push(new_action);
         }
-    }
-}
-
-/// Check if two actions are equivalent
-fn action_eq(a: &Action, b: &Action) -> bool {
-    match (a, b) {
-        (Action::Shift(s1), Action::Shift(s2)) => s1 == s2,
-        (Action::Reduce(r1), Action::Reduce(r2)) => r1 == r2,
-        (Action::Accept, Action::Accept) => true,
-        (Action::Error, Action::Error) => true,
-        (Action::Fork(a1), Action::Fork(a2)) => {
-            a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| action_eq(x, y))
-        }
-        _ => false,
     }
 }
