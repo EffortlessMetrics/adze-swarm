@@ -19,7 +19,7 @@ pub struct ScannerSource {
 }
 
 /// Supported scanner implementation languages
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScannerLanguage {
     C,
     Cpp,
@@ -27,12 +27,22 @@ pub enum ScannerLanguage {
 }
 
 impl ScannerLanguage {
-    /// Get the file extension for this language
+    /// Get the canonical file extension for this language.
     pub fn extension(&self) -> &'static str {
         match self {
             ScannerLanguage::C => "c",
             ScannerLanguage::Cpp => "cc",
             ScannerLanguage::Rust => "rs",
+        }
+    }
+
+    /// Infer a scanner language from a source path.
+    fn from_path(path: &Path) -> Option<Self> {
+        match path.extension().and_then(|s| s.to_str()) {
+            Some("c") => Some(ScannerLanguage::C),
+            Some("cc" | "cpp") => Some(ScannerLanguage::Cpp),
+            Some("rs") => Some(ScannerLanguage::Rust),
+            _ => None,
         }
     }
 }
@@ -59,33 +69,35 @@ impl ScannerBuilder {
 
     /// Find scanner source file in the source directory
     pub fn find_scanner(&self) -> Result<Option<ScannerSource>> {
-        // Look for scanner files in standard locations
-        let scanner_names = vec![
-            "scanner.c".to_string(),
-            "scanner.cc".to_string(),
-            "scanner.cpp".to_string(),
-            "scanner.rs".to_string(),
+        const CANONICAL_SCANNER_NAMES: &[&str] =
+            &["scanner.c", "scanner.cc", "scanner.cpp", "scanner.rs"];
+
+        let prefixed_scanner_names = [
             format!("{}_scanner.c", self.grammar_name),
             format!("{}_scanner.cc", self.grammar_name),
+            format!("{}_scanner.cpp", self.grammar_name),
             format!("{}_scanner.rs", self.grammar_name),
         ];
 
-        for name in &scanner_names {
+        for name in CANONICAL_SCANNER_NAMES
+            .iter()
+            .copied()
+            .chain(prefixed_scanner_names.iter().map(String::as_str))
+        {
             let path = self.src_dir.join(name);
-            if path.exists() {
-                let language = match path.extension().and_then(|s| s.to_str()) {
-                    Some("c") => ScannerLanguage::C,
-                    Some("cc") | Some("cpp") => ScannerLanguage::Cpp,
-                    Some("rs") => ScannerLanguage::Rust,
-                    _ => continue,
-                };
-
-                return Ok(Some(ScannerSource {
-                    path,
-                    language,
-                    grammar_name: self.grammar_name.clone(),
-                }));
+            if !path.exists() {
+                continue;
             }
+
+            let Some(language) = ScannerLanguage::from_path(&path) else {
+                continue;
+            };
+
+            return Ok(Some(ScannerSource {
+                path,
+                language,
+                grammar_name: self.grammar_name.clone(),
+            }));
         }
 
         Ok(None)
@@ -210,8 +222,9 @@ pub fn register_scanner(external_tokens: Vec<adze::SymbolId>) {{
             .with_context(|| format!("Failed to write scanner bindings to {:?}", bindings_path))?;
 
         println!(
-            "cargo:rustc-env=ADZE_SCANNER_BINDINGS_{}",
-            self.grammar_name.to_uppercase()
+            "cargo:rustc-env=ADZE_SCANNER_BINDINGS_{}={}",
+            self.grammar_name.to_uppercase(),
+            bindings_path.display()
         );
 
         Ok(())
@@ -344,6 +357,27 @@ impl ExternalScanner for MyScanner {
     }
 
     #[test]
+    fn scanner_language_from_path_accepts_supported_extensions() {
+        assert_eq!(
+            ScannerLanguage::from_path(Path::new("scanner.c")),
+            Some(ScannerLanguage::C)
+        );
+        assert_eq!(
+            ScannerLanguage::from_path(Path::new("scanner.cc")),
+            Some(ScannerLanguage::Cpp)
+        );
+        assert_eq!(
+            ScannerLanguage::from_path(Path::new("scanner.cpp")),
+            Some(ScannerLanguage::Cpp)
+        );
+        assert_eq!(
+            ScannerLanguage::from_path(Path::new("scanner.rs")),
+            Some(ScannerLanguage::Rust)
+        );
+        assert_eq!(ScannerLanguage::from_path(Path::new("scanner.txt")), None);
+    }
+
+    #[test]
     fn scanner_language_is_copy_and_eq() {
         let l = ScannerLanguage::C;
         let copied = l;
@@ -407,6 +441,19 @@ impl ExternalScanner for MyScanner {
         assert_eq!(scanner.language, ScannerLanguage::C);
         assert_eq!(scanner.grammar_name, "python");
         assert!(scanner.path.ends_with("python_scanner.c"));
+    }
+
+    #[test]
+    fn find_scanner_detects_grammar_prefixed_cpp_name() {
+        let temp_dir = TempDir::new().unwrap();
+        let src_dir = temp_dir.path().to_path_buf();
+        fs::write(src_dir.join("python_scanner.cpp"), "// python scanner").unwrap();
+
+        let builder = ScannerBuilder::new("python", src_dir, PathBuf::new());
+        let scanner = builder.find_scanner().unwrap().unwrap();
+        assert_eq!(scanner.language, ScannerLanguage::Cpp);
+        assert_eq!(scanner.grammar_name, "python");
+        assert!(scanner.path.ends_with("python_scanner.cpp"));
     }
 
     #[test]
