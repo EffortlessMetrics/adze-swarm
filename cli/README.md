@@ -13,7 +13,15 @@ workspace, an AST-first grammar toolchain for Rust.
 ## Common Commands
 
 ```bash
-adze init my-language
+adze init calc
+cd calc
+cargo test
+cargo run --example parse -- "1 + 2 * 3"
+```
+
+Other useful commands:
+
+```bash
 adze check src/grammar.rs
 adze stats src/grammar.rs
 adze build .

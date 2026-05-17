@@ -83,7 +83,8 @@ fn test_init_generates_buildable_project() {
     let project_dir = temp.path().join(project_name);
     assert!(project_dir.join("Cargo.toml").exists());
     assert!(project_dir.join("src/grammar.rs").exists());
-    assert!(project_dir.join("tests/basic.rs").exists());
+    assert!(project_dir.join("tests/parse.rs").exists());
+    assert!(project_dir.join("examples/parse.rs").exists());
 
     let status = Command::new("cargo")
         .arg("test")
@@ -93,6 +94,27 @@ fn test_init_generates_buildable_project() {
     assert!(
         status.success(),
         "generated project should build and pass typed parser tests"
+    );
+
+    let output = Command::new("cargo")
+        .arg("run")
+        .arg("--quiet")
+        .arg("--example")
+        .arg("parse")
+        .arg("--")
+        .arg("1 + 2 * 3")
+        .current_dir(&project_dir)
+        .output()
+        .expect("run generated parse example");
+    assert!(
+        output.status.success(),
+        "generated parse example should run\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("Add"),
+        "generated parse example should print the typed AST"
     );
 
     let mut check = cargo_bin_cmd!("adze");
@@ -389,7 +411,8 @@ fn test_init_default_cwd_generates_buildable_project() {
     let project_dir = temp.path().join(project_name);
     assert!(project_dir.join("Cargo.toml").exists());
     assert!(project_dir.join("src/grammar.rs").exists());
-    assert!(project_dir.join("tests/basic.rs").exists());
+    assert!(project_dir.join("tests/parse.rs").exists());
+    assert!(project_dir.join("examples/parse.rs").exists());
 
     let status = Command::new("cargo")
         .arg("check")
