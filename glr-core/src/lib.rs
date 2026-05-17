@@ -61,6 +61,8 @@ pub use error::Result as GlrResult;
 /// Back-compat alias: prefer `GlrError`; `GLRError` remains for now.
 pub use GLRError as GlrError;
 
+mod action_utils;
+
 /// Conflict inspection API for analyzing GLR parse table conflicts
 pub mod conflict_inspection;
 
