@@ -24,10 +24,16 @@ pub struct QueryCapture {
 }
 
 /// State for matching a pattern
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct MatchState {
     /// Current captures
     captures: HashMap<u32, ParseNode>,
+}
+
+#[derive(Clone, Copy)]
+struct RepeatSearch {
+    min_count: usize,
+    anchored_next: bool,
 }
 
 /// Query pattern matcher with source text
@@ -237,12 +243,34 @@ impl<'a> QueryMatcher<'a> {
         node_idx: usize,
         state: &mut MatchState,
     ) -> bool {
+        if let Some(next_state) = self.match_child_sequence_from(
+            pattern_children,
+            node_children,
+            pattern_idx,
+            node_idx,
+            state.clone(),
+            false,
+        ) {
+            *state = next_state;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn match_child_sequence_from(
+        &self,
+        pattern_children: &[PatternChild],
+        node_children: &[ParseNode],
+        pattern_idx: usize,
+        node_idx: usize,
+        state: MatchState,
+        anchored_next: bool,
+    ) -> Option<MatchState> {
         // Base case: all patterns matched
         if pattern_idx >= pattern_children.len() {
             // If extra nodes remain, ensure they're ignorable
-            return node_children[node_idx..]
-                .iter()
-                .all(|n| self.node_is_extra(n));
+            return Some(state);
         }
 
         let mut node_idx = node_idx;
@@ -256,45 +284,288 @@ impl<'a> QueryMatcher<'a> {
             // Check if remaining patterns are all optional
             return pattern_children[pattern_idx..]
                 .iter()
-                .all(|p| matches!(p, PatternChild::Node(n) if n.quantifier != Quantifier::One));
+                .all(|p| {
+                    matches!(p, PatternChild::Anchor)
+                        || matches!(
+                            p,
+                            PatternChild::Node(n)
+                                if matches!(n.quantifier, Quantifier::Optional | Quantifier::Star)
+                        )
+                })
+                .then_some(state);
         }
 
         // Try to match current pattern
         match &pattern_children[pattern_idx] {
-            PatternChild::Node(pattern_node) => {
-                if self.match_node(pattern_node, &node_children[node_idx], state) {
-                    // Pattern matched, continue with next
-                    self.match_child_sequence(
-                        pattern_children,
-                        node_children,
-                        pattern_idx + 1,
-                        node_idx + 1,
-                        state,
-                    )
-                } else if pattern_node.quantifier != Quantifier::One {
-                    // Optional pattern, skip it
-                    self.match_child_sequence(
+            PatternChild::Anchor => self
+                .anchor_satisfied(pattern_children, pattern_idx, node_children, node_idx)
+                .then(|| {
+                    self.match_child_sequence_from(
                         pattern_children,
                         node_children,
                         pattern_idx + 1,
                         node_idx,
                         state,
+                        true,
                     )
-                } else {
-                    false
-                }
-            }
-            PatternChild::Token(_token) => {
-                // For now, assume tokens match (would need lexer info)
-                self.match_child_sequence(
+                })
+                .flatten(),
+            PatternChild::Node(pattern_node) => match pattern_node.quantifier {
+                Quantifier::One => self.match_single_child_candidate(
+                    pattern_node,
+                    pattern_children,
+                    node_children,
+                    (pattern_idx, node_idx),
+                    state,
+                    anchored_next,
+                ),
+                Quantifier::Optional => self
+                    .match_single_child_candidate(
+                        pattern_node,
+                        pattern_children,
+                        node_children,
+                        (pattern_idx, node_idx),
+                        state.clone(),
+                        anchored_next,
+                    )
+                    .or_else(|| {
+                        self.match_child_sequence_from(
+                            pattern_children,
+                            node_children,
+                            pattern_idx + 1,
+                            node_idx,
+                            state,
+                            anchored_next,
+                        )
+                    }),
+                Quantifier::Plus => self.match_repeated_child_candidates(
+                    pattern_node,
+                    pattern_children,
+                    node_children,
+                    (pattern_idx, node_idx),
+                    state,
+                    RepeatSearch {
+                        min_count: 1,
+                        anchored_next,
+                    },
+                ),
+                Quantifier::Star => self
+                    .match_repeated_child_candidates(
+                        pattern_node,
+                        pattern_children,
+                        node_children,
+                        (pattern_idx, node_idx),
+                        state.clone(),
+                        RepeatSearch {
+                            min_count: 0,
+                            anchored_next,
+                        },
+                    )
+                    .or_else(|| {
+                        self.match_child_sequence_from(
+                            pattern_children,
+                            node_children,
+                            pattern_idx + 1,
+                            node_idx,
+                            state,
+                            anchored_next,
+                        )
+                    }),
+            },
+            PatternChild::Token(token) => self.match_token_candidate(
+                token,
+                pattern_children,
+                node_children,
+                (pattern_idx, node_idx),
+                state,
+                anchored_next,
+            ),
+        }
+    }
+
+    fn anchor_satisfied(
+        &self,
+        pattern_children: &[PatternChild],
+        pattern_idx: usize,
+        node_children: &[ParseNode],
+        node_idx: usize,
+    ) -> bool {
+        if pattern_idx == 0 {
+            node_children[..node_idx]
+                .iter()
+                .all(|n| self.node_is_extra(n))
+        } else if pattern_idx + 1 == pattern_children.len() {
+            node_children[node_idx..]
+                .iter()
+                .all(|n| self.node_is_extra(n))
+        } else {
+            true
+        }
+    }
+
+    fn candidate_indices(
+        &self,
+        node_children: &[ParseNode],
+        node_idx: usize,
+        anchored_next: bool,
+    ) -> Vec<usize> {
+        if anchored_next {
+            (node_idx < node_children.len())
+                .then_some(node_idx)
+                .into_iter()
+                .collect()
+        } else {
+            (node_idx..node_children.len())
+                .filter(|idx| !self.node_is_extra(&node_children[*idx]))
+                .collect()
+        }
+    }
+
+    fn match_single_child_candidate(
+        &self,
+        pattern_node: &PatternNode,
+        pattern_children: &[PatternChild],
+        node_children: &[ParseNode],
+        position: (usize, usize),
+        state: MatchState,
+        anchored_next: bool,
+    ) -> Option<MatchState> {
+        let (pattern_idx, node_idx) = position;
+
+        self.candidate_indices(node_children, node_idx, anchored_next)
+            .into_iter()
+            .filter_map(|candidate_idx| {
+                self.match_child_node_once(
+                    pattern_node,
+                    &node_children[candidate_idx],
+                    state.clone(),
+                )
+                .and_then(|next_state| {
+                    self.match_child_sequence_from(
+                        pattern_children,
+                        node_children,
+                        pattern_idx + 1,
+                        candidate_idx + 1,
+                        next_state,
+                        false,
+                    )
+                })
+            })
+            .next()
+    }
+
+    fn match_repeated_child_candidates(
+        &self,
+        pattern_node: &PatternNode,
+        pattern_children: &[PatternChild],
+        node_children: &[ParseNode],
+        position: (usize, usize),
+        state: MatchState,
+        repeat: RepeatSearch,
+    ) -> Option<MatchState> {
+        let (_, node_idx) = position;
+
+        self.candidate_indices(node_children, node_idx, repeat.anchored_next)
+            .into_iter()
+            .find_map(|candidate_idx| {
+                self.match_repeated_child_node(
+                    pattern_node,
+                    pattern_children,
+                    node_children,
+                    (position.0, candidate_idx),
+                    state.clone(),
+                    repeat.min_count,
+                )
+            })
+    }
+
+    fn match_token_candidate(
+        &self,
+        token: &str,
+        pattern_children: &[PatternChild],
+        node_children: &[ParseNode],
+        position: (usize, usize),
+        state: MatchState,
+        anchored_next: bool,
+    ) -> Option<MatchState> {
+        let (pattern_idx, node_idx) = position;
+
+        self.candidate_indices(node_children, node_idx, anchored_next)
+            .into_iter()
+            .filter_map(|candidate_idx| {
+                (self.node_text(&node_children[candidate_idx]) == Some(token))
+                    .then(|| {
+                        self.match_child_sequence_from(
+                            pattern_children,
+                            node_children,
+                            pattern_idx + 1,
+                            candidate_idx + 1,
+                            state.clone(),
+                            false,
+                        )
+                    })
+                    .flatten()
+            })
+            .next()
+    }
+
+    fn match_child_node_once(
+        &self,
+        pattern_node: &PatternNode,
+        node: &ParseNode,
+        mut state: MatchState,
+    ) -> Option<MatchState> {
+        let mut single = pattern_node.clone();
+        single.quantifier = Quantifier::One;
+
+        self.match_node(&single, node, &mut state).then_some(state)
+    }
+
+    fn match_repeated_child_node(
+        &self,
+        pattern_node: &PatternNode,
+        pattern_children: &[PatternChild],
+        node_children: &[ParseNode],
+        position: (usize, usize),
+        state: MatchState,
+        min_count: usize,
+    ) -> Option<MatchState> {
+        let (pattern_idx, node_idx) = position;
+        let mut candidates = vec![(node_idx, state)];
+        let mut cursor = node_idx;
+
+        while cursor < node_children.len() {
+            let (_, last_state) = candidates.last().expect("candidate seed exists");
+            let Some(next_state) = self.match_child_node_once(
+                pattern_node,
+                &node_children[cursor],
+                last_state.clone(),
+            ) else {
+                break;
+            };
+            cursor += 1;
+            candidates.push((cursor, next_state));
+        }
+
+        candidates
+            .into_iter()
+            .enumerate()
+            .rev()
+            .filter(|(count, _)| *count >= min_count)
+            .find_map(|(_, (next_node_idx, next_state))| {
+                self.match_child_sequence_from(
                     pattern_children,
                     node_children,
                     pattern_idx + 1,
-                    node_idx + 1,
-                    state,
+                    next_node_idx,
+                    next_state,
+                    false,
                 )
-            }
-        }
+            })
+    }
+
+    fn node_text(&self, node: &ParseNode) -> Option<&str> {
+        self.source.get(node.start_byte..node.end_byte)
     }
 }
 
@@ -364,6 +635,24 @@ mod tests {
         }
     }
 
+    fn make_field_node(symbol: u16, start: usize, end: usize, field_name: &str) -> ParseNode {
+        let mut node = make_node(symbol, start, end);
+        node.field_name = Some(field_name.to_string());
+        node
+    }
+
+    fn make_root(children: Vec<ParseNode>, end_byte: usize) -> ParseNode {
+        ParseNode {
+            symbol: SymbolId(0),
+            symbol_id: SymbolId(0),
+            children,
+            start_byte: 0,
+            end_byte,
+            field_name: None,
+            alias_symbol_id: None,
+        }
+    }
+
     fn create_test_grammar() -> Grammar {
         let mut grammar = Grammar::new("test".to_string());
         grammar.tokens.insert(
@@ -371,6 +660,22 @@ mod tests {
             Token {
                 name: "identifier".to_string(),
                 pattern: TokenPattern::Regex("[a-zA-Z]+".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.tokens.insert(
+            SymbolId(2),
+            Token {
+                name: "number".to_string(),
+                pattern: TokenPattern::Regex("[0-9]+".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.tokens.insert(
+            SymbolId(3),
+            Token {
+                name: "operator".to_string(),
+                pattern: TokenPattern::String("+".to_string()),
                 fragile: false,
             },
         );
@@ -399,7 +704,88 @@ mod tests {
                 is_fragile: false,
                 symbol_id: SymbolId(1),
             },
+            SymbolMetadata {
+                name: "number".to_string(),
+                is_visible: true,
+                is_named: true,
+                is_supertype: false,
+                is_terminal: true,
+                is_extra: false,
+                is_fragile: false,
+                symbol_id: SymbolId(2),
+            },
+            SymbolMetadata {
+                name: "operator".to_string(),
+                is_visible: true,
+                is_named: true,
+                is_supertype: false,
+                is_terminal: true,
+                is_extra: false,
+                is_fragile: false,
+                symbol_id: SymbolId(3),
+            },
         ]
+    }
+
+    fn query_with_root(root: PatternNode) -> Query {
+        let mut capture_names = HashMap::new();
+        capture_names.insert("node".to_string(), 0);
+
+        Query {
+            source: String::new(),
+            patterns: vec![Pattern {
+                root,
+                predicates: Vec::new(),
+                start_byte: 0,
+            }],
+            capture_names,
+            property_settings: Vec::new(),
+            property_predicates: Vec::new(),
+        }
+    }
+
+    fn literal_child_query(literal: &str) -> Query {
+        let mut root = PatternNode::new(SymbolId(0), true);
+        root.add_child(PatternChild::Token(literal.to_string()));
+
+        Query {
+            source: String::new(),
+            patterns: vec![Pattern {
+                root,
+                predicates: Vec::new(),
+                start_byte: 0,
+            }],
+            capture_names: HashMap::new(),
+            property_settings: Vec::new(),
+            property_predicates: Vec::new(),
+        }
+    }
+
+    fn repeated_child_query(
+        repeated_symbol: u16,
+        quantifier: Quantifier,
+        tail_symbol: u16,
+    ) -> Query {
+        let mut root = PatternNode::new(SymbolId(0), true);
+        root.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(repeated_symbol), true).with_quantifier(quantifier),
+        ));
+        root.add_child(PatternChild::Node(PatternNode::new(
+            SymbolId(tail_symbol),
+            true,
+        )));
+
+        Query {
+            source: String::new(),
+            patterns: vec![Pattern {
+                root,
+                predicates: Vec::new(),
+                start_byte: 0,
+            }],
+            capture_names: HashMap::new(),
+            property_settings: Vec::new(),
+            property_predicates: Vec::new(),
+        }
     }
 
     #[test]
@@ -508,5 +894,198 @@ mod tests {
 
         // Should not match anything
         assert_eq!(matches.len(), 0);
+    }
+
+    #[test]
+    fn test_field_constraint_matches_named_field_child() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_field(
+            "left".to_string(),
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        );
+        let query = query_with_root(pattern);
+        let root = make_root(
+            vec![
+                make_field_node(2, 0, 1, "right"),
+                make_field_node(1, 2, 3, "left"),
+            ],
+            3,
+        );
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "1 a", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 2);
+    }
+
+    #[test]
+    fn test_field_constraint_rejects_missing_or_wrong_field() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_field(
+            "left".to_string(),
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        );
+        let query = query_with_root(pattern);
+        let root = make_root(vec![make_field_node(1, 0, 1, "right")], 1);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "a", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_child_pattern_matches_subsequence_without_anchor() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        let query = query_with_root(pattern);
+        let root = make_root(vec![make_node(2, 0, 1), make_node(1, 2, 3)], 3);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "1 a", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 2);
+    }
+
+    #[test]
+    fn test_first_child_anchor_requires_first_matching_child() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Anchor);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        let query = query_with_root(pattern);
+        let root = make_root(vec![make_node(2, 0, 1), make_node(1, 2, 3)], 3);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "1 a", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_last_child_anchor_requires_last_matching_child() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Anchor);
+        let query = query_with_root(pattern);
+        let root = make_root(vec![make_node(2, 0, 1), make_node(1, 2, 3)], 3);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "1 a", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 2);
+    }
+
+    #[test]
+    fn test_adjacent_anchor_requires_next_sibling_match() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Anchor);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(3), true).with_capture(1),
+        ));
+        let query = query_with_root(pattern);
+        let root = make_root(
+            vec![make_node(1, 0, 1), make_node(2, 1, 2), make_node(3, 2, 3)],
+            3,
+        );
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "a1+", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_adjacent_anchor_matches_adjacent_siblings() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Anchor);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(3), true).with_capture(1),
+        ));
+        let query = query_with_root(pattern);
+        let root = make_root(vec![make_node(1, 0, 1), make_node(3, 1, 2)], 2);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "a+", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 0);
+        assert_eq!(matches[0].captures[1].node.start_byte, 1);
+    }
+
+    #[test]
+    fn test_literal_child_when_text_matches_returns_match() {
+        let source = "+";
+        let root = make_root(vec![make_node(1, 0, 1)], source.len());
+        let query = literal_child_query("+");
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+    }
+
+    #[test]
+    fn test_literal_child_when_text_differs_returns_no_match() {
+        let source = "-";
+        let root = make_root(vec![make_node(1, 0, 1)], source.len());
+        let query = literal_child_query("+");
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_plus_child_quantifier_when_followed_by_tail_consumes_repeated_nodes() {
+        let source = "aab";
+        let root = make_root(
+            vec![make_node(1, 0, 1), make_node(1, 1, 2), make_node(2, 2, 3)],
+            source.len(),
+        );
+        let query = repeated_child_query(1, Quantifier::Plus, 2);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+    }
+
+    #[test]
+    fn test_star_child_quantifier_when_followed_by_tail_allows_zero_matches() {
+        let source = "b";
+        let root = make_root(vec![make_node(2, 0, 1)], source.len());
+        let query = repeated_child_query(1, Quantifier::Star, 2);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
     }
 }

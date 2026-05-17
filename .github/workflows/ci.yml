@@ -57,7 +57,7 @@ jobs:
           fi
       
       - name: Check for bare #[no_mangle]
-        run: scripts/check-no-mangle.sh
+        run: cargo xtask check-no-mangle
       
       - name: Check commented debug blocks
         run: |

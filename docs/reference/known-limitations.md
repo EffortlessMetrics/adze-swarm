@@ -1,50 +1,87 @@
 # Known Limitations
 
-> **Doc status:** Up to date for Adze 0.8.x.
+> **Doc status:** Aligned with the 2026-05 support-tier ledger.
 
-Adze is a high-performance GLR parser generator. While it achieves high compatibility with the Tree-sitter ecosystem, there are some known limitations and experimental areas.
+Adze's stable product contract is intentionally narrower than the repository's
+full implementation surface. The stable path is: define grammar-shaped Rust
+types, generate a pure-Rust parser, and parse into typed Rust values through a
+normal Cargo build.
 
-## ✅ Supported Features
+For the authoritative tier and proof ledger, use
+[`SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md). This page summarizes the
+user-facing limitations.
 
-- **Core Grammar**: Sequences, choices, repeats, optionals, and recursive types.
-- **Pure-Rust LR(1)**: Fast, zero-dependency parsing for deterministic grammars.
-- **GLR (Generalized LR)**: Handles ambiguous grammars by forking and merging stacks.
-- **Precedence & Associativity**: Full support for `#[adze::prec_left]`, `#[adze::prec_right]`, etc.
-- **Extra Tokens**: Support for whitespace and comments via `#[adze::extra]`.
-- **WASM Support**: Native compatibility via the pure-Rust runtime.
+## Stable Product Surface
+
+- **Typed extraction**: generated parsers return typed Rust values for supported
+  generated grammars.
+- **Pure-Rust parser path**: clean downstream quickstarts and the checked-in
+  downstream demo are covered by stable-product canaries.
+- **Operator precedence**: stable for the documented arithmetic expression
+  shape, not every possible ambiguous grammar.
+- **Core table serialization**: stable for `adze-glr-core` parse-table
+  serialization roundtrips.
 
 ## ⚠️ Experimental / Limited Features
 
-### 1. External Scanners
-Support for custom Rust-based external scanners is available but the API is still stabilizing. This is required for indentation-sensitive languages like Python.
-- **Status**: Implemented for Python in `grammars/python`.
+### 1. GLR Ambiguity
 
-### 2. Query Language
-Tree-sitter compatible query support (`.scm` files) is under active development.
-- **Status**: Basic pattern matching works; advanced predicates are in progress.
+GLR conflict routing has extensive proof for selected conflict classes, retained
+alternatives, deterministic selected parses, and ambiguity summaries. It remains
+**Stabilizing**, not Stable, until broader conflict coverage and selection
+policy are promoted in the support tiers.
 
-### 3. Incremental Parsing
-Reparsing only changed parts of a file is supported in the core engine but may fall back to full parses in complex GLR scenarios.
-- **Status**: Conservative fallback enabled; forest-splicing is experimental.
+### 2. External Scanners
+
+Support for custom Rust-based external scanners exists, but the API is still
+experimental. This is required for indentation-sensitive languages like Python.
+- **Status**: Used by the Python grammar example; not part of the stable product
+  contract.
+
+### 3. Query Language
+
+Tree-sitter compatible query support is a documented subset, not full
+Tree-sitter query parity.
+- **Status**: Source-aware predicates, byte ranges, root-only matching, field
+  constraints, anchors, and differential fixtures have advisory proof. Full
+  query parity remains future work.
+
+### 4. Incremental Parsing
+
+Incremental parsing records honest fallback metadata today. It should not be
+read as a stable reuse or performance claim.
+- **Status**: Conservative full-reparse fallback metadata is covered; active
+  forest-splicing and stable changed-range behavior remain experimental.
 - **Visibility**: `IncrementalGLRParser::last_parse_status()` and
   `pure_incremental::IncrementalParser::last_parse_status()` expose whether the
   last run reused nodes or explicitly fell back to full reparse, plus edit
   invalidation ranges.
 
-### 4. `transform` Closures
-There is a known bug (FR-005) where `transform` closures on leaf nodes are captured but not executed.
-- **Workaround**: Use `String` fields and parse the text in your application logic.
+### 5. Tree-sitter Compatibility
+
+Tree-sitter compatibility is an adapter over native document data. It exposes a
+selected-tree subset with advisory proof, but Adze does not claim full
+Tree-sitter runtime, node-types, query, or imported grammar corpus parity.
+
+### 6. WASM
+
+WASM currently has compile-check signal for the demo target. Browser/runtime
+behavior is not certified as part of the stable contract.
 
 ## 📊 Language Compatibility
 
+The grammar crates in this repository are reference and integration surfaces.
+They are useful for development, but they are not currently Stable product
+contracts by themselves.
+
 | Language | Status | Notes |
 |----------|--------|-------|
-| JSON | ✅ Stable | Standard reference grammar. |
-| Arithmetic | ✅ Stable | Demonstrates precedence handling. |
-| Go | ✅ Stable | High-speed deterministic parsing. |
-| JavaScript | 🟡 Stabilizing | Large grammar, uses GLR for conflicts. |
-| Python | 🟡 Stabilizing | Requires external indentation scanner. |
-| Rust | 🚧 Planned | Complex grammar with many edge cases. |
+| Arithmetic | Advisory example | Demonstrates the stable typed parser and precedence quickstart shape. |
+| JSON | Advisory example | Reference grammar and fixture surface, not a separate stable language package. |
+| Go | Advisory example | Grammar crate smoke coverage exists; not a published support contract. |
+| JavaScript | Advisory / stabilizing fixture | Large grammar and GLR/golden-test signal; not full ecosystem parity. |
+| Python | Advisory / experimental scanner fixture | Exercises indentation scanning; external scanner API is still experimental. |
+| Rust | Future | Complex grammar with many edge cases. |
 
 ## 🤝 Roadmap
 

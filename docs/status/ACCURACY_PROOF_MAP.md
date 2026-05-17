@@ -215,7 +215,7 @@ cargo test -p adze --features "pure-rust,serialization,glr" --test adze_document
 | `adze check` rejects non-grammar file | `test_check_rejects_file_without_adze_grammar` | — | — |
 | `adze stats` rejects non-grammar file | `test_stats_rejects_file_without_adze_grammar` | — | — |
 | `adze parse` documents available modes | `test_parse_help_documents_available_modes` | — | — |
-| `adze parse --output document-json` output | `test_parse_document_json_mode_emits_schema_envelope` | — | — |
+| `adze parse --output document-json/tree-json/diagnostics-json/ambiguity-json` output | `test_parse_document_projection_modes_emit_schema_envelopes` | — | — |
 | `adze check` with broken grammar | `test_check_reports_invalid_grammar_syntax` | — | — |
 | Missing grammar path handling | `test_check_reports_missing_grammar_path` | — | — |
 
@@ -253,7 +253,7 @@ cargo bench -p adze-benchmarks --no-run
 |--------|--------------|---------|-----------|
 | Core crates have correct metadata | `cargo metadata --format-version 1` succeeds | — | — |
 | Local package verification for co-release siblings | `scripts/package-local-release.sh adze`; `scripts/package-local-release.sh adze-tool` | — | — |
-| Direct package verification for independent publishable crates | `cargo package -p adze-macro --allow-dirty`; `cargo package -p adze-cli --allow-dirty`; `cargo package -p adze-ir --allow-dirty`; `cargo package -p adze-glr-core --allow-dirty`; `cargo package -p adze-tablegen --allow-dirty`; `cargo package -p adze-common --allow-dirty` | — | — |
+| Direct package verification for independent publishable crates | `cargo package -p adze-macro --allow-dirty`; `cargo package -p adze-cli --allow-dirty`; `cargo package -p adze-ir --allow-dirty`; `cargo package -p adze-glr-core --allow-dirty`; `cargo package -p adze-tablegen --allow-dirty`; `cargo package -p adze-common --allow-dirty`; `cargo package -p adze-common-type-ops-core --allow-dirty` | — | — |
 | Publishability recipe exists | `just check-publishable` | — | — |
 
 **Proof commands:**

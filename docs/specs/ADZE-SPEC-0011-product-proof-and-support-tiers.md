@@ -51,7 +51,8 @@ The canary must fail when a README Stable proof command is missing from
 
 `just ci-supported` / `CI / ci-supported` remains the required supported gate.
 The stable-product lane is advisory until branch protection explicitly promotes
-it.
+it. It should still run on PRs that touch README Stable-claim surfaces, support
+tier proof mapping, quickstart canaries, or the stable-product canary script.
 
 ### B5. Tier promotion is evidence-based
 
@@ -138,5 +139,5 @@ covered by `SUPPORT_TIERS.md`, `readme_stable_claims_are_in_stable_product_lane`
 passes, `just ci-product-stable` passes, and `CI / ci-supported` remains green
 on the closeout PR.
 
-Future promotion of `ci-product-stable` from advisory to required needs a
-separate CI policy change and branch-protection update.
+Future promotion of `ci-product stable canaries` from advisory to required needs
+a separate CI policy change and branch-protection update.

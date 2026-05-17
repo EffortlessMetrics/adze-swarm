@@ -4,7 +4,7 @@ This chapter covers how to install and set up Adze in your project.
 
 ## Prerequisites
 
-- Rust 1.92.0 or later (2024 edition)
+- Rust 1.95.0 or later (2024 edition)
 - Cargo (comes with Rust)
 
 ## Adding Dependencies
@@ -13,48 +13,29 @@ Add Adze to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-adze = "0.8"
+adze = { version = "0.8.0-dev", default-features = false }
 
 [build-dependencies]
-adze-tool = "0.8"
+adze-tool = "0.8.0-dev"
+
+[features]
+default = ["pure-rust"]
+pure-rust = ["adze/pure-rust"]
 ```
 
-## Choosing a Backend
+The generated pure-Rust parser path is the supported front door. Lower-level
+compatibility, WASM, CLI, and experimental runtime surfaces follow their
+support-tier rows and should not be treated as the default installation path.
 
-Adze offers three backend options via feature flags:
+## Feature Posture
 
-### Pure-Rust Backend (Recommended)
-
-The pure-Rust backend generates static parsers at compile-time without C dependencies:
-
-```toml
-[dependencies]
-adze = { version = "0.8", features = ["pure-rust"] }
-```
-
-**Advantages:**
-- No C dependencies
-- Full WASM support
-- Better compile-time optimization
-- Easier cross-compilation
-
-### C2Rust Backend
-
-Legacy backend using transpiled C code:
-
-```toml
-[dependencies]
-adze = { version = "0.8", features = ["tree-sitter-c2rust"] }
-```
-
-### Standard Tree-sitter Backend
-
-Uses the standard Tree-sitter C runtime:
-
-```toml
-[dependencies]
-adze = { version = "0.8", features = ["tree-sitter-standard"] }
-```
+| Feature | Use | Support posture |
+|---|---|---|
+| `pure-rust` | Generated parser front door | Stable |
+| `glr` | Ambiguous grammar conflict routing | Stabilizing |
+| `serialization` | Core table serialization and document JSON | Stable/advisory by surface |
+| `ts-compat` | Tree-sitter-compatible selected-tree adapter | Advisory |
+| `incremental_glr` | Incremental lifecycle experiments | Experimental |
 
 ## Build Configuration
 
@@ -64,47 +45,32 @@ Create a `build.rs` file in your project root:
 use std::path::PathBuf;
 
 fn main() {
-    // Rebuild if source files change
-    println!("cargo:rerun-if-changed=src");
-    
-    // Generate parsers from grammar definitions
-    adze_tool::build_parsers(&PathBuf::from("src/main.rs"));
-}
-```
-
-## Optional Features
-
-Additional features you can enable:
-
-```toml
-[dependencies]
-adze = {
-    version = "0.8",
-    features = [
-        "pure-rust",      # Pure Rust backend
-        "optimize",       # Enable grammar optimizer
-        "parallel",       # Parallel parsing support
-        "simd",          # SIMD-accelerated lexing
-    ]
+    println!("cargo::rustc-check-cfg=cfg(adze_unsafe_attrs)");
+    adze_tool::build_parsers(&PathBuf::from("src/lib.rs"));
 }
 ```
 
 ## Verifying Installation
 
-Create a simple test file to verify your setup:
+Create `src/lib.rs` with a tiny grammar and test:
 
 ```rust
 #[adze::grammar("test")]
-mod grammar {
+pub mod grammar {
     #[adze::language]
-    #[adze::leaf(text = "hello")]
-    struct Hello;
+    #[derive(Debug, PartialEq)]
+    pub enum Word {
+        Hello(#[adze::leaf(text = "hello")] ()),
+    }
 }
 
-fn main() {
-    match grammar::parse("hello") {
-        Ok(_) => println!("Adze is working!"),
-        Err(e) => eprintln!("Parse error: {}", e),
+#[cfg(test)]
+mod tests {
+    use super::grammar::{self, Word};
+
+    #[test]
+    fn parses_hello() {
+        assert_eq!(grammar::parse("hello").unwrap(), Word::Hello(()));
     }
 }
 ```
@@ -112,8 +78,7 @@ fn main() {
 Run with:
 
 ```bash
-cargo build
-cargo run
+cargo test
 ```
 
 ## Troubleshooting
@@ -126,12 +91,13 @@ cargo run
 
 2. **"Multiple applicable items in scope" errors**
    - This usually means you have conflicting features enabled
-   - Choose only one backend feature
+   - Start from the `pure-rust` feature shape above
 
 3. **WASM compilation fails**
-   - Ensure you're using the `pure-rust` feature
-   - The C-based backends don't support WASM
+   - WASM is advisory compile-signal territory, not the beginner path
+   - Check the current support-tier row before relying on browser/runtime behavior
 
 ## Next Steps
 
-Now that you have Adze installed, proceed to the [Quick Start](quickstart.md) guide to create your first grammar!
+Now that you have Adze installed, proceed to the [Quick Start](quickstart.md)
+guide to create your first grammar.

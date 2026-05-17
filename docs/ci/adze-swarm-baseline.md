@@ -56,6 +56,11 @@ so it stays cheap enough for PR evidence. Full coverage is manual or `full-ci`
 evidence. In both modes, the LCOV artifact is the proof and Codecov upload is
 non-blocking publication.
 
+GLR/tablegen invariant proof is owned by the `GLR Invariants` policy lane. It
+runs the `xtask` GOTO-indexing guard and its tests for runtime parser,
+`glr-core`, and `tablegen` changes so GOTO-column remapping and `SymbolId(0)`
+conventions stay attached to the parser proof surface.
+
 ## Public/release workflows
 
 Release, publish, signing, Droid review, Droid security scan, and deploy-style workflows remain on public `EffortlessMetrics/adze` unless explicitly reintroduced here.

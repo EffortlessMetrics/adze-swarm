@@ -786,7 +786,6 @@ pub fn align_true_glr_parse_table_to_language_symbols(
     language: &'static crate::pure_parser::TSLanguage,
     parse_table: &mut adze_glr_core::ParseTable,
 ) {
-    use adze_glr_core::GotoIndexing;
     use adze_ir::SymbolId;
     use std::collections::BTreeMap;
 
@@ -849,7 +848,7 @@ pub fn align_true_glr_parse_table_to_language_symbols(
                 .map(|raw| (SymbolId(raw), column))
         })
         .collect();
-    parse_table.goto_indexing = GotoIndexing::NonterminalMap;
+    *parse_table = std::mem::take(parse_table).remap_goto_to_nonterminal_map();
 
     for (column, metadata) in parse_table.symbol_metadata.iter_mut().enumerate() {
         if let Ok(raw) = u16::try_from(column) {

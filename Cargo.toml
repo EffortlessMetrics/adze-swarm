@@ -7,6 +7,7 @@ members = [
   "crates/parsetable-metadata",
   "crates/linecol-core",
   "crates/bdd-governance-core",
+  "crates/common-type-ops-core",
   "tool",
   "common",
   "ir",

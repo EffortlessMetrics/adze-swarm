@@ -81,10 +81,10 @@ let token_b = alloc.next();  // SymbolId(2)
 Run the check script to verify invariants:
 
 ```bash
-./scripts/check-goto-indexing.sh
+cargo xtask check-goto-indexing
 ```
 
-This script checks for:
+This command checks for:
 - Direct `goto_indexing` assignments without remapping
 - SymbolId(0) usage in non-EOF contexts
 - Other indexing invariant violations
