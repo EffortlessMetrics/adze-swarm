@@ -85,7 +85,7 @@ use std::path::Path;
 mod tests {
     use syn::parse_quote;
 
-    use super::{GENERATED_SEMANTIC_VERSION, generate_grammar};
+    use super::{GENERATED_SEMANTIC_VERSION, generate_grammar, generate_grammars};
     use tree_sitter_generate::generate_parser_for_grammar;
 
     #[cfg(not(debug_assertions))]
@@ -104,6 +104,105 @@ mod tests {
                 eprintln!($($arg)*);
             }
         };
+    }
+
+    #[test]
+    fn generate_grammars_collects_nested_annotated_modules_only() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let root = dir.path().join("lib.rs");
+        std::fs::write(
+            &root,
+            r##"
+            mod ignored {
+                pub struct NotAGrammar;
+            }
+
+            pub mod outer {
+                #[adze::grammar("first")]
+                pub mod first {
+                    #[adze::language]
+                    pub struct Root {
+                        #[adze::leaf(text = "a")]
+                        a: (),
+                    }
+                }
+
+                pub mod nested {
+                    #[adze::grammar("second")]
+                    pub mod second {
+                        #[adze::language]
+                        pub struct Root {
+                            #[adze::leaf(pattern = r"[b]")]
+                            b: (),
+                        }
+                    }
+                }
+            }
+            "##,
+        )
+        .expect("write root module");
+
+        let grammars = generate_grammars(&root).expect("generate grammars");
+        let names: Vec<_> = grammars
+            .iter()
+            .map(|grammar| grammar["name"].as_str().expect("grammar name"))
+            .collect();
+
+        assert_eq!(names, ["first", "second"]);
+        assert_eq!(grammars[0]["rules"]["source_file"]["name"], "Root");
+        assert_eq!(grammars[1]["rules"]["source_file"]["name"], "Root");
+    }
+
+    #[test]
+    fn generate_grammars_inlines_external_modules() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let root = dir.path().join("lib.rs");
+        let nested_dir = dir.path().join("nested");
+        std::fs::create_dir(&nested_dir).expect("create nested module dir");
+        std::fs::write(
+            &root,
+            r##"
+            mod inline_grammar;
+            mod nested;
+            "##,
+        )
+        .expect("write root module");
+        std::fs::write(
+            dir.path().join("inline_grammar.rs"),
+            r##"
+            #[adze::grammar("external_file")]
+            pub mod grammar {
+                #[adze::language]
+                pub struct Root {
+                    #[adze::leaf(text = "x")]
+                    x: (),
+                }
+            }
+            "##,
+        )
+        .expect("write external module");
+        std::fs::write(
+            nested_dir.join("mod.rs"),
+            r##"
+            #[adze::grammar("nested_mod_rs")]
+            pub mod grammar {
+                #[adze::language]
+                pub struct Root {
+                    #[adze::leaf(text = "y")]
+                    y: (),
+                }
+            }
+            "##,
+        )
+        .expect("write nested module");
+
+        let grammars = generate_grammars(&root).expect("generate grammars");
+        let names: Vec<_> = grammars
+            .iter()
+            .map(|grammar| grammar["name"].as_str().expect("grammar name"))
+            .collect();
+
+        assert_eq!(names, ["external_file", "nested_mod_rs"]);
     }
 
     #[test]
