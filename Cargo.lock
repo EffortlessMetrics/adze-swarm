@@ -102,12 +102,22 @@ dependencies = [
 name = "adze-common"
 version = "0.8.0-dev"
 dependencies = [
+ "adze-common-type-ops-core",
  "insta",
  "proc-macro2",
  "proptest",
  "quote",
  "regex",
  "serde_json",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "adze-common-type-ops-core"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "quote",
  "syn 2.0.117",
 ]
 

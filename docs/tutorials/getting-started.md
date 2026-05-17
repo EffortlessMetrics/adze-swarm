@@ -344,7 +344,8 @@ Usually means a token_count issue or mismatched versions.
 
 #### Empty string extraction
 
-If you are using `transform` to parse the string, ensure the closure is actually being executed (see Known Issues). For simple text extraction, stick to `String` type.
+If you need raw token text, use `String` fields. If you need a typed value, use
+`#[adze::leaf(transform = ...)]` and keep the transform small and deterministic.
 
 ### Debug Tips
 

@@ -13,8 +13,10 @@ use adze_common::{
     FieldThenParams, NameValueExpr, filter_inner_type, try_extract_inner_type, wrap_leaf_type,
 };
 use proptest::prelude::*;
+mod support;
 use quote::ToTokens;
 use std::collections::HashSet;
+use support::{container_name_with_rc, distinct_lower_idents, field_leaf_type_name, lower_ident};
 use syn::{Fields, Item, Type, parse_str};
 
 // ---------------------------------------------------------------------------
@@ -22,31 +24,19 @@ use syn::{Fields, Item, Type, parse_str};
 // ---------------------------------------------------------------------------
 
 fn ident_strategy() -> impl Strategy<Value = String> {
-    prop::string::string_regex("[a-z][a-z0-9_]{0,8}")
-        .unwrap()
-        .prop_filter("must be valid ident", |s| {
-            !s.is_empty() && syn::parse_str::<syn::Ident>(s).is_ok()
-        })
+    lower_ident(8)
 }
 
 fn distinct_idents(max: usize) -> impl Strategy<Value = Vec<String>> {
-    prop::collection::vec(ident_strategy(), 1..=max).prop_map(|v| {
-        let mut seen = std::collections::HashSet::new();
-        v.into_iter().filter(|s| seen.insert(s.clone())).collect()
-    })
+    distinct_lower_idents(max, 8)
 }
 
 fn leaf_type_name() -> impl Strategy<Value = &'static str> {
-    prop::sample::select(
-        &[
-            "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64", "bool", "char",
-            "String", "usize", "isize", "Token", "Expr", "Stmt", "Node", "Leaf",
-        ][..],
-    )
+    field_leaf_type_name()
 }
 
 fn container_name() -> impl Strategy<Value = &'static str> {
-    prop::sample::select(&["Box", "Vec", "Option", "Arc", "Rc"][..])
+    container_name_with_rc()
 }
 
 fn pascal_case_strategy() -> impl Strategy<Value = String> {

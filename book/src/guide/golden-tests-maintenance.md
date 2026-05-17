@@ -1,6 +1,9 @@
 # Golden Tests Maintenance Guide
 
-This how-to guide provides practical workflows for maintaining golden tests in adze. Golden tests ensure compatibility between adze parsers and official Tree-sitter implementations by comparing parse tree outputs.
+This how-to guide provides practical workflows for maintaining golden tests in
+Adze. Golden tests are advisory compatibility receipts: they compare selected
+Adze fixture outputs with Tree-sitter reference outputs, but they do not prove
+full Tree-sitter parity by themselves.
 
 ## Adding New Test Cases
 
@@ -115,8 +118,8 @@ Run the new tests to ensure they pass:
 cargo test --features python-grammar python_class_inheritance
 cargo test --features javascript-grammar javascript_async_await
 
-# Test all golden tests
-cargo test --features all-grammars
+# Run the current focused advisory canary
+cargo test -p adze-golden-tests javascript_canary_expression_golden --features javascript-grammar -- --nocapture
 ```
 
 ## Updating Existing References
@@ -126,8 +129,8 @@ cargo test --features all-grammars
 When adze parser behavior changes intentionally, update references:
 
 ```bash
-# Update all references
-UPDATE_GOLDEN=1 cargo test --features all-grammars
+# Update a focused reference set
+UPDATE_GOLDEN=1 cargo test --features python-grammar
 
 # Update specific language
 UPDATE_GOLDEN=1 cargo test --features python-grammar
@@ -341,7 +344,7 @@ jobs:
           ./generate_references.sh
           
       - name: Run golden tests
-        run: cargo test --features all-grammars
+        run: cargo test --features javascript-grammar
 ```
 
 ### Handling CI Failures
@@ -353,9 +356,9 @@ When golden tests fail in CI:
    git ls-files golden-tests/*/expected/
    ```
 
-2. **Verify feature flags**: Ensure CI uses correct features
+2. **Verify feature flags**: Ensure CI uses focused language features
    ```yaml
-   - run: cargo test --features all-grammars  # not just 'cargo test'
+   - run: cargo test --features javascript-grammar  # not just 'cargo test'
    ```
 
 3. **Cross-platform consistency**: Test locally on same OS as CI
@@ -425,7 +428,6 @@ To add support for a new language:
    
    [features]
    rust-grammar = ["adze-rust", "adze"]
-   all-grammars = ["python-grammar", "javascript-grammar", "rust-grammar"]
    ```
 
 3. **Extend test framework**: Update parsing functions in `lib.rs`
@@ -513,4 +515,6 @@ cargo metadata --format-version 1 | jq '.packages[] | select(.name=="adze-golden
 - **Review [Architecture Documentation](../development/architecture.md)** for parser internals
 - **Check [Contributing Guide](../development/contributing.md)** for contribution workflows
 
-Golden tests provide a robust foundation for ensuring adze maintains perfect compatibility with Tree-sitter reference implementations across all supported languages.
+Golden tests provide useful compatibility receipts for fixture-backed language
+work. Public compatibility claims still need support-tier rows, proof commands,
+and known limitations in `docs/status/SUPPORT_TIERS.md`.
