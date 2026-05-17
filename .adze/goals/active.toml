@@ -288,11 +288,12 @@ commands = [
 
 [[work_item]]
 id = "canonical-parser-cookbook"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [147]
 commands = [
   "cargo test -p adze --features \"pure-rust,glr,ts-compat\" cookbook -- --nocapture",
   "git diff --check",
@@ -300,12 +301,11 @@ commands = [
 
 [[work_item]]
 id = "tree-sitter-migration-guide"
-status = "blocked"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
-blocked_by = ["ts-compat-selected-tree-parity", "query-compatibility-spec"]
 commands = [
   "git diff --check",
 ]

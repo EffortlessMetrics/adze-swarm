@@ -310,7 +310,7 @@ and ambiguity JSON projections read from `parse_document`.
 
 ### Work Item: canonical-parser-cookbook
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -321,7 +321,7 @@ diagnostics.
 
 ### Work Item: tree-sitter-migration-guide
 
-Status: blocked by `ts-compat-selected-tree-parity`, `query-compatibility-spec`
+Status: active
 
 #### Goal
 
