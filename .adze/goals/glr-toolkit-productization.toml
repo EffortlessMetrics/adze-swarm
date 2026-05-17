@@ -72,11 +72,12 @@ commands = [
 
 [[work_item]]
 id = "fixture-taxonomy"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [129]
 commands = [
   "cargo test -p adze --features \"pure-rust,glr,ts-compat\" --test test_e2e_ambiguous_grammar_glr -- --nocapture",
   "git diff --check",
@@ -113,14 +114,13 @@ commands = [
 
 [[work_item]]
 id = "projection-equivalence-harness"
-status = "blocked"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
-blocked_by = ["glr-toolkit-product-contract", "fixture-taxonomy"]
 commands = [
-  "cargo test -p adze --features \"pure-rust,glr,ts-compat,serde\" projection_equivalence -- --nocapture",
+  "cargo test -p adze --features \"pure-rust,glr,ts-compat,serialization\" --test projection_equivalence -- --nocapture",
   "git diff --check",
 ]
 
