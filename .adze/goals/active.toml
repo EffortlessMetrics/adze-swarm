@@ -127,11 +127,12 @@ commands = [
 
 [[work_item]]
 id = "generated-conflict-matrix"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0003"
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [135]
 commands = [
   "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" glr_conflict_matrix -- --nocapture",
   "git diff --check",
@@ -139,7 +140,7 @@ commands = [
 
 [[work_item]]
 id = "tablegen-conflict-abi-roundtrip"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = ""

@@ -194,7 +194,7 @@ summary, and JSON where enabled.
 
 ### Work Item: generated-conflict-matrix
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -204,7 +204,7 @@ prefix/postfix-style grammars.
 
 ### Work Item: tablegen-conflict-abi-roundtrip
 
-Status: ready
+Status: active
 
 #### Goal
 
