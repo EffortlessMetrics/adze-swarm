@@ -1,6 +1,6 @@
 # CI Lane Map
 
-**Last updated:** 2026-05-08
+**Last updated:** 2026-05-17
 **Purpose:** Classify every CI check so contributors can immediately tell
 whether a red mark means "must fix before merge" or "inspect at your leisure."
 
@@ -56,7 +56,7 @@ In `adze-swarm`, the legacy `ci.yml` jobs run on schedule or via `workflow_dispa
 
 | Workflow | Job name | Trigger | Lane | Notes |
 |----------|----------|---------|------|-------|
-| `ci.yml` | `Lint` | Schedule + dispatch | Scheduled/manual | Full lint suite (bare no_mangle, debug blocks, fmt, clippy) |
+| `ci.yml` | `Lint` | Schedule + dispatch | Scheduled/manual | Full lint suite (`cargo xtask check-no-mangle`, debug blocks, fmt, clippy) |
 | `ci.yml` | `Test` | Schedule + dispatch | Scheduled/manual | OS x features x toolchain matrix (3 OS, 4 features, 2 toolchains) |
 | `ci.yml` | `Matrix Smoke Test` | Schedule + dispatch | Scheduled/manual | Workspace default + all-features test |
 | `ci.yml` | `Test with Debug Assertions` | Schedule + dispatch | Scheduled/manual | Debug-assertion tests for glr-core, runtime, tablegen |
