@@ -10,6 +10,10 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 # PowerShell-launched tools. Keep just recipes usable from a clean Windows shell.
 set windows-shell := ["C:\\Program Files\\Git\\bin\\bash.exe", "-eu", "-o", "pipefail", "-c"]
 
+# Check local development prerequisites and print next-step guidance
+doctor:
+    ./scripts/dev-doctor.sh
+
 # Format declared workspace members
 fmt:
     ./scripts/fmt-workspace.sh --check

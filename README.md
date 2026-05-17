@@ -173,6 +173,7 @@ Contributions are welcome. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for guidel
 ## Development
 
 ```bash
+just doctor            # verify local tools and print next-step guidance
 just ci-supported      # required PR gate — fmt + clippy + tests on core crates
 just ci-product-stable # optional Stable README product canaries
 just test              # core lib tests

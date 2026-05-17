@@ -10,6 +10,15 @@
 - **C Compiler**: Required for `tree-sitter` C integration
 - **just**: Command runner (optional but recommended)
 
+### First-run environment check
+Run the development doctor before your first build, after toolchain upgrades, or when a local command fails unexpectedly:
+
+```bash
+just doctor
+```
+
+The doctor verifies required commands, the pinned Rust toolchain, workspace metadata, `justfile` parsing, local git hook executability, and optional Tree-sitter native dependencies. It exits non-zero only for prerequisites that block normal supported-lane development; optional integration dependencies are reported as warnings.
+
 ## Maintenance Lanes
 
 Adze uses a "Support Lane" model to keep the core green while allowing experimental features to evolve.
