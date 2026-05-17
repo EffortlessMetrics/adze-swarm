@@ -1,0 +1,74 @@
+schema_version = "1.0"
+owner = "runtime/product"
+status = "active"
+
+[[fixture]]
+id = "glr-shift-reduce-expression"
+family = "glr"
+class = "single shift/reduce conflict"
+grammar = "planned"
+input = "1 + 2 * 3"
+selected_tree = "Add(Number(1), Mul(Number(2), Number(3)))"
+ambiguity = "conflict cell retained; selected tree deterministic"
+diagnostics = "none"
+ts_compat = "selected tree S-expression matches documented subset"
+support_tier = "GLR conflict routing"
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" glr_conflict_matrix -- --nocapture"
+known_gaps = ["concrete fixture source pending"]
+
+[[fixture]]
+id = "glr-reduce-reduce-minimal"
+family = "glr"
+class = "single reduce/reduce conflict"
+grammar = "planned"
+input = "ambiguous minimal reduce/reduce source"
+selected_tree = "deterministic selected alternative"
+ambiguity = "retained alternatives reported"
+diagnostics = "none"
+ts_compat = "selected tree only"
+support_tier = "GLR conflict routing"
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" glr_conflict_matrix -- --nocapture"
+known_gaps = ["concrete fixture source pending"]
+
+[[fixture]]
+id = "ts-compat-field-heavy"
+family = "ts-compat"
+class = "field-heavy grammar"
+grammar = "planned"
+input = "field-bearing source"
+selected_tree = "document edge order"
+ambiguity = "none"
+diagnostics = "none"
+ts_compat = "child_by_field_name, child_by_field_id, field_name_for_child"
+support_tier = "Tree-sitter compatibility API"
+proof = "cargo test -p adze --features \"pure-rust,glr,ts-compat\" ts_compat_selected_tree -- --nocapture"
+known_gaps = ["concrete fixture source pending"]
+
+[[fixture]]
+id = "query-child-quantifiers"
+family = "query"
+class = "child quantifiers"
+grammar = "planned"
+input = "sibling sequence source"
+selected_tree = "document-backed selected tree"
+ambiguity = "none"
+diagnostics = "none"
+ts_compat = "query cursor over selected tree"
+query = "?, *, and + repeat/backtrack across sibling nodes"
+support_tier = "query compatibility subset"
+proof = "cargo test -p adze --lib query -- --nocapture"
+known_gaps = ["differential Tree-sitter corpus pending"]
+
+[[fixture]]
+id = "recovery-unexpected-eof"
+family = "recovery"
+class = "unexpected EOF"
+grammar = "planned"
+input = "1 +"
+selected_tree = "recovered document tree when trustworthy"
+ambiguity = "none unless grammar is ambiguous"
+diagnostics = "EOF diagnostic with expected tokens"
+ts_compat = "has_error agrees with document error facts"
+support_tier = "structured parse errors"
+proof = "cargo test -p adze --features \"pure-rust,glr\" generated_parse_errors -- --nocapture"
+known_gaps = ["full recovery matrix pending"]
