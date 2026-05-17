@@ -11,7 +11,6 @@ edition = "2024"
 
 parse_bench = { classification = "real_parser", status = "active", fixture_family = "arithmetic", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
 document_projection = { classification = "projection", status = "active", fixture_family = "arithmetic", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)", note = "advisory parse_document, typed AST projection, and JSON projection fixture bench" }
-glr_performance = { classification = "real_parser", status = "deprecated", fixture_family = "arithmetic", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)", note = "substantially duplicates parse_bench.rs; retained compile-only until removed in a later benchmark cleanup" }
 glr_hot = { classification = "real_parser", status = "active", fixture_family = "arithmetic", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
 glr_performance_real = { classification = "real_parser", status = "active", fixture_family = "arithmetic", ci = "criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
 incremental_bench = { classification = "real_parser", status = "active", fixture_family = "synthetic_arithmetic", ci = "ci.yml Benchmark Compilation (compile-only), criterion-smoke.yml benchmark compile check (compile-only), pure-rust-ci.yml dispatch-only benchmark compile check (compile-only)" }
@@ -26,10 +25,6 @@ harness = false
 
 [[bench]]
 name = "document_projection"
-harness = false
-
-[[bench]]
-name = "glr_performance"
 harness = false
 
 [[bench]]
