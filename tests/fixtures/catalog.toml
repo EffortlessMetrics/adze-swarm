@@ -6,7 +6,7 @@ status = "active"
 id = "glr-shift-reduce-expression"
 family = "glr"
 class = "single shift/reduce conflict"
-grammar = "planned"
+grammar = "adze_example::ambiguous_expr"
 input = "1 + 2 * 3"
 selected_tree = "Add(Number(1), Mul(Number(2), Number(3)))"
 ambiguity = "conflict cell retained; selected tree deterministic"
@@ -14,7 +14,24 @@ diagnostics = "none"
 ts_compat = "selected tree S-expression matches documented subset"
 support_tier = "GLR conflict routing"
 proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" glr_conflict_matrix -- --nocapture"
-known_gaps = ["concrete fixture source pending"]
+known_gaps = ["broader generated reduce/reduce fixture pending"]
+
+[[fixture]]
+id = "glr-dangling-else"
+family = "glr"
+class = "single shift/reduce conflict"
+grammar = "adze_example::dangling_else"
+input = "if a then if b then other else other"
+selected_tree = "pending generated runtime selected-tree proof"
+ambiguity = "else conflict retained in generated table"
+diagnostics = "runtime selected-tree parse currently pending"
+ts_compat = "selected tree only"
+support_tier = "GLR conflict routing"
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" glr_conflict_matrix -- --nocapture"
+known_gaps = [
+  "generated dangling-else selected-tree runtime parse pending",
+  "broader imported grammar dangling-else parity pending",
+]
 
 [[fixture]]
 id = "glr-reduce-reduce-minimal"
