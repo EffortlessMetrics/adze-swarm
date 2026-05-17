@@ -326,11 +326,12 @@ commands = [
 
 [[work_item]]
 id = "reparse-fallback-metadata"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0009"
 adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [150]
 commands = [
   "cargo test -p adze --features incremental_glr reparse_fallback_metadata -- --nocapture",
   "git diff --check",
@@ -338,7 +339,7 @@ commands = [
 
 [[work_item]]
 id = "performance-contract"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0014"
 adr = ""
