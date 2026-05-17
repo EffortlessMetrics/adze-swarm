@@ -1,15 +1,19 @@
 # Error Recovery
 
-Error recovery in adze enables robust parsing of malformed or partially complete code. This guide covers the error recovery systems available in adze, from basic span validation to advanced parser recovery strategies.
+Error recovery in Adze enables robust parsing of malformed or partially
+complete code. This guide covers the current product-shaped path: safe span
+helpers, generated parser diagnostics, document facts, and support-tiered GLR
+or incremental behavior.
 
 ## Overview
 
 Adze provides multiple layers of error recovery:
 
 1. **Span Error Recovery** (PR #55) - Safe span operations with comprehensive validation
-2. **Parser Error Recovery** - Graceful handling of syntax errors during parsing
-3. **Incremental Error Recovery** - Smart recovery during incremental parsing operations
-4. **GLR Error Recovery** - Advanced error handling for ambiguous grammars
+2. **Generated Parser Diagnostics** - Graceful handling of syntax errors during parsing
+3. **Document Diagnostics** - Structured byte/point ranges and expected-token data
+4. **Incremental Lifecycle Metadata** - Honest full-reparse fallback before stable reuse claims
+5. **GLR Ambiguity Summaries** - Documented selected-tree and ambiguity facts for covered grammar shapes
 
 ## Span Error Recovery
 
@@ -123,237 +127,129 @@ fn process_spans_with_recovery(
 
 ### Basic Error Handling
 
-Adze parsers return detailed error information when parsing fails:
+Generated parsers expose the stable typed path through `grammar::parse()` and
+the document-oriented diagnostic path through `grammar::parse_document()`.
 
 ```rust
-use adze_runtime::{Parser, ParseError};
+let typed = grammar::parse("1 + 2");
+assert!(typed.is_ok());
 
-let mut parser = Parser::new();
-parser.set_language(my_language())?;
-
-match parser.parse_utf8("fn main( { // missing closing paren", None) {
-    Ok(tree) => println!("Parsed successfully"),
-    Err(ParseError::UnexpectedToken { expected, found, location }) => {
-        eprintln!("Expected {:?}, found '{}' at {}:{}", 
-            expected, found, location.line, location.column);
-        // Implement recovery strategy
-    },
-    Err(ParseError::AmbiguousParse { alternatives }) => {
-        eprintln!("Ambiguous parse with {} alternatives", alternatives.len());
-        // Choose best alternative or request disambiguation
-    },
-    Err(e) => eprintln!("Parse error: {}", e),
+let report = grammar::parse_document("1 +");
+if !report.diagnostics().is_empty() {
+    for diagnostic in report.diagnostics() {
+        eprintln!(
+            "{} at {:?}",
+            diagnostic.message,
+            diagnostic.byte_span()
+        );
+    }
 }
 ```
+
+`parse()` remains the ergonomic typed-AST front door. Use `parse_document()`
+when tooling needs diagnostics, source ranges, selected-tree facts, or JSON and
+Tree-sitter-compatible projections.
 
 ### Error Recovery Strategies
 
-#### Strategy 1: Partial Parse Recovery
+#### Strategy 1: Diagnostic Document Recovery
 ```rust
-fn parse_with_recovery(source: &str) -> Result<PartialParseResult, ParseError> {
-    let mut parser = Parser::new();
-    parser.set_language(my_language())?;
-    
-    // Try full parse first
-    match parser.parse_utf8(source, None) {
-        Ok(tree) => Ok(PartialParseResult::Complete(tree)),
-        Err(ParseError::UnexpectedToken { location, .. }) => {
-            // Try parsing up to the error location
-            let truncated = &source[..location.byte_offset.min(source.len())];
-            match parser.parse_utf8(truncated, None) {
-                Ok(partial_tree) => Ok(PartialParseResult::Partial {
-                    tree: partial_tree,
-                    error_location: location,
-                }),
-                Err(e) => Err(e),
-            }
-        },
-        Err(e) => Err(e),
+let source = "1 +";
+let report = grammar::parse_document(source);
+
+for diagnostic in report.diagnostics() {
+    assert!(diagnostic.byte_span().start <= diagnostic.byte_span().end);
+}
+```
+
+#### Strategy 2: Typed AST Fallback
+```rust
+let source = "1 +";
+match grammar::parse(source) {
+    Ok(ast) => {
+        println!("typed AST: {ast:?}");
+    }
+    Err(_) => {
+        let report = grammar::parse_document(source);
+        eprintln!("diagnostics: {:?}", report.diagnostics());
     }
 }
-
-enum PartialParseResult {
-    Complete(Tree),
-    Partial { tree: Tree, error_location: Location },
-}
 ```
 
-#### Strategy 2: Error Node Insertion
-```rust
-fn parse_with_error_nodes(source: &str) -> Result<Tree, ParseError> {
-    let mut parser = Parser::new();
-    parser.set_language(my_language())?;
-    
-    // Configure parser to create error nodes for invalid syntax
-    let config = ErrorRecoveryConfig::builder()
-        .enable_error_nodes(true)
-        .max_error_recovery_attempts(5)
-        .build();
-        
-    parser.set_error_recovery_config(config);
-    parser.parse_utf8(source, None)
-}
-```
+Typed AST lowering may reject recovered syntax by default. That is intentional:
+the document can preserve diagnostics and selected-tree facts even when the
+typed semantic value is not trustworthy.
 
 ## Incremental Error Recovery
 
-When using incremental parsing, error recovery becomes more complex because edits can invalidate previously valid spans.
-
-### Edit Validation
+Incremental parsing is experimental. The supported guidance is to make fallback
+visible instead of claiming stable subtree reuse.
 
 ```rust
-use adze_runtime::{Tree, InputEdit, EditError, Point};
+use adze::document::IncrementalFallbackReason;
 
-fn apply_edit_safely(
-    tree: &mut Tree, 
-    edit: InputEdit
-) -> Result<(), EditError> {
-    // Validate edit bounds
-    match tree.edit(&edit) {
-        Ok(()) => {
-            println!("Edit applied successfully");
-            Ok(())
-        },
-        Err(EditError::InvalidRange { start, old_end }) => {
-            eprintln!("Invalid edit range: {} -> {}", start, old_end);
-            // Could try to fix the edit range
-            let corrected_edit = InputEdit {
-                start_byte: start,
-                old_end_byte: start, // Make it a pure insertion
-                new_end_byte: edit.new_end_byte,
-                start_position: edit.start_position,
-                old_end_position: edit.start_position,
-                new_end_position: edit.new_end_position,
-            };
-            tree.edit(&corrected_edit)
-        },
-        Err(EditError::ArithmeticOverflow) => {
-            eprintln!("Edit would cause position overflow");
-            Err(EditError::ArithmeticOverflow)
-        },
-        Err(EditError::ArithmeticUnderflow) => {
-            eprintln!("Edit would cause position underflow");  
-            Err(EditError::ArithmeticUnderflow)
-        }
-    }
+let document = grammar::parse_document("1 +")
+    .document()
+    .with_full_reparse_fallback_metadata(IncrementalFallbackReason::FullReparseOnly);
+
+assert!(document.metadata().incremental_requested);
+if document.metadata().full_reparse_fallback() {
+    eprintln!("incremental reuse was requested, but this parse used a full reparse");
 }
 ```
 
-### Incremental Recovery Patterns
+If an editor integration needs changed ranges, treat them as conservative until
+the incremental document lifecycle is promoted in `docs/status/SUPPORT_TIERS.md`.
 
-#### Pattern 1: Conservative Recovery
+### Edit Repair Inputs
 ```rust
-fn incremental_parse_with_fallback(
-    parser: &mut Parser,
-    source: &str,
-    old_tree: Option<&Tree>,
-    edit: Option<InputEdit>
-) -> Result<Tree, ParseError> {
-    if let (Some(tree), Some(edit)) = (old_tree, edit) {
-        // Try incremental parsing
-        let mut tree_copy = tree.clone();
-        match tree_copy.edit(&edit) {
-            Ok(()) => {
-                // Incremental parse succeeded
-                parser.parse_utf8(source, Some(&tree_copy))
-            },
-            Err(_) => {
-                // Edit failed, fall back to full parse
-                eprintln!("Edit failed, falling back to full parse");
-                parser.parse_utf8(source, None)
-            }
-        }
-    } else {
-        // No incremental context, do full parse
-        parser.parse_utf8(source, None)
-    }
+fn clamp_edit_range(start: usize, old_end: usize, source_len: usize) -> (usize, usize) {
+    let start = start.min(source_len);
+    let old_end = old_end.min(source_len).max(start);
+    (start, old_end)
 }
 ```
 
-#### Pattern 2: Edit Repair
-```rust
-fn repair_edit(edit: InputEdit, source_len: usize) -> InputEdit {
-    let InputEdit { mut start_byte, mut old_end_byte, mut new_end_byte, .. } = edit;
-    
-    // Ensure bounds are within source
-    start_byte = start_byte.min(source_len);
-    old_end_byte = old_end_byte.min(source_len).max(start_byte);
-    
-    // Ensure new_end is reasonable (could be larger for insertions)
-    new_end_byte = new_end_byte.max(start_byte);
-    
-    InputEdit {
-        start_byte,
-        old_end_byte, 
-        new_end_byte,
-        ..edit
-    }
-}
-```
+Until incremental reuse is promoted, validate edit offsets before handing them
+to an editor integration and keep fallback metadata visible in the resulting
+document.
 
 ## GLR Error Recovery
 
-GLR parsers handle ambiguous grammars and can provide more sophisticated error recovery.
+GLR parsers handle documented ambiguous grammar classes. Native Adze output
+keeps the selected tree and ambiguity summary on `AdzeDocument`; full forest
+export is not the default stable user contract.
 
 ### Ambiguity Resolution
 
 ```rust
-fn handle_glr_ambiguity(result: ParseResult) -> Tree {
-    match result {
-        ParseResult::Single(tree) => tree,
-        ParseResult::Ambiguous(forest) => {
-            // Choose the most likely parse based on heuristics
-            let best_parse = forest.alternatives()
-                .max_by_key(|alt| alt.confidence_score())
-                .unwrap_or_else(|| forest.alternatives().next().unwrap());
-            
-            println!("Resolved ambiguity: chose parse with {} nodes", 
-                best_parse.node_count());
-            best_parse.to_tree()
-        }
+let report = grammar::parse_document(ambiguous_source);
+let document = report.document();
+
+for ambiguity in document.ambiguities() {
+    if let Some(selected) = ambiguity.selected {
+        println!("selected alternative: {selected:?}");
     }
+    println!("retained alternatives: {}", ambiguity.alternatives.len());
 }
 ```
 
 ### Error Forest Analysis
 
 ```rust
-fn analyze_parse_errors(forest: &ParseForest) -> Vec<RecoveryHint> {
-    let mut hints = Vec::new();
-    
-    for error_node in forest.error_nodes() {
-        let hint = match error_node.error_type() {
-            ErrorType::MissingToken(expected) => {
-                RecoveryHint::InsertToken {
-                    position: error_node.start_position(),
-                    token: expected,
-                }
-            },
-            ErrorType::UnexpectedToken(found) => {
-                RecoveryHint::DeleteToken {
-                    span: error_node.span(),
-                    token: found,
-                }
-            },
-            ErrorType::StructuralError => {
-                RecoveryHint::Restructure {
-                    span: error_node.span(),
-                    suggestion: "Consider adding parentheses or braces",
-                }
-            }
-        };
-        hints.push(hint);
-    }
-    
-    hints
+let report = grammar::parse_document(source);
+
+for diagnostic in report.diagnostics() {
+    eprintln!("{diagnostic:?}");
 }
 
-enum RecoveryHint {
-    InsertToken { position: Point, token: String },
-    DeleteToken { span: (usize, usize), token: String },
-    Restructure { span: (usize, usize), suggestion: &'static str },
-}
+let root = report.document().tree().root();
+assert!(root.byte_range().start <= root.byte_range().end);
 ```
+
+Use diagnostics and ambiguity summaries as the public facts. Raw forest
+inspection remains future/experimental unless a support-tier row promotes a
+specific API and proof command.
 
 ## Testing Error Recovery
 
@@ -391,27 +287,6 @@ mod error_recovery_tests {
             _ => panic!("Expected InvalidRange error"),
         }
     }
-    
-    #[test]  
-    fn test_edit_error_recovery() {
-        let mut tree = create_test_tree();
-        let invalid_edit = InputEdit {
-            start_byte: 10,
-            old_end_byte: 5, // Invalid: old_end < start
-            new_end_byte: 15,
-            start_position: Point { row: 0, column: 10 },
-            old_end_position: Point { row: 0, column: 5 },
-            new_end_position: Point { row: 0, column: 15 },
-        };
-        
-        match tree.edit(&invalid_edit) {
-            Err(EditError::InvalidRange { start, old_end }) => {
-                assert_eq!(start, 10);
-                assert_eq!(old_end, 5);
-            },
-            _ => panic!("Expected InvalidRange error"),
-        }
-    }
 }
 ```
 
@@ -421,29 +296,17 @@ mod error_recovery_tests {
 #[test]
 fn test_malformed_input_recovery() {
     let malformed_inputs = vec![
-        "fn main(",           // Missing closing paren
-        "let x = ;",          // Missing expression  
-        "if true { else }",   // Missing if body
-        "",                   // Empty input
-        "fn main() { let x = 42",  // Missing closing brace
+        "1 +",        // Unexpected EOF
+        "1 + + 2",    // Unexpected operator
+        "é +",        // Multibyte bad-token span
+        "",           // Empty input
     ];
-    
-    let mut parser = Parser::new();
-    parser.set_language(rust_language())?;
-    
+
     for input in malformed_inputs {
-        match parser.parse_utf8(input, None) {
-            Ok(tree) => {
-                // Parser successfully recovered
-                assert!(tree.root_node().has_error(), 
-                    "Expected error nodes in tree for input: {}", input);
-            },
-            Err(e) => {
-                // Parser failed gracefully with useful error
-                println!("Parse error for '{}': {}", input, e);
-                assert!(!e.to_string().contains("panic"));
-            }
-        }
+        let report = grammar::parse_document(input);
+
+        // Bad input should produce diagnostics or a hard failure, never a panic.
+        assert!(!report.diagnostics().is_empty(), "expected diagnostics for {input:?}");
     }
 }
 ```
@@ -470,35 +333,24 @@ let text = match span.try_slice_str(source) {
 
 ```rust
 // ✅ Validate edit before use
-fn apply_edit_safely(tree: &mut Tree, edit: InputEdit) -> Result<(), EditError> {
-    // Check bounds manually if needed
-    if edit.start_byte > edit.old_end_byte {
-        return Err(EditError::InvalidRange { 
-            start: edit.start_byte, 
-            old_end: edit.old_end_byte 
-        });
-    }
-    
-    tree.edit(&edit)
+fn validate_edit_range(start: usize, old_end: usize, source_len: usize) -> bool {
+    start <= old_end && old_end <= source_len
 }
 ```
 
 ### 3. Implement Progressive Recovery
 
 ```rust
-fn parse_with_progressive_recovery(source: &str) -> ParseResult {
-    // Try full parse first
-    if let Ok(tree) = try_full_parse(source) {
-        return ParseResult::Success(tree);
+fn parse_for_user_feedback(source: &str) {
+    match grammar::parse(source) {
+        Ok(ast) => println!("parsed: {ast:?}"),
+        Err(_) => {
+            let report = grammar::parse_document(source);
+            for diagnostic in report.diagnostics() {
+                eprintln!("{diagnostic:?}");
+            }
+        }
     }
-    
-    // Try partial parse
-    if let Ok(partial) = try_partial_parse(source) {
-        return ParseResult::Partial(partial);  
-    }
-    
-    // Create minimal error tree
-    ParseResult::Error(create_error_tree(source))
 }
 ```
 
@@ -508,9 +360,8 @@ fn parse_with_progressive_recovery(source: &str) -> ParseResult {
 #[derive(Debug)]
 struct DetailedParseError {
     message: String,
-    location: Point,
+    byte_range: std::ops::Range<usize>,
     suggestions: Vec<String>,
-    recovery_hint: Option<RecoveryHint>,
 }
 
 impl DetailedParseError {
@@ -518,22 +369,20 @@ impl DetailedParseError {
         self.suggestions.push(suggestion.into());
         self
     }
-    
-    fn with_recovery_hint(mut self, hint: RecoveryHint) -> Self {
-        self.recovery_hint = Some(hint);
-        self
-    }
 }
 ```
 
 ## Performance Considerations
 
-Error recovery adds some overhead, but adze's implementation is designed to be efficient:
+Error recovery adds some overhead, so keep measurements tied to the exact
+surface being proven:
 
 - **Lazy Validation**: Spans are only validated when accessed
 - **Zero-Cost Abstractions**: No overhead when not using error recovery features
-- **Incremental Recovery**: Only affected regions are revalidated during incremental parsing
-- **GLR Efficiency**: Ambiguity resolution uses efficient forest algorithms
+- **Document Diagnostics**: Diagnostics are structured facts that can be
+  rendered or serialized without reparsing
+- **GLR Summaries**: Ambiguity summaries expose selected-tree facts without
+  making raw forest export the default user surface
 
 Monitor performance using the built-in instrumentation:
 
@@ -543,9 +392,10 @@ std::env::set_var("ADZE_LOG_PERFORMANCE", "true");
 
 // Monitor error recovery overhead
 let start = std::time::Instant::now();
-let result = parse_with_recovery(large_malformed_input);
+let report = grammar::parse_document(large_malformed_input);
 let duration = start.elapsed();
 
+eprintln!("diagnostics: {}", report.diagnostics().len());
 println!("Recovery parse took {:?}", duration);
 ```
 
@@ -555,7 +405,13 @@ Adze's error recovery system provides multiple layers of protection against malf
 
 1. **SpanError system** prevents panics and provides detailed error information
 2. **Safe span operations** allow graceful handling of invalid ranges
-3. **Incremental error recovery** maintains consistency during edits
-4. **GLR error recovery** handles ambiguous and malformed syntax elegantly
+3. **Document diagnostics** expose byte ranges, point ranges, expected tokens,
+   and related parse facts when available
+4. **Incremental lifecycle metadata** makes fallback visible instead of
+   implying stable reuse
+5. **GLR ambiguity summaries** report documented ambiguity facts without
+   promoting raw forest APIs
 
-By following the patterns and best practices in this guide, you can build robust parsers that handle real-world malformed input gracefully while providing useful error messages for debugging and user feedback.
+By following the patterns and best practices in this guide, you can build
+parsers that handle malformed input clearly while keeping stable, stabilizing,
+and experimental claims separated.
