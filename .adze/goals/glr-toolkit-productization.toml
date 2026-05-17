@@ -140,11 +140,12 @@ commands = [
 
 [[work_item]]
 id = "tablegen-conflict-abi-roundtrip"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [136]
 commands = [
   "cargo test -p adze-tablegen --all-features",
   "cargo test -p adze --features \"pure-rust,glr,ts-compat\" tablegen_abi_decode_roundtrip -- --nocapture",
@@ -153,7 +154,7 @@ commands = [
 
 [[work_item]]
 id = "goto-symbol-indexing-proof"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
