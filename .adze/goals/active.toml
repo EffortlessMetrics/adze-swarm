@@ -196,12 +196,11 @@ commands = [
 
 [[work_item]]
 id = "error-missing-node-compat"
-status = "blocked"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
-blocked_by = ["projection-equivalence-harness"]
 commands = [
   "cargo test -p adze --features \"pure-rust,glr,ts-compat\" error_missing_node_compat -- --nocapture",
   "git diff --check",
@@ -366,11 +365,12 @@ commands = [
 
 [[work_item]]
 id = "support-tier-promotion-pass"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [153]
 commands = [
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
