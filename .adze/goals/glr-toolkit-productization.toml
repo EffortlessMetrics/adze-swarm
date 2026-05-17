@@ -154,11 +154,12 @@ commands = [
 
 [[work_item]]
 id = "goto-symbol-indexing-proof"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [137]
 commands = [
   "cargo run -q -p xtask -- check-goto-indexing",
   "cargo test -p xtask goto_indexing -- --nocapture",
@@ -168,12 +169,11 @@ commands = [
 
 [[work_item]]
 id = "ts-compat-selected-tree-parity"
-status = "blocked"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
-blocked_by = ["projection-equivalence-harness"]
 commands = [
   "cargo test -p adze --features \"pure-rust,glr,ts-compat\" ts_compat_selected_tree -- --nocapture",
   "git diff --check",

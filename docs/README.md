@@ -39,7 +39,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Usage Examples**](./reference/usage-examples.md) - Practical code snippets for common tasks.
 - [**Language Support**](./reference/language-support.md) - Status of built-in grammars (Python, JS, Go).
 - [**Known Limitations**](./reference/known-limitations.md) - Current status of experimental features.
-- [**Tree-sitter Compatibility**](./reference/tree-sitter-compatibility.md) - Adze's implementation of the Tree-sitter table format.
+- [**Tree-sitter Compatibility**](./reference/tree-sitter-compatibility.md) - Supported selected-tree adapter subset and table-format invariants.
 - [**Tree-sitter Alias Semantics**](./reference/ts-compat-alias-semantics.md) - Draft target contract for alias-visible compatibility behavior.
 - [**Empty Rules Reference**](./reference/empty-rules-reference.md) - Quick reference for handling ε-productions.
 
