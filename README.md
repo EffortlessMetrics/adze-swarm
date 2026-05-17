@@ -173,6 +173,8 @@ Contributions are welcome. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for guidel
 ## Development
 
 ```bash
+scripts/doctor.sh      # verify local tooling before the first build
+just doctor            # same check through just
 just ci-supported      # required PR gate — fmt + clippy + tests on core crates
 just ci-product-stable # optional Stable README product canaries
 just test              # core lib tests

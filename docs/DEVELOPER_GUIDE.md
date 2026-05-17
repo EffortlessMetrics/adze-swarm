@@ -4,6 +4,18 @@
 
 ## Prerequisites
 
+### Quick environment check
+
+Run the doctor script first when setting up a checkout or debugging local CI failures:
+
+```bash
+scripts/doctor.sh
+# or, once just is installed:
+just doctor
+```
+
+The check verifies required Rust tooling, reports whether `just` is installed, and calls out optional tools such as `cargo-insta`, `cargo-mutants`, and `libtree-sitter` only when they are relevant to snapshot, mutation, or Tree-sitter bridge work.
+
 ### System Requirements
 - **Rust 1.95.0+** (2024 edition support)
 - **Node.js**: Required for `tree-sitter` CLI compatibility (legacy/C backend only)
