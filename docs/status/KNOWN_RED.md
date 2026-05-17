@@ -80,7 +80,7 @@ These may run as optional signal (nightly/manual/canary), but are not required f
 
 A broad-surface advisory lane now exists as `.github/workflows/product-proof.yml` and runs `scripts/ci-product.sh` on schedule/manual dispatch.
 
-This lane is **not** part of required merge gates. It provides bounded canary proof across product surfaces that are outside `ci-supported`. A narrower `just ci-product-stable` lane exists for README Stable claims only, but it is also advisory until branch protection explicitly promotes it.
+This lane is **not** part of required merge gates. It provides bounded canary proof across product surfaces that are outside `ci-supported`. A narrower `ci-product stable canaries` job runs `just ci-product-stable` on stable-claim PR surfaces and on schedule/manual dispatch, but it is also advisory until branch protection explicitly promotes it.
 
 Current canaries:
 
@@ -139,6 +139,7 @@ Current canaries:
 - `adze-cli` stats rejects non-grammar Rust files — **behavior** (`cargo test -p adze-cli test_stats_rejects_file_without_adze_grammar -- --exact --nocapture`)
 - `adze-cli` parse unsupported-mode truthfulness — **behavior** (`cargo test -p adze-cli test_parse_static_mode_is_explicitly_unimplemented -- --exact --nocapture`)
 - `adze-cli` parse help output-mode documentation — **behavior** (`cargo test -p adze-cli test_parse_help_documents_available_modes -- --exact --nocapture`)
+- `adze-cli` static document projection output modes — **behavior** (`cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture`)
 - `adze-tool` test command rejects corpus without parser execution — **behavior** (`cargo test -p adze-tool --test cli_test test_test_command_rejects_corpus_without_parser -- --exact --nocapture`)
 - `adze-golden-tests` JavaScript canary — **behavior** (`cargo test -p adze-golden-tests javascript_canary_expression_golden --features javascript-grammar -- --nocapture`)
 - benchmark arithmetic fixture validity — **behavior** (`cargo test -p adze-benchmarks --test verify_fixture_parsing verify_arithmetic_benchmark_fixtures_parse_with_arithmetic_grammar -- --exact --nocapture`)

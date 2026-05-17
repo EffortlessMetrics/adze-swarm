@@ -343,3 +343,195 @@ pub mod queries {
 (identifier) @variable
 "#;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::query::ast::{Pattern, PatternNode, Query};
+    use adze_ir::SymbolId;
+
+    fn leaf(symbol: u16, start: usize, end: usize) -> ParseNode {
+        ParseNode {
+            symbol: SymbolId(symbol),
+            symbol_id: SymbolId(symbol),
+            start_byte: start,
+            end_byte: end,
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![],
+        }
+    }
+
+    fn pattern_with_capture(symbol: u16, capture: u32) -> Pattern {
+        let root = PatternNode::new(SymbolId(symbol), true).with_capture(capture);
+        Pattern {
+            root,
+            predicates: Vec::new(),
+            start_byte: 0,
+        }
+    }
+
+    fn query_with_named_captures(captures: &[(&str, u32)], patterns: Vec<Pattern>) -> Query {
+        let mut q = Query::new();
+        for (name, idx) in captures {
+            q.capture_names.insert((*name).to_string(), *idx);
+        }
+        q.patterns = patterns;
+        q
+    }
+
+    #[test]
+    fn capture_names_constants_are_distinct() {
+        assert_eq!(capture_names::COMMENT, "comment");
+        assert_eq!(capture_names::KEYWORD, "keyword");
+        assert_ne!(capture_names::FUNCTION, capture_names::FUNCTION_CALL);
+        assert_ne!(capture_names::METHOD, capture_names::METHOD_CALL);
+    }
+
+    #[test]
+    fn color_new_stores_components() {
+        let c = Color::new(10, 20, 30);
+        assert_eq!(c.r, 10);
+        assert_eq!(c.g, 20);
+        assert_eq!(c.b, 30);
+    }
+
+    #[test]
+    fn color_to_hex_zero_pads_each_channel() {
+        assert_eq!(Color::new(0, 0, 0).to_hex(), "#000000");
+        assert_eq!(Color::new(255, 255, 255).to_hex(), "#ffffff");
+        assert_eq!(Color::new(1, 2, 3).to_hex(), "#010203");
+        assert_eq!(Color::new(171, 205, 239).to_hex(), "#abcdef");
+    }
+
+    #[test]
+    fn color_equality_compares_components() {
+        assert_eq!(Color::new(1, 2, 3), Color::new(1, 2, 3));
+        assert_ne!(Color::new(1, 2, 3), Color::new(3, 2, 1));
+    }
+
+    #[test]
+    fn theme_dark_has_distinct_default_and_background() {
+        let theme = Theme::dark();
+        assert_ne!(theme.default_color, theme.background_color);
+        assert_eq!(theme.background_color, Color::new(30, 30, 30));
+    }
+
+    #[test]
+    fn theme_light_has_distinct_default_and_background() {
+        let theme = Theme::light();
+        assert_eq!(theme.background_color, Color::new(255, 255, 255));
+        assert_eq!(theme.default_color, Color::new(0, 0, 0));
+    }
+
+    #[test]
+    fn theme_get_color_returns_default_for_unknown_highlight() {
+        let theme = Theme::dark();
+        let unknown = theme.get_color("not.a.real.highlight");
+        assert_eq!(unknown, theme.default_color);
+    }
+
+    #[test]
+    fn theme_get_color_returns_specific_for_known_highlight() {
+        let theme = Theme::dark();
+        let keyword_color = theme.get_color(capture_names::KEYWORD);
+        assert_eq!(keyword_color, Color::new(197, 134, 192));
+    }
+
+    #[test]
+    fn highlighter_with_empty_query_returns_no_highlights() {
+        let highlighter = Highlighter::new(Query::new());
+        let root = leaf(1, 0, 5);
+        assert!(highlighter.highlight(&root).is_empty());
+    }
+
+    #[test]
+    fn highlighter_returns_highlight_for_matched_capture() {
+        let query = query_with_named_captures(&[("keyword", 0)], vec![pattern_with_capture(42, 0)]);
+        let highlighter = Highlighter::new(query);
+        let root = leaf(42, 3, 7);
+        let highlights = highlighter.highlight(&root);
+        assert_eq!(highlights.len(), 1);
+        assert_eq!(highlights[0].start_byte, 3);
+        assert_eq!(highlights[0].end_byte, 7);
+        assert_eq!(highlights[0].highlight, "keyword");
+    }
+
+    #[test]
+    fn highlight_struct_equality_compares_all_fields() {
+        let a = Highlight {
+            start_byte: 0,
+            end_byte: 4,
+            highlight: "keyword".to_string(),
+        };
+        let b = Highlight {
+            start_byte: 0,
+            end_byte: 4,
+            highlight: "keyword".to_string(),
+        };
+        let c = Highlight {
+            start_byte: 0,
+            end_byte: 5,
+            highlight: "keyword".to_string(),
+        };
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn highlight_query_example_constants_are_non_empty() {
+        assert!(queries::RUST_HIGHLIGHTS.contains("@keyword"));
+        assert!(queries::PYTHON_HIGHLIGHTS.contains("@keyword"));
+        assert!(queries::RUST_HIGHLIGHTS.contains("@comment"));
+    }
+
+    #[test]
+    fn remove_overlaps_keeps_disjoint_highlights_in_order() {
+        let highlighter = Highlighter::new(Query::new());
+        let mut highlights = vec![
+            Highlight {
+                start_byte: 0,
+                end_byte: 3,
+                highlight: "a".into(),
+            },
+            Highlight {
+                start_byte: 5,
+                end_byte: 8,
+                highlight: "b".into(),
+            },
+        ];
+        highlighter.remove_overlaps(&mut highlights);
+        assert_eq!(highlights.len(), 2);
+        assert_eq!(highlights[0].highlight, "a");
+        assert_eq!(highlights[1].highlight, "b");
+    }
+
+    #[test]
+    fn remove_overlaps_keeps_specific_inner_highlight() {
+        let highlighter = Highlighter::new(Query::new());
+        // Outer 0..10, inner 3..6 (fully contained).
+        let mut highlights = vec![
+            Highlight {
+                start_byte: 0,
+                end_byte: 10,
+                highlight: "outer".into(),
+            },
+            Highlight {
+                start_byte: 3,
+                end_byte: 6,
+                highlight: "inner".into(),
+            },
+        ];
+        highlighter.remove_overlaps(&mut highlights);
+        // The inner highlight must survive.
+        assert!(highlights.iter().any(|h| h.highlight == "inner"));
+    }
+
+    #[test]
+    fn remove_overlaps_on_empty_input_is_noop() {
+        let highlighter = Highlighter::new(Query::new());
+        let mut highlights: Vec<Highlight> = vec![];
+        highlighter.remove_overlaps(&mut highlights);
+        assert!(highlights.is_empty());
+    }
+}

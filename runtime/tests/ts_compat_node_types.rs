@@ -21,6 +21,32 @@ fn entry<'a>(entries: &'a [Value], type_name: &str) -> &'a Value {
         .unwrap_or_else(|| panic!("node-types should contain {type_name:?}"))
 }
 
+fn field<'a>(node_type: &'a Value, field_name: &str) -> &'a Value {
+    node_type["fields"]
+        .as_object()
+        .and_then(|fields| fields.get(field_name))
+        .unwrap_or_else(|| panic!("node-types field {field_name:?} should be present"))
+}
+
+fn field_type_names(field: &Value) -> Vec<(String, bool)> {
+    field["types"]
+        .as_array()
+        .expect("field should expose a types array")
+        .iter()
+        .map(|entry| {
+            (
+                entry["type"]
+                    .as_str()
+                    .expect("field type should expose type")
+                    .to_string(),
+                entry["named"]
+                    .as_bool()
+                    .expect("field type should expose named"),
+            )
+        })
+        .collect()
+}
+
 fn symbol_named(lang: &Language, name: &str) -> SymbolId {
     let index = lang
         .table
@@ -112,6 +138,26 @@ fn node_types_json_includes_generated_arithmetic_node_kinds() {
 }
 
 #[test]
+fn node_types_json_is_deterministic_for_generated_language() {
+    let lang = adze_example::ts_langs::arithmetic();
+    let first_json = lang.node_types_json();
+    let second_json = lang.node_types_json();
+    assert_eq!(first_json, second_json);
+
+    let entries: Vec<Value> =
+        serde_json::from_str(&first_json).expect("node-types projection should be valid JSON");
+    let names: Vec<&str> = entries
+        .iter()
+        .map(|entry| {
+            entry["type"]
+                .as_str()
+                .expect("node-types entry should expose type")
+        })
+        .collect();
+    assert_eq!(names, vec!["expression", "source_file", "number"]);
+}
+
+#[test]
 fn node_types_json_projects_field_metadata_from_language_grammar() {
     let lang = arithmetic_with_fields();
     let entries = node_types(&lang);
@@ -128,6 +174,22 @@ fn node_types_json_projects_field_metadata_from_language_grammar() {
         assert_eq!(field["required"], true);
         assert!(field["types"].is_array());
     }
+
+    // The runtime projection currently preserves field names and field shape.
+    // Field target type refs remain an advisory gap covered separately by
+    // tablegen node-types tests.
+    assert_eq!(
+        field_type_names(field(expression, "left")),
+        Vec::<(String, bool)>::new()
+    );
+    assert_eq!(
+        field_type_names(field(expression, "operator")),
+        Vec::<(String, bool)>::new()
+    );
+    assert_eq!(
+        field_type_names(field(expression, "right")),
+        Vec::<(String, bool)>::new()
+    );
 }
 
 #[test]

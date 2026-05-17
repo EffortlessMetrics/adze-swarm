@@ -1,238 +1,212 @@
-# Migration Guide: Runtime to Runtime2 (GLR Integration)
+# Migration Guide: Generated Parser Surface
 
-This guide covers migrating from the original `runtime` crate to the new `runtime2` crate with production-ready GLR (Generalized LR) parser integration. The GLR runtime provides Tree-sitter API compatibility with enhanced capabilities for ambiguous grammars and incremental parsing.
+> **Doc status:** This page replaces the old low-level runtime migration story.
+> The current product path is generated parser modules:
+> `grammar::parse()` for typed Rust values and `grammar::parse_document()` for
+> tooling facts.
 
-## Major Changes
+Adze no longer asks ordinary users to migrate from one low-level runtime API to
+another. The supported migration is from hand-managed parser construction to
+generated grammar modules.
 
-### 1. Runtime Crate Replacement
+## What Changed
 
-The most significant change is switching from `runtime` to `runtime2` with GLR integration.
+| Old mental model | Current product model |
+|---|---|
+| Construct a parser manually. | Define grammar types and call generated `grammar::parse()`. |
+| Convert a generic tree into an AST yourself. | The generated parser returns typed Rust values directly. |
+| Treat Tree-sitter compatibility as the core runtime. | Treat compatibility as a projection from `AdzeDocument`. |
+| Assume incremental reuse/performance by default. | Treat incremental lifecycle as Experimental with visible fallback metadata. |
+| Use runtime internals as public API. | Use generated APIs first; reach lower only for implementation work. |
 
-**Before (runtime):**
-```toml
-[dependencies]
-adze = { version = "0.5", features = ["runtime"] }
-```
+## Dependencies
 
-**After (runtime2):**
-```toml
-[dependencies]
-adze-runtime = { version = "0.1", features = ["glr", "incremental_glr"] }
-```
-
-This change provides:
-- **GLR parsing capabilities**: Handle ambiguous grammars with conflicts
-- **Tree-sitter API compatibility**: Drop-in replacement for Tree-sitter parsers
-- **Enhanced incremental parsing**: Automatic subtree reuse optimization
-- **Performance monitoring**: Built-in forest-to-tree conversion metrics
-
-### 2. Parser API Changes
-
-The parser instantiation and usage pattern has evolved:
-
-**Before (runtime):**
-```rust
-use adze::Parser;
-
-let parser = Parser::new();
-let result = parser.parse(input)?;
-```
-
-**After (runtime2):**
-```rust
-use adze_runtime::Parser;
-
-let mut parser = Parser::new();
-parser.set_language(glr_language)?;  // GLR language with parse table
-let tree = parser.parse_utf8(input, None)?;  // Optional incremental parsing
-let ast = grammar::extract_ast(&tree)?;      // Convert tree to AST
-```
-
-### 3. Language Definition Changes
-
-Language definition now requires GLR-specific components:
-
-**Before (runtime):**
-```rust
-// Generated automatically from grammar annotations
-let language = grammar::language();
-let parser = Parser::new(language);
-```
-
-**After (runtime2):**
-```rust
-// Generated with GLR support
-let language = grammar::language();  // Now includes parse_table and tokenizer
-let mut parser = Parser::new();
-parser.set_language(language)?;      // Validates GLR requirements
-```
-
-### 4. Incremental Parsing Integration
-
-Incremental parsing is now seamlessly integrated:
-
-**Before (runtime):**
-```rust
-// Manual incremental parsing (if available)
-let tree1 = parser.parse(input1)?;
-// Complex edit tracking and partial reparse logic
-```
-
-**After (runtime2):**
-```rust
-// Automatic incremental parsing
-let tree1 = parser.parse_utf8(input1, None)?;           // Initial parse
-let tree2 = parser.parse_utf8(input2, Some(&tree1))?;   // Incremental parse
-// Parser automatically reuses compatible subtrees
-```
-
-### 5. GLR Parser Features
-
-Runtime2 includes production-ready GLR capabilities:
-
-- **Multi-Action Cells**: Each (state, symbol) can hold multiple conflicting actions
-- **Runtime Forking**: Automatic parsing path forking on conflicts
-- **Forest Management**: Efficient handling of ambiguous parse forests
-- **Performance Monitoring**: Built-in metrics for forest-to-tree conversion
-- **Conservative Incremental**: Safe subtree reuse that maintains GLR correctness
-
-Example of GLR conflict handling:
-
-```rust
-// Grammar with shift/reduce conflicts (e.g., empty production)
-#[adze::language]
-struct Module {
-    statements: Vec<Statement>, // REPEAT(_statement) creates conflict
-}
-
-// GLR parser handles both cases automatically:
-let empty_tree = parser.parse_utf8("", None)?;         // Reduce to empty
-let stmt_tree = parser.parse_utf8("def main():", None)?; // Shift statement
-```
-
-### 6. Feature Flag System
-
-Runtime2 uses a comprehensive feature flag system:
+For a fresh generated-parser crate, start with the same shape as the book
+quickstart:
 
 ```toml
 [dependencies]
-adze-runtime = { version = "0.1", features = [
-    "glr",               # GLR parsing engine (default)
-    "incremental_glr",   # Incremental parsing support
-    "arenas",           # Arena allocators for performance
-    "external-scanners", # Custom external scanner support
-    "queries"           # Tree-sitter query language (future)
-] }
-```
-
-## Migration Steps
-
-### 1. Update Dependencies
-
-Change your `Cargo.toml` to use runtime2:
-
-```toml
-[dependencies]
-# Remove old runtime
-# adze = "0.5"
-
-# Add GLR runtime
-adze-runtime = { version = "0.1", features = ["glr", "incremental_glr"] }
+adze = { version = "0.8.0-dev", default-features = false }
 
 [build-dependencies]
-adze-tool = "0.6"  # Ensure build tool compatibility
+adze-tool = "0.8.0-dev"
+
+[features]
+default = ["pure-rust"]
+pure-rust = ["adze/pure-rust"]
 ```
 
-### 2. Update Build Configuration
-
-Ensure your `build.rs` uses the latest tool:
+Create a `build.rs` that asks `adze-tool` to generate parsers from your grammar
+source:
 
 ```rust
+use std::path::PathBuf;
+
 fn main() {
-    adze_tool::build_parsers().unwrap();
+    println!("cargo::rustc-check-cfg=cfg(adze_unsafe_attrs)");
+    adze_tool::build_parsers(&PathBuf::from("src/lib.rs"));
 }
 ```
 
-### 3. Update Parser Usage
+## Parser Usage
 
-**Before:**
-```rust
-let result = grammar::parse(input)?;
+### Before: manual parser construction
+
+Older examples often used a low-level parser object and then manually mapped a
+tree into application data:
+
+```rust,ignore
+let mut parser = make_parser_somehow();
+let tree = parser.parse(source)?;
+let ast = extract_ast_from_tree(tree)?;
 ```
 
-**After:**
-```rust
-use adze_runtime::Parser;
+### After: generated typed parser
 
-let mut parser = Parser::new();
-parser.set_language(grammar::language())?;
-let tree = parser.parse_utf8(input, None)?;
-let result = grammar::extract_ast(&tree)?;
+Write Rust grammar types and call the generated function:
+
+```rust
+let ast = grammar::parse(source)?;
 ```
 
-### 4. Enable Performance Monitoring (Optional)
+The result is the typed AST described by your Rust grammar module.
+
+## Tooling Usage
+
+Use `parse_document()` when your application needs parse facts instead of only a
+typed semantic value:
+
+```rust
+let document = grammar::parse_document(source)?;
+
+let diagnostics = document.diagnostics();
+let root = document.tree().root();
+let ambiguities = document.ambiguities();
+```
+
+`AdzeDocument` is the native parse product. Generic CST, typed CST, typed AST,
+diagnostics, GLR ambiguity summaries, Tree-sitter-compatible output, JSON, CLI,
+and future editor projections should agree with the same document facts.
+
+## GLR Migration
+
+GLR support is not a separate user-facing runtime migration. Ambiguous grammars
+still use generated parser modules:
+
+```rust
+let ast = grammar::parse(source)?;
+let document = grammar::parse_document(source)?;
+```
+
+Current support posture:
+
+- GLR conflict routing is Stabilizing.
+- Selected-tree behavior is deterministic for proven generated-parser slices.
+- Ambiguity summaries are native document facts.
+- Tree-sitter-compatible output exposes the selected tree only.
+- Full forest export and broad grammar-class stability are not claimed.
+
+## Tree-sitter Compatibility
+
+If you are migrating from a Tree-sitter mental model, keep this split:
+
+```text
+Adze native API:
+  generated parse() / parse_document() / AdzeDocument
+
+Tree-sitter compatibility:
+  selected-tree adapter over document data
+```
+
+Use compatibility projections for ecosystem interop, not as the core parse
+truth:
+
+```rust
+let document = grammar::parse_document(source)?;
+let tree = document.as_tree_sitter();
+```
+
+See the API reference and known limitations before assuming Tree-sitter method,
+query, node-types, or imported grammar corpus parity.
+
+## Incremental Migration
+
+Incremental parsing is Experimental. Do not migrate editor integrations around a
+guaranteed reuse percentage or a stable incremental performance claim.
+
+The accepted model is:
+
+- documents are immutable snapshots;
+- edits produce new document snapshots;
+- node IDs are document-local;
+- fallback to full reparse must be visible in metadata.
+
+Tooling should remain correct when Adze reports a full-reparse fallback.
+
+## Common Migration Fixes
+
+### Replace parser construction
+
+Prefer:
+
+```rust
+let ast = grammar::parse(source)?;
+```
+
+Instead of carrying a parser object unless you are inside generated code or an
+implementation/proof lane.
+
+### Replace tree-first AST extraction
+
+Prefer:
+
+```rust
+let ast = grammar::parse(source)?;
+```
+
+Use:
+
+```rust
+let ast = grammar::parse_document(source)?.ast::<grammar::Expr>()?;
+```
+
+only when the document path is specifically needed.
+
+### Replace broad compatibility assumptions
+
+Prefer support-tier-specific language:
+
+```text
+Tree-sitter-compatible selected-tree subset
+```
+
+instead of:
+
+```text
+full Tree-sitter replacement
+```
+
+## Validation
+
+For a migrated quickstart-style crate:
 
 ```bash
-ADZE_LOG_PERFORMANCE=true cargo run
+cargo test
 ```
 
-### 5. Test Incremental Parsing
+For repository product changes:
 
-```rust
-let tree1 = parser.parse_utf8("initial input", None)?;
-let tree2 = parser.parse_utf8("modified input", Some(&tree1))?;  // Incremental!
+```bash
+just ci-supported
 ```
 
-## Common Issues and Solutions
+For support-tier decisions, use `docs/status/SUPPORT_TIERS.md`; do not promote a
+surface based only on migration prose.
 
-### Issue: "Language has no parse table - GLR integration pending"
-**Solution**: Ensure your grammar generates GLR-compatible language with parse table:
-```rust
-// Generated function should include parse table
-let language = grammar::language();  // Must have parse_table: Some(...)
-```
+## Next Steps
 
-### Issue: "Language has no tokenizer"
-**Solution**: The generated GLR language needs a tokenizer. This is automatically provided by `adze-tool`.
-
-### Issue: "GLR core feature not enabled"
-**Solution**: Add the `glr` feature to your dependencies:
-```toml
-adze-runtime = { version = "0.1", features = ["glr"] }
-```
-
-### Issue: Performance issues with large inputs
-**Solution**: 
-1. Enable arena allocators: `features = ["arenas")`
-2. Use incremental parsing for repeated edits
-3. Monitor performance with `ADZE_LOG_PERFORMANCE=true`
-
-## New Features to Explore
-
-### GLR Capabilities
-- **Ambiguous Grammar Support**: Parse grammars with shift/reduce and reduce/reduce conflicts
-- **Multiple Parse Paths**: Automatic forking and merging of parse paths
-- **Tree-sitter Compatibility**: Drop-in replacement for existing Tree-sitter parsers
-- **Production Readiness**: Tested with complex grammars like Python (273 symbols, 57 fields)
-
-### Performance Features
-- **Forest-to-Tree Conversion**: High-performance conversion with real-time metrics
-- **Incremental Parsing**: Conservative subtree reuse maintaining GLR correctness
-- **Arena Allocators**: Optional memory optimization for parsing-heavy workloads
-- **Zero-Cost Monitoring**: Performance instrumentation with no runtime overhead when disabled
-
-### Development Features
-- **Comprehensive Error Handling**: `EditError` with overflow/underflow protection
-- **Feature-Gated Compilation**: Choose exactly the features you need
-- **Thread Safety**: Concurrent parsing support with bounded resource usage
-- **Debugging Support**: Built-in performance and parse state monitoring
-
-## Benefits of Migration
-
-1. **Enhanced Grammar Support**: Handle previously unparseable ambiguous grammars
-2. **Better Performance**: Incremental parsing with intelligent subtree reuse
-3. **Tree-sitter Ecosystem**: Compatible with existing Tree-sitter tooling and queries
-4. **Production Ready**: Battle-tested GLR implementation with comprehensive error handling
-5. **Future Proof**: Foundation for advanced features like query optimization and LSP generation
-
-For more details on GLR features and best practices, see the [Parser Generation Guide](../guide/parser-generation.md).
+- [Quick Start](quickstart.md)
+- [Parser Generation](../guide/parser-generation.md)
+- [Incremental Parsing](../guide/incremental-parsing.md)
+- [API Reference](../reference/api.md)
+- [Known Limitations](../reference/known-limitations.md)

@@ -51,6 +51,7 @@ pub struct PatternNode {
 pub enum PatternChild {
     Node(PatternNode),
     Token(String),
+    Anchor,
 }
 
 /// Quantifiers for pattern nodes

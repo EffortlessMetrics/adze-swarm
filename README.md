@@ -91,7 +91,8 @@ fn main() {
 
 Then call `grammar::parse(input)` to get `Result<YourType, Vec<ParseError>>`.
 
-See the [Getting Started tutorial](./docs/tutorials/getting-started.md) for a full walkthrough.
+For the shortest path, start with [Quickstart: First Parser In 10 Minutes](./docs/tutorials/quickstart-10-minutes.md).
+For the API ladder, read the [Mental Model](./docs/explanations/mental-model.md).
 
 ## Current status
 

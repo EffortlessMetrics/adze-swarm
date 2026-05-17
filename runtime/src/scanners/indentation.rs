@@ -2,7 +2,7 @@
 use crate::external_scanner::{ExternalScanner, Lexer, ScanResult};
 
 /// Scanner for tracking indentation levels
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct IndentationScanner {
     indent_stack: Vec<usize>,
     at_line_start: bool,
@@ -16,6 +16,12 @@ impl IndentationScanner {
             at_line_start: true,
             pending_dedents: 0,
         }
+    }
+}
+
+impl Default for IndentationScanner {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -163,5 +169,93 @@ impl ExternalScanner for IndentationScanner {
             self.pending_dedents =
                 u16::from_le_bytes([buffer[offset], buffer[offset + 1]]) as usize;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockLexer {
+        input: Vec<u8>,
+        pos: usize,
+        end_mark: usize,
+    }
+
+    impl MockLexer {
+        fn new(input: &[u8]) -> Self {
+            Self {
+                input: input.to_vec(),
+                pos: 0,
+                end_mark: 0,
+            }
+        }
+    }
+
+    impl Lexer for MockLexer {
+        fn lookahead(&self) -> Option<u8> {
+            self.input.get(self.pos).copied()
+        }
+
+        fn advance(&mut self, n: usize) {
+            self.pos = (self.pos + n).min(self.input.len());
+        }
+
+        fn mark_end(&mut self) {
+            self.end_mark = self.pos;
+        }
+
+        fn column(&self) -> usize {
+            let preceding = &self.input[..self.pos];
+            preceding
+                .iter()
+                .rev()
+                .position(|&byte| byte == b'\n')
+                .unwrap_or(preceding.len())
+        }
+
+        fn is_eof(&self) -> bool {
+            self.pos >= self.input.len()
+        }
+    }
+
+    fn all_valid_symbols() -> [bool; 3] {
+        [true, true, true]
+    }
+
+    #[test]
+    fn default_matches_new_baseline_state() {
+        let default_scanner = IndentationScanner::default();
+        let new_scanner = IndentationScanner::new();
+
+        assert_eq!(default_scanner.indent_stack, new_scanner.indent_stack);
+        assert_eq!(default_scanner.at_line_start, new_scanner.at_line_start);
+        assert_eq!(default_scanner.pending_dedents, new_scanner.pending_dedents);
+        assert_eq!(default_scanner.indent_stack, vec![0]);
+    }
+
+    #[test]
+    fn default_scanner_can_emit_first_indent() {
+        let mut scanner = IndentationScanner::default();
+        let mut lexer = MockLexer::new(b"    value");
+
+        let result = scanner
+            .scan(&mut lexer, &all_valid_symbols())
+            .expect("expected first indentation token");
+
+        assert_eq!(result.symbol, 1);
+        assert_eq!(scanner.indent_stack, vec![0, 4]);
+        assert!(!scanner.at_line_start);
+    }
+
+    #[test]
+    fn deserialize_short_buffer_preserves_existing_baseline() {
+        let mut scanner = IndentationScanner::default();
+
+        scanner.deserialize(&[]);
+
+        assert_eq!(scanner.indent_stack, vec![0]);
+        assert!(scanner.at_line_start);
+        assert_eq!(scanner.pending_dedents, 0);
     }
 }

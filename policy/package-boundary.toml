@@ -7,7 +7,7 @@ schema_version = "1.0"
 policy = "package-boundary"
 owner = "release/package-surface"
 status = "advisory"
-updated = "2026-05-14"
+updated = "2026-05-16"
 
 [[package]]
 name = "adze"
@@ -34,6 +34,19 @@ ci_impact = "ci-supported plus explicit governance/product proof lanes when clai
 removal_or_promotion_condition = "Keep as durable published support crate per ADZE-ADR-0005 while it remains a cross-crate governance contract."
 last_changed = "2026-05-14"
 last_changed_pr = "#758"
+
+[[package]]
+name = "adze-common-type-ops-core"
+path = "crates/common-type-ops-core"
+category = "published"
+owner = "common/type-ops"
+production_use = true
+publish_intent = "public-support"
+support_tier_impact = "published macro/tool syntax support surface; product claims still require SUPPORT_TIERS proof"
+ci_impact = "ci-supported plus macro/tool proof lanes when claims depend on type-shape transformations"
+removal_or_promotion_condition = "Keep as a durable published support crate while macro/tool syntax handling shares the helpers."
+last_changed = "2026-05-16"
+last_changed_pr = "#104"
 
 [[package]]
 name = "adze-benchmarks"

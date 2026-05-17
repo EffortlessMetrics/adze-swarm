@@ -283,7 +283,9 @@ impl<'a> QueryParser<'a> {
     fn parse_pattern_child(&mut self) -> Result<PatternChild, QueryError> {
         self.skip_whitespace();
 
-        if self.peek_char() == Some('"') {
+        if self.consume_char('.') {
+            Ok(PatternChild::Anchor)
+        } else if self.peek_char() == Some('"') {
             // String literal (anonymous token)
             let token = self.parse_string()?;
             Ok(PatternChild::Token(token))

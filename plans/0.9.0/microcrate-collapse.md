@@ -25,10 +25,10 @@ for keeping migration targets out of the release surface.
 
 ## Current State
 
-As of the post-collapse workspace after PR #759:
+As of the post-collapse workspace after PR #104:
 
 ```text
-workspace packages: 28
+workspace packages: 29
 owner-module migration targets: 0
 ```
 
@@ -289,13 +289,15 @@ No standalone source-location migration targets remain.
 
 - `adze-linecol-core` reclassified as a durable published support crate by
   `ADZE-ADR-0005`.
+- `adze-common-type-ops-core` is tracked as a durable published support crate
+  in the package-boundary ledger for macro/tool type-shape helpers.
 
 ### Proof Commands
 
 ```bash
 cargo metadata --format-version 1 --no-deps
 cargo run -q -p xtask -- check-package-boundary
-cargo test -p adze-linecol-core -- --test-threads=2
+cargo test -p adze-linecol-core -p adze-common-type-ops-core -- --test-threads=2
 just ci-supported
 ```
 
@@ -335,6 +337,7 @@ microcrate seams. The only remaining production support crates are durable
 published support surfaces recorded by `ADZE-ADR-0005`:
 
 - `adze-bdd-governance-core`
+- `adze-common-type-ops-core`
 - `adze-linecol-core`
 - `adze-parsetable-metadata`
 
