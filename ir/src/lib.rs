@@ -134,13 +134,13 @@ impl Grammar {
 
     /// Build or get the symbol registry
     pub fn get_or_build_registry(&mut self) -> &SymbolRegistry {
-        if self.symbol_registry.is_none() {
-            self.symbol_registry = Some(self.build_registry());
+        match self.symbol_registry {
+            Some(ref registry) => registry,
+            None => {
+                let registry = self.build_registry();
+                self.symbol_registry.insert(registry)
+            }
         }
-        // SAFETY: we just ensured `symbol_registry` is `Some` above
-        self.symbol_registry
-            .as_ref()
-            .expect("symbol_registry was just initialized above")
     }
 
     /// Check for empty string terminals (separate from main validate)
@@ -180,9 +180,11 @@ impl Grammar {
 
         // Sort tokens deterministically: underscore-prefixed last
         let mut token_entries: Vec<_> = self.tokens.iter().collect();
-        token_entries.sort_by_key(|(_id, token)| {
-            let name = &token.name;
-            (name.starts_with('_'), name.clone())
+        token_entries.sort_by(|(_, left), (_, right)| {
+            left.name
+                .starts_with('_')
+                .cmp(&right.name.starts_with('_'))
+                .then_with(|| left.name.cmp(&right.name))
         });
 
         // Register all tokens
@@ -198,7 +200,7 @@ impl Grammar {
 
         // Sort non-terminals deterministically
         let mut rule_entries: Vec<_> = self.rule_names.iter().collect();
-        rule_entries.sort_by_key(|(_, name)| (*name).clone());
+        rule_entries.sort_by_key(|(_, name)| *name);
 
         // Register all non-terminals
         for (symbol_id, name) in rule_entries {
