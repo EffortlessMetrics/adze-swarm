@@ -233,7 +233,7 @@ field lookup.
 
 ### Work Item: node-types-parity
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -253,7 +253,7 @@ bad-token spans, EOF, and diagnostic linkage.
 
 ### Work Item: query-compatibility-spec
 
-Status: ready
+Status: active
 
 #### Goal
 

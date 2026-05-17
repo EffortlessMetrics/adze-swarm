@@ -51,6 +51,7 @@ ADZE-SPEC-0009-incremental-document-lifecycle.md
 ADZE-SPEC-0010-language-metadata-and-node-types.md
 ADZE-SPEC-0011-product-proof-and-support-tiers.md
 ADZE-SPEC-0012-glr-toolkit-product-contract.md
+ADZE-SPEC-0013-query-compatibility.md
 ```
 
 ## Header

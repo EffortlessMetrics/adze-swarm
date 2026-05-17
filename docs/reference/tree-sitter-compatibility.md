@@ -16,6 +16,9 @@ below is the current product contract; broader query, node-types, corpus, and
 error-recovery parity remain explicitly tiered in
 [`SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md).
 
+Query compatibility has its own subset reference:
+[`query-compatibility.md`](query-compatibility.md).
+
 ## Selected-tree Compatibility Subset
 
 The compatibility adapter exposes one selected tree. Native GLR ambiguity
