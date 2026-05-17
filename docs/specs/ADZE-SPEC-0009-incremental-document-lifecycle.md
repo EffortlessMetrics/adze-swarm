@@ -1,6 +1,6 @@
 # ADZE-SPEC-0009: Incremental document lifecycle
 
-Status: proposed
+Status: accepted
 Owner: runtime/incremental
 Created: 2026-05-13
 Linked proposal: ../proposals/ADZE-PROP-0002-api-foundation.md
@@ -16,6 +16,9 @@ Policy impact: ../../policy/doc-artifacts.toml
 Modern parser tooling maintains useful structure over changing source. Adze's
 incremental story must attach to the canonical document model instead of a
 separate experimental runtime path.
+
+This spec is accepted as the behavior contract. Acceptance does not promote
+incremental parsing support tiers or claim stable reuse/performance behavior.
 
 ## Behavior
 
@@ -88,6 +91,5 @@ git diff --check
 
 ## Metrics / Promotion Rule
 
-Incremental document lifecycle remains proposed/experimental until fallback,
-changed range, metadata honesty, and reuse canaries exist for supported parser
-paths.
+Incremental document lifecycle remains experimental until fallback, changed
+range, metadata honesty, and reuse canaries exist for supported parser paths.

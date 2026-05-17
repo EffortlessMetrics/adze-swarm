@@ -112,3 +112,76 @@ jobs:
             cat target/policy/active-goal.log || true;
             echo '```';
           } >> "$GITHUB_STEP_SUMMARY"
+
+  glr-invariants:
+    name: GLR Invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+      - id: paths
+        name: Detect GLR/tablegen invariant paths
+        run: |
+          set -euo pipefail
+          run_invariants=false
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            run_invariants=true
+          else
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" || true)
+            if echo "$changed" | grep -qE '^(.github/workflows/ci-policy\.yml|xtask/src/goto_indexing\.rs|docs/explanations/goto-indexing\.md)$|^(runtime/src/|runtime/tests/|glr-core/|tablegen/).*\.(rs|toml)$'; then
+              run_invariants=true
+            fi
+          fi
+          echo "run_invariants=$run_invariants" >> "$GITHUB_OUTPUT"
+          echo "GLR invariant guard selected: $run_invariants"
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.paths.outputs.run_invariants == 'true'
+      - name: Install Tree-sitter development libraries
+        if: steps.paths.outputs.run_invariants == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtree-sitter-dev pkg-config
+      - uses: Swatinem/rust-cache@v2
+        if: steps.paths.outputs.run_invariants == 'true'
+        with:
+          shared-key: adze-xtask-${{ hashFiles('Cargo.lock') }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Run GOTO indexing guard
+        if: steps.paths.outputs.run_invariants == 'true'
+        run: |
+          set -o pipefail
+          mkdir -p target/policy
+          cargo run -q -p xtask -- check-goto-indexing 2>&1 | tee target/policy/goto-indexing.log
+      - name: Run GOTO indexing guard tests
+        if: steps.paths.outputs.run_invariants == 'true'
+        run: |
+          set -o pipefail
+          cargo test -p xtask goto_indexing -- --nocapture 2>&1 | tee target/policy/goto-indexing-tests.log
+      - name: Upload GLR invariant receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: glr-invariant-receipts
+          path: |
+            target/policy/goto-indexing.log
+            target/policy/goto-indexing-tests.log
+          if-no-files-found: warn
+      - name: Append to step summary
+        if: always()
+        run: |
+          {
+            echo "## GLR Invariants";
+            echo "";
+            echo "Selected: ${{ steps.paths.outputs.run_invariants }}";
+            if [ -f target/policy/goto-indexing.log ]; then
+              echo "";
+              echo "### GOTO Indexing";
+              echo '```';
+              cat target/policy/goto-indexing.log;
+              echo '```';
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

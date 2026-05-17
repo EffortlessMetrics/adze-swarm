@@ -1,552 +1,182 @@
-# GLR .parsetable Quickstart Guide
+# GLR And .parsetable Quickstart
 
-**Version**: 1.0
-**Status**: ACTIVE
-**Date**: 2025-11-20
-**Related**: PARSETABLE_FILE_FORMAT_SPEC.md, GLR_V1_COMPLETION_CONTRACT.md
+> **Doc status:** GLR conflict routing is Stabilizing. `.parsetable`
+> serialization and tablegen ABI proof are support-tiered, but dynamic
+> table-loading APIs are not the ordinary user entry point. This page is an
+> advanced orientation note, not a Stable production API contract.
 
----
-
-## 🎯 Overview
-
-This guide shows you how to use the `.parsetable` file format to distribute pre-generated GLR parse tables. The .parsetable pipeline enables:
-
-- **Fast builds**: Skip expensive table generation during compilation
-- **Deterministic deployment**: Ship consistent parse tables across environments
-- **Runtime flexibility**: Load different grammars dynamically without recompiling
-- **Efficient distribution**: Compact binary format optimized for size
-
-**Implementation Status**: ✅ **Production Ready** (Phases 1-3.2 complete)
-
----
-
-## 📋 Prerequisites
-
-### Feature Flags
-
-Enable these features in your `Cargo.toml`:
-
-```toml
-[dependencies]
-adze = { version = "0.8.0-dev", features = ["pure-rust", "serialization"] }
-
-[build-dependencies]
-adze-tool = { version = "0.8.0-dev", features = ["serialization"] }
-adze-tablegen = { version = "0.8.0-dev", features = ["serialization"] }
-```
-
-### System Requirements
-
-- **Rust**: 1.95.0 or later (Rust 2024 Edition)
-- **Disk Space**: ~100-500 KB per grammar (depends on grammar size)
-- **Memory**: Minimal overhead (~1-2 MB for typical grammars)
-
----
-
-## 🚀 Quick Start: Three-Step Pipeline
-
-### Step 1: Generate .parsetable File (Build Time)
-
-In your `build.rs`, enable .parsetable generation:
+For most users, GLR does not change the first-use path:
 
 ```rust
-// build.rs
-use adze_tool::pure_rust_builder::{BuildOptions, build_parser_from_json};
-
-fn main() {
-    let options = BuildOptions {
-        out_dir: std::env::var("OUT_DIR").unwrap(),
-        emit_artifacts: true,  // ← Enable .parsetable generation
-        compress_tables: true,
-    };
-
-    let grammar_json = std::fs::read_to_string("grammar.json").unwrap();
-
-    build_parser_from_json(grammar_json, options)
-        .expect("Parser build failed");
-}
+let ast = grammar::parse(source)?;
 ```
 
-**Output**: `$OUT_DIR/grammar_<name>/<name>.parsetable`
-
-### Step 2: Load .parsetable File (Runtime)
-
-In your application code:
+Use the generated document path when you need GLR facts for tooling:
 
 ```rust
-use adze::unified_parser::Parser;
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Read .parsetable file
-    let parsetable_bytes = std::fs::read("path/to/grammar.parsetable")?;
-
-    // Create parser and load table
-    let mut parser = Parser::new();
-    parser.load_glr_table_from_bytes(&parsetable_bytes)?;
-
-    // Configure symbol metadata and token patterns
-    parser.set_symbol_metadata(metadata)?;
-    parser.set_token_patterns(patterns)?;
-
-    // Parse input
-    let input = b"your source code here";
-    let tree = parser.parse(input, None)?;
-
-    println!("Parse succeeded! Root: {}", tree.root_node().kind());
-    Ok(())
-}
+let document = grammar::parse_document(source)?;
+let ambiguities = document.ambiguities();
+let diagnostics = document.diagnostics();
 ```
 
-### Step 3: Parse Input
+`AdzeDocument` remains the one parse truth. Typed AST, generic CST, typed CST,
+diagnostics, ambiguity summaries, Tree-sitter-compatible output, JSON, CLI, and
+future WASM/editor views are projections from the generated document path.
+
+## When GLR Matters
+
+GLR is useful when a grammar has real ambiguity or when conflict cells must be
+preserved instead of rejected as ordinary LR conflicts. Typical examples are:
+
+- expression grammars with multiple associativity or precedence sites;
+- dangling-else style shift/reduce conflicts;
+- grammars with reduce/reduce conflict cells;
+- language subsets where the selected tree must be deterministic but ambiguity
+  should remain visible to native tooling.
+
+The selected tree is deterministic for the proven generated-parser slices.
+Native Adze APIs expose ambiguity summaries separately. Tree-sitter-compatible
+views expose the selected tree only.
+
+## The Supported User Ladder
+
+| Need | Start here | Support posture |
+|---|---|---|
+| Typed Rust values | `grammar::parse(source)` | Stable front door |
+| Diagnostics, ranges, ambiguity, JSON, compatibility views | `grammar::parse_document(source)` | Experimental/Stabilizing by surface |
+| Tree-sitter-shaped selected-tree traversal | `document.as_tree_sitter()` | Advisory selected-tree subset |
+| Serialized parse table ABI proof | tablegen/parsetable tests | Stabilizing proof surface |
+| Dynamic `.parsetable` loading in an application | implementation-specific integration | Advisory |
+
+See [Support Tiers](../status/SUPPORT_TIERS.md) before treating any GLR,
+document, Tree-sitter compatibility, query, JSON, CLI, or `.parsetable` behavior
+as stable.
+
+## Minimal Generated GLR Shape
+
+An ambiguous grammar still starts as Rust types:
 
 ```rust
-// Reuse parser for multiple inputs
-for input in inputs {
-    let tree = parser.parse(input, None)?;
-    process_tree(&tree);
-}
-```
+#[adze::grammar("expr")]
+pub mod grammar {
+    #[adze::language]
+    #[derive(Debug, PartialEq)]
+    pub enum Expr {
+        Number(
+            #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+            i32,
+        ),
 
----
+        #[adze::prec_left(1)]
+        Add(Box<Expr>, #[adze::leaf(text = "+")] (), Box<Expr>),
 
-## 📚 Complete Example: Arithmetic Grammar
-
-### 1. Define Grammar (grammar.json)
-
-```json
-{
-  "name": "arithmetic",
-  "rules": {
-    "expr": {
-      "type": "SYMBOL",
-      "name": "number"
-    },
-    "number": {
-      "type": "PATTERN",
-      "value": "[0-9]+"
+        #[adze::prec_left(2)]
+        Mul(Box<Expr>, #[adze::leaf(text = "*")] (), Box<Expr>),
     }
-  }
-}
-```
 
-### 2. Build Script (build.rs)
-
-```rust
-use adze_tool::pure_rust_builder::{BuildOptions, build_parser_from_json};
-
-fn main() {
-    let options = BuildOptions {
-        out_dir: "target/generated".to_string(),
-        emit_artifacts: true,
-        compress_tables: true,
-    };
-
-    let grammar = r#"{
-        "name": "arithmetic",
-        "rules": {
-            "expr": {"type": "SYMBOL", "name": "number"},
-            "number": {"type": "PATTERN", "value": "[0-9]+"}
-        }
-    }"#;
-
-    build_parser_from_json(grammar.to_string(), options)
-        .expect("Build failed");
-
-    println!("Generated: target/generated/grammar_arithmetic/arithmetic.parsetable");
-}
-```
-
-### 3. Parser Setup (src/main.rs)
-
-```rust
-use adze::unified_parser::Parser;
-use adze::language::SymbolMetadata;
-use adze::tokenizer::{TokenPattern, Matcher};
-use adze_ir::SymbolId;
-
-fn create_arithmetic_parser() -> Result<Parser, Box<dyn std::error::Error>> {
-    // Load .parsetable file
-    let bytes = std::fs::read("target/generated/grammar_arithmetic/arithmetic.parsetable")?;
-
-    let mut parser = Parser::new();
-    parser.load_glr_table_from_bytes(&bytes)?;
-
-    // Define symbol metadata
-    let metadata = vec![
-        SymbolMetadata { is_terminal: true, is_visible: false, is_supertype: false }, // EOF
-        SymbolMetadata { is_terminal: true, is_visible: true, is_supertype: false },  // number
-        SymbolMetadata { is_terminal: false, is_visible: true, is_supertype: false }, // expr
-    ];
-    parser.set_symbol_metadata(metadata)?;
-
-    // Define token patterns
-    let patterns = vec![
-        TokenPattern {
-            symbol_id: SymbolId(1),
-            matcher: Matcher::Regex(regex::Regex::new(r"[0-9]+").unwrap()),
-            is_keyword: false,
-        },
-    ];
-    parser.set_token_patterns(patterns)?;
-
-    Ok(parser)
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut parser = create_arithmetic_parser()?;
-
-    // Parse input
-    let input = b"42";
-    let tree = parser.parse(input, None)?;
-
-    // Inspect tree
-    let root = tree.root_node();
-    assert_eq!(root.kind(), "expr");
-    assert_eq!(root.child_count(), 1);
-
-    let number = root.child(0).unwrap();
-    assert_eq!(number.kind(), "number");
-
-    println!("✓ Parsed '42' successfully!");
-    Ok(())
-}
-```
-
----
-
-## 🔍 File Format Details
-
-### .parsetable Binary Structure
-
-```
-┌────────────────────────────────┐
-│ "RSPT" (4 bytes)              │ Magic number
-├────────────────────────────────┤
-│ Version: 1 (u32 LE)           │ Format version
-├────────────────────────────────┤
-│ Grammar Hash (32 bytes)       │ SHA-256 hash
-├────────────────────────────────┤
-│ Metadata Length (u32 LE)      │ JSON size
-├────────────────────────────────┤
-│ Metadata JSON (variable)      │ Human-readable info
-├────────────────────────────────┤
-│ Table Length (u32 LE)         │ Bincode size
-├────────────────────────────────┤
-│ ParseTable (bincode)          │ Serialized table
-└────────────────────────────────┘
-```
-
-### Metadata Example
-
-```json
-{
-  "schema_version": "1.0",
-  "grammar": {
-    "name": "arithmetic",
-    "version": "1.0.0",
-    "language": "arithmetic"
-  },
-  "generation": {
-    "timestamp": "2025-11-20T15:30:00Z",
-    "tool_version": "0.8.0-dev",
-    "rust_version": "1.95.0",
-    "host_triple": "x86_64-unknown-linux-gnu"
-  },
-  "statistics": {
-    "state_count": 3,
-    "symbol_count": 3,
-    "rule_count": 1,
-    "conflict_count": 0,
-    "multi_action_cells": 0
-  },
-  "features": {
-    "glr_enabled": true,
-    "external_scanner": false,
-    "incremental": false
-  }
-}
-```
-
----
-
-## 🛠️ Advanced Usage
-
-### Custom Symbol Metadata
-
-```rust
-// Define custom metadata for complex grammars
-let metadata = vec![
-    SymbolMetadata {
-        is_terminal: true,  // EOF symbol
-        is_visible: false,  // Don't show in tree
-        is_supertype: false
-    },
-    SymbolMetadata {
-        is_terminal: true,  // Keyword "if"
-        is_visible: true,   // Show in tree
-        is_supertype: false
-    },
-    SymbolMetadata {
-        is_terminal: false, // Non-terminal "statement"
-        is_visible: true,
-        is_supertype: true  // Is a supertype (union)
-    },
-];
-parser.set_symbol_metadata(metadata)?;
-```
-
-### Regex Token Patterns
-
-```rust
-use regex::Regex;
-
-let patterns = vec![
-    TokenPattern {
-        symbol_id: SymbolId(1),
-        matcher: Matcher::Regex(Regex::new(r"\d+").unwrap()),
-        is_keyword: false,
-    },
-    TokenPattern {
-        symbol_id: SymbolId(2),
-        matcher: Matcher::Regex(Regex::new(r"[a-zA-Z_]\w*").unwrap()),
-        is_keyword: false,
-    },
-    TokenPattern {
-        symbol_id: SymbolId(3),
-        matcher: Matcher::Regex(Regex::new(r"if|then|else").unwrap()),
-        is_keyword: true, // Mark as keyword
-    },
-];
-parser.set_token_patterns(patterns)?;
-```
-
-### Error Handling
-
-```rust
-match parser.load_glr_table_from_bytes(&bytes) {
-    Ok(_) => println!("Table loaded successfully"),
-    Err(e) => match e.kind() {
-        ParseErrorKind::InvalidFormat => {
-            eprintln!("Invalid .parsetable file: {}", e);
-        }
-        ParseErrorKind::UnsupportedVersion => {
-            eprintln!("Unsupported format version: {}", e);
-        }
-        ParseErrorKind::DeserializationError => {
-            eprintln!("Failed to deserialize table: {}", e);
-        }
-        _ => eprintln!("Unknown error: {}", e),
+    #[adze::extra]
+    #[allow(dead_code)]
+    struct Whitespace {
+        #[adze::leaf(pattern = r"\s+")]
+        _ws: (),
     }
 }
 ```
 
----
-
-## ✅ Testing Your Implementation
-
-### Unit Test Example
+Use `parse()` when you only need the typed result:
 
 ```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parsetable_loading() {
-        let bytes = std::fs::read("path/to/test.parsetable")
-            .expect("Failed to read test file");
-
-        let mut parser = Parser::new();
-        parser.load_glr_table_from_bytes(&bytes)
-            .expect("Loading should succeed");
-
-        assert!(parser.is_glr_mode());
-    }
-
-    #[test]
-    fn test_parsing_with_loaded_table() {
-        let mut parser = create_arithmetic_parser()
-            .expect("Parser setup failed");
-
-        let input = b"123";
-        let tree = parser.parse(input, None)
-            .expect("Parsing should succeed");
-
-        assert_eq!(tree.root_node().kind(), "expr");
-    }
-}
+let ast = grammar::parse("1 + 2 * 3")?;
 ```
 
-### Integration Test Example
+Use `parse_document()` when the application needs document facts:
 
 ```rust
-// tests/integration_test.rs
-use adze::unified_parser::Parser;
+let document = grammar::parse_document("1 + 2 * 3")?;
 
-#[test]
-fn test_end_to_end_pipeline() {
-    // Step 1: Generate .parsetable (would run in build.rs)
-    // (Assumed already generated)
-
-    // Step 2: Load table
-    let bytes = include_bytes!("../target/generated/grammar_arithmetic/arithmetic.parsetable");
-    let mut parser = Parser::new();
-    parser.load_glr_table_from_bytes(bytes).unwrap();
-
-    // Step 3: Configure parser
-    // (set_symbol_metadata, set_token_patterns)
-
-    // Step 4: Parse
-    let tree = parser.parse(b"42", None).unwrap();
-    assert_eq!(tree.root_node().kind(), "expr");
-}
+println!("diagnostics: {}", document.diagnostics().len());
+println!("ambiguities: {}", document.ambiguities().len());
+println!("root: {:?}", document.tree().root().kind_name());
 ```
 
----
+## .parsetable Files
 
-## 🐛 Troubleshooting
+`.parsetable` files are an advanced distribution format for pre-generated parse
+table data. They are useful when a build or deployment pipeline needs to carry
+table artifacts separately from source generation.
 
-### Error: "Invalid .parsetable file: too short"
+Use them for:
 
-**Cause**: File is truncated or corrupted
+- ABI roundtrip proof;
+- build artifact inspection;
+- controlled internal tooling;
+- future dynamic grammar distribution experiments.
 
-**Solution**: Regenerate .parsetable file with build script
+Do not use them as the default beginner path. A new user should not need to
+hand-load parse tables to parse input with Adze.
 
-### Error: "bad magic number"
+## Advanced Pipeline Shape
 
-**Cause**: File is not a valid .parsetable file
+The high-level `.parsetable` flow is:
 
-**Solution**: Verify file path and regeneration
-
-### Error: "Unsupported format version"
-
-**Cause**: .parsetable version mismatch
-
-**Solution**: Upgrade adze or regenerate table
-
-### Error: "Failed to deserialize ParseTable"
-
-**Cause**: Corrupted bincode data or version mismatch
-
-**Solution**:
-1. Check adze-glr-core version compatibility
-2. Regenerate .parsetable with matching tool version
-3. Verify file integrity (not truncated)
-
-### Error: "Syntax error: unexpected token"
-
-**Cause**: Token patterns or symbol metadata misconfigured
-
-**Solution**:
-1. Verify SymbolId indices match grammar definition
-2. Check regex patterns are correct
-3. Ensure all terminals have corresponding TokenPattern entries
-
----
-
-## 📊 Performance Characteristics
-
-### File Sizes
-
-| Grammar Size | States | .parsetable Size | Load Time |
-|-------------|--------|------------------|-----------|
-| Small (arithmetic) | 3-5 | 2-8 KB | < 1 ms |
-| Medium (JSON) | 20-40 | 20-50 KB | < 5 ms |
-| Large (Python) | 200-300 | 100-200 KB | < 20 ms |
-
-### Memory Usage
-
-- **ParseTable**: ~10-50 KB per grammar (leaked, 'static lifetime)
-- **Parser State**: ~1-2 KB per parser instance
-- **Parse Tree**: ~100-500 bytes per node (depends on input)
-
-### Build Time Savings
-
-Using .parsetable reduces build time by:
-- **First build**: No change (table generation required)
-- **Incremental builds**: 50-90% faster (skip table generation)
-- **Clean builds**: 30-60% faster (cached .parsetable reused)
-
----
-
-## 🔗 Related Documentation
-
-- [PARSETABLE_FILE_FORMAT_SPEC.md](specs/PARSETABLE_FILE_FORMAT_SPEC.md) - Binary format specification
-- [PARSE_TABLE_SERIALIZATION_SPEC.md](specs/PARSE_TABLE_SERIALIZATION_SPEC.md) - ParseTable serialization details
-- [GLR_V1_COMPLETION_CONTRACT.md](specs/GLR_V1_COMPLETION_CONTRACT.md) - Completion contract and acceptance criteria
-- [GETTING_STARTED.md](GETTING_STARTED.md) - General adze usage guide
-
----
-
-## 📦 Distribution Best Practices
-
-### Packaging .parsetable Files
-
-1. **Include in crate artifacts**:
-   ```toml
-   [package]
-   include = ["src/**/*", "grammars/**/*.parsetable"]
-   ```
-
-2. **Lazy loading pattern**:
-   ```rust
-   use std::sync::OnceLock;
-
-   static PARSER: OnceLock<Parser> = OnceLock::new();
-
-   fn get_parser() -> &'static Parser {
-       PARSER.get_or_init(|| {
-           let bytes = include_bytes!("../grammars/lang.parsetable");
-           let mut parser = Parser::new();
-           parser.load_glr_table_from_bytes(bytes).unwrap();
-           // configure parser...
-           parser
-       })
-   }
-   ```
-
-3. **Version pinning**:
-   - Pin adze version in Cargo.toml
-   - Regenerate .parsetable on version upgrades
-   - Include format version in filename: `lang-v1.0.0.parsetable`
-
-### CI/CD Integration
-
-```yaml
-# .github/workflows/build.yml
-- name: Generate parse tables
-  run: cargo build --release
-
-- name: Upload artifacts
-  uses: actions/upload-artifact@v3
-  with:
-    name: parsetables
-    path: target/generated/**/*.parsetable
-
-- name: Validate parse tables
-  run: |
-    for f in target/generated/**/*.parsetable; do
-      cargo run --bin validate-parsetable -- "$f"
-    done
+```text
+Rust grammar / grammar JSON
+  -> adze-tool / adze-tablegen
+  -> generated parser module
+  -> optional .parsetable artifact
+  -> validation / ABI roundtrip proof
 ```
 
----
+If an integration stores `.parsetable` artifacts, keep these receipts:
 
-## 🎓 Next Steps
+- exact Adze crate versions;
+- grammar fingerprint or equivalent build identity;
+- tablegen ABI proof command;
+- generated parser proof command;
+- regeneration instructions for version upgrades.
 
-1. **Explore GLR Conflicts**: Learn how GLR handles ambiguous grammars → [GLR_USER_GUIDE.md](guides/GLR_USER_GUIDE.md)
-2. **Optimize Performance**: Profile your parser → [PERFORMANCE_GUIDE.md](PERFORMANCE_GUIDE.md)
-3. **Write Custom Grammars**: Grammar authoring guide → [GRAMMAR_EXAMPLES.md](GRAMMAR_EXAMPLES.md)
-4. **Contribute**: Improve .parsetable tooling → [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)
+## Proof Commands
 
----
+Use focused GLR and tablegen proof before relying on serialized table behavior:
 
-**Questions?** Open an issue at https://github.com/EffortlessMetrics/adze/issues
+```bash
+cargo test -p adze-glr-core conflict ambiguity -- --nocapture
+cargo test -p adze-tablegen --all-features
+cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_e2e_ambiguous_grammar_glr -- --nocapture
+```
 
-**Feedback?** We'd love to hear about your experience with .parsetable!
+Use the repository-supported gate before submitting product changes:
 
----
+```bash
+just ci-supported
+```
 
-**Version**: 1.0
-**Last Updated**: 2025-11-20
-**Maintainer**: adze core team
+## Known Limits
+
+- GLR conflict routing is Stabilizing, not broadly Stable for every grammar
+  class.
+- `AdzeDocument` is still Experimental even though it is the native parse
+  product boundary.
+- Tree-sitter compatibility is a selected-tree adapter, not a full
+  Tree-sitter runtime parity claim.
+- Query compatibility is a documented subset.
+- Dynamic `.parsetable` loading is not the recommended beginner API.
+- Full performance claims require benchmark receipts, not example prose.
+
+## Troubleshooting
+
+If table artifacts fail to decode or behave unexpectedly:
+
+1. Regenerate artifacts with the same Adze version used by the runtime.
+2. Confirm the grammar fingerprint/build identity matches the expected source.
+3. Run the tablegen and GLR proof commands above.
+4. Prefer generated `parse()` / `parse_document()` until the dynamic table path
+   has a dedicated support-tier receipt.
+
+## Next Steps
+
+- [Quickstart: First Parser In 10 Minutes](./quickstart-10-minutes.md)
+- [Mental Model](../explanations/mental-model.md)
+- [API Reference](../reference/api.md)
+- [Tree-sitter Compatibility](../reference/tree-sitter-compatibility.md)
+- [Support Tiers](../status/SUPPORT_TIERS.md)

@@ -90,3 +90,121 @@ pub fn runtime2_governance_snapshot(
 ) -> BddGovernanceSnapshot {
     bdd_governance_snapshot(phase, GLR_CONFLICT_PRESERVATION_GRID, profile)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn any_phase() -> BddPhase {
+        BddPhase::Runtime
+    }
+
+    #[test]
+    fn current_backend_for_no_conflicts_matches_parser_backend_select() {
+        let direct = ParserBackend::select(false);
+        let shim = current_backend_for(false);
+        assert_eq!(direct, shim);
+    }
+
+    #[test]
+    fn bdd_progress_report_includes_phase_title() {
+        let title = "coverage-shim-test";
+        let report = bdd_progress_report_for_current_profile(any_phase(), title);
+        assert!(
+            report.contains(title),
+            "expected report to include phase title; got: {report}"
+        );
+    }
+
+    #[test]
+    fn bdd_governance_matrix_for_current_profile_returns_matrix() {
+        let phase = any_phase();
+        let matrix = bdd_governance_matrix_for_current_profile(phase);
+        // Reproduce via the underlying helper and compare for shim equivalence.
+        let expected =
+            bdd_governance_matrix_for_profile(phase, parser_feature_profile_for_runtime());
+        assert_eq!(matrix, expected);
+    }
+
+    #[test]
+    fn bdd_governance_matrix_for_runtime2_profile_matches_direct_call() {
+        let phase = any_phase();
+        let shim_on = bdd_governance_matrix_for_runtime2_profile(phase, true);
+        let direct_on = bdd_governance_matrix_for_runtime2(phase, true);
+        assert_eq!(shim_on, direct_on);
+
+        let shim_off = bdd_governance_matrix_for_runtime2_profile(phase, false);
+        let direct_off = bdd_governance_matrix_for_runtime2(phase, false);
+        assert_eq!(shim_off, direct_off);
+    }
+
+    #[test]
+    fn bdd_status_line_for_current_profile_matches_direct_call() {
+        let phase = any_phase();
+        let shim = bdd_status_line_for_current_profile(phase);
+        let direct =
+            bdd_progress_status_line_for_profile(phase, parser_feature_profile_for_runtime());
+        assert_eq!(shim, direct);
+    }
+
+    #[test]
+    fn runtime_governance_snapshot_matches_direct_call() {
+        let phase = any_phase();
+        let shim = runtime_governance_snapshot(phase);
+        let direct = bdd_governance_snapshot(
+            phase,
+            GLR_CONFLICT_PRESERVATION_GRID,
+            parser_feature_profile_for_runtime(),
+        );
+        assert_eq!(shim, direct);
+    }
+
+    #[test]
+    fn bdd_progress_report_for_runtime2_profile_includes_title() {
+        let title = "runtime2-coverage-shim";
+        let report = bdd_progress_report_for_runtime2_profile(
+            any_phase(),
+            title,
+            parser_feature_profile_for_runtime2(true),
+        );
+        assert!(report.contains(title));
+    }
+
+    #[test]
+    fn bdd_progress_status_line_for_runtime2_profile_matches_direct_call() {
+        let phase = any_phase();
+        let profile = parser_feature_profile_for_runtime2(true);
+        let shim = bdd_progress_status_line_for_runtime2_profile(phase, profile);
+        let direct = bdd_progress_status_line_for_profile(phase, profile);
+        assert_eq!(shim, direct);
+    }
+
+    #[test]
+    fn resolve_backend_for_runtime2_profile_matches_direct_call() {
+        let profile = parser_feature_profile_for_runtime2(true);
+        let shim_no_conflict = resolve_backend_for_runtime2_profile(profile, false);
+        let direct_no_conflict = resolve_backend_for_profile(profile, false);
+        assert_eq!(shim_no_conflict, direct_no_conflict);
+    }
+
+    #[test]
+    fn resolve_runtime2_backend_matches_runtime2_profile_resolution() {
+        // pure_rust_glr toggled in both directions to cover the const fn path.
+        let direct_on =
+            resolve_backend_for_profile(parser_feature_profile_for_runtime2(true), false);
+        assert_eq!(resolve_runtime2_backend(true, false), direct_on);
+
+        let direct_off =
+            resolve_backend_for_profile(parser_feature_profile_for_runtime2(false), false);
+        assert_eq!(resolve_runtime2_backend(false, false), direct_off);
+    }
+
+    #[test]
+    fn runtime2_governance_snapshot_matches_direct_call() {
+        let phase = any_phase();
+        let profile = parser_feature_profile_for_runtime2(false);
+        let shim = runtime2_governance_snapshot(phase, profile);
+        let direct = bdd_governance_snapshot(phase, GLR_CONFLICT_PRESERVATION_GRID, profile);
+        assert_eq!(shim, direct);
+    }
+}

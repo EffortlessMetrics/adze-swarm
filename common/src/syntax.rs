@@ -1,11 +1,11 @@
 //! Shared syntax helpers for parsing macro/tool attributes.
 
-use std::collections::HashSet;
+pub use adze_common_type_ops_core::{filter_inner_type, try_extract_inner_type, wrap_leaf_type};
 
 use syn::{
+    Expr, Field, Ident, Token,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
-    *,
 };
 
 /// Name-value expression for attribute parameters.
@@ -64,127 +64,11 @@ impl Parse for FieldThenParams {
     }
 }
 
-/// Extract the innermost generic argument from a container type.
-///
-/// # Arguments
-/// * `ty` - The type to extract from
-/// * `inner_of` - The target generic type to extract (e.g., "Vec", "Option")
-/// * `skip_over` - Set of container types to skip through (e.g., "Box", "Arc")
-///
-/// # Returns
-/// A tuple `(inner_type, was_extracted)` where `inner_type` is the extracted or original type,
-/// and `was_extracted` indicates whether the target type was found and extracted.
-pub fn try_extract_inner_type(
-    ty: &Type,
-    inner_of: &str,
-    skip_over: &HashSet<&str>,
-) -> (Type, bool) {
-    if let Type::Path(p) = &ty {
-        let type_segment = p.path.segments.last().unwrap();
-        if type_segment.ident == inner_of {
-            match &type_segment.arguments {
-                PathArguments::AngleBracketed(p) => {
-                    if let GenericArgument::Type(t) = p.args.first().unwrap().clone() {
-                        (t, true)
-                    } else {
-                        panic!("Argument in angle brackets must be a type")
-                    }
-                }
-                _ => (ty.clone(), false),
-            }
-        } else if skip_over.contains(type_segment.ident.to_string().as_str()) {
-            match &type_segment.arguments {
-                PathArguments::AngleBracketed(p) => {
-                    if let GenericArgument::Type(t) = p.args.first().unwrap().clone() {
-                        let (inner, extracted) = try_extract_inner_type(&t, inner_of, skip_over);
-                        if extracted {
-                            (inner, true)
-                        } else {
-                            (ty.clone(), false)
-                        }
-                    } else {
-                        panic!("Argument in angle brackets must be a type")
-                    }
-                }
-                _ => (ty.clone(), false),
-            }
-        } else {
-            (ty.clone(), false)
-        }
-    } else {
-        (ty.clone(), false)
-    }
-}
-
-/// Remove configured container wrappers from a type.
-///
-/// # Arguments
-/// * `ty` - The type to filter
-/// * `skip_over` - Set of container types to unwrap (e.g., "Box", "Arc")
-///
-/// # Returns
-/// The type with all specified container wrappers removed. If the type is not a container type
-/// in the skip set, returns the original type unchanged.
-pub fn filter_inner_type(ty: &Type, skip_over: &HashSet<&str>) -> Type {
-    if let Type::Path(p) = &ty {
-        let type_segment = p.path.segments.last().unwrap();
-        if skip_over.contains(type_segment.ident.to_string().as_str()) {
-            match &type_segment.arguments {
-                PathArguments::AngleBracketed(p) => {
-                    if let GenericArgument::Type(t) = p.args.first().unwrap().clone() {
-                        filter_inner_type(&t, skip_over)
-                    } else {
-                        panic!("Argument in angle brackets must be a type")
-                    }
-                }
-                _ => ty.clone(),
-            }
-        } else {
-            ty.clone()
-        }
-    } else {
-        ty.clone()
-    }
-}
-
-/// Wrap leaf types in `adze::WithLeaf` unless they are in the skip set.
-///
-/// # Arguments
-/// * `ty` - The type to potentially wrap
-/// * `skip_over` - Set of container types to skip wrapping (e.g., "Vec", "Option")
-///
-/// # Returns
-/// The type with leaf types wrapped in `adze::WithLeaf`, or the original type if it's
-/// a container type in the skip set. For skipped containers, recursively wraps their inner generic arguments.
-pub fn wrap_leaf_type(ty: &Type, skip_over: &HashSet<&str>) -> Type {
-    let mut ty = ty.clone();
-    if let Type::Path(p) = &mut ty {
-        let type_segment = p.path.segments.last_mut().unwrap();
-        if skip_over.contains(type_segment.ident.to_string().as_str()) {
-            match &mut type_segment.arguments {
-                PathArguments::AngleBracketed(args) => {
-                    for a in args.args.iter_mut() {
-                        if let syn::GenericArgument::Type(t) = a {
-                            *t = wrap_leaf_type(t, skip_over);
-                        }
-                    }
-
-                    ty
-                }
-                _ => ty,
-            }
-        } else {
-            parse_quote!(adze::WithLeaf<#ty>)
-        }
-    } else {
-        parse_quote!(adze::WithLeaf<#ty>)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use syn::parse_quote;
+    use std::collections::HashSet;
+    use syn::{Type, parse_quote};
 
     fn skip_set(items: &[&'static str]) -> HashSet<&'static str> {
         items.iter().copied().collect()

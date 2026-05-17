@@ -3,6 +3,7 @@
 use adze::decoder::decode_parse_table;
 use adze::pure_parser::{ExternalScanner, TSLanguage, TSLexState, TSParseAction, TSRule};
 use adze_glr_core::Action;
+use adze_glr_core::conflict_inspection::{cell_has_conflict, count_conflicts};
 use adze_ir::{RuleId, StateId, SymbolId};
 use std::ptr;
 
@@ -162,6 +163,28 @@ static COMBINED_FIELD_MAP_ENTRIES: [u16; 2] = [0, 0];
 static COMBINED_EXTERNAL_SCANNER_STATES: [bool; 3] = [true, false, true];
 static COMBINED_EXTERNAL_SCANNER_SYMBOL_MAP: [u16; 1] = [2];
 
+// Synthetic conflict fixture:
+// - state 0 stores two entries for the same terminal symbol;
+// - decode must preserve them as one multi-action Shift/Reduce cell;
+// - conflict inspection must still see the decoded cell as GLR-relevant.
+static CONFLICT_SMALL_PARSE_TABLE: [u16; 6] = [
+    1, 1, // num => Shift(1)
+    1, 0x8001, // num => Reduce(RuleId(0))
+    0, 0xFFFF, // EOF => Accept
+];
+static CONFLICT_SMALL_PARSE_TABLE_MAP: [u32; 3] = [0, 4, 6];
+static CONFLICT_LEX_MODES: [TSLexState; 2] = [
+    TSLexState {
+        lex_state: 0,
+        external_lex_state: 0,
+    },
+    TSLexState {
+        lex_state: 7,
+        external_lex_state: 0,
+    },
+];
+static CONFLICT_PRIMARY_STATE_IDS: [u16; 2] = [0, 1];
+
 static LANGUAGE: TSLanguage = TSLanguage {
     version: 15,
     symbol_count: 3,
@@ -297,6 +320,51 @@ static LANGUAGE_COMBINED_ABI: TSLanguage = TSLanguage {
     rule_count: 1,
 };
 
+static LANGUAGE_WITH_CONFLICT_CELL: TSLanguage = TSLanguage {
+    version: 15,
+    symbol_count: 3,
+    alias_count: 0,
+    token_count: 2,
+    external_token_count: 0,
+    state_count: 2,
+    large_state_count: 0,
+    production_id_count: 1,
+    field_count: 0,
+    max_alias_sequence_length: 0,
+    production_id_map: PRODUCTION_ID_MAP.as_ptr(),
+    parse_table: ptr::null(),
+    small_parse_table: CONFLICT_SMALL_PARSE_TABLE.as_ptr(),
+    small_parse_table_map: CONFLICT_SMALL_PARSE_TABLE_MAP.as_ptr(),
+    parse_actions: PARSE_ACTIONS.as_ptr(),
+    symbol_names: SYMBOL_NAMES.0.as_ptr(),
+    field_names: ptr::null(),
+    field_map_slices: ptr::null(),
+    field_map_entries: ptr::null(),
+    symbol_metadata: SYMBOL_METADATA.as_ptr(),
+    public_symbol_map: PUBLIC_SYMBOL_MAP.as_ptr(),
+    alias_map: ptr::null(),
+    alias_sequences: ptr::null(),
+    lex_modes: CONFLICT_LEX_MODES.as_ptr(),
+    lex_fn: None,
+    keyword_lex_fn: None,
+    keyword_capture_token: 0,
+    external_scanner: ExternalScanner {
+        states: ptr::null(),
+        symbol_map: ptr::null(),
+        create: None,
+        destroy: None,
+        scan: None,
+        serialize: None,
+        deserialize: None,
+    },
+    primary_state_ids: CONFLICT_PRIMARY_STATE_IDS.as_ptr(),
+    production_lhs_index: PRODUCTION_LHS_INDEX.as_ptr(),
+    production_count: 1,
+    eof_symbol: 0,
+    rules: TS_RULES.as_ptr(),
+    rule_count: 1,
+};
+
 #[test]
 fn compressed_tslanguage_decode_preserves_metadata_actions_and_fields() {
     let decoded = decode_parse_table(&LANGUAGE);
@@ -325,6 +393,27 @@ fn compressed_tslanguage_decode_preserves_metadata_actions_and_fields() {
     assert_eq!(decoded.rules[0].rhs_len, 1);
     assert_eq!(decoded.field_names, vec!["value".to_string()]);
     assert_eq!(decoded.field_map.get(&(RuleId(0), 0)), Some(&0));
+}
+
+#[test]
+fn compressed_tslanguage_decode_preserves_multi_action_conflict_cell() {
+    let decoded = decode_parse_table(&LANGUAGE_WITH_CONFLICT_CELL);
+
+    assert_eq!(decoded.state_count, 2);
+    assert_eq!(
+        decoded.action_table[0][1],
+        vec![Action::Shift(StateId(1)), Action::Reduce(RuleId(0))],
+        "duplicate small-table entries for the same symbol should decode as one multi-action cell"
+    );
+    assert!(
+        cell_has_conflict(&decoded.action_table[0][1]),
+        "decoded multi-action cell should be visible to GLR conflict inspection"
+    );
+
+    let summary = count_conflicts(&decoded);
+    assert_eq!(summary.shift_reduce, 1);
+    assert_eq!(summary.reduce_reduce, 0);
+    assert_eq!(summary.states_with_conflicts, vec![StateId(0)]);
 }
 
 #[test]

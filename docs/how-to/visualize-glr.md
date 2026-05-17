@@ -1,210 +1,153 @@
-# GLR Parser Visualization Guide
+# Visualizing GLR Conflicts
 
-This guide explains how to use the GLR visualization tools to debug ambiguous grammars and understand parser behavior.
+Adze's current GLR visualization support is conflict-level, not a stable
+runtime trace API.
 
-## Overview
+Use this guide when you need to inspect why a grammar produced shift/reduce or
+reduce/reduce conflicts during table generation. Runtime fork/merge tracing and
+full forest visualization are future work.
 
-The GLR (Generalized LR) parser can handle ambiguous grammars by maintaining multiple parse stacks simultaneously. When the parser encounters ambiguity (shift/reduce or reduce/reduce conflicts), it "forks" into multiple paths and explores them in parallel. The visualization tools help you see this forking and merging behavior.
+## Current Scope
 
-## Using the Visualization API
+Supported today:
 
-### Basic Example
+- text reports for conflict lists;
+- optional item-set detail for the conflicting LR state;
+- DOT graphs for parse automaton states;
+- red highlighting for conflict states in generated DOT output.
+
+Not currently a stable user API:
+
+- step-by-step runtime stack tracing;
+- partial parse tree visualization during parsing;
+- full GLR forest visualization;
+- production profiling of fork and merge behavior.
+
+## Conflict Reports
+
+The low-level conflict visualizer lives in `adze-glr-core`:
 
 ```rust
-use adze::glr_visualization::{GLRVisualizer, VisualizationOptions};
-use adze::glr_parser::GLRParser;
-use adze::glr_lexer::GLRLexer;
+use adze_glr_core::conflict_visualizer::ConflictVisualizer;
 
-// Create parser and lexer
-let grammar = create_your_grammar();
-let parse_table = build_lr1_automaton(&grammar, &first_follow)?;
-let mut parser = GLRParser::new(parse_table, grammar.clone());
-let mut lexer = GLRLexer::new(&grammar, input)?;
+let visualizer = ConflictVisualizer::new(&grammar, &conflicts);
+let report = visualizer.generate_report();
 
-// Enable visualization
-let mut visualizer = GLRVisualizer::new(VisualizationOptions {
-    show_lookahead: true,
-    show_items: true,
-    show_parse_trees: true,
-    compact_mode: false,
-});
-
-// Parse with visualization tracking
-let mut tokens = Vec::new();
-while let Some(token) = lexer.next_token() {
-    tokens.push(token);
-}
-
-for token in &tokens {
-    visualizer.record_state(&parser);
-    parser.process_token(token.symbol_id, &token.text, token.byte_offset);
-}
-
-parser.process_eof();
-let result = parser.finish();
-
-// Generate visualization
-let dot_graph = visualizer.to_dot();
-std::fs::write("parser_trace.dot", dot_graph)?;
+println!("{report}");
 ```
 
-### Visualization Options
+The report includes:
 
-- **show_lookahead**: Display lookahead symbols at each state
-- **show_items**: Show LR(1) items in each state
-- **show_parse_trees**: Include partial parse trees at each step
-- **compact_mode**: Reduce detail for large traces
+- total conflict count;
+- shift/reduce conflict count;
+- reduce/reduce conflict count;
+- state ID for each conflict;
+- lookahead symbol for each conflict;
+- shift and reduce actions involved in each conflict.
 
-## Understanding the Output
+When item sets are available, attach them for more context:
 
-### DOT Graph Format
+```rust
+let visualizer = ConflictVisualizer::new(&grammar, &conflicts)
+    .with_item_sets(&item_sets);
 
-The generated DOT file can be rendered with Graphviz:
+let report = visualizer.generate_report();
+```
+
+That adds the LR items involved in the conflict state. This is usually the most
+useful view when deciding whether to add precedence, refactor a grammar rule, or
+accept the ambiguity and rely on GLR behavior.
+
+## DOT Automaton Graphs
+
+For a graph-level view of the LR automaton:
+
+```rust
+use adze_glr_core::conflict_visualizer::generate_dot_graph;
+
+let dot = generate_dot_graph(&item_sets, &conflicts, &grammar);
+std::fs::write("parse_automaton.dot", dot)?;
+```
+
+Render the graph with Graphviz:
 
 ```bash
-dot -Tpng parser_trace.dot -o parser_trace.png
+dot -Tpng parse_automaton.dot -o parse_automaton.png
 ```
 
-### Graph Elements
+The DOT output is an automaton visualization. It is not a selected parse tree
+and it is not a GLR forest export.
 
-1. **States** (rectangles): Parser states with their state ID
-2. **Forks** (diamonds): Points where the parser splits into multiple paths
-3. **Merges** (inverted triangles): Points where paths converge
-4. **Actions** (edges): Shift, reduce, or accept actions
+## Interpreting Conflicts
 
-### Color Coding
+### Shift/Reduce
 
-- 🟦 **Blue**: Normal parsing path
-- 🟥 **Red**: Fork point (ambiguity detected)
-- 🟩 **Green**: Successful merge
-- 🟨 **Yellow**: Pruned path (dead end)
+A shift/reduce conflict means the parser can either consume the lookahead token
+or reduce an existing rule at the same state.
 
-## Common Ambiguity Patterns
+Typical causes:
 
-### 1. Expression Precedence Ambiguity
+- expression precedence or associativity;
+- optional suffixes;
+- dangling-else style grammar shape;
+- list separators with ambiguous trailing forms.
 
-```
-Input: 1 + 2 * 3
-Fork at: After parsing "1 + 2"
-- Path 1: Reduce to E (treats as (1 + 2) * 3)
-- Path 2: Shift * (treats as 1 + (2 * 3))
-```
+### Reduce/Reduce
 
-### 2. Dangling Else
+A reduce/reduce conflict means two or more completed productions can reduce on
+the same lookahead.
 
-```
-Input: if (a) if (b) x else y
-Fork at: After parsing "else"
-- Path 1: Else belongs to inner if
-- Path 2: Else belongs to outer if
-```
+Typical causes:
 
-### 3. Shift/Reduce Conflicts
+- overlapping rules with the same visible shape;
+- hidden or wrapper rules that erase useful distinction;
+- grammar aliases that need clearer ownership;
+- intentionally ambiguous language constructs.
 
-The visualizer shows:
-- The conflicting state
-- The lookahead causing conflict
-- Both possible actions
+## Debugging Workflow
 
-## Debugging Tips
+1. Generate or collect the grammar conflicts.
+2. Print a conflict report.
+3. If the report is too shallow, add item-set detail.
+4. Generate the DOT automaton graph only when state relationships matter.
+5. Decide whether the ambiguity is accidental or intentional.
+6. If intentional, add a GLR fixture that proves the selected tree and ambiguity
+   summary behavior.
 
-### 1. Identify Fork Points
+## How This Relates to `AdzeDocument`
 
-Look for red diamond nodes in the graph. These indicate where your grammar is ambiguous.
+Conflict visualization explains table-generation facts. It does not replace the
+runtime parse product.
 
-### 2. Trace Parse Paths
-
-Follow the edges from a fork to see how different interpretations proceed.
-
-### 3. Find Unnecessary Ambiguity
-
-If paths merge immediately after forking with the same result, the grammar might have redundant ambiguity.
-
-### 4. Performance Analysis
-
-Count forks to estimate parsing complexity. Exponential forking indicates problematic grammar design.
-
-## Example: Arithmetic Grammar
-
-Here's a complete example analyzing an ambiguous arithmetic grammar:
+Runtime users should inspect GLR behavior through:
 
 ```rust
-// Grammar: E -> E + E | E * E | num
-// This grammar is ambiguous for precedence and associativity
+let report = grammar::parse_document(source);
+let document = report.document();
 
-let input = "1 + 2 * 3 + 4";
-let mut visualizer = GLRVisualizer::new(VisualizationOptions::default());
-
-// ... parsing code ...
-
-// The visualization will show:
-// 1. Fork after "1 + 2" (shift * vs reduce E+E)
-// 2. Fork after "3" (multiple ways to group)
-// 3. Multiple parse trees in the final result
+let ambiguities = document.ambiguities();
+let selected_tree = document.root();
 ```
 
-## Text-Based Trace
+That is the user-facing path for selected-tree behavior and ambiguity summaries.
+The conflict visualizer is lower-level tooling for grammar and table debugging.
 
-For simpler debugging, use the text trace:
+## Proof Commands
 
-```rust
-let trace = visualizer.to_text_trace();
-println!("{}", trace);
+The conflict visualizer is covered by focused `adze-glr-core` tests:
+
+```bash
+cargo test -p adze-glr-core --test conflict_visualizer_tests --features test-api
+cargo test -p adze-glr-core --test conflict_visualizer_comprehensive
+git diff --check
 ```
 
-Output format:
-```
-Step 1: State 0, Token 'num' (1)
-  Action: Shift to state 3
-  Stack: [0, 3]
+## Known Gaps
 
-Step 2: State 3, Token '+' 
-  Action: Reduce E -> num
-  Stack: [0, 1]
+These remain future work:
 
-Step 3: State 1, Token '+'
-  Action: Shift to state 4
-  Stack: [0, 1, 4]
-...
-```
-
-## Integration with Testing
-
-Add visualization to failing tests:
-
-```rust
-#[test]
-fn test_ambiguous_grammar() {
-    let result = parse_with_visualization("ambiguous input");
-    if result.is_ambiguous() {
-        let viz = result.get_visualization();
-        eprintln!("Parse visualization:\n{}", viz.to_text_trace());
-        // Save DOT file for CI artifacts
-        std::fs::write("test_parse.dot", viz.to_dot()).ok();
-    }
-}
-```
-
-## Performance Considerations
-
-- Visualization adds overhead; disable in production
-- Use `compact_mode` for long inputs
-- Consider sampling (record every Nth step) for very long parses
-
-## Troubleshooting
-
-### "Too many forks" error
-Your grammar is extremely ambiguous. Consider:
-- Adding precedence declarations
-- Refactoring to remove ambiguity
-- Using GLR parsing limits
-
-### Visualization too large
-- Enable `compact_mode`
-- Focus on specific input regions
-- Use text trace instead of DOT
-
-### Can't see the ambiguity
-- Ensure `show_items` is enabled
-- Check if paths merge before the end
-- Look for subtle lookahead differences
+- document-backed runtime trace export;
+- full GLR forest visualization;
+- source-range-aware ambiguity diagrams;
+- CLI command for conflict reports;
+- stable public visualization API.

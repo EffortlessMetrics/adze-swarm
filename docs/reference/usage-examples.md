@@ -1,6 +1,16 @@
 # Adze Usage Examples
 
-This document provides comprehensive examples of using the pure-Rust Tree-sitter implementation.
+> **Doc status:** User-facing examples should start with generated
+> `grammar::parse()` and move to generated `grammar::parse_document()` only
+> when tooling needs document facts. Lower-level parser and Tree-sitter-style
+> APIs are implementation or compatibility surfaces unless their
+> support-tier rows say otherwise.
+
+This document shows common generated-parser usage. The stable front door is a
+Rust grammar module whose generated `parse()` function returns typed Rust
+values. The tooling path is `parse_document()`, which returns the native
+`AdzeDocument` parse product for diagnostics, syntax inspection, ambiguity
+summaries, JSON, and Tree-sitter-compatible selected-tree projections.
 
 ## Table of Contents
 1. [Basic Grammar Definition](#basic-grammar-definition)
@@ -537,89 +547,42 @@ fn display_error_context(input: &str, error: &ParseError) {
 
 ## Tree Traversal
 
-### Using the Visitor API
+### Inspecting the Document Tree
 
 ```rust
-use adze::visitor::{Visitor, TreeWalker, VisitorAction};
-use adze::tree_sitter::Node;
+fn print_document_summary(source: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let document = grammar::parse_document(source)?;
+    let root = document.tree().root();
 
-// Count specific node types
-struct NodeCounter {
-    node_type: String,
-    count: usize,
-}
+    println!("root kind: {}", root.kind_name().unwrap_or("<unknown>"));
+    println!("root bytes: {:?}", root.byte_range());
+    println!("diagnostics: {}", document.diagnostics().len());
 
-impl Visitor for NodeCounter {
-    fn enter_node(&mut self, node: &Node) -> VisitorAction {
-        if node.kind() == self.node_type {
-            self.count += 1;
-        }
-        VisitorAction::Continue
+    for edge in root.child_edges() {
+        let Some(child) = edge.child() else {
+            continue;
+        };
+        println!(
+            "child {} {:?}",
+            child.kind_name().unwrap_or("<unknown>"),
+            child.byte_range(),
+        );
     }
-}
 
-// Extract all identifiers
-struct IdentifierCollector {
-    identifiers: Vec<(String, usize, usize)>, // (name, start, end)
+    Ok(())
 }
+```
 
-impl Visitor for IdentifierCollector {
-    fn visit_leaf(&mut self, node: &Node, text: &str) {
-        if node.kind() == "identifier" {
-            self.identifiers.push((
-                text.to_string(),
-                node.start_byte(),
-                node.end_byte(),
-            ));
-        }
-    }
-}
+When a tool needs Tree-sitter-style traversal, use the selected-tree
+compatibility projection instead of creating a second parser truth:
 
-// Find deepest nesting
-struct DepthAnalyzer {
-    current_depth: usize,
-    max_depth: usize,
-}
+```rust
+fn print_sexp(source: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let document = grammar::parse_document(source)?;
+    let tree = document.as_tree_sitter();
 
-impl Visitor for DepthAnalyzer {
-    fn enter_node(&mut self, _node: &Node) -> VisitorAction {
-        self.current_depth += 1;
-        self.max_depth = self.max_depth.max(self.current_depth);
-        VisitorAction::Continue
-    }
-    
-    fn leave_node(&mut self, _node: &Node) {
-        self.current_depth -= 1;
-    }
-}
-
-// Usage
-fn analyze_code(source: &str) {
-    let parser = Parser::<grammar::Language>::new();
-    let tree = parser.parse(source, None).unwrap();
-    let walker = TreeWalker::new(source.as_bytes());
-    
-    // Count functions
-    let mut counter = NodeCounter {
-        node_type: "function".to_string(),
-        count: 0,
-    };
-    walker.walk(tree.root_node(), &mut counter);
-    println!("Found {} functions", counter.count);
-    
-    // Collect identifiers
-    let mut collector = IdentifierCollector {
-        identifiers: Vec::new(),
-    };
-    walker.walk(tree.root_node(), &mut collector);
-    
-    // Analyze depth
-    let mut analyzer = DepthAnalyzer {
-        current_depth: 0,
-        max_depth: 0,
-    };
-    walker.walk(tree.root_node(), &mut analyzer);
-    println!("Maximum nesting depth: {}", analyzer.max_depth);
+    println!("{}", tree.root_node().to_sexp());
+    Ok(())
 }
 ```
 
@@ -741,52 +704,28 @@ impl mini_c::Expression {
 
 ## Performance Optimization
 
-### Optimizing Parser Performance
+### Keep the Hot Path Simple
 
 ```rust
 use std::sync::Arc;
-use adze::Parser;
 
-// Reuse parser instances
-struct ParserPool {
-    parsers: Vec<Parser<grammar::Language>>,
-}
-
-impl ParserPool {
-    fn new(size: usize) -> Self {
-        Self {
-            parsers: (0..size).map(|_| Parser::new()).collect(),
-        }
-    }
-    
-    fn parse(&mut self, input: &str) -> Result<Tree, ParseError> {
-        if let Some(parser) = self.parsers.pop() {
-            let result = parser.parse(input, None);
-            self.parsers.push(parser);
-            result
-        } else {
-            Parser::new().parse(input, None)
-        }
-    }
-}
-
-// Cache parsed results
+// Cache typed parse results when your application repeatedly parses identical
+// source text. Keep cache invalidation in application code; Adze's stable
+// front door remains the generated parser function.
 use lru::LruCache;
 
 struct CachedParser {
-    cache: LruCache<String, Arc<grammar::AST>>,
-    parser: Parser<grammar::Language>,
+    cache: LruCache<String, Arc<grammar::Expression>>,
 }
 
 impl CachedParser {
     fn new(cache_size: usize) -> Self {
         Self {
             cache: LruCache::new(cache_size),
-            parser: Parser::new(),
         }
     }
     
-    fn parse(&mut self, input: &str) -> Result<Arc<grammar::AST>, ParseError> {
+    fn parse(&mut self, input: &str) -> Result<Arc<grammar::Expression>, ParseError> {
         if let Some(cached) = self.cache.get(input) {
             return Ok(cached.clone());
         }
@@ -801,7 +740,7 @@ impl CachedParser {
 // Parallel parsing
 use rayon::prelude::*;
 
-fn parse_many_files(files: Vec<(String, String)>) -> Vec<Result<grammar::AST, ParseError>> {
+fn parse_many_files(files: Vec<(String, String)>) -> Vec<Result<grammar::Expression, ParseError>> {
     files.into_par_iter()
         .map(|(name, content)| {
             grammar::parse(&content)
@@ -815,6 +754,11 @@ fn parse_many_files(files: Vec<(String, String)>) -> Vec<Result<grammar::AST, Pa
 }
 ```
 
+Use `parse_document()` for diagnostics, syntax facts, JSON, or
+Tree-sitter-compatible output. It is richer than `parse()`, so keep it on the
+tooling path rather than making every typed-parse call pay for projections your
+application does not need.
+
 ## Integration Examples
 
 ### Language Server Protocol Integration
@@ -826,7 +770,6 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 struct AdzeLanguageServer {
     client: Client,
-    parser: Mutex<Parser<grammar::Language>>,
 }
 
 #[tower_lsp::async_trait]
@@ -857,27 +800,22 @@ impl LanguageServer for AdzeLanguageServer {
 
 impl AdzeLanguageServer {
     async fn parse_and_diagnose(&self, document: TextDocumentItem) {
-        let parser = self.parser.lock().unwrap();
-        
-        match parser.parse(&document.text, None) {
-            Ok(tree) => {
-                // Analyze the tree for semantic information
-                let diagnostics = self.analyze_tree(&tree, &document.text);
-                
-                self.client
-                    .publish_diagnostics(document.uri, diagnostics, None)
-                    .await;
-            }
-            Err(errors) => {
-                let diagnostics = errors.into_iter()
-                    .map(|e| error_to_diagnostic(e, &document.text))
-                    .collect();
-                
-                self.client
-                    .publish_diagnostics(document.uri, diagnostics, None)
-                    .await;
-            }
-        }
+        let parse = grammar::parse_document(&document.text);
+        let diagnostics = match parse {
+            Ok(parse_document) => parse_document
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| document_diagnostic_to_lsp(diagnostic, &document.text))
+                .collect(),
+            Err(errors) => errors
+                .into_iter()
+                .map(|error| parse_error_to_lsp(error, &document.text))
+                .collect(),
+        };
+
+        self.client
+            .publish_diagnostics(document.uri, diagnostics, None)
+            .await;
     }
 }
 ```
@@ -885,7 +823,7 @@ impl AdzeLanguageServer {
 ### Syntax Highlighting
 
 ```rust
-use adze::tree_sitter::{Node, TreeCursor};
+use adze::ts_compat::TreeCursor;
 
 #[derive(Debug, Clone)]
 struct Highlight {
@@ -894,12 +832,14 @@ struct Highlight {
     scope: String,
 }
 
-fn highlight_code(source: &str, tree: &Tree) -> Vec<Highlight> {
+fn highlight_code(source: &str) -> Result<Vec<Highlight>, Box<dyn std::error::Error>> {
+    let document = grammar::parse_document(source)?;
+    let tree = document.as_tree_sitter();
     let mut highlights = Vec::new();
     let mut cursor = tree.walk();
     
     highlight_node(&mut cursor, source, &mut highlights);
-    highlights
+    Ok(highlights)
 }
 
 fn highlight_node(cursor: &mut TreeCursor, source: &str, highlights: &mut Vec<Highlight>) {
@@ -985,21 +925,24 @@ fn html_escape(s: &str) -> String {
    - Test edge cases thoroughly
 
 2. **Performance**
-   - Reuse parser instances when possible
-   - Consider caching for repeated parses
-   - Use incremental parsing for edits
+   - Start with generated `grammar::parse()`
+   - Cache typed parse results when your application repeats identical inputs
+   - Treat incremental parsing as experimental until its support-tier row says otherwise
    - Profile before optimizing
 
 3. **Error Handling**
    - Always handle parse errors gracefully
    - Provide meaningful error messages
    - Show context for errors
-   - Consider error recovery strategies
+   - Use `parse_document()` when tooling needs diagnostics from the same parse truth
 
 4. **Integration**
-   - Use the visitor pattern for tree analysis
+   - Use `parse()` for typed semantic values
+   - Use `parse_document()` for document facts and diagnostics
+   - Use `as_tree_sitter()` only when you need compatibility with Tree-sitter-shaped tooling
    - Leverage the type system for AST processing
-   - Build abstractions for common patterns
    - Test with real-world inputs
 
-This guide covers the most common usage patterns. For more advanced features, see the [API Documentation](./API_DOCUMENTATION.md).
+This guide covers the most common usage patterns. For support status and known
+limits, see [Support Tiers](../status/SUPPORT_TIERS.md). For the API ladder, see
+the [API Reference](./api.md).

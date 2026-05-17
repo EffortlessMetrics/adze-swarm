@@ -2,13 +2,28 @@
 
 > **Doc status:** Up to date for Adze 0.8.0-dev.
 
+## Repository Target
+
+Active swarm implementation, CI, source-hygiene, and productization work targets
+`EffortlessMetrics/adze-swarm`.
+
+Public `EffortlessMetrics/adze` remains the release, publishing, and external
+contribution intake surface. Do not open new swarm work against public `adze`
+unless that work is explicitly being promoted or synced.
+
 ## Prerequisites
 
 ### System Requirements
 - **Rust 1.95.0+** (2024 edition support)
-- **Node.js**: Required for `tree-sitter` CLI compatibility (legacy/C backend only)
-- **C Compiler**: Required for `tree-sitter` C integration
 - **just**: Command runner (optional but recommended)
+
+Optional tooling:
+
+- **libtree-sitter-dev**: Needed only for `tools/ts-bridge` work.
+- **Node.js / tree-sitter CLI**: Needed only for legacy compatibility
+  experiments that explicitly invoke Tree-sitter's CLI.
+- **C compiler**: Needed only for native integration experiments or crates that
+  explicitly depend on C tooling.
 
 ## Maintenance Lanes
 
