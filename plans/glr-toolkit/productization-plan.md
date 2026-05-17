@@ -182,7 +182,7 @@ diagnostics, Tree-sitter-compatible projection, and support-tier relevance.
 
 ### Work Item: projection-equivalence-harness
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -194,7 +194,7 @@ summary, and JSON where enabled.
 
 ### Work Item: generated-conflict-matrix
 
-Status: blocked by `glr-toolkit-product-contract`
+Status: active
 
 #### Goal
 
