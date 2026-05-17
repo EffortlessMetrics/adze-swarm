@@ -44,6 +44,24 @@ links_to = [
 ]
 
 [[artifact]]
+id = "ADZE-PROP-0003"
+kind = "proposal"
+path = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
+status = "proposed"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["GLR toolkit productization rationale", "post-0.9 product proof campaign"]
+links_to = [
+  "ADZE-ADR-0001",
+  "ADZE-ADR-0003",
+  "ADZE-ADR-0004",
+  "plans/glr-toolkit/productization-plan.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/glr-toolkit-productization.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = "ADZE-SPEC-0001"
 kind = "spec"
 path = "docs/specs/ADZE-SPEC-0001-package-surface-boundary.md"
@@ -197,11 +215,11 @@ links_to = ["ADZE-PROP-0002", "ADZE-SPEC-0008"]
 id = "plans/0.9.0/implementation-plan.md"
 kind = "plan"
 path = "plans/0.9.0/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "release/product"
 milestone = "0.9.0"
 source_of_truth_for = ["0.9 contract convergence sequence"]
-links_to = ["ADZE-PROP-0001", ".adze/goals/active.toml"]
+links_to = ["ADZE-PROP-0001", ".adze/goals/archive/2026-05-16-0.9-contract-convergence.toml"]
 
 [[artifact]]
 id = "plans/0.9.0/microcrate-collapse.md"
@@ -211,7 +229,7 @@ status = "complete"
 owner = "release/package"
 milestone = "0.9.0"
 source_of_truth_for = ["microcrate to SRP submodule transition sequence"]
-links_to = ["ADZE-PROP-0001", "ADZE-SPEC-0001", "ADZE-ADR-0002", ".adze/goals/active.toml", "policy/package-boundary.toml"]
+links_to = ["ADZE-PROP-0001", "ADZE-SPEC-0001", "ADZE-ADR-0002", ".adze/goals/archive/2026-05-16-0.9-contract-convergence.toml", "policy/package-boundary.toml"]
 
 [[artifact]]
 id = "plans/0.9.0/rust-1.95.md"
@@ -221,14 +239,34 @@ status = "complete"
 owner = "release/toolchain"
 milestone = "0.9.0"
 source_of_truth_for = ["Rust 1.95 MSRV bump"]
-links_to = ["ADZE-PROP-0001", ".adze/goals/active.toml", "plans/0.9.0/implementation-plan.md"]
+links_to = ["ADZE-PROP-0001", ".adze/goals/archive/2026-05-16-0.9-contract-convergence.toml", "plans/0.9.0/implementation-plan.md"]
 
 [[artifact]]
 id = "plans/0.9.0/api-foundation.md"
 kind = "plan"
 path = "plans/0.9.0/api-foundation.md"
-status = "active"
+status = "complete"
 owner = "runtime/api"
 milestone = "0.9.x"
 source_of_truth_for = ["API foundation implementation sequence"]
-links_to = ["ADZE-PROP-0002", ".adze/goals/active.toml"]
+links_to = ["ADZE-PROP-0002", ".adze/goals/archive/2026-05-16-0.9-contract-convergence.toml"]
+
+[[artifact]]
+id = "plans/glr-toolkit/productization-plan.md"
+kind = "plan"
+path = "plans/glr-toolkit/productization-plan.md"
+status = "active"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["GLR toolkit productization implementation sequence"]
+links_to = ["ADZE-PROP-0003", ".adze/goals/active.toml", ".adze/goals/glr-toolkit-productization.toml", "docs/status/SUPPORT_TIERS.md"]
+
+[[artifact]]
+id = ".adze/goals/glr-toolkit-productization.toml"
+kind = "goal"
+path = ".adze/goals/glr-toolkit-productization.toml"
+status = "active"
+owner = "droid-factory"
+milestone = "post-0.9"
+source_of_truth_for = ["GLR toolkit productization agent work queue"]
+links_to = ["ADZE-PROP-0003", "plans/glr-toolkit/productization-plan.md", ".adze/goals/active.toml"]
