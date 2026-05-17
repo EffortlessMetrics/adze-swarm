@@ -3,86 +3,18 @@
 //! Uses `proptest` to generate random tree shapes and verify invariants that
 //! must hold for every tree, regardless of size or topology.
 
-use adze::pure_parser::{ParsedNode, Point};
+use adze::pure_parser::ParsedNode;
 use adze::visitor::{
     BreadthFirstWalker, PrettyPrintVisitor, SearchVisitor, StatsVisitor, TransformVisitor,
     TransformWalker, TreeWalker, Visitor, VisitorAction,
 };
 use proptest::prelude::*;
-use std::mem::MaybeUninit;
+mod common;
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-fn pt(row: u32, col: u32) -> Point {
-    Point { row, column: col }
-}
-
-/// Construct a `ParsedNode` safely despite the `pub(crate)` `language` field.
-fn make_node(
-    symbol: u16,
-    children: Vec<ParsedNode>,
-    start: usize,
-    end: usize,
-    is_error: bool,
-    is_named: bool,
-) -> ParsedNode {
-    let mut uninit = MaybeUninit::<ParsedNode>::uninit();
-    let ptr = uninit.as_mut_ptr();
-    unsafe {
-        std::ptr::write_bytes(ptr, 0, 1);
-        std::ptr::addr_of_mut!((*ptr).symbol).write(symbol);
-        std::ptr::addr_of_mut!((*ptr).children).write(children);
-        std::ptr::addr_of_mut!((*ptr).start_byte).write(start);
-        std::ptr::addr_of_mut!((*ptr).end_byte).write(end);
-        std::ptr::addr_of_mut!((*ptr).start_point).write(pt(0, start as u32));
-        std::ptr::addr_of_mut!((*ptr).end_point).write(pt(0, end as u32));
-        std::ptr::addr_of_mut!((*ptr).is_extra).write(false);
-        std::ptr::addr_of_mut!((*ptr).is_error).write(is_error);
-        std::ptr::addr_of_mut!((*ptr).is_missing).write(false);
-        std::ptr::addr_of_mut!((*ptr).is_named).write(is_named);
-        std::ptr::addr_of_mut!((*ptr).field_id).write(None);
-        uninit.assume_init()
-    }
-}
-
-fn leaf(symbol: u16, start: usize, end: usize) -> ParsedNode {
-    make_node(symbol, vec![], start, end, false, true)
-}
-
-fn interior(symbol: u16, children: Vec<ParsedNode>) -> ParsedNode {
-    let start = children.first().map_or(0, |c| c.start_byte);
-    let end = children.last().map_or(0, |c| c.end_byte);
-    make_node(symbol, children, start, end, false, true)
-}
-
-fn error_node(start: usize, end: usize) -> ParsedNode {
-    make_node(0, vec![], start, end, true, false)
-}
-
-/// Count every node in a tree recursively (including the root).
-fn count_nodes(node: &ParsedNode) -> usize {
-    1 + node.children().iter().map(count_nodes).sum::<usize>()
-}
-
-/// Compute tree depth (root-only = 1).
-fn tree_depth(node: &ParsedNode) -> usize {
-    if node.children().is_empty() {
-        1
-    } else {
-        1 + node.children().iter().map(tree_depth).max().unwrap_or(0)
-    }
-}
-
-/// Count leaf nodes in a tree.
-fn count_leaves(node: &ParsedNode) -> usize {
-    if node.children().is_empty() {
-        1
-    } else {
-        node.children().iter().map(count_leaves).sum()
-    }
-}
+use common::{
+    count_leaves, count_nodes, error_node, interior_node as interior, named_leaf as leaf,
+    tree_depth,
+};
 
 // ---------------------------------------------------------------------------
 // Proptest strategies
