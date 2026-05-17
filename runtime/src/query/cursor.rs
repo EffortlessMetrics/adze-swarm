@@ -103,6 +103,23 @@ mod tests {
         query_with_root(root)
     }
 
+    fn repeated_child_query(
+        root_symbol: u16,
+        repeated_symbol: u16,
+        quantifier: crate::query::ast::Quantifier,
+        tail_symbol: u16,
+    ) -> Query {
+        let mut root = PatternNode::new(SymbolId(root_symbol), true);
+        root.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(repeated_symbol), true).with_quantifier(quantifier),
+        ));
+        root.add_child(PatternChild::Node(PatternNode::new(
+            SymbolId(tail_symbol),
+            true,
+        )));
+        query_with_root(root)
+    }
+
     fn query_with_root(root: PatternNode) -> Query {
         let mut capture_names = HashMap::new();
         capture_names.insert("node".to_string(), 0);
@@ -214,5 +231,36 @@ mod tests {
         let matches = cursor.collect_matches(&query, &tree);
 
         assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_plus_child_quantifier_when_followed_by_tail_consumes_repeated_nodes() {
+        let query = repeated_child_query(1, 2, crate::query::ast::Quantifier::Plus, 3);
+        let tree = parse_node(
+            1,
+            0,
+            3,
+            vec![
+                parse_node(2, 0, 1, Vec::new()),
+                parse_node(2, 1, 2, Vec::new()),
+                parse_node(3, 2, 3, Vec::new()),
+            ],
+        );
+
+        let mut cursor = QueryCursor::new();
+        let matches = cursor.collect_matches(&query, &tree);
+
+        assert_eq!(matches.len(), 1);
+    }
+
+    #[test]
+    fn test_star_child_quantifier_when_followed_by_tail_allows_zero_matches() {
+        let query = repeated_child_query(1, 2, crate::query::ast::Quantifier::Star, 3);
+        let tree = parse_node(1, 0, 1, vec![parse_node(3, 0, 1, Vec::new())]);
+
+        let mut cursor = QueryCursor::new();
+        let matches = cursor.collect_matches(&query, &tree);
+
+        assert_eq!(matches.len(), 1);
     }
 }
