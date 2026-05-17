@@ -288,6 +288,100 @@ fn test_parse_document_projection_modes_emit_schema_envelopes() {
 }
 
 #[test]
+fn parse_document_json_modes_emit_recovery_diagnostics() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let project_name = "parsejsonrecovery";
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg(project_name)
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    let project_dir = temp.path().join(project_name);
+    let grammar = project_dir.join("src/grammar.rs");
+    let input = temp.path().join("bad-input.txt");
+    std::fs::write(&input, "1 + @").expect("write bad input");
+
+    let document = parse_projection(&grammar, &input, "document-json");
+    assert_eq!(document["schema"].as_str(), Some("adze.document.v1"));
+    assert!(
+        document["metadata"]["error_count"].as_u64().unwrap_or(0) > 0,
+        "document-json should preserve parser recovery metadata: {document:?}"
+    );
+    assert_eq!(
+        document["tree"]["root"]["flags"]["has_error"].as_bool(),
+        Some(true),
+        "document-json should preserve root error facts: {document:?}"
+    );
+    assert_bad_input_diagnostic(&document["diagnostics"][0]);
+
+    let tree = parse_projection(&grammar, &input, "tree-json");
+    assert_eq!(tree["schema"].as_str(), Some("adze.tree.v1"));
+    assert_eq!(tree["document_schema"].as_str(), Some("adze.document.v1"));
+    assert_eq!(
+        tree["tree"]["root"]["flags"]["has_error"].as_bool(),
+        Some(true),
+        "tree-json should project selected-tree error facts from the document: {tree:?}"
+    );
+
+    let diagnostics = parse_projection(&grammar, &input, "diagnostics-json");
+    assert_eq!(diagnostics["schema"].as_str(), Some("adze.diagnostics.v1"));
+    assert_eq!(
+        diagnostics["document_schema"].as_str(),
+        Some("adze.document.v1")
+    );
+    assert_bad_input_diagnostic(&diagnostics["diagnostics"][0]);
+}
+
+fn parse_projection(
+    grammar: &std::path::Path,
+    input: &std::path::Path,
+    mode: &str,
+) -> serde_json::Value {
+    let mut cmd = cargo_bin_cmd!("adze");
+    let output = cmd
+        .arg("parse")
+        .arg(grammar)
+        .arg(input)
+        .arg("--output")
+        .arg(mode)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    serde_json::from_slice(&output)
+        .unwrap_or_else(|err| panic!("{mode} output should be JSON: {err}"))
+}
+
+fn assert_bad_input_diagnostic(diagnostic: &serde_json::Value) {
+    assert_eq!(diagnostic["start_byte"].as_u64(), Some(4));
+    assert_eq!(diagnostic["end_byte"].as_u64(), Some(5));
+    assert_eq!(diagnostic["point_range"]["start"]["row"].as_u64(), Some(0));
+    assert_eq!(
+        diagnostic["point_range"]["start"]["column"].as_u64(),
+        Some(4)
+    );
+    assert!(
+        diagnostic["expected"]
+            .as_array()
+            .is_some_and(|expected| expected
+                .iter()
+                .any(|token| token.as_str() == Some(r"/\d+/"))),
+        "diagnostics projection should preserve expected-token names: {diagnostic:?}"
+    );
+    assert!(
+        diagnostic["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("expected one of:")),
+        "diagnostics projection should preserve useful parser context: {diagnostic:?}"
+    );
+}
+
+#[test]
 fn test_init_generated_cargo_toml_is_valid() {
     let temp = tempfile::tempdir().expect("tempdir");
     let project_name = "validcargotoml";

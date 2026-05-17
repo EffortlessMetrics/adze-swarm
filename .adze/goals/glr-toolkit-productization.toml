@@ -262,11 +262,12 @@ commands = [
 
 [[work_item]]
 id = "recovery-matrix"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [145]
 commands = [
   "cargo test -p adze --features \"pure-rust,glr,serialization,ts-compat\" --test recovery_matrix -- --nocapture",
   "git diff --check",
@@ -274,12 +275,11 @@ commands = [
 
 [[work_item]]
 id = "cli-diagnostic-projection"
-status = "blocked"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0004"
 plan = "plans/glr-toolkit/productization-plan.md"
-blocked_by = ["recovery-matrix"]
 commands = [
   "cargo test -p adze-cli parse_document_json -- --nocapture",
   "git diff --check",
