@@ -284,15 +284,7 @@ impl<'a> QueryMatcher<'a> {
         }
 
         match &patterns[pattern_idx] {
-            PatternChild::Token(_expected_text) => {
-                // Match anonymous token
-                // In a real implementation, would need to check node text
-                if node_idx < nodes.len() {
-                    self.match_child_sequence(patterns, nodes, pattern_idx + 1, node_idx + 1, state)
-                } else {
-                    false
-                }
-            }
+            PatternChild::Token(_) => false,
             PatternChild::Node(pattern_node) => {
                 // Try to match this pattern node
                 if self.match_node(pattern_node, &nodes[node_idx], state) {
