@@ -63,7 +63,7 @@ impl Default for QueryCursor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query::ast::{Pattern, PatternChild, PatternNode};
+    use crate::query::ast::{Pattern, PatternChild, PatternNode, Predicate};
     use adze_ir::SymbolId;
     use std::collections::HashMap;
 
@@ -135,6 +135,12 @@ mod tests {
             property_settings: Vec::new(),
             property_predicates: Vec::new(),
         }
+    }
+
+    fn capture_query_with_predicate(symbol: u16, predicate: Predicate) -> Query {
+        let mut query = capture_query(symbol);
+        query.patterns[0].predicates.push(predicate);
+        query
     }
 
     fn sample_tree() -> ParseNode {
@@ -226,6 +232,76 @@ mod tests {
     fn test_literal_child_when_source_text_unavailable_returns_no_match() {
         let query = literal_child_query(1, "+");
         let tree = parse_node(1, 0, 1, vec![parse_node(2, 0, 1, Vec::new())]);
+
+        let mut cursor = QueryCursor::new();
+        let matches = cursor.collect_matches(&query, &tree);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_eq_literal_predicate_when_source_text_unavailable_returns_no_match() {
+        let query = capture_query_with_predicate(
+            1,
+            Predicate::Eq {
+                capture1: 0,
+                capture2: None,
+                value: Some("alpha".to_string()),
+            },
+        );
+        let tree = parse_node(1, 0, 5, Vec::new());
+
+        let mut cursor = QueryCursor::new();
+        let matches = cursor.collect_matches(&query, &tree);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_not_eq_literal_predicate_when_source_text_unavailable_returns_no_match() {
+        let query = capture_query_with_predicate(
+            1,
+            Predicate::NotEq {
+                capture1: 0,
+                capture2: None,
+                value: Some("alpha".to_string()),
+            },
+        );
+        let tree = parse_node(1, 0, 5, Vec::new());
+
+        let mut cursor = QueryCursor::new();
+        let matches = cursor.collect_matches(&query, &tree);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_match_predicate_when_source_text_unavailable_returns_no_match() {
+        let query = capture_query_with_predicate(
+            1,
+            Predicate::Match {
+                capture: 0,
+                regex: "^alpha$".to_string(),
+            },
+        );
+        let tree = parse_node(1, 0, 5, Vec::new());
+
+        let mut cursor = QueryCursor::new();
+        let matches = cursor.collect_matches(&query, &tree);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_any_of_predicate_when_source_text_unavailable_returns_no_match() {
+        let query = capture_query_with_predicate(
+            1,
+            Predicate::AnyOf {
+                capture: 0,
+                values: vec!["alpha".to_string(), "beta".to_string()],
+            },
+        );
+        let tree = parse_node(1, 0, 5, Vec::new());
 
         let mut cursor = QueryCursor::new();
         let matches = cursor.collect_matches(&query, &tree);

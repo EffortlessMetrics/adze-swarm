@@ -432,14 +432,12 @@ impl<'a> QueryMatcher<'a> {
                 if let Some(node1) = captures.get(capture1) {
                     if let Some(capture2) = capture2 {
                         if let Some(node2) = captures.get(capture2) {
-                            // Compare node texts (simplified)
+                            // Source-free matching can only compare captured spans.
                             return node1.start_byte == node2.start_byte
                                 && node1.end_byte == node2.end_byte;
                         }
-                    } else if let Some(_value) = value {
-                        // Compare node text with value
-                        // In real implementation, would extract actual text
-                        return true;
+                    } else if value.is_some() {
+                        return false;
                     }
                 }
                 false
@@ -447,33 +445,27 @@ impl<'a> QueryMatcher<'a> {
             Predicate::NotEq {
                 capture1,
                 capture2,
-                value,
-            } => !self.check_predicate(
-                &Predicate::Eq {
-                    capture1: *capture1,
-                    capture2: *capture2,
-                    value: value.clone(),
-                },
-                captures,
-            ),
-            Predicate::Match {
-                capture: _,
-                regex: _,
+                value: _,
             } => {
-                // In real implementation, would compile regex and match
-                true
+                if let Some(capture2) = capture2 {
+                    if let (Some(node1), Some(node2)) =
+                        (captures.get(capture1), captures.get(capture2))
+                    {
+                        return node1.start_byte != node2.start_byte
+                            || node1.end_byte != node2.end_byte;
+                    }
+                    false
+                } else {
+                    false
+                }
             }
-            Predicate::NotMatch { capture, regex } => !self.check_predicate(
-                &Predicate::Match {
-                    capture: *capture,
-                    regex: regex.clone(),
-                },
-                captures,
-            ),
-            _ => {
-                // Other predicates not implemented yet
-                true
-            }
+            Predicate::Set { .. } => true,
+            Predicate::Match { .. }
+            | Predicate::NotMatch { .. }
+            | Predicate::AnyOf { .. }
+            | Predicate::Is { .. }
+            | Predicate::IsNot { .. }
+            | Predicate::Custom { .. } => false,
         }
     }
 }
