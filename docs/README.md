@@ -82,3 +82,4 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Known Red**](./status/KNOWN_RED.md) - Exclusions from the supported CI lane.
 - [**PR Template**](./PR_TEMPLATE.md) - Checklist for contributors.
 - [**Verification**](./VERIFICATION.md) - README badge meanings, generated endpoints, and PR evidence boundaries.
+- [**GLR Toolkit Fixture Taxonomy**](./testing/glr-fixture-taxonomy.md) - Shared fixture classes for GLR, compatibility, query, recovery, and benchmark proof.

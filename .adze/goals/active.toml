@@ -72,9 +72,9 @@ commands = [
 
 [[work_item]]
 id = "fixture-taxonomy"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
-spec = "ADZE-SPEC-0012"
+spec = "docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
 commands = [
@@ -99,11 +99,12 @@ commands = [
 
 [[work_item]]
 id = "quickstart-and-mental-model"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md"
 adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [128]
 commands = [
   "cargo test -p adze-cli readme_arithmetic_quickstart_builds_and_runs -- --exact --nocapture",
   "cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture",
