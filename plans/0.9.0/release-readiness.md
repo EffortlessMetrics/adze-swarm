@@ -60,7 +60,7 @@ surface after a fresh final proof run.
 |---|------|--------|---------------|----|
 | 19 | README claims audit against proof map | covered | `cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exact --nocapture` | #55 |
 | 20 | Benchmark classification inventory | covered | `cargo test -p adze-benchmarks --test verify_fixture_parsing -- --nocapture` | #61 |
-| 21 | Duplicate bench deprecation (glr_performance.rs) | covered | `cargo bench -p adze-benchmarks --no-run`; `cargo test -p adze-benchmarks --test verify_fixture_parsing -- --nocapture` | #62 |
+| 21 | Duplicate bench removal (`glr_performance.rs`) | covered | `cargo check -p adze-benchmarks --benches`; `cargo test -p adze-benchmarks --test verify_fixture_parsing -- --nocapture` | #62 |
 | 22 | Package publishability — adze | covered | `scripts/package-local-release.sh adze` | #93 |
 | 23 | Package publishability — adze-macro | covered | `cargo package -p adze-macro --allow-dirty` | #58 |
 | 24 | Package publishability — adze-tool | covered | `scripts/package-local-release.sh adze-tool` | #93 |

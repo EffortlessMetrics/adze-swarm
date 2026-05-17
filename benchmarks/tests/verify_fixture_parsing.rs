@@ -269,16 +269,20 @@ fn verify_benchmark_inventory_is_exhaustive() {
 }
 
 #[test]
-fn verify_duplicate_glr_performance_bench_is_deprecated() {
-    assert_eq!(
-        benchmark_metadata_field("glr_performance", "status").as_deref(),
-        Some("deprecated"),
-        "glr_performance must stay deprecated while it duplicates parse_bench"
+fn verify_duplicate_glr_performance_bench_was_removed() {
+    assert!(
+        !registered_bench_names()
+            .iter()
+            .any(|name| name == "glr_performance"),
+        "glr_performance duplicated parse_bench and should stay removed"
     );
-    assert_eq!(
-        readme_inventory_status("glr_performance").as_deref(),
-        Some("deprecated"),
-        "benchmarks/README.md must show glr_performance as deprecated"
+    assert!(
+        benchmark_metadata_field("glr_performance", "status").is_none(),
+        "removed duplicate benchmark must not keep stale classification metadata"
+    );
+    assert!(
+        readme_inventory_status("glr_performance").is_none(),
+        "removed duplicate benchmark must not stay in the README inventory"
     );
 }
 
