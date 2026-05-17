@@ -61,19 +61,14 @@ impl GrammarVisualizer {
 
         writeln!(&mut output, "\n  // Rules").unwrap();
         for (lhs, rules) in &self.grammar.rules {
+            let from = format!("n{}", lhs.0);
+
             for rule in rules {
                 for (i, symbol) in rule.rhs.iter().enumerate() {
-                    let from = format!("n{}", lhs.0);
-                    let to = match symbol {
-                        Symbol::Terminal(id) => format!("t{}", id.0),
-                        Symbol::NonTerminal(id) => format!("n{}", id.0),
-                        Symbol::External(id) => format!("e{}", id.0),
-                        Symbol::Optional(_) => format!("opt{}", i),
-                        Symbol::Repeat(_) => format!("rep{}", i),
-                        Symbol::RepeatOne(_) => format!("rep1{}", i),
-                        Symbol::Choice(_) => format!("choice{}", i),
-                        Symbol::Sequence(_) => format!("seq{}", i),
-                        Symbol::Epsilon => continue, // Skip epsilon transitions in visualization
+                    let Some(to) = Self::dot_target_for_symbol(*lhs, rule.production_id, i, symbol)
+                    else {
+                        // Skip epsilon transitions in visualization.
+                        continue;
                     };
 
                     let label = if rule.rhs.len() > 1 {
@@ -374,6 +369,38 @@ impl GrammarVisualizer {
         }
 
         output
+    }
+
+    fn dot_target_for_symbol(
+        lhs: SymbolId,
+        production_id: adze_ir::ProductionId,
+        rhs_index: usize,
+        symbol: &Symbol,
+    ) -> Option<String> {
+        let target = match symbol {
+            Symbol::Terminal(id) => format!("t{}", id.0),
+            Symbol::NonTerminal(id) => format!("n{}", id.0),
+            Symbol::External(id) => format!("e{}", id.0),
+            Symbol::Optional(_) => Self::dot_compound_target("opt", lhs, production_id, rhs_index),
+            Symbol::Repeat(_) => Self::dot_compound_target("rep", lhs, production_id, rhs_index),
+            Symbol::RepeatOne(_) => {
+                Self::dot_compound_target("rep1", lhs, production_id, rhs_index)
+            }
+            Symbol::Choice(_) => Self::dot_compound_target("choice", lhs, production_id, rhs_index),
+            Symbol::Sequence(_) => Self::dot_compound_target("seq", lhs, production_id, rhs_index),
+            Symbol::Epsilon => return None,
+        };
+
+        Some(target)
+    }
+
+    fn dot_compound_target(
+        kind: &str,
+        lhs: SymbolId,
+        production_id: adze_ir::ProductionId,
+        rhs_index: usize,
+    ) -> String {
+        format!("{}_{}_{}_{}", kind, lhs.0, production_id.0, rhs_index)
     }
 
     fn get_symbol_name(&self, id: SymbolId) -> String {
@@ -731,12 +758,40 @@ mod tests {
         );
 
         let dot = GrammarVisualizer::new(grammar).to_dot();
-        // Each compound symbol creates a synthetic target name keyed on the rhs index.
-        assert!(dot.contains("n2 -> opt0"));
-        assert!(dot.contains("n2 -> rep1"));
-        assert!(dot.contains("n2 -> rep12"));
-        assert!(dot.contains("n2 -> choice3"));
-        assert!(dot.contains("n2 -> seq4"));
+        // Each compound symbol creates a synthetic target name keyed by rule context and rhs index.
+        assert!(dot.contains("n2 -> opt_2_0_0"));
+        assert!(dot.contains("n2 -> rep_2_0_1"));
+        assert!(dot.contains("n2 -> rep1_2_0_2"));
+        assert!(dot.contains("n2 -> choice_2_0_3"));
+        assert!(dot.contains("n2 -> seq_2_0_4"));
+    }
+
+    #[test]
+    fn to_dot_keeps_compound_targets_unique_across_rules() {
+        let mut grammar = Grammar::new("g".to_string());
+        let lhs_a = SymbolId(1);
+        let lhs_b = SymbolId(2);
+        let rule = |lhs, production_id| Rule {
+            lhs,
+            rhs: vec![Symbol::Optional(Box::new(Symbol::Epsilon))],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(production_id),
+        };
+
+        grammar.rules.insert(lhs_a, vec![rule(lhs_a, 7)]);
+        grammar.rules.insert(lhs_b, vec![rule(lhs_b, 7)]);
+
+        let dot = GrammarVisualizer::new(grammar).to_dot();
+
+        assert!(dot.contains("n1 -> opt_1_7_0"));
+        assert!(dot.contains("n2 -> opt_2_7_0"));
+        assert_ne!(
+            dot.find("opt_1_7_0"),
+            dot.find("opt_2_7_0"),
+            "compound placeholders should not collapse distinct rules"
+        );
     }
 
     // --- to_railroad_svg ------------------------------------------------
