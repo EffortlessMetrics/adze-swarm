@@ -43,11 +43,12 @@ commands = [
 
 [[work_item]]
 id = "glr-toolkit-campaign-source-of-truth"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = ""
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [125]
 commands = [
   "python -c \"import tomllib; tomllib.load(open('.adze/goals/active.toml', 'rb')); tomllib.load(open('.adze/goals/glr-toolkit-productization.toml', 'rb')); tomllib.load(open('policy/doc-artifacts.toml', 'rb'))\"",
   "cargo run -q -p xtask -- check-active-goal",
@@ -57,9 +58,9 @@ commands = [
 
 [[work_item]]
 id = "glr-toolkit-product-contract"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
-spec = "ADZE-SPEC-0012"
+spec = "docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md"
 adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
 commands = [
