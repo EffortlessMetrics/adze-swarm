@@ -1,30 +1,38 @@
 # Microcrate Test Coverage Analysis
 
 **Generated:** 2026-03-26
-**Last Updated:** 2026-05-14
-**Total Crates:** 4
+**Last Updated:** 2026-05-16
+**Total Crates:** 5
 
 ## Summary
 
 | Category | Count | Percentage |
 |----------|-------|------------|
-| Complete (BDD + Property) | 4 | 100% |
-| Durable support crates with contract locks | 3 | 100% |
+| Workspace support crates with BDD + Property | 4 | 100% |
+| Durable support crates with contract locks | 4 | 100% |
+| Excluded harness crates | 1 | 100% classified |
 
-The remaining tracked support surfaces have comprehensive test coverage with
-BDD/property coverage where applicable. The package-boundary release gate is now
-the source of truth for whether any temporary microcrate remains.
+The remaining workspace support surfaces have BDD/property coverage where
+applicable. The package-boundary release gate is now the source of truth for
+whether any temporary microcrate remains.
 
-## Complete Coverage (BDD + Property Tests)
+## Workspace Coverage (BDD + Property Tests)
 
-All 4 remaining tracked crates have both BDD tests and property-based tests:
+All 4 remaining workspace support crates have BDD tests and property-based
+tests:
 
 | Crate | BDD File | Property File | Contract Lock |
 |-------|----------|---------------|---------------|
 | `bdd-governance-core` | ✓ | ✓ | ✓ |
+| `common-type-ops-core` | ✓ | ✓ | ✓ |
 | `linecol-core` | ✓ | ✓ | ✓ |
 | `parsetable-metadata` | ✓ | ✓ | ✓ |
-| `ts-c-harness` | ✓ | ✓ | - |
+
+### Excluded Harness
+
+| Crate | BDD File | Property File | Contract Lock |
+|-------|----------|---------------|---------------|
+| `ts-c-harness` | - | - | excluded harness |
 
 ## Contract Lock Files
 
@@ -32,6 +40,7 @@ The following durable support crates have `contract_lock.rs` test files
 (contract verification):
 
 - `bdd-governance-core`
+- `common-type-ops-core`
 - `linecol-core`
 - `parsetable-metadata`
 

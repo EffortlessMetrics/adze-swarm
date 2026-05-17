@@ -51,7 +51,10 @@ This chapter covers common issues you may encounter when working with Adze gramm
 
 2. See the [GLR Precedence Resolution](glr-precedence-resolution.md) chapter for detailed guidance on resolving conflicts.
 
-3. If the grammar is intentionally ambiguous, Adze's GLR parser will explore all valid parse paths at runtime.
+3. If the grammar is intentionally ambiguous, use the GLR support-tier proof
+   commands to check whether that ambiguity shape is covered. Adze exposes a
+   deterministic selected parse plus ambiguity summaries for documented GLR
+   cases; it does not make every ambiguous grammar a stable product claim.
 
 ## "No matching rule"
 
@@ -106,11 +109,11 @@ This chapter covers common issues you may encounter when working with Adze gramm
 
 | Use case | Features |
 |---|---|
-| Default (pure Rust, WASM-compatible) | `default` |
-| Standard C Tree-sitter runtime | `tree-sitter-standard` |
+| Default generated parser/runtime path | `default` |
 | GLR parsing support | `glr` |
+| Document JSON projection | `serialization` |
+| Tree-sitter-compatible selected-tree projection | `ts-compat` |
 | Incremental parsing (experimental) | `incremental_glr` |
-| All features | `all-features` |
 
 **Solution:**
 
@@ -118,18 +121,22 @@ This chapter covers common issues you may encounter when working with Adze gramm
 
    ```toml
    [dependencies]
-   adze = { version = "0.1", features = ["glr"] }
+   adze = { version = "0.8", features = ["glr"] }
    ```
 
-2. Some features are mutually exclusive. Don't enable both `tree-sitter-c2rust` and `tree-sitter-standard` simultaneously.
+2. Prefer explicit feature sets that name the surface you are testing or using.
+   Do not rely on broad feature aliases to imply product support.
 
-3. When running tests across feature combinations, use:
+3. When running tests across feature combinations, use focused commands:
 
    ```bash
-   cargo test --features default
-   cargo test --features glr
-   cargo test --all-features
+   cargo test -p adze
+   cargo test -p adze --features glr
+   cargo test -p adze --features "pure-rust,glr"
    ```
+
+4. If a feature is part of a public claim, confirm its status and proof command
+   in `docs/status/SUPPORT_TIERS.md`.
 
 ## Build time is slow
 
@@ -155,33 +162,33 @@ This chapter covers common issues you may encounter when working with Adze gramm
 
 **Symptom:** Compilation fails when targeting `wasm32-unknown-unknown` or `wasm32-wasi`.
 
-**Cause:** The standard C Tree-sitter runtime doesn't support WASM. You need the pure-Rust backend.
+**Cause:** Browser/WASM support is an advisory surface. Core Rust parsing and
+the demo compile path are separate claims; Tree-sitter-compatible projections
+do not imply browser runtime support.
 
 **Solution:**
 
-1. Use the default `tree-sitter-c2rust` feature (enabled by default), which provides a pure-Rust Tree-sitter implementation:
+1. Keep the runtime dependency on explicit Adze features:
 
    ```toml
    [dependencies]
-   adze = "0.1"  # c2rust backend is the default
+   adze = "0.8"
    ```
 
-2. Do **not** enable `tree-sitter-standard` for WASM targets.
+2. Avoid enabling experimental or advisory features unless the target proof
+   command names them.
 
 3. If you need conditional compilation:
 
    ```toml
-   [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-   adze = { version = "0.1", features = ["tree-sitter-standard"] }
-
    [target.'cfg(target_arch = "wasm32")'.dependencies]
-   adze = { version = "0.1" }
+   adze = "0.8"
    ```
 
-4. Verify your WASM build with:
+4. Verify the advisory WASM demo compile path with:
 
    ```bash
-   cargo build --target wasm32-unknown-unknown
+   cargo check --manifest-path wasm-demo/Cargo.toml --target wasm32-unknown-unknown
    ```
 
 ## Test failures after grammar changes

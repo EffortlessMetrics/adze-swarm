@@ -15,9 +15,9 @@ adze ecosystem architecture:
          ▼                       ▼                       ▼
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │  macro/         │    │  tool/           │    │  runtime/       │
-│  common/        │    │  ir/             │    │  runtime2/      │
-│  └─ Annotations │    │  glr-core/       │    │  └─ GLR Engine  │
-│     Extraction  │    │  tablegen/       │    │     Parsing     │
+│  common/        │    │  ir/             │    │  └─ Generated   │
+│  └─ Annotations │    │  glr-core/       │    │     parse() and │
+│     Extraction  │    │  tablegen/       │    │     documents   │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
          │                       │                       │
          ▼                       ▼                       ▼
@@ -83,32 +83,33 @@ fn main() {
 
 ### Runtime Execution
 
-**Location**: `runtime/`, `runtime2/`
+**Location**: `runtime/`
 
-The runtime provides multiple parser implementations with different capabilities:
+The supported runtime surface is generated parser code backed by the `adze`
+crate. The normal product path is:
 
-#### runtime/ - Legacy Compatibility
 ```rust
-use adze::parser_v4::Parser;
+let ast = grammar::parse(source)?;
 
-let mut parser = Parser::new(grammar, parse_table, "my_language".to_string());
-let result = parser.parse(source_code)?;
+let report = grammar::parse_document(source);
+let document = report.document();
+let diagnostics = document.diagnostics();
 ```
 
-#### runtime2/ - Production GLR Implementation
-```rust
-use adze_runtime2::Parser;
+`AdzeDocument` is the native parse-product boundary. Typed AST extraction,
+typed CST wrappers, diagnostics, Tree-sitter-compatible selected-tree views,
+JSON, and GLR ambiguity summaries are projections from the same document facts.
 
-let mut parser = Parser::new();
-parser.set_language(language)?;
-let tree = parser.parse_utf8(source.as_bytes(), None)?;
-```
-
-**Runtime Features**:
-- **GLR Parsing**: Full ambiguity support with fork/merge
-- **Incremental Parsing**: Efficient subtree reuse on edits
-- **Error Recovery**: Graceful handling of syntax errors
-- **Performance Monitoring**: Built-in profiling and optimization
+**Runtime features by support posture**:
+- **Typed parsing**: Stable generated `grammar::parse()` path for supported
+  generated grammars.
+- **Document parsing**: Experimental `grammar::parse_document()` path for
+  tooling, diagnostics, and projections.
+- **GLR conflict routing**: Stabilizing for documented conflict classes.
+- **Incremental parsing**: Experimental document lifecycle with honest
+  full-reparse fallback metadata.
+- **Compatibility projections**: Advisory Tree-sitter-compatible selected-tree
+  and node metadata surfaces.
 
 ## Testing & Quality Assurance Architecture
 
@@ -116,7 +117,9 @@ let tree = parser.parse_utf8(source.as_bytes(), None)?;
 
 **Location**: `golden-tests/`
 
-Golden tests form the cornerstone of adze's quality assurance, ensuring perfect compatibility with Tree-sitter:
+Golden tests are advisory compatibility receipts for selected grammar fixtures.
+They are high-value proof for parser and projection work, but they are not a
+blanket claim of full Tree-sitter compatibility.
 
 ```
 golden-tests/
@@ -157,24 +160,25 @@ golden-tests/
    ```
 
 3. **Multi-Language Support**:
-   - **Python**: Complete grammar with external scanner for indentation
-   - **JavaScript**: Full ECMAScript parsing support
-   - **Extensible**: Framework ready for additional language grammars
+   - **Python**: Grammar fixture coverage with indentation-sensitive cases
+   - **JavaScript**: Grammar fixture coverage for selected ECMAScript shapes
+   - **Extensible**: Framework for adding more fixture-backed grammars
 
-4. **CI Integration**:
+4. **Advisory CI Integration**:
    ```yaml
    - name: Run Golden Tests
      run: |
        cd golden-tests
        ./generate_references.sh
-       cargo test --features all-grammars
+       cargo test --features javascript-grammar
    ```
 
 **Golden Test Benefits**:
-- **Perfect Compatibility**: Byte-for-byte identical parse trees
+- **Compatibility Receipts**: S-expression and hash comparisons for selected fixtures
 - **Regression Prevention**: Catches parser changes that break compatibility
 - **Real-World Validation**: Tests actual code, not just synthetic examples
-- **Fast CI**: Hash comparison enables efficient continuous testing
+- **Scoped CI**: Path-routed canaries keep compatibility proof available without
+  making every PR pay for every fixture
 
 ### Multi-Layered Testing Strategy
 
@@ -265,8 +269,8 @@ Application Code
       │
       ▼
 ┌─────────────┐    ┌──────────────┐
-│ runtime2/   │───▶│ Generated    │
-│ Parser API  │    │ Language     │
+│ runtime/    │───▶│ Generated    │
+│ parse APIs  │    │ Language     │
 └─────────────┘    │ Tables       │
       │            └──────────────┘
       ▼                    │
@@ -277,8 +281,8 @@ Application Code
       │            └──────────────┘
       ▼
 ┌─────────────┐
-│ Tree        │
-│ Builder     │
+│ AdzeDocument│
+│ projections │
 └─────────────┘
 ```
 
@@ -286,7 +290,9 @@ Application Code
 
 ### 1. Correctness First
 
-**Golden Test Foundation**: Every parser change is validated against Tree-sitter reference implementations to ensure perfect compatibility.
+**Support-tiered proof**: Stable product claims must map to repeatable proof
+commands in `docs/status/SUPPORT_TIERS.md`. Golden tests are one advisory signal
+for Tree-sitter compatibility work; they do not promote a surface by themselves.
 
 **Memory Safety**: Comprehensive bounds checking, integer overflow protection, and safe FFI interfaces prevent undefined behavior.
 
@@ -296,9 +302,12 @@ Application Code
 
 **Compile-Time Generation**: Parsers are generated at build time, enabling aggressive optimizations and zero runtime overhead.
 
-**GLR Optimizations**: Stack merging, action caching, and forest compression minimize parsing overhead for ambiguous grammars.
+**GLR Optimizations**: Stack merging, action caching, and ambiguity summaries
+minimize parsing overhead for ambiguous grammars.
 
-**Incremental Parsing**: Intelligent subtree reuse reduces reparsing work for large files with small edits.
+**Incremental Parsing**: The current product contract exposes document lifecycle
+metadata and full-reparse fallback truthfully before claiming stable subtree
+reuse.
 
 ### 3. Developer Experience
 
@@ -310,11 +319,15 @@ Application Code
 
 ### 4. Compatibility
 
-**Tree-sitter Interoperability**: Full compatibility with existing Tree-sitter grammars and tooling ecosystem.
+**Tree-sitter Interoperability**: Compatibility APIs project selected-tree and
+metadata views from `AdzeDocument` for a documented subset. Full Tree-sitter
+parity is not assumed.
 
-**Cross-Platform**: Runs on all major platforms including WebAssembly for browser deployment.
+**Cross-Platform**: The core Rust crates are portable. Browser/WASM surfaces are
+advisory until promoted with support-tier proof.
 
-**FFI Safety**: Generated code provides stable ABI for integration with C/C++ applications.
+**ABI Discipline**: Tablegen metadata and compressed table ABI claims require
+explicit roundtrip proof before promotion.
 
 ## Scalability Architecture
 
@@ -451,8 +464,9 @@ The architecture supports multiple extension points:
 # Test connectivity verification
 ./scripts/check-test-connectivity.sh
 
-# Per-crate test counts
-cargo test --all --features all-features -- --list | wc -l
+# Per-crate test counts for an explicit package or support lane
+cargo test -p adze -- --list | wc -l
+just ci-supported
 
 # Golden test coverage
 find golden-tests/*/fixtures -name "*.py" | wc -l
@@ -474,10 +488,11 @@ std::env::set_var("ADZE_LOG_PERFORMANCE", "true");
 
 ### Compatibility Validation
 
-Golden tests provide quantitative compatibility metrics:
+Golden and projection tests provide quantitative compatibility metrics for the
+documented subset:
 - **Parse Success Rate**: Percentage of files successfully parsed
-- **Tree Accuracy**: Hash comparison success rate
-- **Performance Ratio**: adze vs Tree-sitter timing
+- **Selected-tree Accuracy**: Hash or S-expression comparison success rate
+- **Performance Ratio**: Adze vs Tree-sitter timing for comparable fixtures
 - **Memory Efficiency**: Peak memory usage comparison
 
 ## Future Architecture Evolution
@@ -507,4 +522,8 @@ Golden tests provide quantitative compatibility metrics:
 - **Review [Contributing Guide](contributing.md)** for development workflows
 - **See [API Documentation](../reference/api.md)** for programmatic interfaces
 
-The adze architecture provides a solid foundation for high-performance, compatible, and maintainable parser generation, with golden tests ensuring perfect Tree-sitter compatibility at every step of development.
+The adze architecture provides a foundation for high-performance,
+document-centered parser generation. The product contract is promoted through
+support-tiered proof: generated typed parsing first, then document, GLR,
+Tree-sitter-compatible, query, JSON, CLI, and WASM surfaces as their evidence
+matures.

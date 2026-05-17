@@ -24,7 +24,8 @@ operations.
 - `AdzeDocument` product-proof coverage for document boundaries, typed AST/CST
   projections, diagnostics, GLR ambiguity summaries, Tree-sitter compatibility
   adapters, and experimental document JSON.
-- Advisory CLI document JSON output via `adze parse --output document-json`.
+- Advisory CLI document projection output via `adze parse --output
+  document-json/tree-json/diagnostics-json/ambiguity-json`.
 - Publishability receipts for tracked release crates, using local release
   packaging for co-release siblings that cannot resolve against older crates.io
   versions.
@@ -53,7 +54,7 @@ cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_to_sexp -- 
 cargo test -p adze --features "pure-rust,serialization" --test adze_document_json -- --nocapture
 cargo test -p adze --features "pure-rust,serialization,glr" --test adze_document_json parse_document_json_serializes_glr_ambiguity_summary -- --exact --nocapture
 cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_e2e_ambiguous_grammar_glr generated_ambiguous_expr_glr_runtime_retains_three_or_more_complete_alternatives -- --exact --nocapture
-cargo test -p adze-cli test_parse_document_json_mode_emits_schema_envelope -- --exact --nocapture
+cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
 ```
 
 Release-quality receipts:
@@ -71,6 +72,7 @@ cargo package -p adze-ir --allow-dirty
 cargo package -p adze-glr-core --allow-dirty
 cargo package -p adze-tablegen --allow-dirty
 cargo package -p adze-common --allow-dirty
+cargo package -p adze-common-type-ops-core --allow-dirty
 ```
 
 Source-of-truth receipts:

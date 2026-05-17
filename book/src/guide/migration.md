@@ -5,9 +5,11 @@ This chapter provides a comprehensive guide for migrating projects from
 formalized in the v0.8.0 release and affects crate names, attribute paths,
 import paths, and repository URLs.
 
-> **Looking for the runtime → runtime2 (GLR) migration?**
-> See [Getting Started › Migration](../getting-started/migration.md) for the
-> GLR integration guide.
+> **Looking for GLR, document, or incremental guidance?**
+> Use [Parser Generation](parser-generation.md) and
+> [Incremental Parsing](incremental-parsing.md). The current product path is
+> generated `grammar::parse()` and `grammar::parse_document()`, not a migration
+> from one low-level runtime API to another.
 
 ---
 
@@ -36,7 +38,6 @@ The project was renamed from `rust-sitter` to **Adze** to:
 | —                           | `adze-ir`           | Grammar intermediate representation (new) |
 | —                           | `adze-glr-core`     | GLR parser generation (new)       |
 | —                           | `adze-tablegen`     | Table compression (new)           |
-| —                           | `adze-runtime`      | GLR-compatible runtime (new)      |
 
 ### Attribute Paths
 
@@ -120,16 +121,16 @@ Migrating to Adze unlocks several capabilities that did not exist under the
    tables entirely in Rust (`adze-tablegen`).
 3. **Grammar IR** — Inspect and optimize grammars programmatically via the
    intermediate representation (`adze-ir`).
-4. **Incremental Parsing** — Pass a previous tree to `parse_utf8` for
-   efficient re-parsing of edited documents.
+4. **Incremental Document Lifecycle** — Experimental snapshot/reparse metadata
+   with visible fallback behavior.
 5. **Performance Monitoring** — Set `ADZE_LOG_PERFORMANCE=true` to get
    forest-to-tree conversion metrics.
-6. **WASM Support** — The pure-Rust backend compiles to `wasm32-unknown-unknown`
-   and `wasm32-wasi` without C dependencies.
+6. **WASM Compile Signal** — WASM remains advisory until runtime/browser proof
+   is promoted.
 7. **Golden Tests** — Validate your parsers against Tree-sitter reference
    implementations with SHA256 hash verification.
-8. **External Scanners** — Write custom lexing logic in pure Rust for things
-   like Python indentation tracking.
+8. **External Scanners** — Experimental custom lexing support for cases like
+   indentation tracking.
 
 ---
 
@@ -307,15 +308,9 @@ Once the rename migration compiles cleanly, consider enabling:
 adze = { version = "0.8", features = ["pure-rust"] }
 ```
 
-Or explore the GLR runtime:
-
-```toml
-[dependencies]
-adze-runtime = { version = "0.1", features = ["glr", "incremental_glr"] }
-```
-
-See [Getting Started › Migration](../getting-started/migration.md) for the
-full GLR migration guide.
+Use `grammar::parse_document()` when you need diagnostics, GLR ambiguity
+summaries, or compatibility projections. See [Parser Generation](parser-generation.md)
+and [Incremental Parsing](incremental-parsing.md) for the current product model.
 
 ---
 
@@ -387,14 +382,14 @@ mod grammar { /* … */ }
 
 ## MSRV Note
 
-Adze v0.8 requires **Rust 1.92.0** (2024 edition). If your project targets an
+Adze v0.8 requires **Rust 1.95.0** (2024 edition). If your project targets an
 older MSRV, you will need to update your `rust-toolchain.toml` or CI
 configuration:
 
 ```toml
 # rust-toolchain.toml
 [toolchain]
-channel = "1.92.0"
+channel = "1.95.0"
 components = ["rustfmt", "clippy"]
 ```
 
@@ -404,9 +399,10 @@ components = ["rustfmt", "clippy"]
 
 The migration from `rust-sitter` to Adze is primarily a rename operation.
 The core grammar-definition model — annotated Rust types that compile into
-Tree-sitter parsers — is unchanged. After completing the rename you gain
-access to the full Adze ecosystem: GLR parsing, pure-Rust table generation,
-grammar IR, incremental parsing, and WASM support.
+generated parser modules — is unchanged. After completing the rename, use
+`grammar::parse()` for typed values and `grammar::parse_document()` for tooling
+facts. GLR, Tree-sitter compatibility, incremental lifecycle, CLI, WASM, and
+grammar-package surfaces remain governed by their support-tier rows.
 
 If you run into issues not covered here, please
 [open an issue](https://github.com/EffortlessMetrics/adze/issues) on GitHub.

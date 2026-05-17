@@ -1,65 +1,17 @@
 //! Visitor pattern v6 — 64 tests covering the full visitor API surface.
 
-use adze::pure_parser::{ParsedNode, Point};
+use adze::pure_parser::ParsedNode;
 use adze::visitor::{
     BreadthFirstWalker, PrettyPrintVisitor, SearchVisitor, StatsVisitor, TransformVisitor,
     TransformWalker, TreeWalker, Visitor, VisitorAction,
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+mod common;
 
-fn pt(row: u32, col: u32) -> Point {
-    Point { row, column: col }
-}
-
-/// Construct a `ParsedNode` via `MaybeUninit` (language is `pub(crate)`).
-fn make_node(
-    symbol: u16,
-    children: Vec<ParsedNode>,
-    start: usize,
-    end: usize,
-    is_error: bool,
-    is_named: bool,
-) -> ParsedNode {
-    use std::mem::MaybeUninit;
-    let mut uninit = MaybeUninit::<ParsedNode>::uninit();
-    let ptr = uninit.as_mut_ptr();
-    unsafe {
-        std::ptr::write_bytes(ptr, 0, 1);
-        std::ptr::addr_of_mut!((*ptr).symbol).write(symbol);
-        std::ptr::addr_of_mut!((*ptr).children).write(children);
-        std::ptr::addr_of_mut!((*ptr).start_byte).write(start);
-        std::ptr::addr_of_mut!((*ptr).end_byte).write(end);
-        std::ptr::addr_of_mut!((*ptr).start_point).write(pt(0, start as u32));
-        std::ptr::addr_of_mut!((*ptr).end_point).write(pt(0, end as u32));
-        std::ptr::addr_of_mut!((*ptr).is_extra).write(false);
-        std::ptr::addr_of_mut!((*ptr).is_error).write(is_error);
-        std::ptr::addr_of_mut!((*ptr).is_missing).write(false);
-        std::ptr::addr_of_mut!((*ptr).is_named).write(is_named);
-        std::ptr::addr_of_mut!((*ptr).field_id).write(None);
-        uninit.assume_init()
-    }
-}
-
-fn leaf(sym: u16, start: usize, end: usize) -> ParsedNode {
-    make_node(sym, vec![], start, end, false, true)
-}
-
-fn unnamed_leaf(sym: u16, start: usize, end: usize) -> ParsedNode {
-    make_node(sym, vec![], start, end, false, false)
-}
-
-fn interior(sym: u16, children: Vec<ParsedNode>) -> ParsedNode {
-    let start = children.first().map_or(0, |c| c.start_byte);
-    let end = children.last().map_or(0, |c| c.end_byte);
-    make_node(sym, children, start, end, false, true)
-}
-
-fn error_node(start: usize, end: usize) -> ParsedNode {
-    make_node(0, vec![], start, end, true, false)
-}
+use common::{
+    error_node, interior_node as interior, make_test_node as make_node, named_leaf as leaf,
+    unnamed_leaf,
+};
 
 /// root(10)( a(1), mid(11)( b(2), c(3) ), d(4) )  — source "abcd"
 fn sample_tree() -> (ParsedNode, Vec<u8>) {
