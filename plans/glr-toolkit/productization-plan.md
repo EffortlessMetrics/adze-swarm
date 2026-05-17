@@ -321,7 +321,7 @@ diagnostics.
 
 ### Work Item: tree-sitter-migration-guide
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -332,7 +332,7 @@ queries, ERROR/MISSING, and ambiguity.
 
 ### Work Item: incremental-lifecycle-acceptance
 
-Status: ready
+Status: active
 
 #### Goal
 
