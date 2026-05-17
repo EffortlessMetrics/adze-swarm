@@ -289,7 +289,7 @@ unsupported features as expected gaps.
 
 ### Work Item: recovery-matrix
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -299,7 +299,7 @@ scanner errors.
 
 ### Work Item: cli-diagnostic-projection
 
-Status: blocked by `recovery-matrix`
+Status: active
 
 #### Goal
 
