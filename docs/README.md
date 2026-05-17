@@ -9,6 +9,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 ## 🎓 Tutorials
 *Learning-oriented: guided lessons to help you get started.*
 
+- [**Quickstart: First Parser In 10 Minutes**](./tutorials/quickstart-10-minutes.md) - Generate, test, and run the canonical starter parser.
 - [**Your First Parser**](./tutorials/getting-started.md) - Build a working calculator parser in 5 minutes.
 - [**GLR Quickstart**](./tutorials/glr-quickstart.md) - Understanding and building your first ambiguous grammar.
 
@@ -47,6 +48,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 ## 💡 Explanations
 *Understanding-oriented: conceptual background and architectural theory.*
 
+- [**Mental Model**](./explanations/mental-model.md) - How Rust types, generated parsers, `parse()`, `AdzeDocument`, and projections fit together.
 - [**Architecture Overview**](./explanations/architecture.md) - How the Macro, Tool, and Runtime fit together.
 - [**AdzeDocument Design Contract**](./design/adze-document.md) - Draft native parse-product contract for future CST, typed AST, diagnostics, and compatibility projections.
 - [**Typed CST Design Contract**](./design/typed-cst.md) - Draft generated typed syntax view over the native parse document.

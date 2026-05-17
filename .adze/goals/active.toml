@@ -84,11 +84,12 @@ commands = [
 
 [[work_item]]
 id = "canonical-starter-project"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [127]
 commands = [
   "cargo test -p adze-cli test_init_default_cwd_generates_buildable_project -- --exact --nocapture",
   "cargo test -p adze-cli test_init_cargo_toml_references_adze_dependency -- --exact --nocapture",
@@ -98,13 +99,14 @@ commands = [
 
 [[work_item]]
 id = "quickstart-and-mental-model"
-status = "blocked"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
-spec = "ADZE-SPEC-0012"
+spec = "docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md"
 adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
-blocked_by = ["glr-toolkit-product-contract"]
 commands = [
+  "cargo test -p adze-cli readme_arithmetic_quickstart_builds_and_runs -- --exact --nocapture",
+  "cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture",
   "git diff --check",
 ]
 
