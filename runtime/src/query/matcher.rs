@@ -22,7 +22,7 @@ pub struct QueryCapture {
 }
 
 /// State for matching a pattern
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct MatchState {
     /// Current captures
     captures: HashMap<u32, ParseNode>,
@@ -264,36 +264,147 @@ impl<'a> QueryMatcher<'a> {
         node_idx: usize,
         state: &mut MatchState,
     ) -> bool {
+        if let Some(next_state) =
+            self.match_child_sequence_from(patterns, nodes, pattern_idx, node_idx, state.clone())
+        {
+            *state = next_state;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn match_child_sequence_from(
+        &self,
+        patterns: &[PatternChild],
+        nodes: &[ParseNode],
+        pattern_idx: usize,
+        node_idx: usize,
+        state: MatchState,
+    ) -> Option<MatchState> {
         // Base case: all patterns matched
         if pattern_idx >= patterns.len() {
-            return node_idx >= nodes.len(); // All nodes must be consumed
+            return (node_idx >= nodes.len()).then_some(state);
         }
 
         // Base case: no more nodes but patterns remain
         if node_idx >= nodes.len() {
-            // Check if remaining patterns are all optional
-            for i in pattern_idx..patterns.len() {
-                if let PatternChild::Node(ref pattern_node) = patterns[i]
-                    && pattern_node.quantifier != Quantifier::Optional
-                    && pattern_node.quantifier != Quantifier::Star
-                {
-                    return false;
-                }
-            }
-            return true;
+            return patterns[pattern_idx..]
+                .iter()
+                .all(|pattern| {
+                    matches!(
+                        pattern,
+                        PatternChild::Node(node)
+                            if matches!(node.quantifier, Quantifier::Optional | Quantifier::Star)
+                    )
+                })
+                .then_some(state);
         }
 
         match &patterns[pattern_idx] {
-            PatternChild::Token(_) => false,
-            PatternChild::Node(pattern_node) => {
-                // Try to match this pattern node
-                if self.match_node(pattern_node, &nodes[node_idx], state) {
-                    self.match_child_sequence(patterns, nodes, pattern_idx + 1, node_idx + 1, state)
-                } else {
-                    false
-                }
-            }
+            PatternChild::Token(_) => None,
+            PatternChild::Node(pattern_node) => match pattern_node.quantifier {
+                Quantifier::One => self
+                    .match_child_node_once(pattern_node, &nodes[node_idx], state)
+                    .and_then(|next_state| {
+                        self.match_child_sequence_from(
+                            patterns,
+                            nodes,
+                            pattern_idx + 1,
+                            node_idx + 1,
+                            next_state,
+                        )
+                    }),
+                Quantifier::Optional => self
+                    .match_child_node_once(pattern_node, &nodes[node_idx], state.clone())
+                    .and_then(|next_state| {
+                        self.match_child_sequence_from(
+                            patterns,
+                            nodes,
+                            pattern_idx + 1,
+                            node_idx + 1,
+                            next_state,
+                        )
+                    })
+                    .or_else(|| {
+                        self.match_child_sequence_from(
+                            patterns,
+                            nodes,
+                            pattern_idx + 1,
+                            node_idx,
+                            state,
+                        )
+                    }),
+                Quantifier::Plus => self.match_repeated_child_node(
+                    pattern_node,
+                    patterns,
+                    nodes,
+                    (pattern_idx, node_idx),
+                    state,
+                    1,
+                ),
+                Quantifier::Star => self.match_repeated_child_node(
+                    pattern_node,
+                    patterns,
+                    nodes,
+                    (pattern_idx, node_idx),
+                    state,
+                    0,
+                ),
+            },
         }
+    }
+
+    fn match_child_node_once(
+        &self,
+        pattern_node: &PatternNode,
+        node: &ParseNode,
+        mut state: MatchState,
+    ) -> Option<MatchState> {
+        let mut single = pattern_node.clone();
+        single.quantifier = Quantifier::One;
+
+        self.match_node(&single, node, &mut state).then_some(state)
+    }
+
+    fn match_repeated_child_node(
+        &self,
+        pattern_node: &PatternNode,
+        patterns: &[PatternChild],
+        nodes: &[ParseNode],
+        position: (usize, usize),
+        state: MatchState,
+        min_count: usize,
+    ) -> Option<MatchState> {
+        let (pattern_idx, node_idx) = position;
+        let mut candidates = vec![(node_idx, state)];
+        let mut cursor = node_idx;
+
+        while cursor < nodes.len() {
+            let (_, last_state) = candidates.last().expect("candidate seed exists");
+            let Some(next_state) =
+                self.match_child_node_once(pattern_node, &nodes[cursor], last_state.clone())
+            else {
+                break;
+            };
+            cursor += 1;
+            candidates.push((cursor, next_state));
+        }
+
+        candidates
+            .into_iter()
+            .enumerate()
+            .rev()
+            .filter(|(count, _)| *count >= min_count)
+            .find_map(|(_, (next_node_idx, next_state))| {
+                self.match_child_sequence_from(
+                    patterns,
+                    nodes,
+                    pattern_idx + 1,
+                    next_node_idx,
+                    next_state,
+                )
+            })
     }
 
     /// Check if predicates are satisfied
