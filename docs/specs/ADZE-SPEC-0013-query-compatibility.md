@@ -81,7 +81,7 @@ Anonymous token patterns such as `"+"` are supported only when the matcher has
 enough source and metadata to compare token text honestly. Source-free matching
 must fail closed rather than matching arbitrary nodes.
 
-### B7. Field constraints are the next implementation target
+### B7. Field constraints are supported for the covered subset
 
 Field constraints are part of the target subset:
 
@@ -91,14 +91,15 @@ Field constraints are part of the target subset:
   right: (expression) @right)
 ```
 
-They are not a promotion claim until generated field metadata, matcher behavior,
-and negative canaries all agree.
+They are a covered subset claim when generated field metadata, matcher behavior,
+and negative canaries agree. Broader generated-language parity remains subject
+to the differential fixture matrix.
 
-### B8. Anchors are the next positional target
+### B8. Anchors are supported for the covered subset
 
-Tree-sitter anchors are part of the target subset for first-child, last-child,
-and adjacent sibling constraints. They remain advisory until the matcher has
-explicit anchor AST nodes and fixture coverage.
+Tree-sitter anchors are supported for first-child, last-child, and adjacent
+sibling constraints in the source-aware matcher. They remain scoped to the
+covered matcher fixtures until imported grammar differential proof exists.
 
 ### B9. Predicates are source-aware
 

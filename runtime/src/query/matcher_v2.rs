@@ -30,6 +30,12 @@ struct MatchState {
     captures: HashMap<u32, ParseNode>,
 }
 
+#[derive(Clone, Copy)]
+struct RepeatSearch {
+    min_count: usize,
+    anchored_next: bool,
+}
+
 /// Query pattern matcher with source text
 pub struct QueryMatcher<'a> {
     query: &'a Query,
@@ -243,6 +249,7 @@ impl<'a> QueryMatcher<'a> {
             pattern_idx,
             node_idx,
             state.clone(),
+            false,
         ) {
             *state = next_state;
             true
@@ -258,14 +265,12 @@ impl<'a> QueryMatcher<'a> {
         pattern_idx: usize,
         node_idx: usize,
         state: MatchState,
+        anchored_next: bool,
     ) -> Option<MatchState> {
         // Base case: all patterns matched
         if pattern_idx >= pattern_children.len() {
             // If extra nodes remain, ensure they're ignorable
-            return node_children[node_idx..]
-                .iter()
-                .all(|n| self.node_is_extra(n))
-                .then_some(state);
+            return Some(state);
         }
 
         let mut node_idx = node_idx;
@@ -280,40 +285,49 @@ impl<'a> QueryMatcher<'a> {
             return pattern_children[pattern_idx..]
                 .iter()
                 .all(|p| {
-                    matches!(
-                        p,
-                        PatternChild::Node(n)
-                            if matches!(n.quantifier, Quantifier::Optional | Quantifier::Star)
-                    )
+                    matches!(p, PatternChild::Anchor)
+                        || matches!(
+                            p,
+                            PatternChild::Node(n)
+                                if matches!(n.quantifier, Quantifier::Optional | Quantifier::Star)
+                        )
                 })
                 .then_some(state);
         }
 
         // Try to match current pattern
         match &pattern_children[pattern_idx] {
+            PatternChild::Anchor => self
+                .anchor_satisfied(pattern_children, pattern_idx, node_children, node_idx)
+                .then(|| {
+                    self.match_child_sequence_from(
+                        pattern_children,
+                        node_children,
+                        pattern_idx + 1,
+                        node_idx,
+                        state,
+                        true,
+                    )
+                })
+                .flatten(),
             PatternChild::Node(pattern_node) => match pattern_node.quantifier {
-                Quantifier::One => self
-                    .match_child_node_once(pattern_node, &node_children[node_idx], state)
-                    .and_then(|next_state| {
-                        self.match_child_sequence_from(
-                            pattern_children,
-                            node_children,
-                            pattern_idx + 1,
-                            node_idx + 1,
-                            next_state,
-                        )
-                    }),
+                Quantifier::One => self.match_single_child_candidate(
+                    pattern_node,
+                    pattern_children,
+                    node_children,
+                    (pattern_idx, node_idx),
+                    state,
+                    anchored_next,
+                ),
                 Quantifier::Optional => self
-                    .match_child_node_once(pattern_node, &node_children[node_idx], state.clone())
-                    .and_then(|next_state| {
-                        self.match_child_sequence_from(
-                            pattern_children,
-                            node_children,
-                            pattern_idx + 1,
-                            node_idx + 1,
-                            next_state,
-                        )
-                    })
+                    .match_single_child_candidate(
+                        pattern_node,
+                        pattern_children,
+                        node_children,
+                        (pattern_idx, node_idx),
+                        state.clone(),
+                        anchored_next,
+                    )
                     .or_else(|| {
                         self.match_child_sequence_from(
                             pattern_children,
@@ -321,39 +335,178 @@ impl<'a> QueryMatcher<'a> {
                             pattern_idx + 1,
                             node_idx,
                             state,
+                            anchored_next,
                         )
                     }),
-                Quantifier::Plus => self.match_repeated_child_node(
+                Quantifier::Plus => self.match_repeated_child_candidates(
                     pattern_node,
                     pattern_children,
                     node_children,
                     (pattern_idx, node_idx),
                     state,
-                    1,
+                    RepeatSearch {
+                        min_count: 1,
+                        anchored_next,
+                    },
                 ),
-                Quantifier::Star => self.match_repeated_child_node(
-                    pattern_node,
-                    pattern_children,
-                    node_children,
-                    (pattern_idx, node_idx),
-                    state,
-                    0,
-                ),
+                Quantifier::Star => self
+                    .match_repeated_child_candidates(
+                        pattern_node,
+                        pattern_children,
+                        node_children,
+                        (pattern_idx, node_idx),
+                        state.clone(),
+                        RepeatSearch {
+                            min_count: 0,
+                            anchored_next,
+                        },
+                    )
+                    .or_else(|| {
+                        self.match_child_sequence_from(
+                            pattern_children,
+                            node_children,
+                            pattern_idx + 1,
+                            node_idx,
+                            state,
+                            anchored_next,
+                        )
+                    }),
             },
-            PatternChild::Token(token) => {
-                if self.node_text(&node_children[node_idx]) == Some(token.as_str()) {
+            PatternChild::Token(token) => self.match_token_candidate(
+                token,
+                pattern_children,
+                node_children,
+                (pattern_idx, node_idx),
+                state,
+                anchored_next,
+            ),
+        }
+    }
+
+    fn anchor_satisfied(
+        &self,
+        pattern_children: &[PatternChild],
+        pattern_idx: usize,
+        node_children: &[ParseNode],
+        node_idx: usize,
+    ) -> bool {
+        if pattern_idx == 0 {
+            node_children[..node_idx]
+                .iter()
+                .all(|n| self.node_is_extra(n))
+        } else if pattern_idx + 1 == pattern_children.len() {
+            node_children[node_idx..]
+                .iter()
+                .all(|n| self.node_is_extra(n))
+        } else {
+            true
+        }
+    }
+
+    fn candidate_indices(
+        &self,
+        node_children: &[ParseNode],
+        node_idx: usize,
+        anchored_next: bool,
+    ) -> Vec<usize> {
+        if anchored_next {
+            (node_idx < node_children.len())
+                .then_some(node_idx)
+                .into_iter()
+                .collect()
+        } else {
+            (node_idx..node_children.len())
+                .filter(|idx| !self.node_is_extra(&node_children[*idx]))
+                .collect()
+        }
+    }
+
+    fn match_single_child_candidate(
+        &self,
+        pattern_node: &PatternNode,
+        pattern_children: &[PatternChild],
+        node_children: &[ParseNode],
+        position: (usize, usize),
+        state: MatchState,
+        anchored_next: bool,
+    ) -> Option<MatchState> {
+        let (pattern_idx, node_idx) = position;
+
+        self.candidate_indices(node_children, node_idx, anchored_next)
+            .into_iter()
+            .filter_map(|candidate_idx| {
+                self.match_child_node_once(
+                    pattern_node,
+                    &node_children[candidate_idx],
+                    state.clone(),
+                )
+                .and_then(|next_state| {
                     self.match_child_sequence_from(
                         pattern_children,
                         node_children,
                         pattern_idx + 1,
-                        node_idx + 1,
-                        state,
+                        candidate_idx + 1,
+                        next_state,
+                        false,
                     )
-                } else {
-                    None
-                }
-            }
-        }
+                })
+            })
+            .next()
+    }
+
+    fn match_repeated_child_candidates(
+        &self,
+        pattern_node: &PatternNode,
+        pattern_children: &[PatternChild],
+        node_children: &[ParseNode],
+        position: (usize, usize),
+        state: MatchState,
+        repeat: RepeatSearch,
+    ) -> Option<MatchState> {
+        let (_, node_idx) = position;
+
+        self.candidate_indices(node_children, node_idx, repeat.anchored_next)
+            .into_iter()
+            .find_map(|candidate_idx| {
+                self.match_repeated_child_node(
+                    pattern_node,
+                    pattern_children,
+                    node_children,
+                    (position.0, candidate_idx),
+                    state.clone(),
+                    repeat.min_count,
+                )
+            })
+    }
+
+    fn match_token_candidate(
+        &self,
+        token: &str,
+        pattern_children: &[PatternChild],
+        node_children: &[ParseNode],
+        position: (usize, usize),
+        state: MatchState,
+        anchored_next: bool,
+    ) -> Option<MatchState> {
+        let (pattern_idx, node_idx) = position;
+
+        self.candidate_indices(node_children, node_idx, anchored_next)
+            .into_iter()
+            .filter_map(|candidate_idx| {
+                (self.node_text(&node_children[candidate_idx]) == Some(token))
+                    .then(|| {
+                        self.match_child_sequence_from(
+                            pattern_children,
+                            node_children,
+                            pattern_idx + 1,
+                            candidate_idx + 1,
+                            state.clone(),
+                            false,
+                        )
+                    })
+                    .flatten()
+            })
+            .next()
     }
 
     fn match_child_node_once(
@@ -406,6 +559,7 @@ impl<'a> QueryMatcher<'a> {
                     pattern_idx + 1,
                     next_node_idx,
                     next_state,
+                    false,
                 )
             })
     }
@@ -481,6 +635,12 @@ mod tests {
         }
     }
 
+    fn make_field_node(symbol: u16, start: usize, end: usize, field_name: &str) -> ParseNode {
+        let mut node = make_node(symbol, start, end);
+        node.field_name = Some(field_name.to_string());
+        node
+    }
+
     fn make_root(children: Vec<ParseNode>, end_byte: usize) -> ParseNode {
         ParseNode {
             symbol: SymbolId(0),
@@ -500,6 +660,22 @@ mod tests {
             Token {
                 name: "identifier".to_string(),
                 pattern: TokenPattern::Regex("[a-zA-Z]+".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.tokens.insert(
+            SymbolId(2),
+            Token {
+                name: "number".to_string(),
+                pattern: TokenPattern::Regex("[0-9]+".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.tokens.insert(
+            SymbolId(3),
+            Token {
+                name: "operator".to_string(),
+                pattern: TokenPattern::String("+".to_string()),
                 fragile: false,
             },
         );
@@ -528,7 +704,44 @@ mod tests {
                 is_fragile: false,
                 symbol_id: SymbolId(1),
             },
+            SymbolMetadata {
+                name: "number".to_string(),
+                is_visible: true,
+                is_named: true,
+                is_supertype: false,
+                is_terminal: true,
+                is_extra: false,
+                is_fragile: false,
+                symbol_id: SymbolId(2),
+            },
+            SymbolMetadata {
+                name: "operator".to_string(),
+                is_visible: true,
+                is_named: true,
+                is_supertype: false,
+                is_terminal: true,
+                is_extra: false,
+                is_fragile: false,
+                symbol_id: SymbolId(3),
+            },
         ]
+    }
+
+    fn query_with_root(root: PatternNode) -> Query {
+        let mut capture_names = HashMap::new();
+        capture_names.insert("node".to_string(), 0);
+
+        Query {
+            source: String::new(),
+            patterns: vec![Pattern {
+                root,
+                predicates: Vec::new(),
+                start_byte: 0,
+            }],
+            capture_names,
+            property_settings: Vec::new(),
+            property_predicates: Vec::new(),
+        }
     }
 
     fn literal_child_query(literal: &str) -> Query {
@@ -681,6 +894,144 @@ mod tests {
 
         // Should not match anything
         assert_eq!(matches.len(), 0);
+    }
+
+    #[test]
+    fn test_field_constraint_matches_named_field_child() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_field(
+            "left".to_string(),
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        );
+        let query = query_with_root(pattern);
+        let root = make_root(
+            vec![
+                make_field_node(2, 0, 1, "right"),
+                make_field_node(1, 2, 3, "left"),
+            ],
+            3,
+        );
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "1 a", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 2);
+    }
+
+    #[test]
+    fn test_field_constraint_rejects_missing_or_wrong_field() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_field(
+            "left".to_string(),
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        );
+        let query = query_with_root(pattern);
+        let root = make_root(vec![make_field_node(1, 0, 1, "right")], 1);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "a", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_child_pattern_matches_subsequence_without_anchor() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        let query = query_with_root(pattern);
+        let root = make_root(vec![make_node(2, 0, 1), make_node(1, 2, 3)], 3);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "1 a", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 2);
+    }
+
+    #[test]
+    fn test_first_child_anchor_requires_first_matching_child() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Anchor);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        let query = query_with_root(pattern);
+        let root = make_root(vec![make_node(2, 0, 1), make_node(1, 2, 3)], 3);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "1 a", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_last_child_anchor_requires_last_matching_child() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Anchor);
+        let query = query_with_root(pattern);
+        let root = make_root(vec![make_node(2, 0, 1), make_node(1, 2, 3)], 3);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "1 a", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 2);
+    }
+
+    #[test]
+    fn test_adjacent_anchor_requires_next_sibling_match() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Anchor);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(3), true).with_capture(1),
+        ));
+        let query = query_with_root(pattern);
+        let root = make_root(
+            vec![make_node(1, 0, 1), make_node(2, 1, 2), make_node(3, 2, 3)],
+            3,
+        );
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "a1+", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_adjacent_anchor_matches_adjacent_siblings() {
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Anchor);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(3), true).with_capture(1),
+        ));
+        let query = query_with_root(pattern);
+        let root = make_root(vec![make_node(1, 0, 1), make_node(3, 1, 2)], 2);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, "a+", &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 0);
+        assert_eq!(matches[0].captures[1].node.start_byte, 1);
     }
 
     #[test]

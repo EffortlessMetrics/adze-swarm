@@ -253,7 +253,7 @@ bad-token spans, EOF, and diagnostic linkage.
 
 ### Work Item: query-compatibility-spec
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -261,7 +261,7 @@ Define the supported Tree-sitter query subset and the explicit known gaps.
 
 ### Work Item: query-field-constraints-and-anchors
 
-Status: blocked by `query-compatibility-spec`
+Status: active
 
 #### Goal
 

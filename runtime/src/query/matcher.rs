@@ -31,6 +31,12 @@ struct MatchState {
     success: bool,
 }
 
+#[derive(Clone, Copy)]
+struct RepeatSearch {
+    min_count: usize,
+    anchored_next: bool,
+}
+
 /// Query pattern matcher
 pub struct QueryMatcher<'a> {
     query: &'a Query,
@@ -264,9 +270,14 @@ impl<'a> QueryMatcher<'a> {
         node_idx: usize,
         state: &mut MatchState,
     ) -> bool {
-        if let Some(next_state) =
-            self.match_child_sequence_from(patterns, nodes, pattern_idx, node_idx, state.clone())
-        {
+        if let Some(next_state) = self.match_child_sequence_from(
+            patterns,
+            nodes,
+            pattern_idx,
+            node_idx,
+            state.clone(),
+            false,
+        ) {
             *state = next_state;
             true
         } else {
@@ -281,10 +292,11 @@ impl<'a> QueryMatcher<'a> {
         pattern_idx: usize,
         node_idx: usize,
         state: MatchState,
+        anchored_next: bool,
     ) -> Option<MatchState> {
         // Base case: all patterns matched
         if pattern_idx >= patterns.len() {
-            return (node_idx >= nodes.len()).then_some(state);
+            return Some(state);
         }
 
         // Base case: no more nodes but patterns remain
@@ -292,40 +304,49 @@ impl<'a> QueryMatcher<'a> {
             return patterns[pattern_idx..]
                 .iter()
                 .all(|pattern| {
-                    matches!(
-                        pattern,
-                        PatternChild::Node(node)
-                            if matches!(node.quantifier, Quantifier::Optional | Quantifier::Star)
-                    )
+                    matches!(pattern, PatternChild::Anchor)
+                        || matches!(
+                            pattern,
+                            PatternChild::Node(node)
+                                if matches!(node.quantifier, Quantifier::Optional | Quantifier::Star)
+                        )
                 })
                 .then_some(state);
         }
 
         match &patterns[pattern_idx] {
+            PatternChild::Anchor => self
+                .anchor_satisfied(patterns, pattern_idx, nodes, node_idx)
+                .then(|| {
+                    self.match_child_sequence_from(
+                        patterns,
+                        nodes,
+                        pattern_idx + 1,
+                        node_idx,
+                        state,
+                        true,
+                    )
+                })
+                .flatten(),
             PatternChild::Token(_) => None,
             PatternChild::Node(pattern_node) => match pattern_node.quantifier {
-                Quantifier::One => self
-                    .match_child_node_once(pattern_node, &nodes[node_idx], state)
-                    .and_then(|next_state| {
-                        self.match_child_sequence_from(
-                            patterns,
-                            nodes,
-                            pattern_idx + 1,
-                            node_idx + 1,
-                            next_state,
-                        )
-                    }),
+                Quantifier::One => self.match_single_child_candidate(
+                    pattern_node,
+                    patterns,
+                    nodes,
+                    (pattern_idx, node_idx),
+                    state,
+                    anchored_next,
+                ),
                 Quantifier::Optional => self
-                    .match_child_node_once(pattern_node, &nodes[node_idx], state.clone())
-                    .and_then(|next_state| {
-                        self.match_child_sequence_from(
-                            patterns,
-                            nodes,
-                            pattern_idx + 1,
-                            node_idx + 1,
-                            next_state,
-                        )
-                    })
+                    .match_single_child_candidate(
+                        pattern_node,
+                        patterns,
+                        nodes,
+                        (pattern_idx, node_idx),
+                        state.clone(),
+                        anchored_next,
+                    )
                     .or_else(|| {
                         self.match_child_sequence_from(
                             patterns,
@@ -333,26 +354,121 @@ impl<'a> QueryMatcher<'a> {
                             pattern_idx + 1,
                             node_idx,
                             state,
+                            anchored_next,
                         )
                     }),
-                Quantifier::Plus => self.match_repeated_child_node(
+                Quantifier::Plus => self.match_repeated_child_candidates(
                     pattern_node,
                     patterns,
                     nodes,
                     (pattern_idx, node_idx),
                     state,
-                    1,
+                    RepeatSearch {
+                        min_count: 1,
+                        anchored_next,
+                    },
                 ),
-                Quantifier::Star => self.match_repeated_child_node(
-                    pattern_node,
-                    patterns,
-                    nodes,
-                    (pattern_idx, node_idx),
-                    state,
-                    0,
-                ),
+                Quantifier::Star => self
+                    .match_repeated_child_candidates(
+                        pattern_node,
+                        patterns,
+                        nodes,
+                        (pattern_idx, node_idx),
+                        state.clone(),
+                        RepeatSearch {
+                            min_count: 0,
+                            anchored_next,
+                        },
+                    )
+                    .or_else(|| {
+                        self.match_child_sequence_from(
+                            patterns,
+                            nodes,
+                            pattern_idx + 1,
+                            node_idx,
+                            state,
+                            anchored_next,
+                        )
+                    }),
             },
         }
+    }
+
+    fn anchor_satisfied(
+        &self,
+        patterns: &[PatternChild],
+        pattern_idx: usize,
+        nodes: &[ParseNode],
+        node_idx: usize,
+    ) -> bool {
+        if pattern_idx == 0 {
+            node_idx == 0
+        } else if pattern_idx + 1 == patterns.len() {
+            node_idx >= nodes.len()
+        } else {
+            true
+        }
+    }
+
+    fn match_single_child_candidate(
+        &self,
+        pattern_node: &PatternNode,
+        patterns: &[PatternChild],
+        nodes: &[ParseNode],
+        position: (usize, usize),
+        state: MatchState,
+        anchored_next: bool,
+    ) -> Option<MatchState> {
+        let (pattern_idx, node_idx) = position;
+        let candidates: Box<dyn Iterator<Item = usize>> = if anchored_next {
+            Box::new((node_idx < nodes.len()).then_some(node_idx).into_iter())
+        } else {
+            Box::new(node_idx..nodes.len())
+        };
+
+        candidates
+            .filter_map(|candidate_idx| {
+                self.match_child_node_once(pattern_node, &nodes[candidate_idx], state.clone())
+                    .and_then(|next_state| {
+                        self.match_child_sequence_from(
+                            patterns,
+                            nodes,
+                            pattern_idx + 1,
+                            candidate_idx + 1,
+                            next_state,
+                            false,
+                        )
+                    })
+            })
+            .next()
+    }
+
+    fn match_repeated_child_candidates(
+        &self,
+        pattern_node: &PatternNode,
+        patterns: &[PatternChild],
+        nodes: &[ParseNode],
+        position: (usize, usize),
+        state: MatchState,
+        repeat: RepeatSearch,
+    ) -> Option<MatchState> {
+        let (_, node_idx) = position;
+        let mut candidates: Box<dyn Iterator<Item = usize>> = if repeat.anchored_next {
+            Box::new((node_idx < nodes.len()).then_some(node_idx).into_iter())
+        } else {
+            Box::new(node_idx..nodes.len())
+        };
+
+        candidates.find_map(|candidate_idx| {
+            self.match_repeated_child_node(
+                pattern_node,
+                patterns,
+                nodes,
+                (position.0, candidate_idx),
+                state.clone(),
+                repeat.min_count,
+            )
+        })
     }
 
     fn match_child_node_once(
@@ -403,6 +519,7 @@ impl<'a> QueryMatcher<'a> {
                     pattern_idx + 1,
                     next_node_idx,
                     next_state,
+                    false,
                 )
             })
     }
