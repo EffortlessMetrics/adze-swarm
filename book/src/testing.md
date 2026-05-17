@@ -1,12 +1,21 @@
 # Testing
 
-This page gives a practical overview of running and writing tests in the Adze workspace. For the full testing strategy see the [Development Testing Guide](development/testing.md).
+This page gives a practical overview of running and writing tests in the Adze
+workspace. For support-tiered product proof, see
+`docs/status/SUPPORT_TIERS.md`. For the full testing strategy see the
+[Development Testing Guide](development/testing.md).
 
 ## Running the test suite
 
 ```bash
-# All workspace tests (recommended: use capped concurrency)
-cargo test
+# Required local supported gate for the core parser pipeline
+just ci-supported
+
+# Core library tests for fast iteration
+just test
+
+# All workspace tests when you explicitly need broad local coverage
+cargo test --workspace
 
 # Concurrency-capped variants (more stable on CI or constrained machines)
 cargo t2                  # 2 test threads
@@ -24,22 +33,27 @@ cargo test -p adze-ir          # grammar IR
 cargo test -p adze-glr-core    # GLR analysis (use --features test-api for internal helpers)
 cargo test -p adze-tablegen    # table compression
 cargo test -p adze-tool        # build tool
-cargo test -p adze-runtime2    # GLR runtime
 ```
 
 ### Feature combinations
 
-Some crates behave differently depending on feature flags:
+Some product canaries exercise feature-specific runtime paths. Prefer explicit
+feature sets over broad feature aliases so the command describes the surface
+being proven:
 
 ```bash
 cargo test -p adze --features glr
+cargo test -p adze --features "pure-rust,glr"
 cargo test -p adze --features incremental_glr
-cargo test -p adze --features all-features
 ```
+
+When a feature-specific result becomes a public claim, it should have a row in
+`docs/status/SUPPORT_TIERS.md` with the exact proof command and known limits.
 
 ## Golden tests
 
-Golden tests verify Adze parsers produce byte-for-byte identical parse trees to the official Tree-sitter parsers.
+Golden tests are advisory Tree-sitter parity receipts. They are useful for
+language and projection work, but they are not the default merge gate.
 
 ```bash
 cd golden-tests
@@ -47,12 +61,8 @@ cd golden-tests
 # Generate reference S-expressions and SHA256 hashes (one-time)
 ./generate_references.sh
 
-# Run all golden tests
-cargo test --features all-grammars
-
-# Run for a single language
-cargo test --features python-grammar
-cargo test --features javascript-grammar
+# Run a focused package-level canary
+cargo test -p adze-golden-tests javascript_canary_expression_golden --features javascript-grammar -- --nocapture
 
 # Update references after intentional parser changes
 UPDATE_GOLDEN=1 cargo test --features python-grammar
@@ -62,11 +72,12 @@ See [Golden Tests Maintenance](guide/golden-tests-maintenance.md) for the full w
 
 ## Snapshot tests (insta)
 
-Example grammars use [insta](https://insta.rs) for snapshot testing:
+Example and generated-output tests may use [insta](https://insta.rs) for
+snapshot testing:
 
 ```bash
-cargo test -p example --features c-backend   # or --features pure-rust
-cargo insta review                            # interactive diff review
+cargo test -p adze --features "pure-rust,serialization" --test adze_document_json -- --nocapture
+cargo insta review  # interactive diff review
 ```
 
 When grammar output changes intentionally, review and accept the new snapshots.
@@ -112,30 +123,38 @@ mod tests {
 }
 ```
 
-## BDD framework
+## Governance BDD Matrix
 
-Adze includes a BDD (Behavior-Driven Development) framework in the `crates/bdd-*` family for tracking feature scenarios and governance:
+The post-collapse BDD/governance support crate is
+`adze-bdd-governance-core`. It owns governance matrix primitives and parser
+feature policy receipts; it is not a separate product runtime.
 
 ```rust
-use adze_bdd_contract::{BddScenario, BddScenarioStatus, BddPhase};
-
-// Scenarios are defined declaratively
-let scenario = BddScenario {
-    name: "GLR conflict preservation",
-    phase: BddPhase::Given,
-    status: BddScenarioStatus::Passing,
-    // ...
+use adze_bdd_governance_core::{
+    bdd_progress,
+    BddPhase,
+    GLR_CONFLICT_PRESERVATION_GRID,
 };
+
+let (implemented, total) =
+    bdd_progress(BddPhase::Core, GLR_CONFLICT_PRESERVATION_GRID);
+assert!(implemented <= total);
 ```
 
-The governance crates (`crates/governance-*`) use BDD grids to track which features pass across different runtime configurations.
-
-Run BDD-related tests:
+Run the focused governance proof when touching the BDD matrix or feature policy
+surface:
 
 ```bash
 cargo test -p adze-bdd-governance-core
-cargo test -p adze-bdd-governance-core grid::
+cargo test -p adze-bdd-governance-core --lib grid::tests::progress_summary_reports_counts -- --exact --nocapture
 cargo test -p glr-test-support grammar_
+```
+
+The package boundary ledger documents the current durable support crates. If a
+test change adds, removes, or reclassifies a package, also run:
+
+```bash
+cargo run -q -p xtask -- check-package-boundary
 ```
 
 ## Test connectivity safeguards
