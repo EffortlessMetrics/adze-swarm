@@ -5,20 +5,15 @@
 //! trees, arena-based tree construction, and edge cases.
 
 use adze::arena_allocator::{NodeHandle, TreeArena, TreeNode};
-use adze::pure_parser::{ParsedNode, Point};
+use adze::pure_parser::ParsedNode;
 use adze::visitor::{
     BreadthFirstWalker, PrettyPrintVisitor, SearchVisitor, StatsVisitor, TransformVisitor,
     TransformWalker, TreeWalker, Visitor, VisitorAction,
 };
-use std::mem::MaybeUninit;
 
 // ---------------------------------------------------------------------------
 // Helpers — ParsedNode construction
 // ---------------------------------------------------------------------------
-
-fn pt(row: u32, col: u32) -> Point {
-    Point { row, column: col }
-}
 
 fn make_node(
     symbol: u16,
@@ -28,25 +23,10 @@ fn make_node(
     is_error: bool,
     is_named: bool,
 ) -> ParsedNode {
-    let mut uninit = MaybeUninit::<ParsedNode>::uninit();
-    let ptr = uninit.as_mut_ptr();
-    // SAFETY: We write every public field and zero the rest (including
-    // `pub(crate) language`).
-    unsafe {
-        std::ptr::write_bytes(ptr, 0, 1);
-        std::ptr::addr_of_mut!((*ptr).symbol).write(symbol);
-        std::ptr::addr_of_mut!((*ptr).children).write(children);
-        std::ptr::addr_of_mut!((*ptr).start_byte).write(start);
-        std::ptr::addr_of_mut!((*ptr).end_byte).write(end);
-        std::ptr::addr_of_mut!((*ptr).start_point).write(pt(0, start as u32));
-        std::ptr::addr_of_mut!((*ptr).end_point).write(pt(0, end as u32));
-        std::ptr::addr_of_mut!((*ptr).is_extra).write(false);
-        std::ptr::addr_of_mut!((*ptr).is_error).write(is_error);
-        std::ptr::addr_of_mut!((*ptr).is_missing).write(false);
-        std::ptr::addr_of_mut!((*ptr).is_named).write(is_named);
-        std::ptr::addr_of_mut!((*ptr).field_id).write(None);
-        uninit.assume_init()
-    }
+    ParsedNode::builder(symbol, children, start, end)
+        .is_error(is_error)
+        .is_named(is_named)
+        .build()
 }
 
 fn leaf(symbol: u16, start: usize, end: usize) -> ParsedNode {
