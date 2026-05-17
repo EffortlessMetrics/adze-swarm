@@ -352,30 +352,25 @@ commands = [
 
 [[work_item]]
 id = "benchmark-fixtures"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0014"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [152]
 commands = [
+  "cargo test -p adze-benchmarks --test verify_fixture_parsing verify_benchmark_fixture_families_are_documented -- --exact --nocapture",
   "cargo bench -p adze-benchmarks --no-run",
   "git diff --check",
 ]
 
 [[work_item]]
 id = "support-tier-promotion-pass"
-status = "blocked"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
-blocked_by = [
-  "generated-conflict-matrix",
-  "ts-compat-selected-tree-parity",
-  "query-differential-corpus",
-  "recovery-matrix",
-  "benchmark-fixtures",
-]
 commands = [
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
