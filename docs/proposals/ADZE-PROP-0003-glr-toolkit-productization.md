@@ -1,13 +1,13 @@
 # ADZE-PROP-0003: GLR Toolkit Productization
 
-Status: proposed
+Status: implemented
 Owner: runtime/product
 Created: 2026-05-17
 Target milestone: post-0.9 / 1.0 foundation
 Linked specs:
-- planned: ADZE-SPEC-0012-glr-toolkit-product-contract
+- docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 - docs/specs/ADZE-SPEC-0013-query-compatibility.md
-- planned: ADZE-SPEC-0014-performance-and-regression
+- docs/specs/ADZE-SPEC-0014-performance-and-regression.md
 Linked ADRs:
 - ADZE-ADR-0001-adze-document-one-parse-truth
 - ADZE-ADR-0003-summary-first-glr-ambiguity
@@ -17,13 +17,13 @@ Linked plan:
 Linked issues:
 - none yet
 Linked PRs:
-- EffortlessMetrics/adze-swarm#124
+- EffortlessMetrics/adze-swarm#124-#155
 Support-tier impact:
 - Defines the promotion path for GLR, Tree-sitter compatibility, query, diagnostics, recovery, performance, and first-use claims.
 - Does not promote any surface by itself.
 Policy impact:
-- Adds a post-0.9 productization campaign and proof map expectations.
-- Future PRs may add fixture, coverage, benchmark, and lane-policy receipts.
+- Added a post-0.9 productization campaign and proof map expectations.
+- Recorded fixture, benchmark, recovery, compatibility, and support-tier proof receipts.
 
 ## Problem
 
@@ -164,12 +164,14 @@ implementation PR.
 
 ## Implementation Campaign Shape
 
-The active queue lives in `../../.adze/goals/active.toml`; the durable plan lives
-in `../../plans/glr-toolkit/productization-plan.md`.
+The completed queue lives in `../../.adze/goals/active.toml`; the durable plan
+lives in `../../plans/glr-toolkit/productization-plan.md`.
 
 The first work item already landed in `EffortlessMetrics/adze-swarm#124`: public
 `adze` drift for Rust guard checks was synced back into `adze-swarm`. All future
 work in this campaign targets `EffortlessMetrics/adze-swarm`.
+
+The campaign completed through `EffortlessMetrics/adze-swarm#155`.
 
 ## Evidence Plan
 
@@ -207,8 +209,8 @@ work in this campaign targets `EffortlessMetrics/adze-swarm`.
   docs examples need proof commands.
 - Support-tier docs can become stale if proof commands move. Promote claims only
   in the same PR family that creates or updates receipts.
-- Public `adze` can drift again if agents ignore the swarm target. The active
-  goal and memory note both point new work at `EffortlessMetrics/adze-swarm`.
+- Public `adze` can drift again if agents ignore the swarm target. The plan and
+  goal manifests point new work at `EffortlessMetrics/adze-swarm`.
 
 ## Non-Goals
 
@@ -218,6 +220,17 @@ work in this campaign targets `EffortlessMetrics/adze-swarm`.
 - No default benchmark or coverage-heavy gate for ordinary PRs.
 - No promotion of advisory/experimental surfaces without support-tier proof.
 - No new swarm PRs against public `EffortlessMetrics/adze`.
+
+## Closeout
+
+Implemented: 2026-05-17
+
+The campaign delivered the product contract, first-use path, GLR/document/query
+fixture proof, Tree-sitter selected-tree and node-types receipts, recovery and
+diagnostic matrices, incremental fallback metadata, benchmark proof receipts,
+and support-tier proof mapping without claiming full Tree-sitter parity, stable
+full-forest export, stable incremental reuse, or blocking performance
+thresholds.
 
 ## Exit Criteria
 
@@ -229,5 +242,5 @@ This proposal is complete when:
 - GLR conflict, tablegen ABI, Tree-sitter selected-tree, query subset,
   diagnostics/recovery, and performance proof are represented by commands;
 - support tiers are updated only for proven slices; and
-- future agents can pick the next PR-sized item from
-  `../../.adze/goals/active.toml` without chat context.
+- future agents can reconstruct what shipped and choose the next campaign from
+  the closeout without chat context.
