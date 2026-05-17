@@ -77,6 +77,24 @@ proof = "cargo test -p adze --lib query -- --nocapture"
 known_gaps = ["differential Tree-sitter corpus pending"]
 
 [[fixture]]
+id = "query-supported-subset-differential"
+family = "query"
+class = "named node patterns"
+grammar = "runtime/tests/query_differential.rs synthetic query fixture grammar"
+input = "1 foo; a+1; foo 1"
+selected_tree = "synthetic selected tree with root, identifier, number, and operator nodes"
+ambiguity = "none"
+diagnostics = "none"
+ts_compat = "Tree-sitter-shaped expected query captures over selected tree"
+query = "named nodes, field constraints, anchors, and source-aware predicates"
+support_tier = "query compatibility subset"
+proof = "cargo test -p adze --features \"pure-rust,ts-compat\" --test query_differential -- --nocapture"
+known_gaps = [
+  "uses Tree-sitter-shaped expected facts rather than an imported Tree-sitter runtime oracle",
+  "alternation and directives remain future work",
+]
+
+[[fixture]]
 id = "recovery-unexpected-eof"
 family = "recovery"
 class = "unexpected EOF"

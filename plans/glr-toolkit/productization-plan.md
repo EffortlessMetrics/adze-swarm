@@ -269,7 +269,7 @@ Implement field constraints and anchor behavior for the documented subset.
 
 ### Work Item: query-predicate-parity
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -278,7 +278,7 @@ source-free matching.
 
 ### Work Item: query-differential-corpus
 
-Status: blocked by `fixture-taxonomy`, `query-compatibility-spec`
+Status: active
 
 #### Goal
 
