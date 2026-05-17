@@ -362,7 +362,7 @@ tablegen, and ABI decode paths.
 
 ### Work Item: benchmark-fixtures
 
-Status: active
+Status: complete
 
 #### Goal
 
@@ -373,7 +373,7 @@ default PR gates.
 
 ### Work Item: support-tier-promotion-pass
 
-Status: blocked by proof matrices
+Status: active
 
 #### Goal
 

@@ -80,6 +80,18 @@ Compile-only benchmark health:
 cargo bench -p adze-benchmarks --no-run
 ```
 
+Document projection benchmark compile health:
+
+```bash
+cargo bench -p adze-benchmarks --bench document_projection --no-run
+```
+
+Fixture-family inventory guard:
+
+```bash
+cargo test -p adze-benchmarks --test verify_fixture_parsing verify_benchmark_fixture_families_are_documented -- --exact --nocapture
+```
+
 Source-of-truth guard:
 
 ```bash
