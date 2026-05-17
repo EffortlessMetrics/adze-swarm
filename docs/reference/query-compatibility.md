@@ -136,7 +136,7 @@ cargo test -p adze --lib query::matcher_v2 -- --nocapture
 Future promotion requires a supported-subset differential corpus:
 
 ```bash
-cargo test -p adze --features "pure-rust,ts-compat" query_differential -- --nocapture
+cargo test -p adze --features "pure-rust,ts-compat" --test query_differential -- --nocapture
 ```
 
 See [`ADZE-SPEC-0013`](../specs/ADZE-SPEC-0013-query-compatibility.md) for the

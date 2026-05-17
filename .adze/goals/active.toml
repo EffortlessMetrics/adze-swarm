@@ -236,11 +236,12 @@ commands = [
 
 [[work_item]]
 id = "query-predicate-parity"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0013"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [143]
 commands = [
   "cargo test -p adze --lib query -- --nocapture",
   "git diff --check",
@@ -248,14 +249,13 @@ commands = [
 
 [[work_item]]
 id = "query-differential-corpus"
-status = "blocked"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0013"
 adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
-blocked_by = ["fixture-taxonomy", "query-compatibility-spec"]
 commands = [
-  "cargo test -p adze --features \"pure-rust,ts-compat\" query_differential -- --nocapture",
+  "cargo test -p adze --features \"pure-rust,ts-compat\" --test query_differential -- --nocapture",
   "git diff --check",
 ]
 

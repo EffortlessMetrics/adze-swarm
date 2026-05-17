@@ -226,5 +226,5 @@ The query surface remains advisory until the supported subset has:
 The planned differential proof command is:
 
 ```bash
-cargo test -p adze --features "pure-rust,ts-compat" query_differential -- --nocapture
+cargo test -p adze --features "pure-rust,ts-compat" --test query_differential -- --nocapture
 ```
