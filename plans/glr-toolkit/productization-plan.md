@@ -172,7 +172,7 @@ Rust type annotations
 
 ### Work Item: fixture-taxonomy
 
-Status: ready
+Status: complete
 
 #### Goal
 
@@ -182,7 +182,7 @@ diagnostics, Tree-sitter-compatible projection, and support-tier relevance.
 
 ### Work Item: projection-equivalence-harness
 
-Status: blocked by `glr-toolkit-product-contract`, `fixture-taxonomy`
+Status: active
 
 #### Goal
 
