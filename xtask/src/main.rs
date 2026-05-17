@@ -12,6 +12,7 @@ mod debug_blocks;
 mod doctor;
 mod fixtures;
 mod golden;
+mod goto_indexing;
 mod grammar_json;
 mod lint;
 mod no_mangle;
@@ -233,6 +234,11 @@ enum Commands {
     },
     /// Check Rust source for bare #[no_mangle] attributes.
     CheckNoMangle {
+        /// Files to check (defaults to Git-tracked .rs files).
+        files: Vec<String>,
+    },
+    /// Check GOTO indexing remapping invariants.
+    CheckGotoIndexing {
         /// Files to check (defaults to Git-tracked .rs files).
         files: Vec<String>,
     },
@@ -532,6 +538,9 @@ fn main() -> Result<()> {
         }
         Commands::CheckNoMangle { files } => {
             no_mangle::run(files.into_iter().map(Into::into).collect())?;
+        }
+        Commands::CheckGotoIndexing { files } => {
+            goto_indexing::run(files.into_iter().map(Into::into).collect())?;
         }
         Commands::ValidateFixtures { dir } => {
             fixtures::validate_only(&sh, &dir)?;
