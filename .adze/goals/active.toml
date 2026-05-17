@@ -182,11 +182,12 @@ commands = [
 
 [[work_item]]
 id = "node-types-parity"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
+prs = [140]
 commands = [
   "cargo test -p adze-tablegen node_types -- --nocapture",
   "cargo test -p adze --features \"pure-rust,ts-compat\" --test ts_compat_node_types -- --nocapture",
@@ -208,7 +209,7 @@ commands = [
 
 [[work_item]]
 id = "query-compatibility-spec"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md"
 spec = "ADZE-SPEC-0013"
 adr = ""

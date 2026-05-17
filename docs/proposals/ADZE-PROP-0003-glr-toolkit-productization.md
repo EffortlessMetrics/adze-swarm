@@ -6,7 +6,7 @@ Created: 2026-05-17
 Target milestone: post-0.9 / 1.0 foundation
 Linked specs:
 - planned: ADZE-SPEC-0012-glr-toolkit-product-contract
-- planned: ADZE-SPEC-0013-query-compatibility
+- docs/specs/ADZE-SPEC-0013-query-compatibility.md
 - planned: ADZE-SPEC-0014-performance-and-regression
 Linked ADRs:
 - ADZE-ADR-0001-adze-document-one-parse-truth

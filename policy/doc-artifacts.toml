@@ -53,6 +53,7 @@ milestone = "post-0.9"
 source_of_truth_for = ["GLR toolkit productization rationale", "post-0.9 product proof campaign"]
 links_to = [
   "ADZE-SPEC-0012",
+  "ADZE-SPEC-0013",
   "ADZE-ADR-0001",
   "ADZE-ADR-0003",
   "ADZE-ADR-0004",
@@ -181,6 +182,16 @@ owner = "runtime/product"
 milestone = "post-0.9"
 source_of_truth_for = ["GLR toolkit product contract", "Adze first-use and product proof behavior"]
 links_to = ["ADZE-PROP-0003", "ADZE-ADR-0001", "ADZE-ADR-0003", "ADZE-ADR-0004", "plans/glr-toolkit/productization-plan.md", "docs/status/SUPPORT_TIERS.md"]
+
+[[artifact]]
+id = "ADZE-SPEC-0013"
+kind = "spec"
+path = "docs/specs/ADZE-SPEC-0013-query-compatibility.md"
+status = "accepted"
+owner = "runtime/query"
+milestone = "post-0.9"
+source_of_truth_for = ["Tree-sitter query compatibility subset", "query support-tier promotion behavior"]
+links_to = ["ADZE-PROP-0003", "plans/glr-toolkit/productization-plan.md", "docs/reference/query-compatibility.md", "docs/status/SUPPORT_TIERS.md"]
 
 [[artifact]]
 id = "ADZE-ADR-0001"
