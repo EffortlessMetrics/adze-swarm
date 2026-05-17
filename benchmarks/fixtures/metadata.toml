@@ -3,6 +3,30 @@
 # This file documents the source, license, and characteristics of all fixtures
 # used in performance benchmarking.
 
+[arithmetic.small]
+name = "small.expr"
+description = "Small valid arithmetic expression for parser and projection benchmarks"
+generator = "checked-in"
+license = "MIT (generated code)"
+validated_with = "adze_example::arithmetic::grammar::parse"
+surfaces = ["parse only", "parse_document", "typed AST projection", "JSON projection"]
+
+[arithmetic.medium]
+name = "medium.expr"
+description = "Medium valid arithmetic expression for parser and projection benchmarks"
+generator = "checked-in"
+license = "MIT (generated code)"
+validated_with = "adze_example::arithmetic::grammar::parse"
+surfaces = ["parse only", "parse_document", "typed AST projection", "JSON projection"]
+
+[arithmetic.large]
+name = "large.expr"
+description = "Large valid arithmetic expression for parser and projection benchmarks"
+generator = "checked-in"
+license = "MIT (generated code)"
+validated_with = "adze_example::arithmetic::grammar::parse"
+surfaces = ["parse only", "parse_document", "typed AST projection", "JSON projection"]
+
 [python.small]
 name = "small.py"
 target_loc = 100

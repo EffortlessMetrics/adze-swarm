@@ -20,12 +20,12 @@ measurement by default.
 | Surface | Status | Current evidence | Default PR behavior |
 | --- | --- | --- | --- |
 | parse only | advisory | benchmark inventory and compile-only receipts | compile-only when routed |
-| `parse_document` | future | needs fixture-backed benchmark | not run |
-| typed AST projection | future | needs projection fixture benchmark | not run |
+| `parse_document` | advisory | `document_projection` compile-only benchmark fixture | compile-only when routed |
+| typed AST projection | advisory | `document_projection` compile-only benchmark fixture | compile-only when routed |
 | typed CST projection | future | needs projection fixture benchmark | not run |
 | Tree-sitter projection | future | needs selected-tree projection benchmark | not run |
 | query matching | future | needs supported-subset query fixtures | not run |
-| JSON projection | future | needs schema fixture benchmark | not run |
+| JSON projection | advisory | `document_projection` compile-only benchmark fixture | compile-only when routed |
 | GLR ambiguity summary | future | needs ambiguity fixture benchmark | not run |
 | diagnostics rendering | future | needs recovery fixture benchmark | not run |
 | tablegen codegen | advisory | compile/test receipts only | not run |
