@@ -1,507 +1,98 @@
 # API Reference
 
-Complete API reference for adze library components.
+Adze's stable user API is generated from your Rust grammar types. The normal
+path is:
 
-For the most comprehensive API documentation, see [API_DOCUMENTATION.md](../../API_DOCUMENTATION.md) in the repository root.
-
-## Core Modules
-
-### `adze`
-
-Main runtime library providing parsing functionality.
-
-```rust
-use adze::*;
+```text
+Rust grammar types -> generated parser -> typed Rust AST
 ```
 
-**Key Components:**
-- `Extract` trait for AST conversion
-- `Parser` API for GLR parsing  
-- Tree and node manipulation
-- Error recovery and incremental parsing
+For the authoritative support status, use `docs/status/SUPPORT_TIERS.md` in the
+repository.
 
-### `adze_tool`
+## Generated `parse()`
 
-Build-time code generation and grammar processing.
+Most users should call the generated parser function:
 
 ```rust
-use adze_tool::build_parsers;
-
-// In build.rs
-fn main() {
-    build_parsers(&PathBuf::from("src/grammar.rs"));
-}
+let ast = grammar::parse("1 + 2 * 3")?;
 ```
 
-### `adze_macro`
+This is the stable front door. It returns the typed Rust value described by
+your grammar structs and enums.
 
-Procedural macros for grammar definition.
+## Generated `parse_document()`
+
+Use `parse_document()` when building tooling:
 
 ```rust
-#[adze::grammar("mylang")]
-mod grammar {
-    #[adze::language]
-    pub struct Program { /* ... */ }
-}
+let document = grammar::parse_document("1 +")?;
+let diagnostics = document.diagnostics();
+let tree = document.tree();
 ```
 
-**Available Macros:**
-- `#[adze::grammar]` - Grammar module definition
-- `#[adze::language]` - Root language type
-- `#[adze::leaf]` - Terminal symbol
-- `#[adze::repeat]` - Repeated elements
-- `#[adze::extra]` - Extra/whitespace tokens
-
-## Runtime APIs
-
-### GLR Parser (Production Ready - PR #62)
-
-Production-ready GLR parser with incremental parsing capabilities.
-
-```rust
-use adze::parser_v4::{Parser, Tree};
-use adze::pure_incremental::Edit;
-use adze::glr_incremental::{get_reuse_count, reset_reuse_counter};
-
-// Create parser with grammar and parse table
-let mut parser = Parser::new(grammar, parse_table, "my_language".to_string());
-
-// Parse input
-let tree = parser.parse("let x = 42;")?;
-
-// Incremental reparse with Direct Forest Splicing (PR #62)
-let edit = Edit {
-    start_byte: 8,
-    old_end_byte: 10,
-    new_end_byte: 10,
-    start_point: Point { row: 0, column: 8 },
-    old_end_point: Point { row: 0, column: 10 },
-    new_end_point: Point { row: 0, column: 10 },
-};
-
-reset_reuse_counter();
-let incremental_tree = parser.reparse("let x = 43;", &tree, &edit)?;
-let reused = get_reuse_count(); // 999/1000 typical reuse
-```
-
-### Tree-sitter Compatibility Layer
-
-```rust
-use adze::tree_sitter::{Parser, Language, Tree, Node};
-
-let mut parser = Parser::new();
-parser.set_language(&language)?;
-
-let tree = parser.parse(input, None)?;
-let root = tree.root_node();
-```
-
-## Serialization APIs
-
-### TreeSerializer
-
-Main serialization interface with multiple output formats.
-
-```rust
-use adze::serialization::TreeSerializer;
-
-let serializer = TreeSerializer::new(source)
-    .with_unnamed_nodes()
-    .with_max_text_length(Some(100));
-
-// JSON serialization  
-let json = serializer.serialize_tree(&tree)?;
-
-// Node-level serialization
-let node_json = serializer.serialize_node(node);
-```
-
-### Output Formats
-
-**Standard JSON:**
-```rust
-let json = TreeSerializer::new(source).serialize_tree(&tree)?;
-```
-
-**Compact JSON:**  
-```rust
-let compact = CompactSerializer::new(source).serialize_tree(&tree)?;
-```
-
-**S-Expressions:**
-```rust
-let sexp = SExpressionSerializer::new(source)
-    .with_positions()
-    .serialize_tree(&tree);
-```
-
-**Binary Format:**
-```rust
-let mut serializer = BinarySerializer::new();
-let binary = serializer.serialize_tree(&tree);
-```
-
-## Dynamic Loading APIs
-
-### libloading Integration
-
-Safe dynamic library loading with FFI safety.
-
-```rust
-use libloading::Library;
-use adze::tree_sitter::{Language, Parser};
-
-// Load grammar library
-let lib = Library::new("path/to/grammar.so")?;
-
-// Get language function
-let get_language: libloading::Symbol<unsafe extern "C" fn() -> Language> = 
-    unsafe { lib.get(b"tree_sitter_json\0")? };
-
-// Create parser
-let language = unsafe { get_language() };
-let mut parser = Parser::new();
-parser.set_language(&language)?;
-```
-
-### CLI Integration
-
-The CLI provides a safe wrapper around dynamic loading:
-
-```rust
-// Internal CLI function - reference implementation
-fn parse_file_dynamic(
-    grammar: &Path,
-    input: &Path, 
-    format: OutputFormat,
-    symbol: &str,
-) -> Result<()> {
-    // Input validation
-    validate_library_path(grammar)?;
-    validate_input_file(input)?;
-    validate_symbol_name(symbol)?;
-    
-    // Safe library loading
-    let lib = Library::new(grammar)?;
-    let get_language = unsafe { 
-        lib.get::<unsafe extern "C" fn() -> Language>(symbol.as_bytes())?
-    };
-    
-    // Parse with safety checks
-    let language = unsafe { get_language() };
-    validate_language(&language)?;
-    
-    let mut parser = Parser::new();
-    parser.set_language(&language)?;
-    
-    let tree = parser.parse(input_content, None)?;
-    format_output(&tree, format)?;
-    
-    Ok(())
-}
-```
-
-## Grammar Definition APIs
-
-### Basic Types
-
-```rust
-#[adze::language]
-pub struct Program {
-    #[adze::repeat] 
-    pub statements: Vec<Statement>,
-}
-
-#[adze::language]
-pub enum Statement {
-    Expression(Expression),
-    Declaration(Declaration),
-}
-
-#[adze::language]
-pub struct Identifier {
-    #[adze::leaf(pattern = r"[a-zA-Z_]\w*")]
-    pub name: String,
-}
-```
-
-### Advanced Features
-
-**Precedence:**
-```rust
-#[adze::prec_left(1)]
-Add(Box<Expr>, #[adze::leaf(text = "+")] (), Box<Expr>),
-
-#[adze::prec_left(2)]  
-Multiply(Box<Expr>, #[adze::leaf(text = "*")] (), Box<Expr>),
-```
-
-**Optional Fields:**
-```rust
-pub struct Function {
-    pub name: Identifier,
-    pub params: Option<ParamList>,  // Automatically optional
-    pub body: Block,
-}
-```
-
-**Delimited Lists:**
-```rust
-pub struct ArgList {
-    #[adze::repeat(separator = ",")]
-    pub args: Vec<Expression>,
-}
-```
-
-**External Scanners:**
-```rust
-#[adze::external_scanner]
-pub struct IndentationScanner {
-    // External scanner implementation
-}
-
-#[adze::external_token]  
-pub struct Indent {
-    #[adze::scanner_ref(IndentationScanner)]
-    scanner: (),
-}
-```
-
-## Error Handling APIs
-
-### Parse Errors
-
-```rust
-use adze::{ParseError, ParseResult};
-
-match parser.parse_utf8(input, None) {
-    Ok(tree) => {
-        // Successful parse
-        process_tree(tree)?;
-    },
-    Err(ParseError::SyntaxError { position, expected, .. }) => {
-        eprintln!("Syntax error at {}: expected {}", position, expected);
-        
-        // GLR parsers may provide partial trees
-        if let Some(partial) = error.partial_tree() {
-            recover_from_partial(partial)?;
-        }
-    },
-    Err(ParseError::InternalError(msg)) => {
-        eprintln!("Parser internal error: {}", msg);
-    }
-}
-```
-
-### AST Extraction Errors
-
-```rust
-use adze::{AstError, AstResult};
-
-match my_grammar::extract_ast(&tree) {
-    Ok(ast) => process_ast(ast),
-    Err(AstError::MissingField { node_kind, field_name }) => {
-        eprintln!("Missing required field '{}' in {}", field_name, node_kind);
-    },
-    Err(AstError::TypeError { expected, actual, .. }) => {
-        eprintln!("Type error: expected {}, got {}", expected, actual);
-    },
-    Err(AstError::ValidationError(msg)) => {
-        eprintln!("AST validation failed: {}", msg);
-    }
-}
-```
-
-## Testing APIs
-
-### Snapshot Testing
-
-```rust
-use insta::assert_snapshot;
-
-#[test]
-fn test_expression_parsing() {
-    let input = "1 + 2 * 3";
-    let tree = parse_expression(input).unwrap();
-    let formatted = format_tree(&tree);
-    
-    assert_snapshot!(formatted);
-}
-```
-
-### Property Testing
-
-```rust
-use proptest::prelude::*;
-use adze::testing::roundtrip_test;
-
-proptest! {
-    #[test]
-    fn test_serialization_roundtrip(
-        tree in arbitrary_parse_tree(),
-        source in arbitrary_source_text()
-    ) {
-        roundtrip_test(&tree, &source)?;
-    }
-}
-```
-
-### Performance Testing
-
-```rust
-use adze::testing::{BenchmarkResult, benchmark_parsing};
-
-#[test]
-fn test_parsing_performance() {
-    let inputs = load_large_test_files();
-    
-    let results = benchmark_parsing(inputs, 100)?; // 100 iterations
-    
-    assert!(results.avg_time_ms < 10.0); // Max 10ms average
-    assert!(results.memory_mb < 50.0);   // Max 50MB memory
-}
-```
-
-## Incremental Parsing APIs
-
-### Production Incremental Parsing (PR #62)
-
-```rust
-use adze::parser_v4::{Parser, Tree};
-use adze::pure_incremental::Edit;
-use adze::pure_parser::Point;
-use adze::glr_incremental::{get_reuse_count, reset_reuse_counter};
-
-// Create parser
-let mut parser = Parser::new(grammar, parse_table, "my_language".to_string());
-
-// Initial parse
-let tree1 = parser.parse("let x = 1")?;
-
-// Create edit operation
-let edit = Edit {
-    start_byte: 8,
-    old_end_byte: 9,
-    new_end_byte: 10,
-    start_point: Point { row: 0, column: 8 },
-    old_end_point: Point { row: 0, column: 9 },
-    new_end_point: Point { row: 0, column: 10 },
-};
-
-// Reset counter for performance measurement
-reset_reuse_counter();
-
-// Production incremental reparse with Direct Forest Splicing
-let tree2 = parser.reparse("let x = 42", &tree1, &edit)?;
-
-// Check performance metrics
-#[cfg(feature = "incremental_glr")]
-{
-    let reused = get_reuse_count();
-    println!("Achieved {}x speedup with {} subtrees reused", 16, reused);
-}
-```
-
-### Tree Editing
-
-```rust
-use adze::{Tree, EditError, Point};
-
-// Safe tree editing with error handling
-match tree.edit(&edit) {
-    Ok(()) => {
-        println!("Tree edited successfully");
-    },
-    Err(EditError::InvalidRange { start, end }) => {
-        eprintln!("Invalid edit range: {}..{}", start, end);
-    },
-    Err(EditError::Overflow) => {
-        eprintln!("Edit would cause integer overflow");
-    },
-    Err(EditError::InvalidPosition(pos)) => {
-        eprintln!("Invalid position: {:?}", pos);  
-    }
-}
-```
+`AdzeDocument` is the native parse-product boundary. Typed CST, typed AST,
+diagnostics, Tree-sitter-compatible output, query matching, JSON, CLI, and WASM
+views should project from the same document facts. This surface is still
+experimental until promoted in the support tiers.
+
+## Grammar Attributes
+
+Common attributes:
+
+- `#[adze::grammar("name")]` declares a generated grammar module.
+- `#[adze::language]` marks a struct or enum as grammar data.
+- `#[adze::leaf(pattern = "...")]` defines a regex token.
+- `#[adze::leaf(text = "...")]` defines a literal token.
+- `#[adze::leaf(transform = ...)]` converts matched text to a Rust value.
+- `#[adze::extra]` defines whitespace/comments or other skipped tokens.
+- `#[adze::prec_left(...)]` and `#[adze::prec_right(...)]` define operator
+  precedence and associativity.
+
+## Runtime Traits
+
+`Extract` powers generated typed AST extraction. Most users should not implement
+it manually; macros generate it for grammar structs and enums.
+
+Supported generated shapes include:
+
+- `String` token text extraction;
+- `Vec<T>` repeated elements;
+- `Option<T>` optional elements;
+- `Box<T>` recursive structures;
+- generated structs and enums.
+
+`Spanned<T>` attaches source spans to extracted values. Structured parse errors
+include spans and expected-token information for the documented generated
+grammar matrix, but parse-error wording and broad invalid-input coverage remain
+stabilizing.
 
 ## Feature Flags
 
-Control functionality with Cargo features:
+| Feature | Description | Support |
+|---|---|---|
+| `pure-rust` | Pure-Rust parser backend. | Stable |
+| `glr` | GLR parsing for ambiguous grammars. | Stabilizing |
+| `serialization` | Core table serialization and experimental document JSON. | Stable for core tables; document JSON experimental |
+| `ts-compat` | Tree-sitter-compatible selected-tree adapter. | Advisory |
+| `incremental_glr` | Incremental parsing and fallback metadata. | Experimental |
+| `wasm` | WASM build support. | Advisory compile signal |
 
-```toml
-[dependencies]
-adze = { version = "0.8", features = [
-    "glr",           # GLR parsing engine
-    "incremental_glr",   # Incremental parsing
-    "serialization", # Tree serialization
-    "external_scanners", # External scanner support
-    "pure-rust",     # Pure Rust implementation
-    "tree-sitter-standard", # Standard Tree-sitter runtime
-    "tree-sitter-c2rust",   # Pure Rust Tree-sitter runtime
-    "all-features"   # Enable everything
-]}
-```
+## Compatibility And Tooling
 
-**Feature Combinations:**
-- `default` = `["tree-sitter-c2rust", "incremental_glr"]`
-- `pure-rust` = `["glr", "pure-rust", "serialization"]`
-- `tree-sitter-compat` = `["tree-sitter-standard", "incremental_glr"]`
+Tree-sitter compatibility is an adapter over native document data. It exposes a
+selected-tree subset, not full Tree-sitter runtime/query/node-types parity.
 
-## Platform Support
+Query compatibility is a documented subset with source-aware predicate proof.
+Full query parity is not claimed.
 
-### Rust Versions
+CLI project scaffolding and document projection output are advisory. WASM has
+compile-check signal only. `runtime2/` and bundled grammar crates are not stable
+public product contracts.
 
-- **MSRV**: Rust 1.92.0
-- **Edition**: 2024 (required)
-- **Components**: rustfmt, clippy
+## Lower-Level Parser APIs
 
-### Target Platforms
-
-**Tier 1 Support:**
-- `x86_64-unknown-linux-gnu`
-- `x86_64-pc-windows-msvc`  
-- `x86_64-apple-darwin`
-- `aarch64-apple-darwin` (Apple Silicon)
-
-**WebAssembly:**
-- `wasm32-unknown-unknown` (pure-Rust features only)
-- `wasm32-wasi` (with filesystem access)
-
-**Embedded:**
-- `thumbv7em-none-eabihf` (ARM Cortex-M4, no-std)
-- Limited feature set for embedded targets
-
-### System Dependencies
-
-**Optional (for specific features):**
-- `libtree-sitter-dev` - Required for ts-bridge tool
-- `libclang` - Required for some binding generation
-- Dynamic libraries (`.so/.dylib/.dll`) for dynamic loading
-
-## Migration Guide
-
-### From v0.5 to v0.6
-
-**Breaking Changes:**
-1. `SymbolMetadata` struct field renames
-2. New GLR runtime API in runtime2  
-3. Enhanced serialization format
-
-**Migration Steps:**
-```rust
-// Old (v0.5)
-if symbol.is_visible { /* ... */ }
-if symbol.is_terminal { /* ... */ }
-
-// New (v0.6)  
-if symbol.visible { /* ... */ }
-if symbol.terminal { /* ... */ }
-```
-
-**New Features:**
-- Dynamic loading with `--dynamic` flag
-- Enhanced serialization formats
-- Improved FFI safety
-- GLR runtime integration
-
-See [MIGRATION_GUIDE.md](../../MIGRATION_GUIDE.md) for complete migration instructions.
+The runtime contains lower-level parser and tree modules for generated code and
+implementation work. They are not the ordinary user entry point. Prefer
+generated `grammar::parse()` for typed values and `grammar::parse_document()`
+for tooling-oriented parse facts.
