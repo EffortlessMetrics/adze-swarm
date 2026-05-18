@@ -4,6 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Use TDD. Red-Green-Refactor, spec driven design. User-story driven design.
 
+
+## First Read: Source-of-Truth Stack
+
+Before changing files for lane work, read:
+
+1. `docs/reference/SPEC_SYSTEM.md`
+2. `.adze/goals/active.toml`
+3. The linked implementation plan
+4. The linked spec for the selected work item
+5. Any linked ADRs
+
+Work on exactly one work item at a time unless the selected plan item explicitly
+allows a bundled documentation batch. Do not create a new lane unless asked. Do
+not mix proposal, spec, ADR, plan, active-goal, and runtime changes unless the
+selected work item says to. Do not claim success without running proof commands
+or recording why proof is unavailable. Do not hand-edit generated status unless
+the plan says to.
+
+Stop and report instead of guessing when the active goal is missing or stale,
+linked specs are missing, proof commands cannot run, generated status differs
+from committed status, requested work conflicts with an ADR, or the branch
+contains unrelated staged changes.
+
 ## Quick Reference
 
 ```bash
