@@ -75,13 +75,18 @@ Agents must:
 6. Read the linked spec for acceptance.
 7. Read linked ADRs for constraints.
 8. Inspect the current git status.
-9. Pick exactly one ready work item.
-10. Implement only that work item.
-11. Run the proof commands.
-12. Update status, receipts, support tiers, or policy ledgers only when the work
+9. Refresh the live PR queue with
+   `gh pr list --repo EffortlessMetrics/adze-swarm --state open`.
+10. Check for same-title, same-scope, or overlapping PRs.
+11. Pick exactly one ready work item.
+12. Implement only that work item.
+13. Run the proof commands.
+14. Update status, receipts, support tiers, or policy ledgers only when the work
     item requires it.
 
 If no ready work item exists, stop and write a handoff instead of inventing one.
+If an overlapping PR exists, stop and report whether the existing PR should be
+merged, amended, superseded, or closed instead of opening another PR.
 
 ## Stop conditions
 
@@ -92,6 +97,7 @@ Stop and report instead of guessing when:
 - generated status is dirty;
 - proof commands cannot run;
 - unrelated staged files exist;
+- an open PR already covers the same work item or semantic scope;
 - requested work conflicts with an ADR;
 - a public claim lacks support-tier proof;
 - the request would require a new proposal, spec, or ADR that was not asked for.
@@ -162,6 +168,12 @@ expiry when temporary.
 
 Use one semantic artifact per PR and one implementation work item per runtime PR
 unless the plan explicitly permits a bundled documentation batch.
+
+### Duplicate PR
+
+Before opening a PR, inspect the live `adze-swarm` queue. If same-scope work is
+already open, do not create a competing branch. Amend the existing branch when
+you own it, or report a merge/supersede/close recommendation to the maintainer.
 
 ## What good looks like
 

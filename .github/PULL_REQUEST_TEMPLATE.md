@@ -10,6 +10,18 @@ ADR:
 Plan item:
 Active goal:
 
+## Queue check
+
+- [ ] I refreshed the open `adze-swarm` PR queue before opening this PR:
+
+```bash
+gh pr list --repo EffortlessMetrics/adze-swarm --state open
+```
+
+- [ ] I checked for same-title, same-scope, or overlapping work.
+- [ ] No existing PR should be merged, amended, superseded, or closed instead
+      of this PR.
+
 ## Scope
 
 - [ ] Proposal / why

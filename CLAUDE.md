@@ -15,6 +15,16 @@ Before changing files for lane work, read:
 4. The linked spec for the selected work item
 5. Any linked ADRs
 
+Before opening a PR, refresh the live queue:
+
+```bash
+gh pr list --repo EffortlessMetrics/adze-swarm --state open
+```
+
+If a same-title, same-scope, or overlapping PR already exists, do not open a
+duplicate. Review the existing PR and report whether it should be merged,
+amended, superseded, or closed.
+
 Work on exactly one work item at a time unless the selected plan item explicitly
 allows a bundled documentation batch. Do not create a new lane unless asked. Do
 not mix proposal, spec, ADR, plan, active-goal, and runtime changes unless the

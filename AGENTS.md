@@ -29,6 +29,16 @@ Before changing files for lane work, read:
 4. The linked spec for the selected work item
 5. Linked ADRs
 
+Before opening a PR, refresh the live queue:
+
+```bash
+gh pr list --repo EffortlessMetrics/adze-swarm --state open
+```
+
+Check for same-title, same-scope, or overlapping work. If a similar PR already
+exists, do not open another PR. Review the existing PR and report whether it
+should be merged, amended, superseded, or closed.
+
 ### Scope rule
 
 Implement one work item per PR unless the selected plan item explicitly allows a
@@ -41,6 +51,10 @@ bundled documentation batch. Docs-only artifacts are separate semantic changes:
 - active goal PRs define current execution state.
 
 Runtime/code PRs must link to the spec and plan item they implement.
+
+Do not duplicate an open work item. Queue hygiene is part of the source-of-truth
+contract: one active PR per semantic work item unless the maintainer explicitly
+asks for competing alternatives.
 
 ### Proof rule
 
