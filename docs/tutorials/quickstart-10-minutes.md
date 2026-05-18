@@ -28,6 +28,10 @@ README.md
 ```
 
 The starter grammar parses arithmetic expressions into typed Rust values.
+The repository keeps the same user-shaped proof in
+`testing/downstream-starter`, which builds through a normal `build.rs`, tests
+the generated parser API, and runs the parse example from outside the main
+workspace.
 
 ## The Core Idea
 
