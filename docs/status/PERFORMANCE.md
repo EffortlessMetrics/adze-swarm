@@ -146,7 +146,6 @@ cargo bench -p adze-benchmarks
 
 | Crate | Benchmark | What It Measures |
 |---|---|---|
-| `adze-benchmarks` | `glr_performance.rs` | End-to-end GLR parsing of arithmetic fixtures |
 | `adze-benchmarks` | `glr_performance_real.rs` | Release-gated real parsing benchmarks |
 | `adze-glr-core` | `automaton.rs` | LR(1) automaton construction time |
 | `adze-glr-core` | `perf_snapshot.rs` | GLR core performance snapshots |
@@ -173,7 +172,6 @@ build-pipeline and infrastructure microbenchmarks. For the
 | Benchmark file | Classification | Notes |
 |---|---|---|
 | `benchmarks/benches/parse_bench.rs` | real parser workload | Baseline arithmetic parsing with generated parser fixtures. |
-| `benchmarks/benches/glr_performance.rs` | real parser workload | Arithmetic parser benchmark that substantially duplicates `parse_bench.rs`. |
 | `benchmarks/benches/glr_hot.rs` | real parser workload | Hot-path medium/large arithmetic fixtures. |
 | `benchmarks/benches/glr_performance_real.rs` | real parser workload | Full GLR parsing with valid arithmetic fixtures. |
 | `benchmarks/benches/incremental_bench.rs` | real parser workload | Full-reparse vs incremental reparse behavior. |

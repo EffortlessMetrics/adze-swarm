@@ -332,8 +332,8 @@ cargo bench
 
 # Run specific benchmark suites
 cargo bench --bench parsing_benchmarks
-cargo bench --bench glr_performance
-cargo bench --bench incremental_benchmarks
+cargo bench --bench parse_bench
+cargo bench --bench incremental_bench
 
 # Generate performance reports
 cargo bench -- --output-format html

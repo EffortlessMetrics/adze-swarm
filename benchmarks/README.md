@@ -11,7 +11,6 @@ each source file.
 |---|---|---|---|---|
 | `parse_bench` | real_parser | active | arithmetic | Baseline arithmetic parsing |
 | `document_projection` | projection | active | arithmetic | Advisory `parse_document`, typed AST projection, and JSON projection fixture bench |
-| `glr_performance` | real_parser | deprecated | arithmetic | Substantially duplicates `parse_bench`; retained compile-only until a later cleanup removes it |
 | `glr_hot` | real_parser | active | arithmetic | Hot-path medium/large arithmetic fixtures |
 | `glr_performance_real` | real_parser | active | arithmetic | Full GLR parsing with valid arithmetic fixtures |
 | `incremental_bench` | real_parser | active | synthetic_arithmetic | Full-reparse vs incremental reparse |
