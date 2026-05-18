@@ -3,7 +3,7 @@ use anyhow::Result;
 use std::path::PathBuf;
 
 pub fn run_quick_test() -> Result<()> {
-    use crate::test_grammars::{download_grammar, test_grammar, GrammarTest, TestStatus};
+    use crate::test_grammars::{GrammarTest, TestStatus, download_grammar, test_grammar};
 
     let corpus_dir = PathBuf::from("corpus");
     std::fs::create_dir_all(&corpus_dir)?;
