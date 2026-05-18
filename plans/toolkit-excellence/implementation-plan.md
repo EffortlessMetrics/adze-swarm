@@ -71,7 +71,8 @@ git diff --check
 
 ### Work Item: product-acceptance-matrix
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#218
 
 #### Goal
 
@@ -97,7 +98,7 @@ claim boundary, and support-tier impact.
 
 ### Work Item: starter-project-hardening
 
-Status: ready
+Status: active
 
 #### Goal
 

@@ -41,11 +41,12 @@ commands = [
 
 [[work_item]]
 id = "product-acceptance-matrix"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
 plan = "plans/toolkit-excellence/implementation-plan.md"
+prs = [218]
 commands = [
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",
@@ -53,7 +54,7 @@ commands = [
 
 [[work_item]]
 id = "starter-project-hardening"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
