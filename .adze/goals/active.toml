@@ -26,11 +26,12 @@ end_state = [
 
 [[work_item]]
 id = "toolkit-excellence-campaign-source-of-truth"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/toolkit-excellence/implementation-plan.md"
+prs = [217]
 commands = [
   "python -c \"import tomllib; tomllib.load(open('.adze/goals/active.toml', 'rb')); tomllib.load(open('.adze/goals/toolkit-excellence.toml', 'rb')); tomllib.load(open('policy/doc-artifacts.toml', 'rb'))\"",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
@@ -40,7 +41,7 @@ commands = [
 
 [[work_item]]
 id = "product-acceptance-matrix"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
