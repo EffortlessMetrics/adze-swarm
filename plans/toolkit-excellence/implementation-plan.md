@@ -44,7 +44,8 @@ itself and does not promote any support tier.
 
 ### Work Item: toolkit-excellence-campaign-source-of-truth
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#217
 Proposal: ../../docs/proposals/ADZE-PROP-0004-toolkit-excellence.md
 Active goal: ../../.adze/goals/active.toml
 
@@ -70,7 +71,7 @@ git diff --check
 
 ### Work Item: product-acceptance-matrix
 
-Status: ready
+Status: active
 
 #### Goal
 
