@@ -65,6 +65,28 @@ links_to = [
 ]
 
 [[artifact]]
+id = "ADZE-PROP-0004"
+kind = "proposal"
+path = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
+status = "accepted"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["toolkit excellence rationale", "adoption-readiness product proof campaign"]
+links_to = [
+  "ADZE-SPEC-0011",
+  "ADZE-SPEC-0012",
+  "ADZE-SPEC-0013",
+  "ADZE-SPEC-0014",
+  "ADZE-ADR-0001",
+  "ADZE-ADR-0003",
+  "ADZE-ADR-0004",
+  "plans/toolkit-excellence/implementation-plan.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/toolkit-excellence.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = "ADZE-SPEC-0001"
 kind = "spec"
 path = "docs/specs/ADZE-SPEC-0001-package-surface-boundary.md"
@@ -295,6 +317,16 @@ source_of_truth_for = ["GLR toolkit productization implementation sequence"]
 links_to = ["ADZE-PROP-0003", ".adze/goals/active.toml", ".adze/goals/glr-toolkit-productization.toml", "docs/status/SUPPORT_TIERS.md"]
 
 [[artifact]]
+id = "plans/toolkit-excellence/implementation-plan.md"
+kind = "plan"
+path = "plans/toolkit-excellence/implementation-plan.md"
+status = "active"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["toolkit excellence and adoption implementation sequence"]
+links_to = ["ADZE-PROP-0004", ".adze/goals/active.toml", ".adze/goals/toolkit-excellence.toml", "docs/status/SUPPORT_TIERS.md"]
+
+[[artifact]]
 id = ".adze/goals/glr-toolkit-productization.toml"
 kind = "goal"
 path = ".adze/goals/glr-toolkit-productization.toml"
@@ -303,3 +335,13 @@ owner = "droid-factory"
 milestone = "post-0.9"
 source_of_truth_for = ["GLR toolkit productization agent work queue"]
 links_to = ["ADZE-PROP-0003", "plans/glr-toolkit/productization-plan.md", ".adze/goals/active.toml"]
+
+[[artifact]]
+id = ".adze/goals/toolkit-excellence.toml"
+kind = "goal"
+path = ".adze/goals/toolkit-excellence.toml"
+status = "active"
+owner = "droid-factory"
+milestone = "post-0.9"
+source_of_truth_for = ["toolkit excellence and adoption agent work queue"]
+links_to = ["ADZE-PROP-0004", "plans/toolkit-excellence/implementation-plan.md", ".adze/goals/active.toml"]
