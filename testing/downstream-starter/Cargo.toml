@@ -1,0 +1,19 @@
+[package]
+name = "downstream-starter"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+rust-version = "1.95.0"
+publish = false
+
+[dependencies]
+adze = { path = "../../runtime", default-features = false }
+
+[build-dependencies]
+adze-tool = { path = "../../tool" }
+
+[features]
+default = ["pure-rust"]
+pure-rust = ["adze/pure-rust"]
+
+[workspace]
