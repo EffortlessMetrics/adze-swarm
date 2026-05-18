@@ -1,5 +1,58 @@
 # CLAUDE.md
 
+# Repo Source-Of-Truth Stack
+
+## First Read
+
+Before making changes, read:
+
+1. `AGENTS.md`
+2. `docs/reference/SPEC_SYSTEM.md`
+3. `.adze/goals/active.toml`
+4. The linked implementation plan
+5. The linked spec for the selected work item
+6. Any linked ADRs
+
+## Working Rule
+
+Work on exactly one work item at a time.
+
+Do not:
+
+- create a new lane unless asked;
+- mix proposal/spec/ADR/plan/runtime changes unless the selected work item says
+  to;
+- broaden a docs-only PR into behavior changes;
+- claim success without running proof commands;
+- hand-edit generated status unless the plan says to;
+- broaden support claims without support-tier proof;
+- add policy exceptions without owner, reason, coverage, created date, and
+  review date in the relevant `policy/*.toml` ledger.
+
+## Completion Rule
+
+A PR is ready only when:
+
+- the intended artifact or code change exists;
+- linked docs are updated when required;
+- proof commands have run or are explicitly marked unavailable;
+- claim boundaries are respected;
+- `git diff --check` passes.
+
+## Stop Conditions
+
+Stop and report instead of guessing when:
+
+- the active goal is missing, stale, or complete with no new selected lane;
+- linked specs, plans, proposals, or ADRs are missing;
+- proof commands cannot run;
+- generated status differs from committed status;
+- requested work conflicts with an ADR;
+- the branch contains unrelated staged changes.
+
+---
+
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 Use TDD. Red-Green-Refactor, spec driven design. User-story driven design.

@@ -1,13 +1,48 @@
 ## Summary
 
-<!-- What does this PR do and why? -->
+<!-- What changed? -->
 
-## Test Plan
+## Source-of-truth links
 
-- [ ] Ran `cargo fmt --all --check`
-- [ ] Ran `cargo clippy --all -- -D warnings`
-- [ ] Ran `cargo test` (or relevant subset)
-- [ ] Snapshot tests updated with `cargo insta review` (if applicable)
+Proposal:
+Spec:
+ADR:
+Plan item:
+Active goal:
+
+## Scope
+
+- [ ] Proposal / why
+- [ ] Spec / behavior contract
+- [ ] ADR / durable decision
+- [ ] Plan / sequencing
+- [ ] Active goal / current execution state
+- [ ] Runtime / implementation
+- [ ] Policy ledger
+- [ ] Support-tier update
+- [ ] Generated status / receipt
+
+## Non-goals
+
+<!-- What does this PR explicitly not do? -->
+
+## Proof
+
+```bash
+# commands run
+```
+
+## Results
+
+<!-- What passed? What failed? What could not run? -->
+
+## Claim boundary
+
+<!-- What may be claimed after this PR? What may not be claimed yet? -->
+
+## Rollback
+
+<!-- How can this PR be reverted safely? -->
 
 ## CI cost (LEM)
 
@@ -17,11 +52,11 @@ The PR Plan advisory job posts the actual estimate; fill this in if it is
 elevated (>35) or you are opting in via labels.
 -->
 
-- Estimated LEM: <!-- e.g. ~25 (ordinary) -->
-- Workflows touched: <!-- e.g. none / pr-plan.yml / pr-gate.yml -->
-- Default PR effect: <!-- e.g. none / adds advisory step -->
-- Branch protection impact: <!-- usually: none -->
+- Estimated LEM:
+- Workflows touched:
+- Default PR effect:
+- Branch protection impact:
 
-## Notes for Reviewers
+## Notes for reviewers
 
 <!-- Breaking changes, design decisions, areas to focus review on, etc. -->

@@ -12,6 +12,73 @@ contribution intake surface. Do not open new swarm work against public `adze`
 or `adze-dev` unless the user explicitly asks for a public-repo promotion or
 sync.
 
+## Repo Source-Of-Truth Stack
+
+This repo uses a linked source-of-truth stack:
+
+```text
+Roadmap → Proposal → Spec → ADR → Plan → Active goal → PR → Proof
+```
+
+Read these before changing files:
+
+1. `docs/reference/SPEC_SYSTEM.md`
+2. `.adze/goals/active.toml`
+3. The linked implementation plan
+4. The linked spec for the selected work item
+5. Linked ADRs
+
+### Scope Rule
+
+Implement one work item per PR.
+
+Docs-only artifacts are separate PRs unless a selected plan item says otherwise:
+
+- proposal PRs explain why;
+- spec PRs define behavior;
+- ADR PRs record durable decisions;
+- plan PRs define sequencing;
+- active-goal PRs define current execution state.
+
+Runtime/code PRs must link to the spec and plan item they implement.
+
+### Proof Rule
+
+Run the proof commands listed in the plan item.
+
+If a proof command cannot run, record:
+
+- command;
+- reason unavailable;
+- substitute evidence, if any;
+- whether this blocks merge.
+
+### Generated Status Rule
+
+Do not hand-edit generated status. Run the generator/checker named in the plan.
+
+### Policy Rule
+
+If you add an exception, add or update the relevant `policy/*.toml` ledger with:
+
+- owner;
+- reason;
+- `covered_by`;
+- `created`;
+- `review_after`;
+- `expires`, if temporary.
+
+### Stop Conditions
+
+Stop and report instead of guessing when:
+
+- the active goal is missing, stale, or complete without a new selected lane;
+- linked specs/plans/proposals/ADRs are missing;
+- proof commands cannot run;
+- unrelated staged changes exist;
+- requested work conflicts with an ADR;
+- a public claim lacks support-tier proof.
+
 ## Project Overview
 
 Adze is an AST-first grammar toolchain for Rust. It generates Tree-sitter parsers from Rust type annotations using a pure-Rust GLR implementation.
