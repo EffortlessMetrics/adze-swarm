@@ -69,6 +69,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 ## Project Status
 
 - [**Roadmap**](../ROADMAP.md) - Milestones for 0.8.0, 0.9.0, and 1.0.
+- [**Source-Of-Truth System**](./reference/SPEC_SYSTEM.md) - Repo rails for proposals, specs, ADRs, plans, active goals, proof, and policy ledgers.
 - [**Proposals**](./proposals/README.md) - PRD-style "why" documents for product and repo-governance campaigns.
 - [**Specs**](./specs/README.md) - Behavior contracts, acceptance criteria, and proof requirements.
 - [**Architecture Decisions**](./adr/README.md) - Durable architecture decisions and their consequences.
@@ -80,6 +81,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Correctness Push Plan**](./status/CORRECTNESS_PUSH.md) - Current merge/proof sequence for parser, GLR, tablegen ABI, CLI, and product-proof convergence.
 - [**Support Tiers**](./status/SUPPORT_TIERS.md) - Feature claims mapped to proof commands and CI lanes.
 - [**Product Proof Map**](./status/PRODUCT_PROOF_MAP.md) - Release-readable summary of product claims and their representative proof.
+- [**Product Acceptance Matrix**](./product/ACCEPTANCE_MATRIX.md) - User workflows mapped to required proof, claim boundaries, and support-tier impact.
 - [**Performance Baselines**](./perf/baselines.md) - Advisory benchmark baseline policy, receipt fields, and non-claims.
 - [**Friction Log**](./status/FRICTION_LOG.md) - Current developer pain points we are burning down.
 - [**Now / Next / Later**](./status/NOW_NEXT_LATER.md) - Rolling execution plan.

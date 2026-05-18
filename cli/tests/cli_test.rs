@@ -571,6 +571,43 @@ fn test_init_cargo_toml_references_adze_dependency() {
 }
 
 #[test]
+fn test_init_readme_teaches_parse_and_parse_document() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let project_name = "readmepath";
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg(project_name)
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    let readme = std::fs::read_to_string(temp.path().join(project_name).join("README.md"))
+        .expect("read generated README");
+
+    assert!(
+        readme.contains("grammar::parse(\"1 + 2 * 3\")"),
+        "generated README should teach the typed parser path"
+    );
+    assert!(
+        readme.contains("grammar::parse_document(\"1 +\")"),
+        "generated README should teach the document parser path"
+    );
+    assert!(
+        readme.contains("document.diagnostics()"),
+        "generated README should point diagnostics users at document facts"
+    );
+    assert!(
+        readme.contains("cargo test"),
+        "generated README should keep the starter proof command visible"
+    );
+    assert!(
+        readme.contains("cargo run --example parse -- \"1 + 2 * 3\""),
+        "generated README should keep the parse example command visible"
+    );
+}
+
+#[test]
 fn test_parse_help_documents_available_modes() {
     let mut cmd = cargo_bin_cmd!("adze");
     cmd.arg("parse")

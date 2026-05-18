@@ -12,6 +12,67 @@ contribution intake surface. Do not open new swarm work against public `adze`
 or `adze-dev` unless the user explicitly asks for a public-repo promotion or
 sync.
 
+
+## Repo Source-of-Truth Stack
+
+This repo uses a linked source-of-truth stack:
+
+```text
+Roadmap → Proposal → Spec → ADR → Plan → Active goal → PR → Proof
+```
+
+Before changing files for lane work, read:
+
+1. `docs/reference/SPEC_SYSTEM.md`
+2. `.adze/goals/active.toml`
+3. The linked implementation plan
+4. The linked spec for the selected work item
+5. Linked ADRs
+
+Before opening a PR, refresh the live queue:
+
+```bash
+gh pr list --repo EffortlessMetrics/adze-swarm --state open
+```
+
+Check for same-title, same-scope, or overlapping work. If a similar PR already
+exists, do not open another PR. Review the existing PR and report whether it
+should be merged, amended, superseded, or closed.
+
+### Scope rule
+
+Implement one work item per PR unless the selected plan item explicitly allows a
+bundled documentation batch. Docs-only artifacts are separate semantic changes:
+
+- proposal PRs explain why;
+- spec PRs define behavior;
+- ADR PRs record durable decisions;
+- plan PRs define sequencing;
+- active goal PRs define current execution state.
+
+Runtime/code PRs must link to the spec and plan item they implement.
+
+Do not duplicate an open work item. Queue hygiene is part of the source-of-truth
+contract: one active PR per semantic work item unless the maintainer explicitly
+asks for competing alternatives.
+
+### Proof rule
+
+Run the proof commands listed in the plan item. If a proof command cannot run,
+record the command, reason unavailable, substitute evidence if any, and whether
+that blocks merge.
+
+### Generated status rule
+
+Do not hand-edit generated status. Run the generator or checker named in the
+plan.
+
+### Policy rule
+
+If you add an exception, add or update the relevant `policy/*.toml` ledger with
+owner, reason, `covered_by`, `created`, `review_after`, and `expires` when the
+exception is temporary.
+
 ## Project Overview
 
 Adze is an AST-first grammar toolchain for Rust. It generates Tree-sitter parsers from Rust type annotations using a pure-Rust GLR implementation.

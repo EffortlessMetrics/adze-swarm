@@ -354,10 +354,22 @@ fn main() {{
 
 An Adze arithmetic grammar for {}.
 
-## Usage
+## Typed parsing
 
 ```rust
 let expr = {}::grammar::parse("1 + 2 * 3")?;
+```
+
+## Document parsing and diagnostics
+
+Use `parse_document()` when you need tooling facts, recovered documents, or
+structured diagnostics:
+
+```rust
+let document = {}::grammar::parse_document("1 +")?;
+for diagnostic in document.diagnostics() {{
+    eprintln!("{{diagnostic}}");
+}}
 ```
 
 Run the generated example:
@@ -382,7 +394,7 @@ cargo test
 
 MIT
 "#,
-        name, name, crate_name
+        name, name, crate_name, crate_name
     );
 
     fs::write(project_dir.join("README.md"), readme)?;
