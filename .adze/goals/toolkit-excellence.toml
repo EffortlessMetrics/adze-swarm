@@ -69,11 +69,12 @@ commands = [
 
 [[work_item]]
 id = "downstream-starter-fixture"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
 plan = "plans/toolkit-excellence/implementation-plan.md"
+prs = [222]
 commands = [
   "cargo test --manifest-path testing/downstream-starter/Cargo.toml",
   "cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse",
@@ -82,7 +83,7 @@ commands = [
 
 [[work_item]]
 id = "beginner-docs-alignment"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = ""

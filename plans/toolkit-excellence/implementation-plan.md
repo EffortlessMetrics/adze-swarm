@@ -116,7 +116,8 @@ cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diag
 
 ### Work Item: downstream-starter-fixture
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#222
 
 #### Goal
 
@@ -135,7 +136,7 @@ cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse
 
 ### Work Item: beginner-docs-alignment
 
-Status: ready
+Status: active
 
 #### Goal
 
