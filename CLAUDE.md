@@ -4,6 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Use TDD. Red-Green-Refactor, spec driven design. User-story driven design.
 
+## Repo Source-Of-Truth Stack
+
+Adze uses this repo-native control plane:
+
+```text
+Roadmap → Proposal → Spec → ADR → Plan → Active goal → PR → Proof
+```
+
+Before making changes, read:
+
+1. `docs/reference/SPEC_SYSTEM.md`
+2. `.adze/goals/active.toml`
+3. The linked implementation plan
+4. The linked spec for the selected work item
+5. Any linked ADRs
+
+Work on exactly one work item at a time. Do not create a new lane unless asked,
+do not mix proposal/spec/ADR/plan/runtime changes unless the selected work item
+says to, do not broaden support claims without support-tier proof, and do not
+hand-edit generated status. Stop and report when the active goal or linked spec
+is missing, proof cannot run, generated status differs from committed status,
+unrelated staged changes exist, or the requested work conflicts with an ADR.
+
 ## Quick Reference
 
 ```bash

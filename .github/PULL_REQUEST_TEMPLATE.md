@@ -1,13 +1,48 @@
 ## Summary
 
-<!-- What does this PR do and why? -->
+<!-- What changed? -->
 
-## Test Plan
+## Source-of-truth links
 
-- [ ] Ran `cargo fmt --all --check`
-- [ ] Ran `cargo clippy --all -- -D warnings`
-- [ ] Ran `cargo test` (or relevant subset)
-- [ ] Snapshot tests updated with `cargo insta review` (if applicable)
+Proposal:
+Spec:
+ADR:
+Plan item:
+Active goal:
+
+## Scope
+
+- [ ] Proposal / why
+- [ ] Spec / behavior contract
+- [ ] ADR / durable decision
+- [ ] Plan / sequencing
+- [ ] Active goal / current execution state
+- [ ] Runtime / implementation
+- [ ] Policy ledger
+- [ ] Support-tier update
+- [ ] Generated status / receipt
+
+## Non-goals
+
+<!-- What this PR explicitly does not do. -->
+
+## Proof
+
+```bash
+# commands run
+```
+
+## Results
+
+<!-- What passed? What failed? What could not run? -->
+
+## Claim boundary
+
+<!-- What may be claimed after this PR? What may not be claimed yet? -->
+
+## Rollback
+
+<!-- How can this PR be reverted safely? -->
 
 ## CI cost (LEM)
 
