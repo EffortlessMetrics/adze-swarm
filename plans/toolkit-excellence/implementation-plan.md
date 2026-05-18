@@ -98,7 +98,8 @@ claim boundary, and support-tier impact.
 
 ### Work Item: starter-project-hardening
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#219
 
 #### Goal
 
@@ -115,7 +116,7 @@ cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diag
 
 ### Work Item: downstream-starter-fixture
 
-Status: ready
+Status: active
 
 #### Goal
 

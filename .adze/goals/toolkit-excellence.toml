@@ -54,11 +54,12 @@ commands = [
 
 [[work_item]]
 id = "starter-project-hardening"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
 plan = "plans/toolkit-excellence/implementation-plan.md"
+prs = [219]
 commands = [
   "cargo test -p adze-cli test_init_default_cwd_generates_buildable_project -- --exact --nocapture",
   "cargo test -p adze-cli test_init_cargo_toml_references_adze_dependency -- --exact --nocapture",
@@ -68,7 +69,7 @@ commands = [
 
 [[work_item]]
 id = "downstream-starter-fixture"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
