@@ -174,7 +174,8 @@ forest exposure.
 
 ### Work Item: query-highlighting-example
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#227
 
 #### Goal
 
@@ -183,7 +184,7 @@ source-aware predicates, byte range, and root-only mode.
 
 ### Work Item: diagnostics-recovery-example
 
-Status: ready
+Status: active
 
 #### Goal
 
