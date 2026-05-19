@@ -75,7 +75,10 @@ rows, and proof commands that would matter for a public promotion.
 
 ### Work Item: public-drift-audit
 
-Status: active
+Status: complete
+PRs:
+- EffortlessMetrics/adze-swarm#236
+- EffortlessMetrics/adze-swarm#237
 Audit: ./public-drift-audit.md
 
 #### Goal
@@ -94,7 +97,8 @@ before preparing any public promotion PR.
 
 ### Work Item: release-claim-freeze
 
-Status: ready
+Status: active
+Claim freeze: ./claim-freeze.md
 
 #### Goal
 

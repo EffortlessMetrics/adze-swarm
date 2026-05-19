@@ -49,11 +49,12 @@ commands = [
 
 [[work_item]]
 id = "public-drift-audit"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md"
 spec = "ADZE-SPEC-0011"
 adr = ""
 plan = "plans/release-promotion/public-drift-audit.md"
+prs = [236, 237]
 commands = [
   "gh pr list --repo EffortlessMetrics/adze --state open",
   "gh pr list --repo EffortlessMetrics/adze-swarm --state open",
@@ -62,11 +63,11 @@ commands = [
 
 [[work_item]]
 id = "release-claim-freeze"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md"
 spec = "ADZE-SPEC-0011"
 adr = ""
-plan = "plans/release-promotion/implementation-plan.md"
+plan = "plans/release-promotion/claim-freeze.md"
 commands = [
   "cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exact --nocapture",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
