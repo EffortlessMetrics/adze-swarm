@@ -36,7 +36,9 @@ fn clamp_to_tree(pos: usize, tree_len: usize) -> usize {
 }
 
 fn bounded_old_end(start: usize, del_len: usize, tree_len: usize, slack: usize) -> usize {
-    start.saturating_add(del_len).min(tree_len.saturating_add(slack))
+    start
+        .saturating_add(del_len)
+        .min(tree_len.saturating_add(slack))
 }
 
 /// Build a simple tree: root [0, tree_len) with two children.
