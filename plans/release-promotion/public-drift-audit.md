@@ -14,7 +14,7 @@ This audit compares public `EffortlessMetrics/adze` with the operating
 prepared. It is a classification receipt only; it does not open, merge, or
 prepare a public PR.
 
-## Live Queue Check
+## Initial Live Queue Check
 
 Commands run from `C:\Code\Rust2\adze-swarm`:
 
@@ -28,7 +28,7 @@ Results:
 | Repo | Open PRs | Classification |
 | --- | ---: | --- |
 | `EffortlessMetrics/adze` | 0 | Public repo has no active drift PR queue. |
-| `EffortlessMetrics/adze-swarm` | 7 | Existing swarm-side code-quality/test PRs #205-#212; not public drift, but should be merged, superseded, or explicitly deferred before a public promotion PR. |
+| `EffortlessMetrics/adze-swarm` | 7 | Initial snapshot only: swarm-side code-quality/test PRs #205-#212; later resolved before the follow-up refresh below. |
 
 Open `adze-swarm` PRs observed:
 
@@ -41,6 +41,16 @@ Open `adze-swarm` PRs observed:
 | #209 | Improve external scanner discovery | Swarm-side implementation PR; likely product-relevant but must be refreshed against current `main`. |
 | #211 | Improve GLR conflict inspection details | Swarm-side implementation/test PR; likely product-relevant but must be refreshed against current `main`. |
 | #212 | Improve IR registry construction | Swarm-side implementation PR; likely product-relevant but must be refreshed against current `main`. |
+
+## Follow-up Queue Refresh
+
+After release-readiness closeout and post-closeout product-proof alignment PRs
+#241-#246, a live queue refresh from `C:\Code\Rust2\adze-swarm` showed no open
+PRs in `EffortlessMetrics/adze` or `EffortlessMetrics/adze-swarm`.
+
+The initial #205-#212 entries above are historical audit entries, not active
+promotion blockers. Do not revive those PR numbers unless a fresh GitHub query
+shows the corresponding work open again.
 
 ## Branch Comparison
 
@@ -60,6 +70,9 @@ Observed heads:
 | `public/main` | `5fc7924b xtask: own goto indexing guard (#789)` |
 | `origin/main` | `a68c21b8 docs(release): inventory promotion readiness (#235)` |
 
+These heads are the initial audit receipt. Refresh this comparison from current
+`adze-swarm/main` before opening any public promotion branch.
+
 Commit count:
 
 ```text
@@ -76,7 +89,7 @@ release-promotion readiness campaigns.
 | Public commit | Title | Classification | Promotion action |
 | --- | --- | --- | --- |
 | `c9c40728` | `test(cli): align README capability tiers with support tiers (#785)` | Subsumed in `adze-swarm`. Current swarm `README`, `SUPPORT_TIERS.md`, `scripts/ci-product-stable.sh`, and `cli/tests/readme_quickstart.rs` include the Stable-claim guardrail and support-tier alignment. | No direct cherry-pick. Re-check during claim freeze. |
-| `92cc08ae` | `xtask: report Rust migration candidates in file-policy (#783)` | Useful public-only policy improvement identified by this audit. | Porting to `adze-swarm` in #237. |
+| `92cc08ae` | `xtask: report Rust migration candidates in file-policy (#783)` | Useful public-only policy improvement identified by this audit. | Ported to `adze-swarm` in #237. |
 | `a788f921` | `plans: align 0.9 closeout state (#786)` | Superseded in `adze-swarm` by completed 0.9 closeout and later campaign closeouts. | No direct cherry-pick. Use swarm closeouts as source of truth. |
 | `f8ba5ff9` | `plans: add 0.9 contract convergence closeout (#787)` | Superseded in `adze-swarm`; `plans/0.9.0/closeout.md` exists with later release-operation proof and known gaps. | No direct cherry-pick. Use swarm closeout. |
 | `5685ae35` | `xtask: own no-mangle guard (#788)` | Ported/superseded in `adze-swarm` by `a2178cc3 xtask: own Rust guard checks (#124)`. Current swarm has `xtask/src/no_mangle.rs` and `cargo xtask check-no-mangle`. | No direct cherry-pick. |
@@ -85,21 +98,16 @@ release-promotion readiness campaigns.
 ## Promotion Blockers From This Audit
 
 - Public `adze` has no open PR blocker.
-- `adze-swarm` has seven open pre-existing code-quality/test PRs. They do not
-  block this audit, but a public promotion PR should not ignore them; either
-  merge, supersede, close, or explicitly defer them.
+- The initial `adze-swarm` PRs #205-#212 were resolved before the latest
+  refresh. They are not current blockers.
+- Any new public promotion decision must still refresh both queues and classify
+  whatever is open at that time.
 - Public-only commit `92cc08ae` was the only observed public commit that
-  appeared useful and not already represented in `adze-swarm`; it is being
-  ported in #237.
+  appeared useful and not already represented in `adze-swarm`; it was ported in
+  #237 and is no longer a blocker.
 
 ## Recommended Next Step
 
-Before claim freeze, wait for the file-policy migration-candidate port:
-
-```text
-Expected resolution:
-  merge #237 into adze-swarm, then treat public #783 as ported.
-```
-
-If #237 does not merge, explicitly defer #783 before preparing a public
-promotion PR.
+Before opening a public promotion PR, use
+`./public-promotion-pr-plan.md` from current `adze-swarm/main`, refresh both
+PR queues, rerun the required proof commands, and record any new drift by name.

@@ -24,6 +24,8 @@ Before opening a public promotion PR:
   promotion scope.
 - Existing open `adze-swarm` PRs are merged, superseded, closed, or explicitly
   deferred from the promotion candidate.
+- Post-readiness product-proof alignment PRs merged after closeout are included
+  or deliberately excluded by name.
 - `plans/release-promotion/readiness-inventory.md`,
   `plans/release-promotion/public-drift-audit.md`, and
   `plans/release-promotion/claim-freeze.md` are current.
@@ -43,12 +45,13 @@ merged to `adze-swarm/main`:
 - release promotion readiness inventory, drift audit, and claim freeze;
 - public #783 file-policy migration-candidate reporting, now ported through
   `adze-swarm`;
-- README capability table aligned with `SUPPORT_TIERS.md`.
+- README capability table aligned with `SUPPORT_TIERS.md`;
+- product-proof alignment updates through `adze-swarm` #241-#246.
 
 The candidate public PR should not include:
 
-- unmerged `adze-swarm` PRs #205-#212 unless they are separately refreshed and
-  merged to `adze-swarm/main`;
+- unmerged `adze-swarm` PRs observed when the promotion branch is prepared
+  unless they are separately refreshed and merged to `adze-swarm/main`;
 - release/publish/signing workflow changes;
 - Cargo token, crates.io publishing, or tag automation changes;
 - branch-protection or merge-queue changes;
