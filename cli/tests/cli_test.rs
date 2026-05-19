@@ -125,6 +125,41 @@ fn test_init_generates_buildable_project() {
         .success();
 }
 
+
+#[test]
+fn test_init_project_supports_cli_stats_and_check_end_to_end() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let project_name = "statslang";
+
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg(project_name)
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    let grammar = temp.path().join(project_name).join("src/grammar.rs");
+
+    let mut check = cargo_bin_cmd!("adze");
+    check
+        .arg("check")
+        .arg(&grammar)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Grammar syntax is valid"));
+
+    let mut stats = cargo_bin_cmd!("adze");
+    stats
+        .arg("stats")
+        .arg(&grammar)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Grammar statistics"))
+        .stdout(predicate::str::contains("States:"))
+        .stdout(predicate::str::contains("Conflicts:"));
+}
+
 #[test]
 fn test_check_rejects_file_without_adze_grammar() {
     let temp = tempfile::tempdir().expect("tempdir");
