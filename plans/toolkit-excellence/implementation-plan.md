@@ -196,7 +196,8 @@ missing nodes, GLR bad input, and JSON diagnostic projection.
 
 ### Work Item: ts-compat-matrix-doc
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#229
 
 #### Goal
 
@@ -205,7 +206,7 @@ stabilizing, advisory, known-gap, and not-planned sections.
 
 ### Work Item: ts-compat-imported-shape-smoke
 
-Status: ready
+Status: active
 
 #### Goal
 
