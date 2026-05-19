@@ -134,7 +134,7 @@ adr = "ADZE-ADR-0003"
 plan = "plans/glr-toolkit/productization-plan.md"
 prs = [135]
 commands = [
-  "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" glr_conflict_matrix -- --nocapture",
+  "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture",
   "git diff --check",
 ]
 
@@ -176,7 +176,7 @@ adr = "ADZE-ADR-0001"
 plan = "plans/glr-toolkit/productization-plan.md"
 prs = [139]
 commands = [
-  "cargo test -p adze --features \"pure-rust,glr,ts-compat\" ts_compat_selected_tree -- --nocapture",
+  "cargo test -p adze --features \"pure-rust,glr,ts-compat\" --test ts_compat_selected_tree -- --nocapture",
   "git diff --check",
 ]
 
@@ -256,7 +256,7 @@ adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
 prs = [144]
 commands = [
-  "cargo test -p adze --features \"pure-rust,ts-compat\" --test query_differential -- --nocapture",
+  "cargo test -p adze --features \"pure-rust,ts-compat,query\" --test query_differential -- --nocapture",
   "git diff --check",
 ]
 
@@ -282,7 +282,8 @@ adr = "ADZE-ADR-0004"
 plan = "plans/glr-toolkit/productization-plan.md"
 prs = [146]
 commands = [
-  "cargo test -p adze-cli parse_document_json -- --nocapture",
+  "cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture",
+  "cargo test -p adze-cli parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture",
   "git diff --check",
 ]
 
