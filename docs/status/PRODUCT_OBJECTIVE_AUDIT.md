@@ -82,6 +82,7 @@ cargo test -p adze-cli test_init -- --nocapture
 cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture
 just package-local adze-cli
 cargo info adze-cli
+cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z
 ```
 
 `just package-local adze-cli` packages and verifies the CLI crate with local
@@ -93,6 +94,12 @@ The `cargo info adze-cli` command must be run outside the workspace when it is
 used to verify registry publication. On 2026-05-19 it reported that `adze-cli`
 could not be found in crates.io, so `cargo install adze-cli` remains a
 release-surface target rather than current product proof.
+
+`cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version
+X.Y.Z` is the post-publish receipt hook for the missing crates.io install proof.
+It installs from crates.io into an isolated temporary root and runs
+`adze --version`. The `--dry-run` mode is pre-publish command-shape evidence
+only; it does not contact crates.io and does not close the install-receipt gap.
 
 ## Current Non-Completion Reasons
 
@@ -112,8 +119,8 @@ Do not mark the product objective complete while any of these are true:
 1. If public promotion proceeds, open a fresh explicit execution goal and rerun
    the proof commands in `plans/release-promotion/public-promotion-pr-plan.md`
    from current `adze-swarm/main`.
-2. Add a crates.io install receipt before any doc claims `cargo install
-   adze-cli` as the supported quickstart. The current local package receipt is
-   publish-readiness evidence only.
+2. Run the crates.io install receipt after publish and before any doc claims
+   `cargo install adze-cli` as the supported quickstart. The current local
+   package receipt and verifier dry run are publish-readiness evidence only.
 3. Consider promoting `ci-product-stable` only after advisory receipts are
    consistently green and branch-protection policy is updated deliberately.
