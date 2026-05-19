@@ -106,9 +106,9 @@ Do not mark the product objective complete while any of these are true:
 
 ## Next Concrete Actions
 
-1. If public promotion proceeds after the generated GLR receipts, rerun the proof commands
-   in `plans/release-promotion/public-promotion-pr-plan.md` from current
-   `adze-swarm/main`.
+1. If public promotion proceeds, open a fresh explicit execution goal and rerun
+   the proof commands in `plans/release-promotion/public-promotion-pr-plan.md`
+   from current `adze-swarm/main`.
 2. Add a crates.io install receipt before any doc claims `cargo install
    adze-cli` as the supported quickstart. The current local package receipt is
    publish-readiness evidence only.

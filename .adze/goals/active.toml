@@ -1,6 +1,6 @@
 id = "adze-product-gap-burn-down"
 title = "Adze Product Gap Burn-Down"
-status = "active"
+status = "complete"
 owner = "droid-factory"
 created = "2026-05-19"
 
@@ -86,7 +86,7 @@ commands = [
 
 [[work_item]]
 id = "public-promotion-decision-refresh"
-status = "ready"
+status = "complete"
 proposal = "ADZE-PROP-0005-release-promotion-readiness"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
@@ -94,7 +94,9 @@ plan = "plans/release-promotion/public-promotion-pr-plan.md"
 commands = [
   "gh pr list --repo EffortlessMetrics/adze --state open",
   "gh pr list --repo EffortlessMetrics/adze-swarm --state open",
-  "just ci-supported",
+  "gh pr checks 267 --repo EffortlessMetrics/adze-swarm",
   "just ci-product-stable",
   "just check-publishable",
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
 ]
