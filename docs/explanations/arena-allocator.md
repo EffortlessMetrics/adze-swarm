@@ -1,8 +1,12 @@
 # Arena Allocator Quick Reference
 
-> **Production Ready** - v0.8.0+
+> **Status:** Internal optimization surface. Use the support-tier ledger and
+> benchmark receipts for product claims.
 
-The arena allocator provides **3.7x-5.0x faster** parse tree allocation with **99%+ fewer allocations** compared to Box-based allocation.
+The arena allocator's historical arena-vs-Box microbenchmarks report
+**3.7x-5.0x faster** parse tree allocation with **99%+ fewer allocations**
+compared to Box-based allocation. Treat these as allocator microbenchmark
+receipts, not parser throughput guarantees.
 
 ## Quick Example
 

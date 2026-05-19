@@ -7,6 +7,11 @@
 
 ---
 
+Current support-tier note: this ADR records a historical runtime2 integration
+decision. `runtime2/` is now treated as an experimental proving ground rather
+than the public-primary runtime contract; see
+[`docs/status/SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md).
+
 ## Context
 
 During Phase 3.3 implementation (GLR integration testing with example grammars), we discovered an architectural consideration regarding the relationship between `runtime` and `runtime2` packages.
@@ -15,7 +20,7 @@ During Phase 3.3 implementation (GLR integration testing with example grammars),
 
 **Two Runtime Packages**:
 - `runtime/` - Original runtime crate (used by example grammars)
-- `runtime2/` - New production-ready GLR runtime (Phase 3.1-3.2 work)
+- `runtime2/` - GLR proving-ground runtime from Phase 3.1-3.2 work
 
 **Example Dependencies**:
 ```toml
@@ -143,7 +148,7 @@ runtime2/
 ### Alt 2: Backport GLR to Runtime
 
 **Rejected Because**:
-- Runtime2 is production-ready
+- Runtime2 was the focused GLR proving-ground runtime for this phase
 - Would duplicate work
 - Runtime2 has better architecture
 

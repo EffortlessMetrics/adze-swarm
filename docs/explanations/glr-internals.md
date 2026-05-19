@@ -6,7 +6,9 @@ GLR (Generalized LR) parsing extends traditional LR parsing to handle **ambiguou
 
 ## Symbol Normalization: The Foundation of GLR Processing
 
-**Production Ready (September 2025)**: adze implements comprehensive symbol normalization to ensure GLR algorithms can process complex grammar symbols.
+**Support-tier note**: adze implements symbol normalization for the GLR
+generation pipeline, but GLR product claims are bounded by the proof commands
+and limitations in [`docs/status/SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md).
 
 ### Why Normalization is Required
 

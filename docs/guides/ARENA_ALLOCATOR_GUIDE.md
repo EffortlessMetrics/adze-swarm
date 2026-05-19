@@ -1,12 +1,18 @@
 # Arena Allocator User Guide
 
 **Version**: v0.8.0
-**Status**: Production Ready
+**Status**: Internal optimization surface; see support tiers for product claims
 **Target Audience**: adze library users
 
 ## Overview
 
 The arena allocator provides efficient memory management for parse tree nodes through chunked allocation and handle-based references. It delivers **3.7x-5.0x speedup** over individual Box allocations with **99%+ fewer allocations**.
+
+Those figures are historical arena-vs-Box microbenchmark receipts for this
+allocator path. They are not a broad parser throughput claim, release promise,
+or substitute for the product benchmark receipts tracked in
+[`docs/status/SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md) and
+[`docs/perf/baselines.md`](../perf/baselines.md).
 
 ## Why Use Arena Allocation?
 
