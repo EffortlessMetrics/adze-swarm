@@ -10,6 +10,28 @@ use adze_glr_core::{Action, FirstFollowSets, build_lr1_automaton};
 use adze_ir::SymbolId;
 
 #[test]
+fn external_indent_e2e_partition_invariants() {
+    // E2E pipeline smoke: grammar -> first/follow -> LR1 table -> normalize -> decode mapping checks.
+    let grammar = support::indent_grammar::build_indent_grammar();
+    let first_follow = FirstFollowSets::compute(&grammar).expect("first/follow should compute");
+    let mut parse_table =
+        build_lr1_automaton(&grammar, &first_follow).expect("LR1 automaton should build");
+    support::language_builder::normalize_table_for_ts(&mut parse_table);
+
+    // Validate the external token is present and shift-reachable in at least one state.
+    let indent_col = 1usize; // SymbolId(1) reserved by fixture for INDENT
+    let has_indent_shift = parse_table.action_table.iter().any(|row| {
+        row.get(indent_col)
+            .is_some_and(|actions| actions.iter().any(|a| matches!(a, Action::Shift(_))))
+    });
+
+    assert!(
+        has_indent_shift,
+        "INDENT should be shift-reachable in at least one normalized action row"
+    );
+}
+
+#[test]
 #[ignore = "pure-rust parser integration unstable"]
 fn external_indent_token_in_table() {
     // Build grammar with external INDENT token

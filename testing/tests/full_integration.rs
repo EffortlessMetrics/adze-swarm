@@ -717,3 +717,52 @@ fn collect_token_indices_includes_eof() {
         "token_indices must be sorted and deduplicated"
     );
 }
+
+// ============================================================================
+// 9. Ambiguous grammar E2E coverage
+// ============================================================================
+
+#[test]
+fn ambiguous_grammar_preserves_conflicts_through_pipeline() {
+    let grammar = GrammarBuilder::new("ambiguous_expr")
+        .token("NUM", r"\d+")
+        .token("+", "+")
+        .token("*", "*")
+        .rule("expr", vec!["expr", "+", "expr"])
+        .rule("expr", vec!["expr", "*", "expr"])
+        .rule("expr", vec!["NUM"])
+        .start("expr")
+        .build();
+
+    let ff = FirstFollowSets::compute(&grammar).expect("FIRST/FOLLOW should compute");
+    let pt = build_lr1_automaton(&grammar, &ff).expect("LR(1) automaton should build");
+
+    let multi_action_cells = pt
+        .action_table
+        .iter()
+        .flat_map(|row| row.iter())
+        .filter(|cell| cell.len() > 1)
+        .count();
+    assert!(
+        multi_action_cells > 0,
+        "ambiguous grammar must retain at least one conflict cell"
+    );
+
+    let token_indices = collect_token_indices(&grammar, &pt);
+    let compressed = TableCompressor::new()
+        .compress(&pt, &token_indices, eof_accepts_or_reduces(&pt))
+        .expect("conflicted parse table should still compress");
+
+    assert!(
+        !compressed.action_table.data.is_empty(),
+        "compressed conflicted table must retain action rows"
+    );
+
+    let code = StaticLanguageGenerator::new(grammar, pt)
+        .generate_language_code()
+        .to_string();
+    assert!(
+        code.contains("tree_sitter_ambiguous_expr"),
+        "codegen must emit a parser symbol for the ambiguous grammar"
+    );
+}
