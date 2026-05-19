@@ -41,7 +41,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Inventory completed swarm campaigns and release-facing support-tier claims.
 - [x] Audit public `adze` drift before preparing a promotion PR.
 - [x] Freeze release-facing claims and known limitations.
-- [ ] Prepare or defer the public promotion PR with proof and rollback.
+- [x] Prepare or defer the public promotion PR with proof and rollback.
 
 ### Correctness queue baseline
 - [x] Refresh live PR state with `gh pr list --state open --limit 20 --json number,title,isDraft,headRefName,updatedAt,url`.
