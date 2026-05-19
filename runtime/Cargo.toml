@@ -127,6 +127,10 @@ name = "external_scanner_demo"
 required-features = ["experimental_examples"]
 
 [[example]]
+name = "diagnostics_recovery"
+required-features = ["pure-rust", "glr", "serialization"]
+
+[[example]]
 name = "glr_ambiguity"
 required-features = ["pure-rust", "glr"]
 

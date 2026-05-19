@@ -93,6 +93,13 @@ assert_eq!(diagnostic.byte_span(), 3..3);
 The stable contract is the structured span and expected-token data. Diagnostic
 wording is still not frozen.
 
+For a runnable example that prints source excerpts, multibyte spans, GLR bad
+input diagnostics, and document JSON diagnostic bytes:
+
+```bash
+cargo run -p adze --features "pure-rust,glr,serialization" --example diagnostics_recovery
+```
+
 ## GLR Ambiguity
 
 Use GLR grammars when the language is genuinely ambiguous:
@@ -160,4 +167,5 @@ The tested cookbook proof is:
 cargo test -p adze --features "pure-rust,glr,ts-compat" cookbook -- --nocapture
 cargo run -p adze --features "pure-rust,glr" --example glr_ambiguity
 cargo run -p adze --features query --example query_highlighting
+cargo run -p adze --features "pure-rust,glr,serialization" --example diagnostics_recovery
 ```
