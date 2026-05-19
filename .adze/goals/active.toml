@@ -111,11 +111,12 @@ commands = [
 
 [[work_item]]
 id = "glr-ambiguity-example"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0003"
 plan = "plans/toolkit-excellence/implementation-plan.md"
+prs = [226]
 commands = [
   "cargo run -p adze --features \"pure-rust,glr\" --example glr_ambiguity",
   "cargo test -p adze --features \"pure-rust,glr,ts-compat\" cookbook -- --nocapture",
@@ -125,13 +126,15 @@ commands = [
 
 [[work_item]]
 id = "query-highlighting-example"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0013"
 adr = ""
 plan = "plans/toolkit-excellence/implementation-plan.md"
 commands = [
+  "cargo run -p adze --features query --example query_highlighting",
   "cargo test -p adze --lib query -- --nocapture",
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "git diff --check",
 ]
 

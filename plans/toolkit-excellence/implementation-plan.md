@@ -163,7 +163,8 @@ Tree-sitter-shaped traversal, JSON, ambiguity summaries, and query.
 
 ### Work Item: glr-ambiguity-example
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#226
 
 #### Goal
 
@@ -173,7 +174,7 @@ forest exposure.
 
 ### Work Item: query-highlighting-example
 
-Status: ready
+Status: active
 
 #### Goal
 

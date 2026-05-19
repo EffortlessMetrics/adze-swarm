@@ -167,5 +167,9 @@ name = "query_demo"
 required-features = ["query"]
 
 [[example]]
+name = "query_highlighting"
+required-features = ["query"]
+
+[[example]]
 name = "validation_demo"
 required-features = ["experimental_examples"]
