@@ -110,6 +110,7 @@ install to parse.
 
 ```bash
 cargo test -p adze-cli test_init_default_cwd_generates_buildable_project -- --exact --nocapture
+cargo test -p adze-cli test_init_generates_buildable_project -- --exact --nocapture
 cargo test -p adze-cli test_init_cargo_toml_references_adze_dependency -- --exact --nocapture
 cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture
 ```

@@ -161,6 +161,7 @@ The campaign starts with:
   - `cargo run -q -p xtask -- check-active-goal --mode blocking`
 - Starter proof:
   - `cargo test -p adze-cli test_init_default_cwd_generates_buildable_project -- --exact --nocapture`
+  - `cargo test -p adze-cli test_init_generates_buildable_project -- --exact --nocapture`
   - `cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture`
 - Product workflow proof:
   - downstream starter crate build, test, and parse example
