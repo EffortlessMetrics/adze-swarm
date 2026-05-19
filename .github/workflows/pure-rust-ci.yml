@@ -88,6 +88,7 @@ jobs:
     needs: matrix-setup
     if: needs.matrix-setup.outputs.run_rust == 'true'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -126,6 +127,7 @@ jobs:
       run: cargo build --verbose
     
     - name: Run tests
+      timeout-minutes: 25
       run: cargo test --verbose -- --test-threads=$RUST_TEST_THREADS
 
     - name: Skip benchmark compile check on pull requests
