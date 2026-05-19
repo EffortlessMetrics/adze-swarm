@@ -86,7 +86,7 @@ In `adze-swarm`, the legacy `ci.yml` jobs run on schedule or via `workflow_dispa
 | `coverage.yml` | `Detect Coverage Paths` | PR + dispatch | Advisory | Cheap path/label detector for coverage-lite/full routing |
 | `coverage.yml` | `Coverage Lite` | Path/labeled PR + dispatch | Advisory | Core-package LCOV artifact; Codecov upload non-blocking |
 | `coverage.yml` | `Coverage Full` | `full-ci` PR + dispatch | Advisory | Broader workspace/features LCOV artifact; Codecov upload non-blocking |
-| `product-proof.yml` | `ci-product stable canaries` | Path-routed PR + scheduled + dispatch | PR-only/manual | Bounded Stable README/support-tier proof lane; not required unless branch protection promotes it |
+| `product-proof.yml` | `ci-product stable canaries` | Path-routed PR + scheduled + dispatch | PR-only/manual | Bounded Stable README/support-tier proof lane; manual dispatch defaults to this lane; not required unless branch protection promotes it |
 | `core-tests.yml` | `core` | Scheduled (nightly) + dispatch | Scheduled | Full nightly canary: clippy, doc, all-features |
 | `benchmarks.yml` | `Performance Benchmarks` | Push + labeled PR | Push | Benchmark comparison for PRs |
 | `benchmarks.yml` | `Criterion HTML Report` | Dispatch only | Advisory | Manual Criterion HTML report generation |
@@ -113,7 +113,7 @@ These jobs use nightly toolchains, unstable features, or are explicitly marked
 | `ci.yml` | `Advisory / Cross Compilation (${{ matrix.target }})` | Schedule + dispatch | Cross toolchain drift; `continue-on-error` |
 | `ci.yml` | `Advisory / WASM Build` | Schedule + dispatch | Compile-check only; `continue-on-error` |
 | `ci.yml` | `Advisory / Unsafe Audit` | Schedule + dispatch | `cargo-geiger` may lag toolchain; `continue-on-error` |
-| `product-proof.yml` | `ci-product advisory canaries` | Scheduled (weekly) + dispatch | Broad advisory lane; `continue-on-error`; skipped on PRs |
+| `product-proof.yml` | `ci-product advisory canaries` | Scheduled (weekly) + dispatch with `lane=all` | Broad advisory lane; `continue-on-error`; skipped on PRs and stable-only manual dispatches |
 | `criterion-smoke.yml` | `benchmark` | Scheduled (weekly) + dispatch | Non-blocking; compile-checks `adze-benchmarks` |
 | `ts-bridge-parity.yml` | `parity` | Scheduled (nightly) + dispatch | Non-blocking; `continue-on-error` |
 | `clippy-quarantine-report.yml` | `quarantine-report` | Scheduled (weekly) + dispatch | Report only |
