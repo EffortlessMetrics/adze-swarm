@@ -49,6 +49,13 @@ The check runs in **advisory** mode for now: it writes
 `target/policy/file-policy.md` and `target/policy/file-policy.json` but does
 not fail CI. Once the baseline is settled, this will flip to blocking.
 
+The same report includes a **Rust migration candidates** section. These are
+non-Rust files that are executable repository logic, production grammar
+definitions, or durable tooling surfaces that should move toward `xtask`, a
+Rust grammar crate, or an owner module when touched. Fixtures, generated files,
+docs, and platform-required configuration remain registered without becoming
+migration targets.
+
 ## Adding a new non-Rust file
 
 1. Try Rust first. Many YAML configs and shell scripts can be replaced with

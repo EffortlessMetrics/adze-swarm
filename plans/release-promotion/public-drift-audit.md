@@ -76,7 +76,7 @@ release-promotion readiness campaigns.
 | Public commit | Title | Classification | Promotion action |
 | --- | --- | --- | --- |
 | `c9c40728` | `test(cli): align README capability tiers with support tiers (#785)` | Subsumed in `adze-swarm`. Current swarm `README`, `SUPPORT_TIERS.md`, `scripts/ci-product-stable.sh`, and `cli/tests/readme_quickstart.rs` include the Stable-claim guardrail and support-tier alignment. | No direct cherry-pick. Re-check during claim freeze. |
-| `92cc08ae` | `xtask: report Rust migration candidates in file-policy (#783)` | Useful public-only policy improvement that is not present in current swarm `xtask/src/policy/file_policy.rs`. | Decide before promotion: port to `adze-swarm` as a same-repo PR or explicitly defer. |
+| `92cc08ae` | `xtask: report Rust migration candidates in file-policy (#783)` | Useful public-only policy improvement identified by this audit. | Porting to `adze-swarm` in #237. |
 | `a788f921` | `plans: align 0.9 closeout state (#786)` | Superseded in `adze-swarm` by completed 0.9 closeout and later campaign closeouts. | No direct cherry-pick. Use swarm closeouts as source of truth. |
 | `f8ba5ff9` | `plans: add 0.9 contract convergence closeout (#787)` | Superseded in `adze-swarm`; `plans/0.9.0/closeout.md` exists with later release-operation proof and known gaps. | No direct cherry-pick. Use swarm closeout. |
 | `5685ae35` | `xtask: own no-mangle guard (#788)` | Ported/superseded in `adze-swarm` by `a2178cc3 xtask: own Rust guard checks (#124)`. Current swarm has `xtask/src/no_mangle.rs` and `cargo xtask check-no-mangle`. | No direct cherry-pick. |
@@ -88,17 +88,18 @@ release-promotion readiness campaigns.
 - `adze-swarm` has seven open pre-existing code-quality/test PRs. They do not
   block this audit, but a public promotion PR should not ignore them; either
   merge, supersede, close, or explicitly defer them.
-- Public-only commit `92cc08ae` is the only observed public commit that appears
-  useful and not already represented in `adze-swarm`.
+- Public-only commit `92cc08ae` was the only observed public commit that
+  appeared useful and not already represented in `adze-swarm`; it is being
+  ported in #237.
 
 ## Recommended Next Step
 
-Before claim freeze, decide the file-policy migration-candidate drift:
+Before claim freeze, wait for the file-policy migration-candidate port:
 
 ```text
-Option A: port #783 into adze-swarm as a small same-repo policy PR.
-Option B: explicitly defer it from release promotion because it is advisory
-          policy ergonomics, not product runtime behavior.
+Expected resolution:
+  merge #237 into adze-swarm, then treat public #783 as ported.
 ```
 
-Either choice should be recorded before preparing a public promotion PR.
+If #237 does not merge, explicitly defer #783 before preparing a public
+promotion PR.
