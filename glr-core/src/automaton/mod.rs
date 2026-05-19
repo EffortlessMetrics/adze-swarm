@@ -380,15 +380,19 @@ pub fn build_lr1_automaton(
 
         // If there are multiple reduces, resolve them first (rule precedence)
         if reduces.len() > 1 {
-            let winner = reduces[1..].iter().fold(reduces[0], |acc, &r| {
+            let winner = reduces[1..].iter().try_fold(reduces[0], |acc, &r| {
                 decide_reduce_reduce(acc, r, &prec_tables)
             });
-            reduces.clear();
-            reduces.push(winner);
-            // keep the non-reduce actions (shift/accept) as-is for now
-            cell.retain(|a| {
-                matches!(a, Action::Shift(_)) || matches!(a, Action::Reduce(pid) if pid.0 == winner)
-            });
+
+            if let Some(winner) = winner {
+                reduces.clear();
+                reduces.push(winner);
+                // keep the non-reduce actions (shift/accept) as-is for now
+                cell.retain(|a| {
+                    matches!(a, Action::Shift(_))
+                        || matches!(a, Action::Reduce(pid) if pid.0 == winner)
+                });
+            }
         }
 
         // Now we have at most one reduce and at most one shift

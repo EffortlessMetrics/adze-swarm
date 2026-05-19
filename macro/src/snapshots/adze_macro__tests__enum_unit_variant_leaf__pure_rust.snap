@@ -24,7 +24,7 @@ mod grammar {
             ) -> &'a ::adze::pure_parser::ParsedNode {
                 let non_extra_children: Vec<_> =
                     node.children.iter().filter(|c| !c.is_extra).collect();
-                if (node.kind().starts_with('_') || non_extra_children.len() == 1)
+                if (node.kind() == "source_file" || node.kind().starts_with('_'))
                     && !non_extra_children.is_empty()
                 {
                     return unwrap_hidden_rules(non_extra_children[0]);

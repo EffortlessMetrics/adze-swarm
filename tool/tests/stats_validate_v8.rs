@@ -971,9 +971,12 @@ fn sv_v8_five_rule_symbol_count_ge_tokens_plus_nts() {
 }
 
 #[test]
-fn sv_v8_five_rule_no_conflicts() {
+fn sv_v8_five_rule_preserves_number_reduce_reduce_conflict() {
     let s = stats(five_rule("sv_v8_5r_nc"));
-    assert_eq!(s.conflict_cells, 0);
+    assert_eq!(
+        s.conflict_cells, 1,
+        "ret -> NUMBER and literal -> NUMBER should preserve one reduce/reduce conflict"
+    );
 }
 
 #[test]
