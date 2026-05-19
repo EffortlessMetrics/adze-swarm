@@ -13,7 +13,7 @@ ambiguity = "conflict cell retained; selected tree deterministic"
 diagnostics = "none"
 ts_compat = "selected tree S-expression matches documented subset"
 support_tier = "GLR conflict routing"
-proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" glr_conflict_matrix -- --nocapture"
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture"
 known_gaps = ["broader generated reduce/reduce fixture pending"]
 
 [[fixture]]
@@ -27,7 +27,7 @@ ambiguity = "else conflict retained in generated table"
 diagnostics = "runtime selected-tree parse currently pending"
 ts_compat = "selected tree only"
 support_tier = "GLR conflict routing"
-proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" glr_conflict_matrix -- --nocapture"
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture"
 known_gaps = [
   "generated dangling-else selected-tree runtime parse pending",
   "broader imported grammar dangling-else parity pending",
@@ -44,7 +44,7 @@ ambiguity = "retained alternatives reported"
 diagnostics = "none"
 ts_compat = "selected tree only"
 support_tier = "GLR conflict routing"
-proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" glr_conflict_matrix -- --nocapture"
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture"
 known_gaps = ["concrete fixture source pending"]
 
 [[fixture]]
@@ -58,7 +58,7 @@ ambiguity = "none"
 diagnostics = "none"
 ts_compat = "child_by_field_name, child_by_field_id, field_name_for_child"
 support_tier = "Tree-sitter compatibility API"
-proof = "cargo test -p adze --features \"pure-rust,glr,ts-compat\" ts_compat_selected_tree -- --nocapture"
+proof = "cargo test -p adze --features \"pure-rust,glr,ts-compat\" --test ts_compat_selected_tree -- --nocapture"
 known_gaps = ["concrete fixture source pending"]
 
 [[fixture]]
@@ -88,7 +88,7 @@ diagnostics = "none"
 ts_compat = "Tree-sitter-shaped expected query captures over selected tree"
 query = "named nodes, field constraints, anchors, and source-aware predicates"
 support_tier = "query compatibility subset"
-proof = "cargo test -p adze --features \"pure-rust,ts-compat\" --test query_differential -- --nocapture"
+proof = "cargo test -p adze --features \"pure-rust,ts-compat,query\" --test query_differential -- --nocapture"
 known_gaps = [
   "uses Tree-sitter-shaped expected facts rather than an imported Tree-sitter runtime oracle",
   "alternation and directives remain future work",
