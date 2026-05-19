@@ -24,6 +24,19 @@ use adze_runtime::{
 };
 use adze_tablegen::ParsetableWriter;
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+fn unique_temp_parsetable_path(test_name: &str) -> PathBuf {
+    let unique = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!(
+        "adze_runtime2_{test_name}_pid{}_{}.parsetable",
+        std::process::id(),
+        unique
+    ))
+}
 
 /// Helper: Create a minimal arithmetic grammar for testing
 ///
@@ -146,7 +159,7 @@ fn test_full_pipeline_arithmetic() {
     // Step 2: Generate .parsetable file (AC-2)
     let writer = ParsetableWriter::new(&grammar, &parse_table, "arithmetic", "1.0.0");
 
-    let temp_file = std::env::temp_dir().join("test_arithmetic_e2e.parsetable");
+    let temp_file = unique_temp_parsetable_path("test_arithmetic_e2e");
     writer
         .write_file(&temp_file)
         .expect(".parsetable file generation should succeed");
@@ -252,7 +265,7 @@ fn test_glr_conflict_preservation() {
 
     // Serialize and deserialize
     let writer = ParsetableWriter::new(&grammar, &parse_table, "test", "1.0.0");
-    let temp_file = std::env::temp_dir().join("test_conflict_e2e.parsetable");
+    let temp_file = unique_temp_parsetable_path("test_conflict_e2e");
     writer.write_file(&temp_file).unwrap();
 
     let bytes = std::fs::read(&temp_file).unwrap();
@@ -293,7 +306,7 @@ fn test_parse_error_handling() {
         .with_detected_goto_indexing();
 
     let writer = ParsetableWriter::new(&grammar, &parse_table, "arithmetic", "1.0.0");
-    let temp_file = std::env::temp_dir().join("test_errors_e2e.parsetable");
+    let temp_file = unique_temp_parsetable_path("test_errors_e2e");
     writer.write_file(&temp_file).unwrap();
 
     let bytes = std::fs::read(&temp_file).unwrap();
@@ -343,7 +356,7 @@ fn test_table_reusability() {
         .with_detected_goto_indexing();
 
     let writer = ParsetableWriter::new(&grammar, &parse_table, "arithmetic", "1.0.0");
-    let temp_file = std::env::temp_dir().join("test_reuse_e2e.parsetable");
+    let temp_file = unique_temp_parsetable_path("test_reuse_e2e");
     writer.write_file(&temp_file).unwrap();
 
     let bytes = std::fs::read(&temp_file).unwrap();
@@ -391,7 +404,7 @@ fn test_version_compatibility() {
         .with_detected_goto_indexing();
 
     let writer = ParsetableWriter::new(&grammar, &parse_table, "arithmetic", "1.0.0");
-    let temp_file = std::env::temp_dir().join("test_version_e2e.parsetable");
+    let temp_file = unique_temp_parsetable_path("test_version_e2e");
     writer.write_file(&temp_file).unwrap();
 
     let mut bytes = std::fs::read(&temp_file).unwrap();
