@@ -1,6 +1,6 @@
 # Toolkit Excellence And Adoption Plan
 
-Status: active
+Status: complete
 Owner: runtime/product
 Created: 2026-05-18
 Linked proposal: ../../docs/proposals/ADZE-PROP-0004-toolkit-excellence.md
@@ -236,7 +236,8 @@ performance, or release-blocking regression claims.
 
 ### Work Item: proven-slice-promotion
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#232
 
 #### Goal
 
@@ -251,9 +252,11 @@ query parity, or performance thresholds.
 
 ## Closeout Criteria
 
-- Product acceptance matrix exists and points to proof commands.
-- Starter project and downstream fixture prove first-use behavior.
-- API choice, Tree-sitter, query, GLR ambiguity, diagnostics, recovery, and
+- [x] Product acceptance matrix exists and points to proof commands.
+- [x] Starter project and downstream fixture prove first-use behavior.
+- [x] API choice, Tree-sitter, query, GLR ambiguity, diagnostics, recovery, and
   performance docs are aligned with examples or receipts.
-- Support-tier promotions are limited to proven slices.
-- Public `adze` drift remains closed or intentionally promoted.
+- [x] Support-tier promotions are limited to proven slices.
+- [x] Public `adze` drift remains closed or intentionally promoted.
+
+Closeout: ./closeout.md

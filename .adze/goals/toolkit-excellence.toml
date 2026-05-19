@@ -1,6 +1,6 @@
 id = "adze-toolkit-excellence"
 title = "Adze Toolkit Excellence and Adoption"
-status = "active"
+status = "complete"
 owner = "droid-factory"
 created = "2026-05-18"
 
@@ -206,11 +206,12 @@ commands = [
 
 [[work_item]]
 id = "proven-slice-promotion"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0011"
 adr = ""
 plan = "plans/toolkit-excellence/implementation-plan.md"
+prs = [232]
 commands = [
   "cargo test -p adze --features \"pure-rust,glr,ts-compat\" --test ts_compat_selected_tree -- --nocapture",
   "cargo run -p adze --features query --example query_highlighting",
