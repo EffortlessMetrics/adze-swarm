@@ -136,7 +136,8 @@ cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse
 
 ### Work Item: beginner-docs-alignment
 
-Status: active
+Status: complete
+PRs: EffortlessMetrics/adze-swarm#223, EffortlessMetrics/adze-swarm#224
 
 #### Goal
 
@@ -151,7 +152,7 @@ constructors or unsupported performance and incremental claims.
 
 ### Work Item: api-choice-guide
 
-Status: ready
+Status: active
 
 #### Goal
 

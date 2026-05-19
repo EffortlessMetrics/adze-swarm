@@ -83,11 +83,12 @@ commands = [
 
 [[work_item]]
 id = "beginner-docs-alignment"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
 plan = "plans/toolkit-excellence/implementation-plan.md"
+prs = [223, 224]
 commands = [
   "cargo test -p adze-cli readme_arithmetic_quickstart_builds_and_runs -- --exact --nocapture",
   "cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture",
@@ -96,12 +97,14 @@ commands = [
 
 [[work_item]]
 id = "api-choice-guide"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/toolkit-excellence/implementation-plan.md"
 commands = [
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",
 ]
 
