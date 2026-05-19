@@ -208,8 +208,8 @@ Primary implementation surfaces:
 ## CI Proof
 
 ```bash
-cargo test -p adze --lib query -- --nocapture
-cargo test -p adze --lib query::matcher_v2 -- --nocapture
+cargo test -p adze --features query --lib query -- --nocapture
+cargo test -p adze --features query --lib query::matcher_v2 -- --nocapture
 git diff --check
 ```
 
@@ -226,5 +226,5 @@ The query surface remains advisory until the supported subset has:
 The planned differential proof command is:
 
 ```bash
-cargo test -p adze --features "pure-rust,ts-compat" --test query_differential -- --nocapture
+cargo test -p adze --features "pure-rust,ts-compat,query" --test query_differential -- --nocapture
 ```
