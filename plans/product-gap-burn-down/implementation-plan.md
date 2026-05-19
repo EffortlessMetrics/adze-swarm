@@ -308,7 +308,7 @@ rollback plan in `plans/release-promotion/public-promotion-pr-plan.md`.
 
 ## Work Item: external-scanner-recovery-proof
 
-Status: active
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0004-toolkit-excellence.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0005-diagnostics-and-recovery.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -327,7 +327,7 @@ recovery as future work until it has its own canaries.
 PR #298 fixed parser-v4 external scanner token span reporting. The parser now
 captures the pre-scan byte position, slices emitted token text from that range,
 and rejects scanner-emitted tokens that are not valid in the current parser
-state. A follow-up parser-v4 canary proves bad input in a direct
+state. PR #300 added a follow-up parser-v4 canary proving bad input in a direct
 external-scanner grammar shape returns a diagnostic document with error facts.
 
 ### Production Delta
@@ -361,9 +361,10 @@ git diff --check
 
 ### Rollback
 
-Revert the parser-v4 span fix and the support-tier receipt update. Keep
-external scanners Experimental and keep recovery coverage listed as future
-work.
+Revert PR #300 to remove the direct parser-v4 diagnostic-document canary and
+receipt updates. Revert PR #298 only if the scanner span behavior itself needs
+to be rolled back. Keep external scanners Experimental and keep
+parser-generated recovery coverage listed as future work.
 
 ## Work Item: product-objective-audit-refresh
 

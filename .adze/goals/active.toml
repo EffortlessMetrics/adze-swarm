@@ -39,12 +39,12 @@ commands = [
 
 [[work_item]]
 id = "external-scanner-recovery-proof"
-status = "active"
+status = "complete"
 proposal = "ADZE-PROP-0004-toolkit-excellence"
 spec = "ADZE-SPEC-0005"
 adr = "ADZE-ADR-0001"
 plan = "plans/product-gap-burn-down/implementation-plan.md"
-prs = [298]
+prs = [298, 300]
 commands = [
   "cargo test -p adze --features external_scanners",
   "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests::test_parser_with_external_scanner -- --exact --nocapture",
@@ -69,8 +69,7 @@ commands = [
 
 [[work_item]]
 id = "public-promotion-blocker-watch"
-status = "blocked"
-blocked_by = ["external-scanner-recovery-proof", "product-objective-audit-refresh"]
+status = "active"
 proposal = "ADZE-PROP-0005-release-promotion-readiness"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
