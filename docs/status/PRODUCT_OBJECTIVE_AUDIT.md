@@ -63,13 +63,15 @@ passed on 2026-05-19 from current `adze-swarm/main` after PR #281, commit
 advisory canaries skipped under the stable-only default. This is evidence for
 the README Stable claim lane; it is not a branch-protection change.
 
-Local receipt after residual product-trust PRs #295-#301: `just
+Local receipt after residual product-trust PRs #295-#303: `just
 ci-product-stable` passed on 2026-05-19 from `adze-swarm/main` at commit
-`b613ebbb`. This refreshed the README stable proof alignment, bounded
-published CLI install-claim wording, clean-room README/Getting Started/book
-quickstarts, checked-in downstream demo, standalone downstream starter fixture,
-typed AST determinism, operator precedence, and core table serialization
-canaries. This remains advisory product proof, not a branch-protection change.
+`b613ebbb`, and the refreshed public promotion PR later passed the hosted
+`ci-product stable canaries` job from commit `b453a20e`. These receipts cover
+README stable proof alignment, bounded published CLI install-claim wording,
+clean-room README/Getting Started/book quickstarts, checked-in downstream demo,
+standalone downstream starter fixture, typed AST determinism, operator
+precedence, and core table serialization canaries. This remains advisory
+product proof, not a branch-protection change.
 
 Current CI-tail receipts:
 
@@ -130,17 +132,17 @@ Current public promotion PR receipt:
 
 Public `EffortlessMetrics/adze#794` was opened from the explicit public
 promotion execution decision and refreshed after source-side fixes landed in
-`adze-swarm` #290 and #291. On 2026-05-19, public PR #794 at commit
-`2550b21f30e49956e0d44ca56b6bbcdee79749fd` passed the refreshed public check
+`adze-swarm` #290, #291, and #303. On 2026-05-19, public PR #794 at commit
+`b453a20e5a00fb4c9b086e9ef175c4f93209aacd` passed the refreshed public check
 set, including `Rust Small Result`, `Supported Rust Gate`, `PR Gate Success`,
 `Source of Truth`, `CI Lane Whitelist`, `GLR Invariants`, `Coverage Lite`,
 `ci-product stable canaries`, `Test Core Crates`, `Test Runtime Crates`, and
 `Test Pure Rust Implementation`.
 
-This is a ready-for-manual-review public promotion receipt, not a completed
-promotion. PR #794 remains open, mergeable, and not draft; auto-merge is not
-enabled, and the public merge state is blocked by normal public review/merge
-controls rather than failed CI.
+This is a ready-for-review public promotion receipt, not a completed
+promotion. PR #794 remains open, mergeable, not draft, and has squash
+auto-merge enabled. The public merge state is blocked by the public `main`
+branch requirement for one approving review, not by failed CI.
 
 Current first-use / CLI boundary receipts:
 
@@ -181,9 +183,9 @@ Do not mark the product objective complete while any of these are true:
 - `cargo install adze-cli` has no crates.io install receipt.
 - `ci-product-stable` is advisory and not a required branch-protection gate.
 - Parser-generated external-scanner recovery coverage remains future work.
-- Public promotion has not happened. Public PR #794 is open with historical
-  green checks, but it predates residual product-trust PRs #295-#301 and must
-  be refreshed or superseded before review/merge. Public
+- Public promotion has not happened. Public PR #794 is open, refreshed through
+  the latest source-side claim-boundary fix, green, and auto-merge-enabled, but
+  it still requires one public approving review before it can merge. Public
   `EffortlessMetrics/adze` remains release/public-intake until promotion is
   accepted.
 - GLR conflict routing, structured parse errors, Tree-sitter compatibility,
@@ -193,10 +195,11 @@ Do not mark the product objective complete while any of these are true:
 
 ## Next Concrete Actions
 
-1. Refresh or supersede public `EffortlessMetrics/adze#794` from current
-   `adze-swarm/main` before review/merge. If it merges, record a promotion
-   closeout and refresh public/main before any tag, publish, or
-   release-workflow work.
+1. Review and approve public `EffortlessMetrics/adze#794`, or leave it parked
+   as the explicit green promotion PR until review is available. If
+   `adze-swarm/main` advances before review, refresh or supersede #794 again
+   before merge. If it merges, record a promotion closeout and refresh
+   public/main before any tag, publish, or release-workflow work.
 2. Run the crates.io install receipt after publish and before any doc claims
    `cargo install adze-cli` as the supported quickstart. The current local
    package receipt and verifier dry run are publish-readiness evidence only.
