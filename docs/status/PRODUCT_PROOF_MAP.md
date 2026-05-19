@@ -38,8 +38,10 @@ For the stricter objective-level completion audit, see
 - A README Stable claim must have a matching `SUPPORT_TIERS.md` row and a
   repeatable proof command.
 - `ci-product stable canaries` is the bounded Stable-claim canary lane. It runs
-  on stable-claim PR surfaces, schedule, and manual dispatch, but remains
-  advisory until branch protection explicitly promotes it.
+  on stable-claim PR surfaces, schedule, and stable-only manual dispatch, but
+  remains advisory until branch protection explicitly promotes it. Manual
+  dispatch runs the broad advisory product lane only when `lane=all` is
+  selected.
 - Latest local receipt: `just ci-product-stable` passed on 2026-05-19 from
   current `adze-swarm/main` after PR #247. Treat this as current
   proof evidence, not a required-gate promotion.
