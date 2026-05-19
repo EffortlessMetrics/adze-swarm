@@ -1,7 +1,7 @@
 # Now / Next / Later
 
 **Last updated:** 2026-05-19
-**Status:** **Toolkit excellence closeout** — `adze-swarm` is the operating repo, public `adze` remains release/public-intake, and the toolkit excellence campaign is complete with closeout recorded in [`../../plans/toolkit-excellence/closeout.md`](../../plans/toolkit-excellence/closeout.md). The completed campaign is tracked in [`../../.adze/goals/active.toml`](../../.adze/goals/active.toml) and [`../../plans/toolkit-excellence/implementation-plan.md`](../../plans/toolkit-excellence/implementation-plan.md).
+**Status:** **Release promotion readiness** — `adze-swarm` is the operating repo, public `adze` remains release/public-intake, and the active campaign prepares a deliberate public promotion decision. Toolkit excellence is complete with closeout recorded in [`../../plans/toolkit-excellence/closeout.md`](../../plans/toolkit-excellence/closeout.md). The active campaign is tracked in [`../../.adze/goals/active.toml`](../../.adze/goals/active.toml) and [`../../plans/release-promotion/implementation-plan.md`](../../plans/release-promotion/implementation-plan.md).
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -35,6 +35,13 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Define the product acceptance matrix for first-use, document, diagnostics, GLR ambiguity, Tree-sitter, query, JSON, CLI, WASM, and performance workflows.
 - [x] Harden the starter project, downstream fixture, API choice guide, examples, compatibility matrix, and performance receipts.
 - [x] Finish the support-tier promotion pass without adding new Stable claims.
+
+### Release promotion readiness
+- [x] Open the release-promotion readiness campaign in `adze-swarm`.
+- [ ] Inventory completed swarm campaigns and release-facing support-tier claims.
+- [ ] Audit public `adze` drift before preparing a promotion PR.
+- [ ] Freeze release-facing claims and known limitations.
+- [ ] Prepare or defer the public promotion PR with proof and rollback.
 
 ### Correctness queue baseline
 - [x] Refresh live PR state with `gh pr list --state open --limit 20 --json number,title,isDraft,headRefName,updatedAt,url`.

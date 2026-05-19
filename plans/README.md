@@ -42,6 +42,8 @@ Existing lanes include:
 
 - [`0.9.0/`](./0.9.0/README.md) for contract convergence and API foundation work.
 - [`glr-toolkit/`](./glr-toolkit/productization-plan.md) for the GLR toolkit productization campaign.
+- [`toolkit-excellence/`](./toolkit-excellence/implementation-plan.md) for the completed toolkit excellence and adoption campaign.
+- [`release-promotion/`](./release-promotion/implementation-plan.md) for the active public promotion readiness campaign.
 
 ## Plan header
 
