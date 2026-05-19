@@ -54,6 +54,19 @@ cargo test --manifest-path testing/downstream-starter/Cargo.toml
 cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse
 ```
 
+Current release-surface readiness receipts:
+
+```bash
+just check-publishable
+```
+
+`just check-publishable` passed on 2026-05-19 from `adze-swarm/main` after
+PR #253. It verifies publish-order metadata and `cargo package --list` for the
+core publish surface (`adze-common`, `adze-ir`, `adze-glr-core`,
+`adze-tablegen`, `adze-macro`, `adze-tool`, `adze-cli`, and `adze`). This is
+package metadata/file-list evidence only; it does not publish crates or prove
+registry installation.
+
 Current first-use / CLI boundary receipts:
 
 ```bash
