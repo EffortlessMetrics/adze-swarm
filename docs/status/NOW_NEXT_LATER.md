@@ -61,7 +61,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Keep README feature claims aligned with [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md): no Stable claim without a named proof command; guarded by `readme_stable_claims_are_in_stable_product_lane`.
 - [x] Add stable-product canaries for the checked-in downstream demo, README quickstart, and Getting Started tutorial so clean downstream crates prove typed parsing and useful bad-input diagnostics.
 - [x] Latest local stable-product receipt: `just ci-product-stable` passed on
-      2026-05-17 after the `adze-swarm` queue cleanup through PR #194. This is
+      2026-05-19 from current `adze-swarm/main` after PR #247. This is
       evidence for the README Stable claim lane, not a branch-protection change.
 
 ### Operational tail

@@ -38,8 +38,8 @@ do not have to mine the dense tier table for the common decision points.
 - `ci-product stable canaries` is the bounded Stable-claim canary lane. It runs
   on stable-claim PR surfaces, schedule, and manual dispatch, but remains
   advisory until branch protection explicitly promotes it.
-- Latest local receipt: `just ci-product-stable` passed on 2026-05-17 after
-  the `adze-swarm` queue cleanup through PR #194. Treat this as current
+- Latest local receipt: `just ci-product-stable` passed on 2026-05-19 from
+  current `adze-swarm/main` after PR #247. Treat this as current
   proof evidence, not a required-gate promotion.
 - Experimental, Stabilizing, and Advisory rows here are not marketing claims.
   They are current evidence snapshots.
