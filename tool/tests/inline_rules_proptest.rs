@@ -86,6 +86,17 @@ fn collect_symbol_names(val: &Value) -> Vec<String> {
     out
 }
 
+fn member_rule<'a>(grammar: &'a Value, member: &'a Value) -> &'a Value {
+    if member["type"].as_str() == Some("SYMBOL")
+        && let Some(name) = member["name"].as_str()
+        && let Some(rule) = grammar["rules"].get(name)
+    {
+        rule
+    } else {
+        member
+    }
+}
+
 // ===========================================================================
 // Strategies
 // ===========================================================================
@@ -697,9 +708,9 @@ proptest! {
         let src = enum_nested_struct_src(&name, &ty);
         let g = extract_one(&src);
         let members = g["rules"][&ty]["members"].as_array().unwrap();
-        // Wrapped variant references Inner (non-leaf) → FIELD containing SYMBOL
-        let wrapped = &members[0];
-        // It's a FIELD node wrapping a SYMBOL reference to Inner
+        // Wrapped variant references Inner (non-leaf), either directly or via
+        // the explicit generated wrapper needed for reduce/reduce identity.
+        let wrapped = member_rule(&g, &members[0]);
         let inner_symbols = collect_symbol_names(wrapped);
         prop_assert!(inner_symbols.contains(&"Inner".to_string()),
             "wrapped variant should reference Inner struct");
@@ -1001,9 +1012,9 @@ proptest! {
         let src = enum_repeat_variant_src(&name, &ty);
         let g = extract_one(&src);
         let members = g["rules"][&ty]["members"].as_array().unwrap();
-        // Nums variant is inlined, Single is inlined
-        // Nums has a FIELD node wrapping the vec reference
-        let nums = &members[0];
+        // Nums may be represented by an explicit generated wrapper so its
+        // variant identity survives generated reduce/reduce conflicts.
+        let nums = member_rule(&g, &members[0]);
         let field_nodes = collect_nodes_of_type(nums, "FIELD");
         prop_assert!(!field_nodes.is_empty(), "repeat variant should have FIELD nodes");
     }

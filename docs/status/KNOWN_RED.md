@@ -72,20 +72,27 @@ These may run as optional signal (nightly/manual/canary), but are not required f
 - deployment workflows (mdBook / pages)
 - performance regression canaries
 - All other `.github/workflows/ci.yml` jobs are optional unless explicitly promoted in settings.
+- Published `cargo install adze-cli` proof. `just package-local adze-cli`
+  passed on 2026-05-19 and verifies the local CLI package with co-release
+  patches, but current product proof still uses the repo-built CLI and
+  downstream fixtures. Treat crates.io CLI installation as release-surface work
+  until an install receipt exists.
 
 ---
 
 
 ## Advisory product proof lane (non-blocking)
 
-A broad-surface advisory lane now exists as `.github/workflows/product-proof.yml` and runs `scripts/ci-product.sh` on schedule/manual dispatch.
+A broad-surface advisory lane now exists as `.github/workflows/product-proof.yml` and runs `scripts/ci-product.sh` on schedule or manual dispatch with `lane=all`.
 
-This lane is **not** part of required merge gates. It provides bounded canary proof across product surfaces that are outside `ci-supported`. A narrower `ci-product stable canaries` job runs `just ci-product-stable` on stable-claim PR surfaces and on schedule/manual dispatch, but it is also advisory until branch protection explicitly promotes it.
+This lane is **not** part of required merge gates. It provides bounded canary proof across product surfaces that are outside `ci-supported`. A narrower `ci-product stable canaries` job runs `just ci-product-stable` on stable-claim PR surfaces, schedule, and stable-only manual dispatch, but it is also advisory until branch protection explicitly promotes it.
 
-Latest stable-product receipt: `just ci-product-stable` passed locally on
-2026-05-19 from current `adze-swarm/main` after PR #247, and the GitHub
-`ci-product stable canaries` job passed on PR #248. This remains advisory and
-is not part of required branch protection.
+Latest stable-product receipt: GitHub workflow dispatch
+[`Product Proof` run 26100132801](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26100132801)
+passed on 2026-05-19 from `adze-swarm/main` after PR #269. The
+`ci-product stable canaries` job passed in 3m41s and `ci-product advisory
+canaries` skipped under the stable-only default. This remains advisory and is
+not part of required branch protection.
 
 Current canaries:
 
@@ -98,7 +105,8 @@ Current canaries:
 - `adze` GLR reduce-reduce driver canary — **behavior** (`cargo test -p adze-glr-core --test parser_driver_tests reduce_reduce_parses_despite_conflict -- --exact --nocapture`)
 - `adze` GLR parser_v4 canonical conflict routing — **behavior** (`cargo test -p adze --features "pure-rust,glr" --test parser_v4_comprehensive test_parser_v4_rejects_single_action_fork_conflict_before_parsing -- --exact --nocapture`)
 - `adze` GLR dangling-else conflict preservation — **behavior** (`cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_dangling_else_conflicts verify_conflict_preservation_behavior -- --exact --nocapture`)
-- `adze` GLR dangling-else selection gap guardrail — **behavior** (`cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_dangling_else_conflicts generated_dangling_else_selection_gap_returns_error_without_panicking -- --exact --nocapture`)
+- `adze` GLR dangling-else selected tree — **behavior** (`cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_dangling_else_conflicts generated_dangling_else_selects_nearest_else_and_records_ambiguity -- --exact --nocapture`)
+- `adze` generated reduce/reduce preservation and selected tree — **behavior** (`cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test generated_reduce_reduce_gap -- --nocapture`)
 - `adze` structured parse diagnostics — **behavior** (`cargo test -p adze --test error_display_tests reporting_parse_with_errors_includes_source_excerpt_after_bad_input --features "pure-rust,glr" -- --exact --nocapture`)
 - `adze` multiline parse diagnostic location — **behavior** (`cargo test -p adze --test error_display_tests reporting_parse_with_errors_tracks_multiline_bad_input_location_and_excerpt --features "pure-rust,glr" -- --exact --nocapture`)
 - `adze` parse diagnostic byte spans — **behavior** (`cargo test -p adze --test error_display_tests reporting_parse_diagnostics_include_byte_span_for_multiline_bad_input --features "pure-rust,glr" -- --exact --nocapture`)
