@@ -44,7 +44,7 @@ mod grammar {
                     .children(&mut cursor)
                     .filter(|c| !c.is_extra())
                     .collect();
-                if (node.kind().starts_with('_') || non_extra_children.len() == 1)
+                if (node.kind() == "source_file" || node.kind().starts_with('_'))
                     && !non_extra_children.is_empty()
                 {
                     if let Some(child) = non_extra_children.first() {

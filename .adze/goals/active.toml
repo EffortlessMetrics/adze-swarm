@@ -71,23 +71,22 @@ commands = [
 
 [[work_item]]
 id = "generated-reduce-reduce-gap"
-status = "ready"
+status = "complete"
 proposal = "ADZE-PROP-0003-glr-toolkit-productization"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0003"
 plan = "plans/product-gap-burn-down/implementation-plan.md"
 commands = [
   "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test generated_reduce_reduce_gap -- --nocapture",
+  "cargo test -p adze-tool --lib tests::single_field_non_leaf_variants_preserve_identity_for_reduce_reduce -- --exact --nocapture",
+  "cargo test -p adze-glr-core decide_reduce_reduce -- --nocapture",
   "cargo test -p adze-glr-core --test advanced_conflict_proptest -- --nocapture",
   "git diff --check",
 ]
 
 [[work_item]]
 id = "public-promotion-decision-refresh"
-status = "blocked"
-blocked_by = [
-  "generated-reduce-reduce-gap",
-]
+status = "ready"
 proposal = "ADZE-PROP-0005-release-promotion-readiness"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"

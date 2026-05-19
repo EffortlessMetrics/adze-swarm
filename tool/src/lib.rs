@@ -822,6 +822,61 @@ mod tests {
         debug_trace!("\n✅ TEST PASSED: Binary variant generates correctly!\n");
     }
 
+    #[test]
+    fn single_field_non_leaf_variants_preserve_identity_for_reduce_reduce() {
+        let m = if let syn::Item::Mod(m) = parse_quote! {
+            #[adze::grammar("reduce_reduce")]
+            pub mod grammar {
+                #[adze::language]
+                pub enum Choice {
+                    FromA(FromA),
+                    FromB(FromB),
+                }
+
+                #[adze::language]
+                pub struct FromA(#[adze::leaf(text = "x")] ());
+
+                #[adze::language]
+                pub struct FromB(#[adze::leaf(text = "x")] ());
+            }
+        } {
+            m
+        } else {
+            panic!("Failed to parse test module")
+        };
+
+        let grammar = generate_grammar(&m).expect("Failed to generate grammar");
+        let rules = grammar["rules"].as_object().expect("rules object");
+        let choice = rules.get("Choice").expect("Choice rule");
+        let members = choice["members"].as_array().expect("Choice members");
+
+        let member_names: Vec<_> = members
+            .iter()
+            .map(|member| member["name"].as_str().expect("symbol member"))
+            .collect();
+
+        assert_eq!(
+            member_names,
+            ["Choice_FromA", "Choice_FromB"],
+            "single-field non-leaf variants must keep wrapper symbols so \
+             generated reduce/reduce conflicts survive table generation"
+        );
+        assert!(
+            rules.contains_key("Choice_FromA"),
+            "Choice_FromA wrapper rule should be generated"
+        );
+        assert!(
+            rules.contains_key("Choice_FromB"),
+            "Choice_FromB wrapper rule should be generated"
+        );
+
+        generate_parser_for_grammar(
+            &serde_json::to_string(&grammar).unwrap(),
+            GENERATED_SEMANTIC_VERSION,
+        )
+        .unwrap();
+    }
+
     #[cfg(feature = "build_parsers")]
     #[test]
     fn test_emit_artifacts_functionality() {
