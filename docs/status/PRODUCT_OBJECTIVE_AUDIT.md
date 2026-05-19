@@ -36,7 +36,7 @@ Adze should be release-readable as a Rust parser generator where:
 | Quickstart works in a clean downstream crate. | `testing/downstream-starter/`; `docs/product/ACCEPTANCE_MATRIX.md`; `SUPPORT_TIERS.md` Pure-Rust parser row. | Covered for path-dependency downstream wiring, generated starter shape, and local `adze-cli` package verification. | Published `cargo install adze-cli` is not proven until `adze-cli` is published and an install receipt exists. |
 | Core pure-Rust pipeline is green, bounded, and boring. | `just ci-supported`; `Rust Small Result`; `KNOWN_RED.md` supported-lane description. | Covered as the required swarm gate plus local supported proof. | `ci-product-stable` remains advisory until branch protection explicitly promotes it. |
 | Tablegen emits valid tables. | `SUPPORT_TIERS.md` Tablegen `TSLanguage` ABI row; `PRODUCT_PROOF_MAP.md` tablegen ABI claim. | Stabilizing with compressed decode, field metadata, aliases, externals, lex modes, and conflict-cell proof. | Broader generated-language roundtrip and full Tree-sitter parity remain future work. |
-| GLR handles real conflicts honestly. | `SUPPORT_TIERS.md` GLR conflict routing row; `docs/product/ACCEPTANCE_MATRIX.md` GLR ambiguity row. | Stabilizing with generated shift/reduce conflict preservation, retained alternatives, deterministic selected output, ambiguity summaries, no-panic bad-input guardrails, and a generated reduce/reduce gap canary. | Dangling-else selected-tree resolution and generated reduce/reduce preservation/extraction remain product gaps. |
+| GLR handles real conflicts honestly. | `SUPPORT_TIERS.md` GLR conflict routing row; `docs/product/ACCEPTANCE_MATRIX.md` GLR ambiguity row. | Stabilizing with generated shift/reduce conflict preservation, dangling-else nearest-else selected typed AST proof, retained alternatives, deterministic selected output, ambiguity summaries, no-panic bad-input guardrails, and a generated reduce/reduce gap canary. | Generated reduce/reduce preservation/extraction remains a product gap. |
 | Typed extraction is deterministic. | `typed_ast_contract_left_associative_addition`; `typed_ast_contract_repeated_parse_is_deterministic`; `readme_arithmetic_quickstart_builds_and_runs`. | Covered for Stable typed extraction rows. | Keep determinism claims scoped to supported generated-parser shapes. |
 | Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors row; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, and generated-parser matrix canaries. | Broader invalid-span and external-scanner recovery coverage remain future work. |
 | Every Stable README claim maps to proof. | README capability table; `SUPPORT_TIERS.md`; `readme_stable_claims_are_in_stable_product_lane`; `scripts/ci-product-stable.sh`. | Covered by current proof map and stable-product canaries. | The stable-product lane is still advisory, not branch-protection required. |
@@ -106,8 +106,8 @@ Do not mark the product objective complete while any of these are true:
 
 ## Next Concrete Actions
 
-1. Fix or explicitly bound the dangling-else selected-tree gap and generated
-   reduce/reduce gap before any broader GLR support-tier promotion.
+1. Fix or explicitly bound the generated reduce/reduce gap before any broader
+   GLR support-tier promotion.
 2. If public promotion proceeds after those receipts, rerun the proof commands
    in `plans/release-promotion/public-promotion-pr-plan.md` from current
    `adze-swarm/main`.

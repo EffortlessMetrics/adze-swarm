@@ -122,6 +122,19 @@ fn word_regex_generates_alphanumeric_loop() {
     );
 }
 
+#[test]
+fn lowercase_alpha_regex_generates_lowercase_loop() {
+    let code = generate(vec![(1, "ident", TokenPattern::Regex(r"[a-z]+".into()))]);
+    assert!(
+        code.contains("is_ascii_lowercase"),
+        "[a-z]+ regex should use is_ascii_lowercase"
+    );
+    assert!(
+        code.contains("result_symbol = 1u16"),
+        "[a-z]+ regex should set the mapped result symbol"
+    );
+}
+
 // ── 8. Whitespace regex (\s+) ─────────────────────────────────────
 
 #[test]

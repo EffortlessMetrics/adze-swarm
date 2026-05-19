@@ -136,7 +136,7 @@ a separate product failure; fix that failure in its own PR.
 
 ## Work Item: dangling-else-selected-tree-gap
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0003-summary-first-glr-ambiguity.md
@@ -145,16 +145,27 @@ Blocked by: product-gap-burn-down-source-of-truth
 
 ### Goal
 
-Investigate and either fix or sharpen the support-tier boundary for the
-generated dangling-else selected-tree gap. Current proof shows conflict cells
-are preserved, but the ambiguous typed parse returns a structured error rather
-than a selected AST.
+Fix the generated dangling-else selected-tree gap. The generated grammar should
+preserve the shift/reduce conflict, select the nearest-else typed AST, and
+record retained ambiguity alternatives on `AdzeDocument`.
+
+### Receipt
+
+The focused proof now passes with generated `[a-z]+` lexer support, generic
+leaf enum extraction, tuple positional extraction, and a positive
+dangling-else selected-AST plus ambiguity-summary canary.
 
 ### Production Delta
 
-Prefer a focused runtime/tablegen fix if the selected-tree path can be made
-deterministic. If not, update support tiers and product audit with a sharper
-known gap.
+Focused runtime, macro, and tablegen fixes:
+
+- Generated lexers recognize lowercase alpha regex tokens such as `[a-z]+`.
+- Macro-generated leaf enum extraction applies to all single-field leaf
+  variants instead of a special-case `Number` variant.
+- Pure-Rust extraction handles tuple positional fields before named field
+  matching and does not drop the cursor when extracting token children.
+- The dangling-else generated parser now returns a typed selected AST and a
+  document ambiguity summary.
 
 ### Non-Goals
 
@@ -165,8 +176,12 @@ known gap.
 ### Proof Commands
 
 ```bash
-cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_dangling_else_conflicts generated_dangling_else_selection_gap_returns_error_without_panicking -- --exact --nocapture
+cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_dangling_else_conflicts generated_dangling_else_selects_nearest_else_and_records_ambiguity -- --exact --nocapture
+cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_dangling_else_conflicts -- --nocapture
 cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test glr_conflict_matrix -- --nocapture
+cargo test -p adze --features pure-rust --test typed_ast_contract -- --nocapture
+cargo test -p adze-tablegen --test lexer_generation_comprehensive -- --nocapture
+cargo test -p adze-macro -- --nocapture
 git diff --check
 ```
 
@@ -221,7 +236,6 @@ Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 Blocks: n/a
 Blocked by:
-- dangling-else-selected-tree-gap
 - generated-reduce-reduce-gap
 
 ### Goal

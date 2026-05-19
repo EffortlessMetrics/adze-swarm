@@ -17,7 +17,7 @@ end_state = [
   "public adze remains release/public-intake until an explicit promotion PR.",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md is current against the latest proof commands.",
   "The stable product receipt lane remains green from current main.",
-  "Dangling-else selected-tree behavior is either fixed with proof or explicitly deferred with a sharper support-tier boundary.",
+  "Dangling-else selected-tree behavior is fixed with proof.",
   "Generated reduce/reduce behavior is either promoted with proof or explicitly kept as a known product gap.",
   "cargo install adze-cli is not claimed until a crates.io install receipt exists.",
   "ci-product-stable is not treated as branch-protection required until policy records that promotion.",
@@ -54,14 +54,18 @@ commands = [
 
 [[work_item]]
 id = "dangling-else-selected-tree-gap"
-status = "ready"
+status = "complete"
 proposal = "ADZE-PROP-0003-glr-toolkit-productization"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0003"
 plan = "plans/product-gap-burn-down/implementation-plan.md"
 commands = [
-  "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test test_dangling_else_conflicts generated_dangling_else_selection_gap_returns_error_without_panicking -- --exact --nocapture",
+  "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test test_dangling_else_conflicts generated_dangling_else_selects_nearest_else_and_records_ambiguity -- --exact --nocapture",
+  "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test test_dangling_else_conflicts -- --nocapture",
   "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture",
+  "cargo test -p adze --features pure-rust --test typed_ast_contract -- --nocapture",
+  "cargo test -p adze-tablegen --test lexer_generation_comprehensive -- --nocapture",
+  "cargo test -p adze-macro -- --nocapture",
   "git diff --check",
 ]
 
@@ -82,7 +86,6 @@ commands = [
 id = "public-promotion-decision-refresh"
 status = "blocked"
 blocked_by = [
-  "dangling-else-selected-tree-gap",
   "generated-reduce-reduce-gap",
 ]
 proposal = "ADZE-PROP-0005-release-promotion-readiness"
