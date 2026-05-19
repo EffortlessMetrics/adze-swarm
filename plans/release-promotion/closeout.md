@@ -42,6 +42,12 @@ split:
 | Public promotion PR plan | #239 | Defined promotion preconditions, scope, exclusions, proof commands, PR body skeleton, and rollback. |
 | Closeout | #240 | Closes this campaign and leaves the public promotion decision explicit. |
 
+Post-closeout product-proof alignment continued in `adze-swarm` #241-#246.
+Those PRs kept the public promotion candidate current by aligning acceptance
+matrix, archived proof commands, performance receipts, downstream proof rows,
+starter-project proof, and CLI recovery-diagnostics proof with the current
+support-tier and README claim surfaces.
+
 ## Current State
 
 - `adze-swarm` remains the operating repo.
@@ -53,14 +59,16 @@ split:
   CLI are Stabilizing, not Stable.
 - Typed CST, incremental, WASM, benchmarks, and full compatibility claims remain
   Experimental or Advisory as recorded in `SUPPORT_TIERS.md`.
+- Live queue refresh after #246 showed no open PRs in `EffortlessMetrics/adze`
+  or `EffortlessMetrics/adze-swarm`.
 
 ## Remaining Preconditions Before A Public PR
 
 Before opening public promotion:
 
 - refresh both PR queues;
-- merge, supersede, close, or explicitly defer the open `adze-swarm` PRs
-  observed during the audit (#205-#212);
+- merge, supersede, close, or explicitly defer any open `adze-swarm` PRs
+  observed during the fresh promotion audit;
 - run the proof commands in `./public-promotion-pr-plan.md`;
 - confirm no release/publish/signing workflow change is included unless a
   separate release-surface plan owns it.
