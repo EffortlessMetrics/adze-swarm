@@ -133,15 +133,16 @@ README.md
 #### Acceptance
 
 ```bash
-cargo install adze-cli
-adze init calc
+cargo run -p adze-cli -- init calc
 cd calc
 cargo test
 cargo run --example parse
 ```
 
 The generated project parses valid arithmetic input and reports diagnostics for
-bad input.
+bad input. The `cargo install adze-cli` path remains the intended published
+release surface and needs its own install receipt before it is treated as
+proven.
 
 ### Work Item: quickstart-and-mental-model
 
