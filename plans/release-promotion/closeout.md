@@ -42,11 +42,12 @@ split:
 | Public promotion PR plan | #239 | Defined promotion preconditions, scope, exclusions, proof commands, PR body skeleton, and rollback. |
 | Closeout | #240 | Closes this campaign and leaves the public promotion decision explicit. |
 
-Post-closeout product-proof alignment continued in `adze-swarm` #241-#246.
+Post-closeout product-proof alignment continued in `adze-swarm` #241-#253.
 Those PRs kept the public promotion candidate current by aligning acceptance
 matrix, archived proof commands, performance receipts, downstream proof rows,
-starter-project proof, and CLI recovery-diagnostics proof with the current
-support-tier and README claim surfaces.
+starter-project proof, CLI recovery-diagnostics proof, objective audit, install
+claim boundaries, and local CLI package receipts with the current support-tier
+and README claim surfaces.
 
 ## Current State
 
@@ -59,7 +60,10 @@ support-tier and README claim surfaces.
   CLI are Stabilizing, not Stable.
 - Typed CST, incremental, WASM, benchmarks, and full compatibility claims remain
   Experimental or Advisory as recorded in `SUPPORT_TIERS.md`.
-- Live queue refresh after #246 showed no open PRs in `EffortlessMetrics/adze`
+- `just check-publishable` passed on 2026-05-19 from `adze-swarm/main` after
+  #253, covering publish-order metadata and package file-list checks for the
+  core release surface. This is not a publish or crates.io install claim.
+- Live queue refresh after #253 showed no open PRs in `EffortlessMetrics/adze`
   or `EffortlessMetrics/adze-swarm`.
 
 ## Remaining Preconditions Before A Public PR
@@ -86,6 +90,8 @@ cargo test -p xtask file_policy -- --nocapture
 cargo run -q -p xtask -- check-file-policy
 cargo run -q -p xtask -- check-active-goal --mode blocking
 cargo run -q -p xtask -- check-doc-artifacts --mode blocking
+just check-publishable
+just package-local adze-cli
 git diff --check
 ```
 

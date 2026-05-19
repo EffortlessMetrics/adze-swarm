@@ -40,8 +40,8 @@ fixture, proof command, support-tier row, and plan item for each public claim.
 
 ## Users And Surfaces
 
-- Typed parser users need the boring path: install, `adze init`, `cargo test`,
-  then `grammar::parse(input)` returning typed Rust values.
+- Typed parser users need the boring path: obtain the CLI, run `adze init`,
+  run `cargo test`, then call `grammar::parse(input)` to get typed Rust values.
 - Language and tooling users need `parse_document()` with diagnostics, ranges,
   fields, JSON, typed CST/AST projections, and ambiguity summaries.
 - Editor and Tree-sitter users need selected-tree output, node metadata, fields,
@@ -53,8 +53,10 @@ fixture, proof command, support-tier row, and plan item for each public claim.
 
 ## Success Criteria
 
-- A new user can run `cargo install adze-cli`, `adze init calc`, `cargo test`,
-  and `cargo run --example parse` in a generated starter project.
+- A new user can run the generated starter flow, build and test it, and run
+  the parse example. Until `adze-cli` is published, the proven command starts
+  from the repo-built CLI; `cargo install adze-cli` is a release-surface target
+  that needs an install receipt.
 - The README links to one beginner path and one mental model instead of forcing
   users through internal architecture docs.
 - GLR conflict handling has generated matrix coverage for shift/reduce,
