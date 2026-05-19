@@ -69,9 +69,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Keep README feature claims aligned with [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md): no Stable claim without a named proof command; guarded by `readme_stable_claims_are_in_stable_product_lane`.
 - [x] Add stable-product canaries for the checked-in downstream demo, README quickstart, and Getting Started tutorial so clean downstream crates prove typed parsing and useful bad-input diagnostics.
 - [x] Latest hosted stable-product receipt: GitHub workflow dispatch
-      [`Product Proof` run 26100132801](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26100132801)
-      passed on 2026-05-19 from current `adze-swarm/main` after PR #269,
-      commit `0e7ccf51`. The `ci-product stable canaries` job passed in 3m41s
+      [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
+      passed on 2026-05-19 from current `adze-swarm/main` after PR #281,
+      commit `0b79a36a`. The `ci-product stable canaries` job passed in 3m02s
       and the broad advisory canaries skipped under the stable-only default.
       This is evidence for the README Stable claim lane, not a
       branch-protection change.
