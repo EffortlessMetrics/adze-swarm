@@ -38,7 +38,7 @@ Adze should be release-readable as a Rust parser generator where:
 | Tablegen emits valid tables. | `SUPPORT_TIERS.md` Tablegen `TSLanguage` ABI row; `PRODUCT_PROOF_MAP.md` tablegen ABI claim. | Stabilizing with compressed decode, field metadata, aliases, externals, lex modes, and conflict-cell proof. | Broader generated-language roundtrip and full Tree-sitter parity remain future work. |
 | GLR handles real conflicts honestly. | `SUPPORT_TIERS.md` GLR conflict routing row; `docs/product/ACCEPTANCE_MATRIX.md` GLR ambiguity row. | Stabilizing with generated shift/reduce conflict preservation, generated reduce/reduce preservation and selected typed-AST extraction, dangling-else nearest-else selected typed AST proof, retained alternatives, deterministic selected output, ambiguity summaries, and no-panic bad-input guardrails. | Broader conflict-class coverage and any Stable GLR promotion still require support-tier proof review. |
 | Typed extraction is deterministic. | `typed_ast_contract_left_associative_addition`; `typed_ast_contract_repeated_parse_is_deterministic`; `readme_arithmetic_quickstart_builds_and_runs`. | Covered for Stable typed extraction rows. | Keep determinism claims scoped to supported generated-parser shapes. |
-| Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors row; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, and generated-parser matrix canaries. | Broader invalid-span and external-scanner recovery coverage remain future work. |
+| Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors row; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, generated-parser matrix canaries, and object-like `parse_document()`/JSON recovery proof for separator, UTF-8, multiline value, and multiline EOF cases. | External-scanner recovery coverage remains future work; any Stable promotion still needs support-tier review. |
 | Every Stable README claim maps to proof. | README capability table; `SUPPORT_TIERS.md`; `readme_stable_claims_are_in_stable_product_lane`; `scripts/ci-product-stable.sh`. | Covered by current proof map and stable-product canaries. | The stable-product lane is still advisory, not branch-protection required. |
 | Experimental/developing surfaces are clearly labeled. | README capability table; `SUPPORT_TIERS.md`; `KNOWN_RED.md`; `PRODUCT_PROOF_MAP.md`. | Covered for runtime2, broader grammars, WASM, Tree-sitter interop, CLI, benchmarks, typed CST, incremental, and JSON. | Re-check after any README, support-tier, or release-facing wording change. |
 | Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI document JSON recovery diagnostics. | Partially covered by local/downstream fixtures and CLI recovery smoke. | Published CLI install, public promotion, and any future crates.io release surface need fresh receipts. |
@@ -73,6 +73,18 @@ Current CI-tail receipts:
 - On PR #285, `Rust Small Result` passed in 6s, `Supported Rust Gate` passed in
   22m56s, and `Test Pure Rust Implementation (ubuntu-latest, stable)` passed
   in 23m10s after running the scoped supported-crate test step.
+
+Current structured parse-error receipts:
+
+```bash
+cargo test -p adze --features "pure-rust,glr,serialization,ts-compat" --test recovery_matrix generated_object_like_bad_input_matrix_preserves_document_diagnostics_and_json -- --exact --nocapture
+cargo test -p adze --features "pure-rust,glr,serialization,ts-compat" --test recovery_matrix -- --nocapture
+```
+
+PR #293 added object-like `parse_document()` and document JSON recovery proof
+for missing separators, multibyte invalid identifier continuations, multiline
+invalid values, and multiline EOF. This narrows the invalid-span product gap;
+it is not a support-tier promotion.
 
 Current release-surface readiness receipts:
 
