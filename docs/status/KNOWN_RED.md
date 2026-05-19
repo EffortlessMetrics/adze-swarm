@@ -72,6 +72,11 @@ These may run as optional signal (nightly/manual/canary), but are not required f
 - deployment workflows (mdBook / pages)
 - performance regression canaries
 - All other `.github/workflows/ci.yml` jobs are optional unless explicitly promoted in settings.
+- Published `cargo install adze-cli` proof. `just package-local adze-cli`
+  passed on 2026-05-19 and verifies the local CLI package with co-release
+  patches, but current product proof still uses the repo-built CLI and
+  downstream fixtures. Treat crates.io CLI installation as release-surface work
+  until an install receipt exists.
 
 ---
 
@@ -99,6 +104,7 @@ Current canaries:
 - `adze` GLR parser_v4 canonical conflict routing — **behavior** (`cargo test -p adze --features "pure-rust,glr" --test parser_v4_comprehensive test_parser_v4_rejects_single_action_fork_conflict_before_parsing -- --exact --nocapture`)
 - `adze` GLR dangling-else conflict preservation — **behavior** (`cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_dangling_else_conflicts verify_conflict_preservation_behavior -- --exact --nocapture`)
 - `adze` GLR dangling-else selection gap guardrail — **behavior** (`cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_dangling_else_conflicts generated_dangling_else_selection_gap_returns_error_without_panicking -- --exact --nocapture`)
+- `adze` generated reduce/reduce preservation and extraction gap — **gap canary** (`cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test generated_reduce_reduce_gap -- --nocapture`)
 - `adze` structured parse diagnostics — **behavior** (`cargo test -p adze --test error_display_tests reporting_parse_with_errors_includes_source_excerpt_after_bad_input --features "pure-rust,glr" -- --exact --nocapture`)
 - `adze` multiline parse diagnostic location — **behavior** (`cargo test -p adze --test error_display_tests reporting_parse_with_errors_tracks_multiline_bad_input_location_and_excerpt --features "pure-rust,glr" -- --exact --nocapture`)
 - `adze` parse diagnostic byte spans — **behavior** (`cargo test -p adze --test error_display_tests reporting_parse_diagnostics_include_byte_span_for_multiline_bad_input --features "pure-rust,glr" -- --exact --nocapture`)

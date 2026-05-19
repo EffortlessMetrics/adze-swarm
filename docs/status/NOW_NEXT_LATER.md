@@ -63,6 +63,14 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Latest local stable-product receipt: `just ci-product-stable` passed on
       2026-05-19 from current `adze-swarm/main` after PR #247. This is
       evidence for the README Stable claim lane, not a branch-protection change.
+- [x] Objective-level completion audit exists in
+      [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
+      the remaining `cargo install adze-cli`, branch-protection, and public
+      promotion gaps.
+- [x] Latest release-surface package receipts: `just package-local adze-cli`
+      and `just check-publishable` passed on 2026-05-19 from `adze-swarm`.
+      These are package verification receipts, not crates.io install or publish
+      claims.
 
 ### Operational tail
 - [x] [Issue #269](https://github.com/EffortlessMetrics/adze/issues/269): pure-rust benchmark-compilation tail is removed from routine PRs; benchmark compile/performance signal remains in explicit performance and benchmark lanes.
