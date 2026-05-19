@@ -157,9 +157,13 @@ pub enum ConflictType {
 /// actions as conflicted, because the parser can branch from the same
 /// state/lookahead position.
 pub fn cell_has_conflict(actions: &[Action]) -> bool {
+    effective_actions(actions).len() > 1
+}
+
+fn effective_actions(actions: &[Action]) -> Vec<Action> {
     let mut flattened = Vec::new();
     collect_effective_actions(actions, &mut flattened);
-    flattened.len() > 1
+    flattened
 }
 
 fn collect_effective_actions(actions: &[Action], out: &mut Vec<Action>) {
@@ -275,16 +279,11 @@ pub fn count_conflicts(table: &ParseTable) -> ConflictSummary {
                     SymbolId(0)
                 };
 
-                // Get symbol name from symbol_metadata if available
-                let symbol_name = if (symbol_id.0 as usize) < table.symbol_metadata.len() {
-                    // For now, use a placeholder - we'll need access to symbol names
-                    format!("symbol_{}", symbol_id.0)
-                } else {
-                    format!("symbol_{}", symbol_id.0)
-                };
+                let symbol_name = symbol_name(table, symbol_id);
+                let effective_actions = effective_actions(action_cell);
 
-                // Classify conflict type
-                let conflict_type = classify_conflict(action_cell);
+                // Classify conflict type from the effective (flattened and deduplicated) actions
+                let conflict_type = classify_conflict(&effective_actions);
 
                 // Count by type
                 match conflict_type {
@@ -298,7 +297,7 @@ pub fn count_conflicts(table: &ParseTable) -> ConflictSummary {
                 }
 
                 // Compute priorities (placeholder - would come from precedence/associativity)
-                let priorities = action_cell
+                let priorities = effective_actions
                     .iter()
                     .map(|_action| 0i32) // Default priority
                     .collect();
@@ -309,7 +308,7 @@ pub fn count_conflicts(table: &ParseTable) -> ConflictSummary {
                     symbol: symbol_id,
                     symbol_name,
                     conflict_type,
-                    actions: action_cell.clone(),
+                    actions: effective_actions,
                     priorities,
                 });
             }
@@ -323,35 +322,37 @@ pub fn count_conflicts(table: &ParseTable) -> ConflictSummary {
     summary
 }
 
-/// Classify conflict type from action list
+fn symbol_name(table: &ParseTable, symbol: SymbolId) -> String {
+    table
+        .symbol_metadata
+        .iter()
+        .find(|metadata| metadata.symbol_id == symbol)
+        .map(|metadata| metadata.name.clone())
+        .unwrap_or_else(|| format!("symbol_{}", symbol.0))
+}
+
+/// Classify conflict type from action list.
+///
+/// Forks are flattened and duplicate branches are removed before classification,
+/// so this helper reports the conflict represented by the actual set of parser
+/// branches rather than the parse-table encoding used to store them.
 pub fn classify_conflict(actions: &[Action]) -> ConflictType {
-    let mut has_shift = false;
-    let mut has_reduce = false;
+    let effective = effective_actions(actions);
+    let shift_count = effective
+        .iter()
+        .filter(|action| matches!(action, Action::Shift(_)))
+        .count();
+    let reduce_count = effective
+        .iter()
+        .filter(|action| matches!(action, Action::Reduce(_)))
+        .count();
 
-    for action in actions {
-        match action {
-            Action::Shift(_) => has_shift = true,
-            Action::Reduce(_) => has_reduce = true,
-            Action::Fork(inner) => {
-                // Recursively check fork contents
-                let inner_type = classify_conflict(inner);
-                match inner_type {
-                    ConflictType::ShiftReduce | ConflictType::Mixed => {
-                        has_shift = true;
-                        has_reduce = true;
-                    }
-                    ConflictType::ReduceReduce => has_reduce = true,
-                }
-            }
-            // Accept, Error, Recover don't create conflicts for classification
-            Action::Accept | Action::Error | Action::Recover => {}
-        }
-    }
-
-    match (has_shift, has_reduce) {
-        (true, true) => ConflictType::ShiftReduce,
-        (false, true) => ConflictType::ReduceReduce,
-        _ => ConflictType::Mixed,
+    if shift_count > 0 && reduce_count > 0 {
+        ConflictType::ShiftReduce
+    } else if reduce_count > 1 {
+        ConflictType::ReduceReduce
+    } else {
+        ConflictType::Mixed
     }
 }
 
@@ -422,7 +423,7 @@ impl fmt::Display for ConflictDetail {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Action;
+    use crate::{Action, SymbolMetadata};
     use adze_ir::RuleId;
 
     /// Helper to create a minimal ParseTable for testing
@@ -530,6 +531,58 @@ mod tests {
         let detail = &summary.conflict_details[0];
         assert_eq!(detail.conflict_type, ConflictType::ShiftReduce);
         assert_eq!(detail.actions.len(), 2);
+    }
+
+    #[test]
+    fn test_count_conflicts_uses_symbol_metadata_name() {
+        let mut table = create_test_table(vec![vec![vec![
+            Action::Shift(StateId(1)),
+            Action::Reduce(RuleId(0)),
+        ]]]);
+        table.index_to_symbol = vec![SymbolId(42)];
+        table.symbol_metadata = vec![SymbolMetadata {
+            name: "expression".to_string(),
+            is_visible: true,
+            is_named: true,
+            is_supertype: false,
+            is_terminal: true,
+            is_extra: false,
+            is_fragile: false,
+            symbol_id: SymbolId(42),
+        }];
+
+        let summary = count_conflicts(&table);
+
+        assert_eq!(summary.conflict_details[0].symbol, SymbolId(42));
+        assert_eq!(summary.conflict_details[0].symbol_name, "expression");
+    }
+
+    #[test]
+    fn test_count_conflicts_reports_effective_actions_for_nested_forks() {
+        let table = create_test_table(vec![vec![vec![Action::Fork(vec![
+            Action::Shift(StateId(1)),
+            Action::Fork(vec![Action::Reduce(RuleId(0)), Action::Shift(StateId(1))]),
+        ])]]]);
+
+        let summary = count_conflicts(&table);
+
+        assert_eq!(summary.conflict_details.len(), 1);
+        assert_eq!(
+            summary.conflict_details[0].conflict_type,
+            ConflictType::ShiftReduce
+        );
+        assert_eq!(
+            summary.conflict_details[0].actions,
+            vec![Action::Shift(StateId(1)), Action::Reduce(RuleId(0))]
+        );
+        assert_eq!(summary.conflict_details[0].priorities.len(), 2);
+    }
+
+    #[test]
+    fn test_classify_reduce_accept_as_mixed_not_reduce_reduce() {
+        let actions = vec![Action::Reduce(RuleId(3)), Action::Accept];
+
+        assert_eq!(classify_conflict(&actions), ConflictType::Mixed);
     }
 
     #[test]

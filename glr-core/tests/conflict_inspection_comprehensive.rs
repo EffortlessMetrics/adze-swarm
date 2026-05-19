@@ -90,10 +90,10 @@ fn classify_single_shift_is_mixed() {
 }
 
 #[test]
-fn classify_single_reduce_is_reduce_reduce() {
-    // Single reduce counts as has_reduce=true, has_shift=false → ReduceReduce
+fn classify_single_reduce_is_mixed() {
+    // A single reduce is not a reduce/reduce conflict.
     let actions = vec![Action::Reduce(RuleId(0))];
-    assert_eq!(classify_conflict(&actions), ConflictType::ReduceReduce);
+    assert_eq!(classify_conflict(&actions), ConflictType::Mixed);
 }
 
 #[test]
@@ -126,10 +126,10 @@ fn classify_shift_accept_is_mixed() {
 }
 
 #[test]
-fn classify_reduce_accept_is_reduce_reduce() {
-    // has_reduce=true, has_shift=false → ReduceReduce
+fn classify_reduce_accept_is_mixed() {
+    // Reduce + accept is neither shift/reduce nor reduce/reduce.
     let actions = vec![Action::Reduce(RuleId(0)), Action::Accept];
-    assert_eq!(classify_conflict(&actions), ConflictType::ReduceReduce);
+    assert_eq!(classify_conflict(&actions), ConflictType::Mixed);
 }
 
 // ---------------------------------------------------------------------------
@@ -156,12 +156,12 @@ fn classify_fork_reduce_reduce() {
 
 #[test]
 fn classify_fork_with_two_shifts() {
-    // Fork([Shift, Shift]) → inner is Mixed → recursive handling sets both flags → ShiftReduce
+    // Fork([Shift, Shift]) flattens to effective shift actions only.
     let actions = vec![Action::Fork(vec![
         Action::Shift(StateId(1)),
         Action::Shift(StateId(2)),
     ])];
-    assert_eq!(classify_conflict(&actions), ConflictType::ShiftReduce);
+    assert_eq!(classify_conflict(&actions), ConflictType::Mixed);
 }
 
 #[test]
