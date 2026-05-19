@@ -38,7 +38,7 @@ release-promotion readiness campaigns.
 
 ## Work Item: product-gap-burn-down-source-of-truth
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0004-toolkit-excellence.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -53,6 +53,10 @@ Blocked by: n/a
 Replace the completed active manifest with a narrow active gap-burn-down queue
 so agents can continue from current repo truth instead of stale completed
 campaigns.
+
+### Receipt
+
+Landed in PR #263.
 
 ### Production Delta
 
@@ -88,7 +92,7 @@ readiness active manifest.
 
 ## Work Item: stable-product-receipt-refresh
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0004-toolkit-excellence.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: n/a
@@ -100,6 +104,11 @@ Blocked by: product-gap-burn-down-source-of-truth
 
 Refresh the stable product receipts from current `adze-swarm/main` after the SRP
 queue cleanup and record any meaningful drift in the product audit.
+
+### Receipt
+
+`just ci-product-stable` passed on 2026-05-19 from `adze-swarm/main` at commit
+`e7a7862c`.
 
 ### Production Delta
 
@@ -212,7 +221,8 @@ Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 Blocks: n/a
 Blocked by:
-- stable-product-receipt-refresh
+- dangling-else-selected-tree-gap
+- generated-reduce-reduce-gap
 
 ### Goal
 

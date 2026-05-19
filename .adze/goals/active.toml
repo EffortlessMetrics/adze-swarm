@@ -25,11 +25,12 @@ end_state = [
 
 [[work_item]]
 id = "product-gap-burn-down-source-of-truth"
-status = "ready"
+status = "complete"
 proposal = "ADZE-PROP-0004-toolkit-excellence"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/product-gap-burn-down/implementation-plan.md"
+prs = [263]
 commands = [
   "python -c \"import tomllib; tomllib.load(open('.adze/goals/active.toml', 'rb')); tomllib.load(open('.adze/goals/product-gap-burn-down.toml', 'rb')); tomllib.load(open('policy/doc-artifacts.toml', 'rb'))\"",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
@@ -39,7 +40,7 @@ commands = [
 
 [[work_item]]
 id = "stable-product-receipt-refresh"
-status = "ready"
+status = "complete"
 proposal = "ADZE-PROP-0004-toolkit-excellence"
 spec = "ADZE-SPEC-0011"
 adr = ""
@@ -81,7 +82,8 @@ commands = [
 id = "public-promotion-decision-refresh"
 status = "blocked"
 blocked_by = [
-  "stable-product-receipt-refresh",
+  "dangling-else-selected-tree-gap",
+  "generated-reduce-reduce-gap",
 ]
 proposal = "ADZE-PROP-0005-release-promotion-readiness"
 spec = "ADZE-SPEC-0011"
