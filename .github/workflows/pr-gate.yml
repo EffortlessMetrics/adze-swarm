@@ -40,6 +40,7 @@ jobs:
       - name: Install just
         run: cargo install just --locked || true
       - name: Run supported lane
+        timeout-minutes: 25
         run: just ci-supported
 
   docs-gate:
