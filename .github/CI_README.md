@@ -84,7 +84,8 @@ INSTA_UPDATE=auto cargo test
 
 ### Fuzzing
 
-Fuzz testing targets are in the `runtime/fuzz/` directory:
+The default CI fuzz lane exercises runtime fuzz targets in the `runtime/fuzz/`
+directory:
 
 ```bash
 # Install cargo-fuzz
