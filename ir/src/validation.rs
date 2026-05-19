@@ -90,18 +90,10 @@ impl fmt::Display for ValidationError {
                 )
             }
             ValidationError::UnreachableSymbol { symbol, name } => {
-                write!(
-                    f,
-                    "Symbol '{}' ({:?}) is unreachable from start symbol",
-                    name, symbol
-                )
+                format_symbol_property_error(f, name, symbol, "is unreachable from start symbol")
             }
             ValidationError::NonProductiveSymbol { symbol, name } => {
-                write!(
-                    f,
-                    "Symbol '{}' ({:?}) cannot derive any terminal strings",
-                    name, symbol
-                )
+                format_symbol_property_error(f, name, symbol, "cannot derive any terminal strings")
             }
             ValidationError::CyclicRule { symbols } => {
                 write!(f, "Cyclic dependency detected: {:?}", symbols)
@@ -161,6 +153,15 @@ impl fmt::Display for ValidationError {
             }
         }
     }
+}
+
+fn format_symbol_property_error(
+    f: &mut fmt::Formatter<'_>,
+    name: &str,
+    symbol: &SymbolId,
+    detail: &str,
+) -> fmt::Result {
+    write!(f, "Symbol '{}' ({:?}) {}", name, symbol, detail)
 }
 
 /// Grammar validator
