@@ -63,6 +63,14 @@ passed on 2026-05-19 from current `adze-swarm/main` after PR #281, commit
 advisory canaries skipped under the stable-only default. This is evidence for
 the README Stable claim lane; it is not a branch-protection change.
 
+Local receipt after residual product-trust PRs #295-#301: `just
+ci-product-stable` passed on 2026-05-19 from `adze-swarm/main` at commit
+`b613ebbb`. This refreshed the README stable proof alignment, bounded
+`cargo install adze-cli` wording, clean-room README/Getting Started/book
+quickstarts, checked-in downstream demo, standalone downstream starter fixture,
+typed AST determinism, operator precedence, and core table serialization
+canaries. This remains advisory product proof, not a branch-protection change.
+
 Current CI-tail receipts:
 
 - PR #284 bounded `pure-rust-ci` and `pr-gate` Rust tail steps so advisory
@@ -111,8 +119,9 @@ just check-publishable
 ```
 
 `just check-publishable` passed on 2026-05-19 from `adze-swarm/main` after
-PR #253. It verifies publish-order metadata and `cargo package --list` for the
-core publish surface (`adze-common`, `adze-ir`, `adze-glr-core`,
+PR #253 and again at commit `b613ebbb` after residual product-trust PRs
+#295-#301. It verifies publish-order metadata and `cargo package --list` for
+the core publish surface (`adze-common`, `adze-ir`, `adze-glr-core`,
 `adze-tablegen`, `adze-macro`, `adze-tool`, `adze-cli`, and `adze`). This is
 package metadata/file-list evidence only; it does not publish crates or prove
 registry installation.
@@ -172,9 +181,11 @@ Do not mark the product objective complete while any of these are true:
 - `cargo install adze-cli` has no crates.io install receipt.
 - `ci-product-stable` is advisory and not a required branch-protection gate.
 - Parser-generated external-scanner recovery coverage remains future work.
-- Public promotion has not happened. Public PR #794 is open and green, but it
-  has not been merged, and public `EffortlessMetrics/adze` remains
-  release/public-intake until promotion is accepted.
+- Public promotion has not happened. Public PR #794 is open with historical
+  green checks, but it predates residual product-trust PRs #295-#301 and must
+  be refreshed or superseded before review/merge. Public
+  `EffortlessMetrics/adze` remains release/public-intake until promotion is
+  accepted.
 - GLR conflict routing, structured parse errors, Tree-sitter compatibility,
   query compatibility, CLI document output, and `AdzeDocument` are not all
   Stable; their current tiers and limitations are recorded in
@@ -182,9 +193,10 @@ Do not mark the product objective complete while any of these are true:
 
 ## Next Concrete Actions
 
-1. Review and either merge, close, or supersede public
-   `EffortlessMetrics/adze#794`. If it merges, record a promotion closeout and
-   refresh public/main before any tag, publish, or release-workflow work.
+1. Refresh or supersede public `EffortlessMetrics/adze#794` from current
+   `adze-swarm/main` before review/merge. If it merges, record a promotion
+   closeout and refresh public/main before any tag, publish, or
+   release-workflow work.
 2. Run the crates.io install receipt after publish and before any doc claims
    `cargo install adze-cli` as the supported quickstart. The current local
    package receipt and verifier dry run are publish-readiness evidence only.

@@ -148,6 +148,33 @@ checkout, removing 151.2 GiB of local build artifacts. The same command passed
 after disk space was restored, so this was recorded as host remediation rather
 than a repo proof failure.
 
+### Fresh Receipt - 2026-05-19 After Residual Product-Trust PRs
+
+Refreshed from `adze-swarm/main` at commit `b613ebbb` after PRs #295-#301.
+
+Queue state:
+
+- `EffortlessMetrics/adze-swarm`: no open PRs.
+- `EffortlessMetrics/adze`: public promotion PR #794 remains open.
+- Local checkout: `main` was clean before the receipt branch was created.
+
+Proof results:
+
+- `gh pr view 794 --repo EffortlessMetrics/adze --json
+  state,mergeStateStatus,reviewDecision,autoMergeRequest`: passed; #794 is open,
+  blocked by normal public review/merge controls, and has no auto-merge request.
+- `just ci-product-stable`: passed from current `adze-swarm/main`.
+- `just check-publishable`: passed for `adze-common`, `adze-ir`,
+  `adze-glr-core`, `adze-tablegen`, `adze-macro`, `adze-tool`, `adze-cli`, and
+  `adze`.
+
+Promotion boundary:
+
+- The public #794 CI receipt at commit `2550b21f` remains historical.
+- The public promotion branch must be refreshed from current `adze-swarm/main`
+  or superseded before review/merge because it does not include residual
+  product-trust PRs #295-#301.
+
 ### Rollback
 
 Record defer if any proof fails and do not open a public PR.
@@ -355,7 +382,7 @@ the pure-rust matrix, and performance regression tests.
 PR #794 is open, mergeable, and not draft. Auto-merge is not enabled. The public
 merge state is blocked by normal public review/merge controls, not by a failed
 CI receipt. The receipt above is historical for public commit `2550b21f`.
-Residual product-trust PRs #295-#300 landed in `adze-swarm` after that public
+Residual product-trust PRs #295-#301 landed in `adze-swarm` after that public
 branch was prepared, including the external-scanner claim-boundary and
 diagnostic-document receipts. Do not review, merge, or auto-merge #794 until the
 public promotion branch is refreshed from current `adze-swarm/main` or

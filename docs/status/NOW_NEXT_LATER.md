@@ -78,12 +78,19 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       and the broad advisory canaries skipped under the stable-only default.
       This is evidence for the README Stable claim lane, not a
       branch-protection change.
+- [x] Latest local stable-product receipt: `just ci-product-stable` passed on
+      2026-05-19 from current `adze-swarm/main` at commit `b613ebbb` after
+      residual product-trust PRs #295-#301. This refreshes the advisory
+      README-stable, clean-room quickstart, downstream fixture, typed AST,
+      precedence, and serialization proof from the current swarm state.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
       the remaining `cargo install adze-cli`, branch-protection, and public
       promotion gaps.
 - [x] Latest release-surface package receipts: `just package-local adze-cli`
-      and `just check-publishable` passed on 2026-05-19 from `adze-swarm`.
+      and `just check-publishable` passed on 2026-05-19 from `adze-swarm`;
+      `just check-publishable` was refreshed at commit `b613ebbb` after
+      residual product-trust PRs #295-#301.
       These are package verification receipts, not crates.io install or publish
       claims.
 
