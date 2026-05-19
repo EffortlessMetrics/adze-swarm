@@ -53,8 +53,10 @@ jobs:
             fallback_github "token_missing"
           fi
 
+          set +e
           runners="$(gh api "orgs/${ORG}/actions/runners?per_page=100" 2>&1)"
           api_exit=$?
+          set -e
 
           if [ "$api_exit" -ne 0 ]; then
             echo "gh api failed (exit=${api_exit}): ${runners}"
@@ -78,15 +80,19 @@ jobs:
             ' 2>&1
           }
 
+          set +e
           cx43="$(count_idle cx43)"
           jq_exit=$?
+          set -e
           if [ "$jq_exit" -ne 0 ] || ! printf '%s' "$cx43" | grep -Eq '^[0-9]+$'; then
             echo "jq parse failed for cx43 (exit=${jq_exit}): ${cx43}"
             fallback_github "parse_failed"
           fi
 
+          set +e
           cx53="$(count_idle cx53)"
           jq_exit=$?
+          set -e
           if [ "$jq_exit" -ne 0 ] || ! printf '%s' "$cx53" | grep -Eq '^[0-9]+$'; then
             echo "jq parse failed for cx53 (exit=${jq_exit}): ${cx53}"
             fallback_github "parse_failed"
