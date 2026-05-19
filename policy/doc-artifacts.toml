@@ -81,8 +81,10 @@ links_to = [
   "ADZE-ADR-0003",
   "ADZE-ADR-0004",
   "plans/toolkit-excellence/implementation-plan.md",
+  "plans/product-gap-burn-down/implementation-plan.md",
   ".adze/goals/active.toml",
   ".adze/goals/toolkit-excellence.toml",
+  ".adze/goals/product-gap-burn-down.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -98,8 +100,10 @@ links_to = [
   "ADZE-SPEC-0011",
   "ADZE-ADR-0001",
   "plans/release-promotion/implementation-plan.md",
+  "plans/product-gap-burn-down/implementation-plan.md",
   ".adze/goals/active.toml",
   ".adze/goals/release-promotion-readiness.toml",
+  ".adze/goals/product-gap-burn-down.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -354,6 +358,24 @@ source_of_truth_for = ["release promotion readiness implementation sequence"]
 links_to = ["ADZE-PROP-0005", ".adze/goals/active.toml", ".adze/goals/release-promotion-readiness.toml", "docs/status/SUPPORT_TIERS.md"]
 
 [[artifact]]
+id = "plans/product-gap-burn-down/implementation-plan.md"
+kind = "plan"
+path = "plans/product-gap-burn-down/implementation-plan.md"
+status = "active"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["product objective blocker burn-down sequence"]
+links_to = [
+  "ADZE-PROP-0003",
+  "ADZE-PROP-0004",
+  "ADZE-PROP-0005",
+  ".adze/goals/active.toml",
+  ".adze/goals/product-gap-burn-down.toml",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = ".adze/goals/glr-toolkit-productization.toml"
 kind = "goal"
 path = ".adze/goals/glr-toolkit-productization.toml"
@@ -382,3 +404,20 @@ owner = "droid-factory"
 milestone = "next public promotion"
 source_of_truth_for = ["release promotion readiness agent work queue"]
 links_to = ["ADZE-PROP-0005", "plans/release-promotion/implementation-plan.md", ".adze/goals/active.toml"]
+
+[[artifact]]
+id = ".adze/goals/product-gap-burn-down.toml"
+kind = "goal"
+path = ".adze/goals/product-gap-burn-down.toml"
+status = "active"
+owner = "droid-factory"
+milestone = "post-0.9"
+source_of_truth_for = ["product objective blocker burn-down agent work queue"]
+links_to = [
+  "ADZE-PROP-0003",
+  "ADZE-PROP-0004",
+  "ADZE-PROP-0005",
+  "plans/product-gap-burn-down/implementation-plan.md",
+  ".adze/goals/active.toml",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]

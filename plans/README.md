@@ -44,6 +44,7 @@ Existing lanes include:
 - [`glr-toolkit/`](./glr-toolkit/productization-plan.md) for the GLR toolkit productization campaign.
 - [`toolkit-excellence/`](./toolkit-excellence/implementation-plan.md) for the completed toolkit excellence and adoption campaign.
 - [`release-promotion/`](./release-promotion/implementation-plan.md) for the completed public promotion readiness campaign and prepared public-promotion decision plan.
+- [`product-gap-burn-down/`](./product-gap-burn-down/implementation-plan.md) for the active product-objective blocker burn-down lane.
 
 ## Plan header
 
