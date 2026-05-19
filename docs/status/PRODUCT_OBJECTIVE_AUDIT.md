@@ -87,6 +87,22 @@ core publish surface (`adze-common`, `adze-ir`, `adze-glr-core`,
 package metadata/file-list evidence only; it does not publish crates or prove
 registry installation.
 
+Current public promotion PR receipt:
+
+Public `EffortlessMetrics/adze#794` was opened from the explicit public
+promotion execution decision and refreshed after source-side fixes landed in
+`adze-swarm` #290 and #291. On 2026-05-19, public PR #794 at commit
+`2550b21f30e49956e0d44ca56b6bbcdee79749fd` passed the refreshed public check
+set, including `Rust Small Result`, `Supported Rust Gate`, `PR Gate Success`,
+`Source of Truth`, `CI Lane Whitelist`, `GLR Invariants`, `Coverage Lite`,
+`ci-product stable canaries`, `Test Core Crates`, `Test Runtime Crates`, and
+`Test Pure Rust Implementation`.
+
+This is a ready-for-manual-review public promotion receipt, not a completed
+promotion. PR #794 remains open, mergeable, and not draft; auto-merge is not
+enabled, and the public merge state is blocked by normal public review/merge
+controls rather than failed CI.
+
 Current first-use / CLI boundary receipts:
 
 ```bash
@@ -125,8 +141,9 @@ Do not mark the product objective complete while any of these are true:
 
 - `cargo install adze-cli` has no crates.io install receipt.
 - `ci-product-stable` is advisory and not a required branch-protection gate.
-- Public promotion has not happened; public `EffortlessMetrics/adze` remains
-  release/public-intake until a fresh promotion execution goal opens.
+- Public promotion has not happened. Public PR #794 is open and green, but it
+  has not been merged, and public `EffortlessMetrics/adze` remains
+  release/public-intake until promotion is accepted.
 - GLR conflict routing, structured parse errors, Tree-sitter compatibility,
   query compatibility, CLI document output, and `AdzeDocument` are not all
   Stable; their current tiers and limitations are recorded in
@@ -134,9 +151,9 @@ Do not mark the product objective complete while any of these are true:
 
 ## Next Concrete Actions
 
-1. If public promotion proceeds, open a fresh explicit execution goal and rerun
-   the proof commands in `plans/release-promotion/public-promotion-pr-plan.md`
-   from current `adze-swarm/main`.
+1. Review and either merge, close, or supersede public
+   `EffortlessMetrics/adze#794`. If it merges, record a promotion closeout and
+   refresh public/main before any tag, publish, or release-workflow work.
 2. Run the crates.io install receipt after publish and before any doc claims
    `cargo install adze-cli` as the supported quickstart. The current local
    package receipt and verifier dry run are publish-readiness evidence only.
