@@ -19,6 +19,8 @@ const PARSE_BENCH_SOURCE: &str = include_str!("../benches/parse_bench.rs");
 const BENCHMARK_CARGO_TOML: &str = include_str!("../Cargo.toml");
 const BENCHMARK_README: &str = include_str!("../README.md");
 const FIXTURE_METADATA: &str = include_str!("../fixtures/metadata.toml");
+const PERF_BASELINES: &str = include_str!("../../docs/perf/baselines.md");
+const PERF_RECEIPT_SOURCE: &str = include_str!("../../xtask/src/perf_receipt.rs");
 
 fn registered_bench_names() -> Vec<String> {
     let mut names = Vec::new();
@@ -313,6 +315,32 @@ fn verify_duplicate_glr_performance_bench_was_removed() {
     assert!(
         readme_inventory_status("glr_performance").is_none(),
         "removed duplicate benchmark must not stay in the README inventory"
+    );
+}
+
+#[test]
+fn verify_product_smoke_perf_receipt_is_documented() {
+    let command = "cargo run -q -p xtask -- perf-receipt --profile product-smoke";
+
+    assert!(
+        BENCHMARK_README.contains(command),
+        "benchmarks README must document the product-smoke receipt command"
+    );
+    assert!(
+        PERF_BASELINES.contains(command),
+        "performance baseline docs must document the product-smoke receipt command"
+    );
+    assert!(
+        PERF_RECEIPT_SOURCE.contains("parse_bench --no-run"),
+        "product-smoke receipt must include parse benchmark compile health"
+    );
+    assert!(
+        PERF_RECEIPT_SOURCE.contains("document_projection --no-run"),
+        "product-smoke receipt must include document projection compile health"
+    );
+    assert!(
+        PERF_RECEIPT_SOURCE.contains("no stable throughput claim"),
+        "product-smoke receipt must keep performance claims advisory"
     );
 }
 
