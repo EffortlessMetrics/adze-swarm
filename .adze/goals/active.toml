@@ -63,11 +63,12 @@ commands = [
 
 [[work_item]]
 id = "release-claim-freeze"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md"
 spec = "ADZE-SPEC-0011"
 adr = ""
 plan = "plans/release-promotion/claim-freeze.md"
+prs = [238]
 commands = [
   "cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exact --nocapture",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
@@ -76,11 +77,11 @@ commands = [
 
 [[work_item]]
 id = "public-promotion-pr-plan"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md"
 spec = "ADZE-SPEC-0011"
 adr = ""
-plan = "plans/release-promotion/implementation-plan.md"
+plan = "plans/release-promotion/public-promotion-pr-plan.md"
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "git diff --check",

@@ -97,7 +97,8 @@ before preparing any public promotion PR.
 
 ### Work Item: release-claim-freeze
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#238
 Claim freeze: ./claim-freeze.md
 
 #### Goal
@@ -116,7 +117,8 @@ the promotion candidate.
 
 ### Work Item: public-promotion-pr-plan
 
-Status: ready
+Status: active
+Promotion plan: ./public-promotion-pr-plan.md
 
 #### Goal
 
