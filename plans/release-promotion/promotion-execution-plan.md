@@ -85,7 +85,7 @@ manifest.
 
 ## Work Item: fresh-promotion-preflight
 
-Status: ready
+Status: complete
 Linked proposal: ADZE-PROP-0005-release-promotion-readiness
 Linked spec: ADZE-SPEC-0011
 Linked ADR: ADZE-ADR-0001
@@ -120,13 +120,41 @@ just check-publishable
 git diff --check
 ```
 
+### Fresh Receipt - 2026-05-19
+
+Refreshed from `adze-swarm/main` after PR #287.
+
+Queue state:
+
+- `EffortlessMetrics/adze-swarm`: no open PRs.
+- `EffortlessMetrics/adze`: no open PRs.
+- Local checkout: `main` was clean before the receipt branch was created.
+
+Proof results:
+
+- `cargo run -q -p xtask -- check-active-goal --mode blocking`: passed.
+- `cargo run -q -p xtask -- check-doc-artifacts --mode blocking`: passed with 35 registered artifacts.
+- `cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exact --nocapture`: passed.
+- `just ci-product-stable`: passed after local host remediation.
+- `just check-publishable`: passed for `adze-common`, `adze-ir`, `adze-glr-core`, `adze-tablegen`, `adze-macro`, `adze-tool`, `adze-cli`, and `adze`.
+- `git diff --check`: passed before recording this receipt.
+
+Host note:
+
+The first `just ci-product-stable` attempt failed while building the clean-room
+README quickstart because the local `C:` drive had roughly 309 MB free and
+returned `os error 112`. `cargo clean` was run only inside this `adze-swarm`
+checkout, removing 151.2 GiB of local build artifacts. The same command passed
+after disk space was restored, so this was recorded as host remediation rather
+than a repo proof failure.
+
 ### Rollback
 
 Record defer if any proof fails and do not open a public PR.
 
 ## Work Item: public-drift-refresh
 
-Status: ready
+Status: complete
 Linked proposal: ADZE-PROP-0005-release-promotion-readiness
 Linked spec: ADZE-SPEC-0011
 Linked ADR: ADZE-ADR-0001
@@ -156,6 +184,33 @@ git rev-list --left-right --count public/main...origin/main
 git log --oneline --decorate --left-right public/main...origin/main --
 ```
 
+### Drift Receipt - 2026-05-19
+
+Fetched `origin` and `public`, then refreshed the comparison:
+
+```text
+git rev-list --left-right --count public/main...origin/main
+6 262
+```
+
+Public-only commits by commit identity:
+
+| Commit | Public PR | Classification |
+| ------ | --------- | -------------- |
+| `5fc7924b` | #789 `xtask: own goto indexing guard` | Content present in `adze-swarm`: `xtask/src/goto_indexing.rs` and `CheckGotoIndexing` are available; equivalent guard work appears in the swarm guard consolidation history. No promotion blocker. |
+| `5685ae35` | #788 `xtask: own no-mangle guard` | Content present in `adze-swarm`: `xtask/src/no_mangle.rs` and `CheckNoMangle` are available; equivalent guard work appears in the swarm guard consolidation history. No promotion blocker. |
+| `f8ba5ff9` | #787 `plans: add 0.9 contract convergence closeout` | Superseded by swarm release-promotion, product-gap, and current promotion-execution closeouts. No promotion blocker. |
+| `a788f921` | #786 `plans: align 0.9 closeout state` | Superseded by current swarm closeout and promotion execution state. No promotion blocker. |
+| `92cc08ae` | #783 `xtask: report Rust migration candidates in file-policy` | Ported into `adze-swarm` as #237 (`92b7cbe1`). No promotion blocker. |
+| `c9c40728` | #785 `test(cli): align README capability tiers with support tiers` | Superseded by swarm release claim freeze and README Stable-claim guard work, including #238 and #283. No promotion blocker. |
+
+Promotion boundary:
+
+- No public PR was opened.
+- No publish, tag, signing, branch-protection, or release workflow change was made.
+- Public `adze` remains the release/public-intake surface until an explicit
+  promotion PR is prepared.
+
 ### Rollback
 
 Record defer if the drift state is ambiguous or if public-only work conflicts
@@ -163,12 +218,12 @@ with the promotion scope.
 
 ## Work Item: promotion-decision-record
 
-Status: blocked
+Status: ready
 Linked proposal: ADZE-PROP-0005-release-promotion-readiness
 Linked spec: ADZE-SPEC-0011
 Linked ADR: ADZE-ADR-0001
 Blocks: public promotion PR if outcome is proceed
-Blocked by: fresh-promotion-preflight, public-drift-refresh
+Blocked by: n/a
 
 ### Goal
 

@@ -38,7 +38,7 @@ commands = [
 
 [[work_item]]
 id = "fresh-promotion-preflight"
-status = "ready"
+status = "complete"
 proposal = "ADZE-PROP-0005-release-promotion-readiness"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
@@ -57,7 +57,7 @@ commands = [
 
 [[work_item]]
 id = "public-drift-refresh"
-status = "ready"
+status = "complete"
 proposal = "ADZE-PROP-0005-release-promotion-readiness"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
@@ -71,8 +71,7 @@ commands = [
 
 [[work_item]]
 id = "promotion-decision-record"
-status = "blocked"
-blocked_by = ["fresh-promotion-preflight", "public-drift-refresh"]
+status = "ready"
 proposal = "ADZE-PROP-0005-release-promotion-readiness"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
