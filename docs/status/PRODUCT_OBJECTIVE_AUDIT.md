@@ -34,7 +34,7 @@ Adze should be release-readable as a Rust parser generator where:
 | --- | --- | --- | --- |
 | Rust types define grammar and generated parsers return typed ASTs. | README core example; `SUPPORT_TIERS.md` Stable `Typed extraction` row; `PRODUCT_PROOF_MAP.md` Stable typed extraction claim. | Covered for the supported generated-parser contract. | Keep Stable claim limited to proof rows; do not broaden to every grammar shape. |
 | Quickstart works in a clean downstream crate. | `testing/downstream-starter/`; `docs/product/ACCEPTANCE_MATRIX.md`; `SUPPORT_TIERS.md` Pure-Rust parser row. | Covered for path-dependency downstream wiring, generated starter shape, and local `adze-cli` package verification. | Published `cargo install adze-cli` is not proven until `adze-cli` is published and an install receipt exists. |
-| Core pure-Rust pipeline is green, bounded, and boring. | `just ci-supported`; `Rust Small Result`; `KNOWN_RED.md` supported-lane description. | Covered as the required swarm gate plus local supported proof. | `ci-product-stable` remains advisory until branch protection explicitly promotes it. |
+| Core pure-Rust pipeline is green, bounded, and boring. | `just ci-supported`; `Rust Small Result`; `KNOWN_RED.md` supported-lane description; `adze-swarm` PRs #284 and #285. | Covered as the required swarm gate plus local supported proof. PR #284 bounds the broad Rust tail, and PR #285 scopes the default pure-rust PR test step to supported crates while keeping full workspace tests explicit through manual/full-ci. | `ci-product-stable` remains advisory until branch protection explicitly promotes it. |
 | Tablegen emits valid tables. | `SUPPORT_TIERS.md` Tablegen `TSLanguage` ABI row; `PRODUCT_PROOF_MAP.md` tablegen ABI claim. | Stabilizing with compressed decode, field metadata, aliases, externals, lex modes, and conflict-cell proof. | Broader generated-language roundtrip and full Tree-sitter parity remain future work. |
 | GLR handles real conflicts honestly. | `SUPPORT_TIERS.md` GLR conflict routing row; `docs/product/ACCEPTANCE_MATRIX.md` GLR ambiguity row. | Stabilizing with generated shift/reduce conflict preservation, generated reduce/reduce preservation and selected typed-AST extraction, dangling-else nearest-else selected typed AST proof, retained alternatives, deterministic selected output, ambiguity summaries, and no-panic bad-input guardrails. | Broader conflict-class coverage and any Stable GLR promotion still require support-tier proof review. |
 | Typed extraction is deterministic. | `typed_ast_contract_left_associative_addition`; `typed_ast_contract_repeated_parse_is_deterministic`; `readme_arithmetic_quickstart_builds_and_runs`. | Covered for Stable typed extraction rows. | Keep determinism claims scoped to supported generated-parser shapes. |
@@ -62,6 +62,17 @@ passed on 2026-05-19 from current `adze-swarm/main` after PR #281, commit
 `0b79a36a`. The `ci-product stable canaries` job passed in 3m02s and the broad
 advisory canaries skipped under the stable-only default. This is evidence for
 the README Stable claim lane; it is not a branch-protection change.
+
+Current CI-tail receipts:
+
+- PR #284 bounded `pure-rust-ci` and `pr-gate` Rust tail steps so advisory
+  Rust jobs fail clearly instead of hanging indefinitely.
+- PR #285 scoped the default `pure-rust-ci` PR test step to the supported
+  pipeline crates and kept full workspace tests available through
+  `workflow_dispatch` / `full-ci`.
+- On PR #285, `Rust Small Result` passed in 6s, `Supported Rust Gate` passed in
+  22m56s, and `Test Pure Rust Implementation (ubuntu-latest, stable)` passed
+  in 23m10s after running the scoped supported-crate test step.
 
 Current release-surface readiness receipts:
 
