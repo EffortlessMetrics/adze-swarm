@@ -1,7 +1,7 @@
 # Now / Next / Later
 
 **Last updated:** 2026-05-19
-**Status:** **Product gap burn-down complete** — `adze-swarm` is the operating repo, public `adze` remains release/public-intake, and the named product blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) have been fixed or bounded. Toolkit excellence is complete with closeout recorded in [`../../plans/toolkit-excellence/closeout.md`](../../plans/toolkit-excellence/closeout.md). Release promotion readiness is closed out in [`../../plans/release-promotion/closeout.md`](../../plans/release-promotion/closeout.md), and any public promotion still requires a fresh explicit execution goal using [`../../plans/release-promotion/public-promotion-pr-plan.md`](../../plans/release-promotion/public-promotion-pr-plan.md).
+**Status:** **Residual product trust hardening active** — `adze-swarm` is the operating repo, public `adze` remains release/public-intake, and the remaining blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any public promotion. Toolkit excellence is complete with closeout recorded in [`../../plans/toolkit-excellence/closeout.md`](../../plans/toolkit-excellence/closeout.md). Release promotion readiness is closed out in [`../../plans/release-promotion/closeout.md`](../../plans/release-promotion/closeout.md), and any public promotion still requires a fresh explicit execution goal using [`../../plans/release-promotion/public-promotion-pr-plan.md`](../../plans/release-promotion/public-promotion-pr-plan.md).
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -35,6 +35,8 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Fix the dangling-else selected-tree gap with generated selected-AST and ambiguity-summary proof.
 - [x] Fix generated reduce/reduce preservation and typed extraction with generated conflict-cell, selected-AST, and document ambiguity-summary proof.
 - [x] Revisit the public promotion decision now that the named GLR product gaps are fixed; outcome remains proceed conditionally with no public PR opened by default.
+- [x] Fix parser-v4 external-scanner emitted-token spans and record the focused dispatch/range canaries.
+- [ ] Keep parser-generated external-scanner recovery explicitly future work until it has focused proof.
 
 ### Toolkit excellence campaign
 - [x] Consolidate the source-of-truth guardrails into one PR and close duplicate source-of-truth PRs.
