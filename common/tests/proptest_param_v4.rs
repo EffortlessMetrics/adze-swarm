@@ -683,6 +683,40 @@ proptest! {
         prop_assert_eq!(to_str(&wrapped), format!("adze :: WithLeaf < {leaf} >"));
     }
 
+
+    /// Skip set order does not affect filtering results.
+    #[test]
+    fn prop_param_edge_filter_skip_order_invariant(leaf in leaf_type()) {
+        let ty: Type = parse_str(&format!("Box<Arc<Rc<{leaf}>>>")).unwrap();
+        let s1 = skip_set(&["Box", "Arc", "Rc"]);
+        let s2 = skip_set(&["Rc", "Box", "Arc"]);
+        let f1 = filter_inner_type(&ty, &s1);
+        let f2 = filter_inner_type(&ty, &s2);
+        prop_assert_eq!(to_str(&f1), to_str(&f2));
+        prop_assert_eq!(to_str(&f1), leaf);
+    }
+
+    /// Filtering and direct wrapping have intentionally different semantics:
+    /// filtering strips skipped containers, while direct wrapping preserves them.
+    #[test]
+    fn prop_param_edge_filter_then_wrap_differs_from_direct_wrap(
+        skipper in skip_member(),
+        leaf in leaf_type(),
+    ) {
+        let ty: Type = parse_str(&format!("{skipper}<Vec<{leaf}>>")).unwrap();
+        let arr = [skipper, "Vec"];
+        let s = skip_set(&arr);
+
+        let filtered_then_wrapped = wrap_leaf_type(&filter_inner_type(&ty, &s), &empty_skip());
+        let direct_wrapped = wrap_leaf_type(&ty, &s);
+
+        let filtered_s = to_str(&filtered_then_wrapped);
+        let direct_s = to_str(&direct_wrapped);
+        let expected_prefix = format!("{skipper} < Vec <");
+        prop_assert_ne!(&filtered_s, &direct_s);
+        prop_assert!(filtered_s.starts_with("adze :: WithLeaf <"));
+        prop_assert!(direct_s.starts_with(&expected_prefix));
+    }
     /// Parameterized detection agrees with angle bracket presence in string.
     #[test]
     fn prop_param_edge_detect_agrees_with_syntax(ts in any_type_string()) {
