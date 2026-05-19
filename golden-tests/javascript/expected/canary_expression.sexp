@@ -2,8 +2,10 @@
   (Program
     (Program_statements_vec_contents
       (Statement
-        (EmptyStatement
-          ";"
+        (Statement_Empty
+          (EmptyStatement
+            ";"
+          )
         )
       )
     )
