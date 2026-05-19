@@ -19,6 +19,7 @@ adze-linecol-core = { path = "../crates/linecol-core" }
 adze-stack-pool-core = { path = "../crates/stack-pool-core" }
 adze-ts-format-core = { path = "../crates/ts-format-core" }
 adze-common = { path = "../common" }
+adze-common-type-ops-core = { path = "../crates/common-type-ops-core" }
 adze-parser-backend-core = { path = "../crates/parser-backend-core" }
 quote = "1"
 syn = { version = "2", features = [ "full", "extra-traits" ] }
@@ -152,5 +153,11 @@ doc = false
 [[bin]]
 name = "fuzz_parser_backend_core"
 path = "fuzz_targets/fuzz_parser_backend_core.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_common_type_ops_core"
+path = "fuzz_targets/fuzz_common_type_ops_core.rs"
 test = false
 doc = false
