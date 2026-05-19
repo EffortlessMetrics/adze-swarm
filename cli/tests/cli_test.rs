@@ -125,7 +125,6 @@ fn test_init_generates_buildable_project() {
         .success();
 }
 
-
 #[test]
 fn test_init_project_supports_cli_stats_and_check_end_to_end() {
     let temp = tempfile::tempdir().expect("tempdir");
