@@ -19,6 +19,7 @@ mod no_mangle;
 mod perf_receipt;
 mod policy;
 mod profile;
+mod publish_install;
 mod ripr;
 mod test_grammars;
 mod test_local_grammars;
@@ -289,6 +290,27 @@ enum Commands {
         /// can track remaining work without making main permanently red.
         #[arg(long)]
         release_gate: bool,
+    },
+    /// Verify a published crates.io CLI install in an isolated temp root.
+    ///
+    /// This is intended as a post-publish receipt, not a pre-publish package
+    /// check. Use `--dry-run` before publishing to inspect the command plan.
+    VerifyCratesIoInstall {
+        /// Crate package to install from crates.io.
+        #[arg(default_value = "adze-cli")]
+        crate_name: String,
+        /// Binary expected after install.
+        #[arg(long, default_value = "adze")]
+        bin: String,
+        /// Exact version to install. Omit only when intentionally checking the latest registry version.
+        #[arg(long)]
+        version: Option<String>,
+        /// Pass `--locked` to `cargo install`.
+        #[arg(long)]
+        locked: bool,
+        /// Print the command plan without touching crates.io.
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Lint workflows against policy/ci-lane-whitelist.toml.
     ///
@@ -592,6 +614,15 @@ fn main() -> Result<()> {
         Commands::CheckPackageBoundary { mode, release_gate } => {
             let mode = policy::Mode::parse(&mode)?;
             policy::package_boundary::run_check(mode, release_gate)?;
+        }
+        Commands::VerifyCratesIoInstall {
+            crate_name,
+            bin,
+            version,
+            locked,
+            dry_run,
+        } => {
+            publish_install::run(&crate_name, &bin, version.as_deref(), locked, dry_run)?;
         }
         Commands::CheckCiLaneWhitelist { mode } => {
             let mode = policy::Mode::parse(&mode)?;

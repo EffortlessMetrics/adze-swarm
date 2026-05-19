@@ -193,30 +193,47 @@ fn verify_conflict_preservation_behavior() {
 
 #[cfg(all(feature = "pure-rust", feature = "glr"))]
 #[test]
-fn generated_dangling_else_selection_gap_returns_error_without_panicking() {
-    use adze_example::dangling_else::grammar;
+fn generated_dangling_else_selects_nearest_else_and_records_ambiguity() {
+    use adze_example::dangling_else::grammar::{self, Statement};
 
     let input = "if a then if b then other else other";
-    let parsed = std::panic::catch_unwind(|| grammar::parse(input));
+    let parsed = grammar::parse(input).expect("dangling-else GLR parse should select an AST");
 
-    let errors = match parsed {
-        Ok(Err(errors)) => errors,
-        Ok(Ok(ast)) => panic!(
-            "dangling-else selection is not yet a supported product contract; update this canary and docs before accepting selected AST {ast:?}"
-        ),
-        Err(_) => panic!("dangling-else ambiguous input must return an error instead of panicking"),
+    match parsed {
+        Statement::IfThen(_, outer_expr, _, inner) => {
+            assert_eq!(*outer_expr, grammar::Expr::Var("a".to_string()));
+            match *inner {
+                Statement::IfThenElse(_, inner_expr, _, then_branch, _, else_branch) => {
+                    assert_eq!(*inner_expr, grammar::Expr::Var("b".to_string()));
+                    assert!(matches!(*then_branch, Statement::Other(())));
+                    assert!(matches!(*else_branch, Statement::Other(())));
+                }
+                other => panic!("expected nearest-else selected inner IfThenElse, got {other:?}"),
+            }
+        }
+        other => panic!("expected outer IfThen selected tree, got {other:?}"),
     };
 
-    let first = errors
-        .first()
-        .expect("dangling-else selection gap should return at least one structured error");
+    let document = grammar::parse_document(input)
+        .expect("dangling-else GLR parse_document should return the selected document");
+    assert!(document.diagnostics().is_empty());
+    assert!(!document.tree().has_errors());
     assert_eq!(
-        first.byte_span(),
-        3..4,
-        "current selection gap should point at the first expression variable"
+        document.tree().root().byte_range(),
+        0..input.len(),
+        "selected document tree should cover the full input"
     );
     assert!(
-        first.display_with_source(input).to_string().contains(input),
-        "rendered diagnostic should include the source excerpt"
+        !document.ambiguities().is_empty(),
+        "dangling-else document should record retained ambiguity alternatives"
+    );
+    let ambiguity = &document.ambiguities()[0];
+    assert_eq!(ambiguity.alternatives.len(), 2);
+    let selected = ambiguity
+        .selected
+        .expect("dangling-else ambiguity should record the selected alternative");
+    assert!(
+        selected < ambiguity.alternatives.len(),
+        "selected ambiguity alternative should be in range"
     );
 }
