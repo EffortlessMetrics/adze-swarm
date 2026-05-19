@@ -12,7 +12,7 @@ and support-tier-backed product claims.
 """
 
 end_state = [
-  "New users have one obvious first-use path: cargo install adze-cli, adze init, cargo test, and parse an example.",
+  "New users have one obvious repo-proven first-use path: build the CLI from the checkout, run adze init, cargo test, and parse an example; published cargo install adze-cli remains release-surface proof.",
   "AdzeDocument remains the canonical parse product and every public view is documented as a projection.",
   "GLR conflict handling has generated conflict-matrix proof for the supported grammar classes.",
   "Selected-tree behavior is deterministic and Tree-sitter-compatible for the documented subset.",
