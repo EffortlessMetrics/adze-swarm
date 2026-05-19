@@ -66,7 +66,7 @@ the README Stable claim lane; it is not a branch-protection change.
 Local receipt after residual product-trust PRs #295-#301: `just
 ci-product-stable` passed on 2026-05-19 from `adze-swarm/main` at commit
 `b613ebbb`. This refreshed the README stable proof alignment, bounded
-`cargo install adze-cli` wording, clean-room README/Getting Started/book
+published CLI install-claim wording, clean-room README/Getting Started/book
 quickstarts, checked-in downstream demo, standalone downstream starter fixture,
 typed AST determinism, operator precedence, and core table serialization
 canaries. This remains advisory product proof, not a branch-protection change.
