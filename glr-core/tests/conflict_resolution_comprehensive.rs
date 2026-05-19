@@ -1916,6 +1916,7 @@ mod proptest_section {
             r1 in 0u16..1000,
             r2 in 0u16..1000,
         ) {
+            prop_assume!(r1 != r2);
             let cell = vec![Action::Reduce(RuleId(r1)), Action::Reduce(RuleId(r2))];
             let ct = classify_conflict(&cell);
             prop_assert_eq!(ct, InspectionConflictType::ReduceReduce);
