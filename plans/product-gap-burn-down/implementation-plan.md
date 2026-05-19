@@ -254,7 +254,7 @@ generated reduce/reduce behavior has deterministic product proof.
 
 ## Work Item: public-promotion-decision-refresh
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -266,10 +266,23 @@ Blocked by: n/a
 Refresh the release-promotion decision after the product gap burn-down receipts
 are current.
 
+### Receipt
+
+The public promotion decision was refreshed from current `adze-swarm/main` after
+the dangling-else and generated reduce/reduce product gaps were fixed. Both
+public and swarm PR queues were empty. `ci-product-stable` and
+`check-publishable` passed locally. PR #267 supplied the hosted supported-lane
+receipt after the wrapper-preservation follow-up, including `Supported Rust
+Gate`, `Test Runtime Crates`, JavaScript and Python golden tests, and `Rust
+Small Result`.
+
+Outcome: **proceed conditionally, but do not open a public PR by default**.
+Public promotion still requires a fresh explicit execution goal using
+`plans/release-promotion/public-promotion-pr-plan.md`.
+
 ### Production Delta
 
-Release-promotion status only unless the operator deliberately opens a public
-promotion PR from `plans/release-promotion/public-promotion-pr-plan.md`.
+Release-promotion status only. No public promotion PR was opened.
 
 ### Non-Goals
 
@@ -281,9 +294,11 @@ promotion PR from `plans/release-promotion/public-promotion-pr-plan.md`.
 ```bash
 gh pr list --repo EffortlessMetrics/adze --state open
 gh pr list --repo EffortlessMetrics/adze-swarm --state open
-just ci-supported
+gh pr checks 267 --repo EffortlessMetrics/adze-swarm
 just ci-product-stable
 just check-publishable
+cargo run -q -p xtask -- check-active-goal --mode blocking
+cargo run -q -p xtask -- check-doc-artifacts --mode blocking
 ```
 
 ### Rollback

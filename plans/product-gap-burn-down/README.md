@@ -1,6 +1,6 @@
 # Product Gap Burn-Down
 
-Status: active
+Status: complete
 Owner: runtime/product
 Created: 2026-05-19
 Active goal: ../../.adze/goals/active.toml
@@ -10,7 +10,8 @@ and release-promotion readiness campaigns. It burns down the remaining blockers
 named in `docs/status/PRODUCT_OBJECTIVE_AUDIT.md` without broadening public
 claims.
 
-Start with [`implementation-plan.md`](./implementation-plan.md).
+Start with [`implementation-plan.md`](./implementation-plan.md). The closeout is
+recorded in [`closeout.md`](./closeout.md).
 
 ## Boundaries
 

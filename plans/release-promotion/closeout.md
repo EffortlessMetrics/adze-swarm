@@ -42,12 +42,13 @@ split:
 | Public promotion PR plan | #239 | Defined promotion preconditions, scope, exclusions, proof commands, PR body skeleton, and rollback. |
 | Closeout | #240 | Closes this campaign and leaves the public promotion decision explicit. |
 
-Post-closeout product-proof alignment continued in `adze-swarm` #241-#253.
+Post-closeout product-proof alignment continued in `adze-swarm` #241-#267.
 Those PRs kept the public promotion candidate current by aligning acceptance
 matrix, archived proof commands, performance receipts, downstream proof rows,
 starter-project proof, CLI recovery-diagnostics proof, objective audit, install
-claim boundaries, and local CLI package receipts with the current support-tier
-and README claim surfaces.
+claim boundaries, local CLI package receipts, dangling-else selected-tree proof,
+generated reduce/reduce proof, and wrapper-preservation receipts with the
+current support-tier and README claim surfaces.
 
 ## Current State
 
@@ -63,7 +64,7 @@ and README claim surfaces.
 - `just check-publishable` passed on 2026-05-19 from `adze-swarm/main` after
   #253, covering publish-order metadata and package file-list checks for the
   core release surface. This is not a publish or crates.io install claim.
-- Live queue refresh after #253 showed no open PRs in `EffortlessMetrics/adze`
+- Live queue refresh after #267 showed no open PRs in `EffortlessMetrics/adze`
   or `EffortlessMetrics/adze-swarm`.
 
 ## Remaining Preconditions Before A Public PR
