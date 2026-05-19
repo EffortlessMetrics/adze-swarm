@@ -66,12 +66,12 @@ the README Stable claim lane; it is not a branch-protection change.
 Local receipt after residual product-trust PRs #295-#303: `just
 ci-product-stable` passed on 2026-05-19 from `adze-swarm/main` at commit
 `b613ebbb`, and the refreshed public promotion PR later passed the hosted
-`ci-product stable canaries` job from commit `b453a20e`. These receipts cover
-README stable proof alignment, bounded published CLI install-claim wording,
-clean-room README/Getting Started/book quickstarts, checked-in downstream demo,
-standalone downstream starter fixture, typed AST determinism, operator
-precedence, and core table serialization canaries. This remains advisory
-product proof, not a branch-protection change.
+`ci-product stable canaries` job. These receipts cover README stable proof
+alignment, bounded published CLI install-claim wording, clean-room README/
+Getting Started/book quickstarts, checked-in downstream demo, standalone
+downstream starter fixture, typed AST determinism, operator precedence, and
+core table serialization canaries. This remains advisory product proof, not a
+branch-protection change.
 
 Current CI-tail receipts:
 
@@ -132,9 +132,11 @@ Current public promotion PR receipt:
 
 Public `EffortlessMetrics/adze#794` was opened from the explicit public
 promotion execution decision and refreshed after source-side fixes landed in
-`adze-swarm` #290, #291, and #303. On 2026-05-19, public PR #794 at commit
-`b453a20e5a00fb4c9b086e9ef175c4f93209aacd` passed the refreshed public check
-set, including `Rust Small Result`, `Supported Rust Gate`, `PR Gate Success`,
+`adze-swarm` #290, #291, #303, and subsequent audit refreshes. Verify the exact
+public head SHA live before review or merge because each accepted
+`adze-swarm` audit refresh intentionally advances the promotion source. The
+refreshed public PR #794 check set passed on 2026-05-19, including
+`Rust Small Result`, `Supported Rust Gate`, `PR Gate Success`,
 `Source of Truth`, `CI Lane Whitelist`, `GLR Invariants`, `Coverage Lite`,
 `ci-product stable canaries`, `Test Core Crates`, `Test Runtime Crates`, and
 `Test Pure Rust Implementation`.
