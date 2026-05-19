@@ -192,33 +192,57 @@ replacement proof fully covers the selected-tree behavior.
 
 ## Work Item: generated-reduce-reduce-gap
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0003-glr-toolkit-productization.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0003-summary-first-glr-ambiguity.md
-Blocks: n/a
+Blocks:
+- public-promotion-decision-refresh
 Blocked by: product-gap-burn-down-source-of-truth
 
 ### Goal
 
-Investigate and either fix or explicitly defer generated reduce/reduce
-preservation and typed extraction. Current proof keeps this as a product gap
-while `adze-glr-core` conflict inspection covers hand-built reduce/reduce
-classification.
+Fix generated reduce/reduce preservation and typed extraction. The generated
+grammar should keep distinct wrapper reductions, the parse table should retain
+the reduce/reduce cell, `parse()` should extract a deterministic selected typed
+AST, and `parse_document()` should expose a native ambiguity summary.
+
+### Receipt
+
+The focused proof now passes with single-field non-leaf wrapper identity
+preserved during grammar expansion, inferred conflict declarations for those
+wrapper siblings, unresolved reduce/reduce ties preserved unless rule
+precedence differentiates them, and enum extraction preserving explicit wrapper
+nodes long enough to select the generated variant.
 
 ### Production Delta
 
-Runtime/tablegen fix or support-tier/product-audit boundary update.
+Focused tablegen, GLR-core, macro, and runtime canary fixes:
+
+- Grammar expansion no longer collapses single-field non-leaf enum wrappers
+  such as `Choice::FromA(FromA)` and `Choice::FromB(FromB)` into identical
+  terminal alternatives.
+- Generated grammar JSON records wrapper sibling conflict declarations using
+  the underlying nonterminal names so generated reduce/reduce fixtures remain
+  valid ambiguity input.
+- GLR automaton reduce/reduce precedence resolution preserves ties instead of
+  silently picking one rule.
+- Macro enum extraction unwraps `source_file` and hidden rules, while keeping
+  explicit wrapper nodes visible for variant selection.
+- `generated_reduce_reduce_gap` is now a positive product canary.
 
 ### Non-Goals
 
 - No broad reduce/reduce stability claim from hand-built core tests alone.
-- No generated parser claim without generated fixture proof.
+- No raw GLR forest stability claim.
+- No full GLR Stable promotion.
 
 ### Proof Commands
 
 ```bash
 cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test generated_reduce_reduce_gap -- --nocapture
+cargo test -p adze-tool --lib tests::single_field_non_leaf_variants_preserve_identity_for_reduce_reduce -- --exact --nocapture
+cargo test -p adze-glr-core decide_reduce_reduce -- --nocapture
 cargo test -p adze-glr-core --test advanced_conflict_proptest -- --nocapture
 git diff --check
 ```
@@ -230,13 +254,12 @@ generated reduce/reduce behavior has deterministic product proof.
 
 ## Work Item: public-promotion-decision-refresh
 
-Status: blocked
+Status: ready
 Linked proposal: ../../docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 Blocks: n/a
-Blocked by:
-- generated-reduce-reduce-gap
+Blocked by: n/a
 
 ### Goal
 

@@ -33,8 +33,8 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Keep `adze-swarm` as the operating repo and public `adze` as release/public-intake unless a deliberate promotion PR opens.
 - [x] Refresh the stable-product receipt from current `adze-swarm/main` and update the product objective audit if the result changed.
 - [x] Fix the dangling-else selected-tree gap with generated selected-AST and ambiguity-summary proof.
-- [ ] Fix or explicitly defer generated reduce/reduce preservation and typed extraction.
-- [ ] Revisit the public promotion decision only after the GLR product gaps are fixed or explicitly bounded.
+- [x] Fix generated reduce/reduce preservation and typed extraction with generated conflict-cell, selected-AST, and document ambiguity-summary proof.
+- [ ] Revisit the public promotion decision now that the named GLR product gaps are fixed.
 
 ### Toolkit excellence campaign
 - [x] Consolidate the source-of-truth guardrails into one PR and close duplicate source-of-truth PRs.
