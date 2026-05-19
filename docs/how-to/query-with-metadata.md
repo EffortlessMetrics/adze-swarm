@@ -254,13 +254,13 @@ compatibility.
 Representative query proof:
 
 ```bash
-cargo test -p adze --lib query -- --nocapture
-cargo test -p adze --lib query::matcher_v2 -- --nocapture
+cargo test -p adze --features query --lib query -- --nocapture
+cargo test -p adze --features query --lib query::matcher_v2 -- --nocapture
 git diff --check
 ```
 
 Future promotion requires differential fixtures for the supported subset:
 
 ```bash
-cargo test -p adze --features "pure-rust,ts-compat" --test query_differential -- --nocapture
+cargo test -p adze --features "pure-rust,ts-compat,query" --test query_differential -- --nocapture
 ```
