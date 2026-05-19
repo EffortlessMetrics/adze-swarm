@@ -38,7 +38,7 @@ Adze should be release-readable as a Rust parser generator where:
 | Tablegen emits valid tables. | `SUPPORT_TIERS.md` Tablegen `TSLanguage` ABI row; `PRODUCT_PROOF_MAP.md` tablegen ABI claim. | Stabilizing with compressed decode, field metadata, aliases, externals, lex modes, and conflict-cell proof. | Broader generated-language roundtrip and full Tree-sitter parity remain future work. |
 | GLR handles real conflicts honestly. | `SUPPORT_TIERS.md` GLR conflict routing row; `docs/product/ACCEPTANCE_MATRIX.md` GLR ambiguity row. | Stabilizing with generated shift/reduce conflict preservation, generated reduce/reduce preservation and selected typed-AST extraction, dangling-else nearest-else selected typed AST proof, retained alternatives, deterministic selected output, ambiguity summaries, and no-panic bad-input guardrails. | Broader conflict-class coverage and any Stable GLR promotion still require support-tier proof review. |
 | Typed extraction is deterministic. | `typed_ast_contract_left_associative_addition`; `typed_ast_contract_repeated_parse_is_deterministic`; `readme_arithmetic_quickstart_builds_and_runs`. | Covered for Stable typed extraction rows. | Keep determinism claims scoped to supported generated-parser shapes. |
-| Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors and External scanners rows; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, generated-parser matrix canaries, and object-like `parse_document()`/JSON recovery proof for separator, UTF-8, multiline value, and multiline EOF cases. External-scanner dispatch now has focused parser-v4 proof for emitted-token byte spans/text and rejection of scanner tokens that are invalid in the parser state. | Parser-generated external-scanner recovery coverage remains future work; any Stable promotion still needs support-tier review. |
+| Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors and External scanners rows; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, generated-parser matrix canaries, and object-like `parse_document()`/JSON recovery proof for separator, UTF-8, multiline value, and multiline EOF cases. External-scanner dispatch now has focused parser-v4 proof for emitted-token byte spans/text, rejection of scanner tokens that are invalid in the parser state, and `parse_document()` diagnostic-document behavior for bad input in an external-scanner grammar shape. | Parser-generated external-scanner recovery coverage remains future work; any Stable promotion still needs support-tier review. |
 | Every Stable README claim maps to proof. | README capability table; `SUPPORT_TIERS.md`; `readme_stable_claims_are_in_stable_product_lane`; `scripts/ci-product-stable.sh`. | Covered by current proof map and stable-product canaries. | The stable-product lane is still advisory, not branch-protection required. |
 | Experimental/developing surfaces are clearly labeled. | README capability table; `SUPPORT_TIERS.md`; `KNOWN_RED.md`; `PRODUCT_PROOF_MAP.md`. | Covered for runtime2, broader grammars, WASM, Tree-sitter interop, CLI, benchmarks, typed CST, incremental, and JSON. | Re-check after any README, support-tier, or release-facing wording change. |
 | Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI document JSON recovery diagnostics. | Partially covered by local/downstream fixtures and CLI recovery smoke. | Published CLI install, public promotion, and any future crates.io release surface need fresh receipts. |
@@ -91,15 +91,18 @@ Current external-scanner dispatch receipts:
 ```bash
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_parser_with_external_scanner -- --exact --nocapture
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_rejects_token_not_in_valid_symbols -- --exact --nocapture
+cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_parse_document_bad_input_returns_diagnostic_document -- --exact --nocapture
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests -- --nocapture
 cargo test -p adze --features external_scanners
 ```
 
 PR #298 fixed parser-v4 external scanner token spans so emitted tokens use the
 pre-scan byte position and preserve token text. This closes the focused
-dispatch/span gap for the parser-v4 scanner canaries. It does not close the
-parser-generated external-scanner recovery gap, promote external scanners out
-of Experimental, or create a stable public scanner API claim.
+dispatch/span gap for the parser-v4 scanner canaries. The follow-up parser-v4
+document canary proves bad input in a direct external-scanner grammar shape
+returns a diagnostic document with error facts. These receipts do not close the
+parser-generated external-scanner recovery gap, promote external scanners out of
+Experimental, or create a stable public scanner API claim.
 
 Current release-surface readiness receipts:
 

@@ -1885,6 +1885,130 @@ mod tests {
         fn deserialize(&mut self, _buffer: &[u8]) {}
     }
 
+    #[derive(Default)]
+    struct NewlineIndexScanner;
+
+    impl crate::external_scanner::ExternalScanner for NewlineIndexScanner {
+        fn scan(
+            &mut self,
+            lexer: &mut dyn crate::external_scanner::Lexer,
+            valid_symbols: &[bool],
+        ) -> Option<crate::external_scanner::ScanResult> {
+            if valid_symbols.get(1) == Some(&true) && lexer.lookahead() == Some(b'\n') {
+                lexer.advance(1);
+                lexer.mark_end();
+                return Some(crate::external_scanner::ScanResult {
+                    symbol: 1,
+                    length: 1,
+                });
+            }
+
+            None
+        }
+
+        fn serialize(&self, _buffer: &mut Vec<u8>) {}
+
+        fn deserialize(&mut self, _buffer: &[u8]) {}
+    }
+
+    fn external_newline_parser(language_name: &str) -> Parser {
+        ExternalScannerBuilder::new(language_name.to_string())
+            .register_rust::<NewlineIndexScanner>();
+
+        let eof = SymbolId(0);
+        let newline = SymbolId(1);
+        let root = SymbolId(2);
+        let mut grammar = Grammar::new(language_name.to_string());
+        grammar.externals.push(adze_ir::ExternalToken {
+            name: "_unused_external_zero".to_string(),
+            symbol_id: eof,
+        });
+        grammar.externals.push(adze_ir::ExternalToken {
+            name: "NEWLINE".to_string(),
+            symbol_id: newline,
+        });
+
+        let mut symbol_to_index = std::collections::BTreeMap::new();
+        symbol_to_index.insert(eof, 0);
+        symbol_to_index.insert(newline, 1);
+        symbol_to_index.insert(root, 2);
+
+        let mut action_table = vec![vec![vec![Action::Error]; 3]; 3];
+        action_table[0][1] = vec![Action::Shift(StateId(1))];
+        action_table[1][0] = vec![Action::Reduce(RuleId(0))];
+        action_table[2][0] = vec![Action::Accept];
+
+        let mut goto_table = vec![vec![StateId(0); 3]; 3];
+        goto_table[0][2] = StateId(2);
+
+        let parse_table = ParseTable {
+            action_table,
+            goto_table,
+            symbol_metadata: vec![
+                adze_glr_core::SymbolMetadata {
+                    name: "EOF".to_string(),
+                    is_visible: false,
+                    is_named: false,
+                    is_supertype: false,
+                    is_terminal: true,
+                    is_extra: false,
+                    is_fragile: false,
+                    symbol_id: eof,
+                },
+                adze_glr_core::SymbolMetadata {
+                    name: "NEWLINE".to_string(),
+                    is_visible: true,
+                    is_named: false,
+                    is_supertype: false,
+                    is_terminal: true,
+                    is_extra: false,
+                    is_fragile: false,
+                    symbol_id: newline,
+                },
+                adze_glr_core::SymbolMetadata {
+                    name: "Root".to_string(),
+                    is_visible: true,
+                    is_named: true,
+                    is_supertype: false,
+                    is_terminal: false,
+                    is_extra: false,
+                    is_fragile: false,
+                    symbol_id: root,
+                },
+            ],
+            state_count: 3,
+            symbol_count: 3,
+            symbol_to_index,
+            index_to_symbol: vec![eof, newline, root],
+            external_scanner_states: vec![
+                vec![false, true],
+                vec![false, false],
+                vec![false, false],
+            ],
+            rules: vec![ParseRule {
+                lhs: root,
+                rhs_len: 1,
+            }],
+            nonterminal_to_index: std::collections::BTreeMap::new(),
+            goto_indexing: adze_glr_core::GotoIndexing::NonterminalMap,
+            eof_symbol: eof,
+            start_symbol: root,
+            grammar: grammar.clone(),
+            initial_state: StateId(0),
+            token_count: 1,
+            external_token_count: 2,
+            lex_modes: vec![],
+            extras: vec![],
+            dynamic_prec_by_rule: vec![],
+            rule_assoc_by_rule: vec![],
+            alias_sequences: vec![],
+            field_names: vec![],
+            field_map: std::collections::BTreeMap::new(),
+        };
+
+        Parser::new(grammar, parse_table, language_name.to_string())
+    }
+
     #[test]
     fn test_external_scanner_rejects_token_not_in_valid_symbols() {
         let language_name = "test_parser_external_scanner_valid_symbols_contract".to_string();
@@ -1939,6 +2063,31 @@ mod tests {
         assert!(
             scanned.is_none(),
             "scanner emitted token that is false in valid_symbols and must be rejected",
+        );
+    }
+
+    #[test]
+    fn test_external_scanner_parse_document_bad_input_returns_diagnostic_document() {
+        let mut parser = external_newline_parser(
+            "test_external_scanner_parse_document_bad_input_returns_diagnostic_document",
+        );
+        let source = "x";
+
+        let document = parser
+            .parse_document(source)
+            .expect("external-scanner parser should return a diagnostic document for bad input");
+        let diagnostic = document
+            .diagnostics()
+            .first()
+            .expect("bad external-scanner input should produce a diagnostic");
+
+        assert!(document.metadata().error_count > 0);
+        assert!(document.tree().has_errors());
+        assert!(diagnostic.start_byte <= diagnostic.end_byte);
+        assert!(diagnostic.end_byte <= source.len());
+        assert_eq!(
+            diagnostic.point_range,
+            crate::document::PointRange::from_byte_range(source, diagnostic.byte_span())
         );
     }
 

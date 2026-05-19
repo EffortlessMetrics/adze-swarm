@@ -35,7 +35,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Fix the dangling-else selected-tree gap with generated selected-AST and ambiguity-summary proof.
 - [x] Fix generated reduce/reduce preservation and typed extraction with generated conflict-cell, selected-AST, and document ambiguity-summary proof.
 - [x] Revisit the public promotion decision now that the named GLR product gaps are fixed; outcome remains proceed conditionally with no public PR opened by default.
-- [x] Fix parser-v4 external-scanner emitted-token spans and record the focused dispatch/range canaries.
+- [x] Fix parser-v4 external-scanner emitted-token spans and record the focused dispatch/range plus diagnostic-document canaries.
 - [ ] Keep parser-generated external-scanner recovery explicitly future work until it has focused proof.
 
 ### Toolkit excellence campaign
