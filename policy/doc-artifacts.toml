@@ -68,7 +68,7 @@ links_to = [
 id = "ADZE-PROP-0004"
 kind = "proposal"
 path = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
-status = "accepted"
+status = "implemented"
 owner = "runtime/product"
 milestone = "post-0.9"
 source_of_truth_for = ["toolkit excellence rationale", "adoption-readiness product proof campaign"]
@@ -83,6 +83,23 @@ links_to = [
   "plans/toolkit-excellence/implementation-plan.md",
   ".adze/goals/active.toml",
   ".adze/goals/toolkit-excellence.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = "ADZE-PROP-0005"
+kind = "proposal"
+path = "docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md"
+status = "accepted"
+owner = "release/product"
+milestone = "next public promotion"
+source_of_truth_for = ["release promotion readiness rationale", "public promotion decision campaign"]
+links_to = [
+  "ADZE-SPEC-0011",
+  "ADZE-ADR-0001",
+  "plans/release-promotion/implementation-plan.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/release-promotion-readiness.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -320,11 +337,21 @@ links_to = ["ADZE-PROP-0003", ".adze/goals/active.toml", ".adze/goals/glr-toolki
 id = "plans/toolkit-excellence/implementation-plan.md"
 kind = "plan"
 path = "plans/toolkit-excellence/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "runtime/product"
 milestone = "post-0.9"
 source_of_truth_for = ["toolkit excellence and adoption implementation sequence"]
 links_to = ["ADZE-PROP-0004", ".adze/goals/active.toml", ".adze/goals/toolkit-excellence.toml", "docs/status/SUPPORT_TIERS.md"]
+
+[[artifact]]
+id = "plans/release-promotion/implementation-plan.md"
+kind = "plan"
+path = "plans/release-promotion/implementation-plan.md"
+status = "active"
+owner = "release/product"
+milestone = "next public promotion"
+source_of_truth_for = ["release promotion readiness implementation sequence"]
+links_to = ["ADZE-PROP-0005", ".adze/goals/active.toml", ".adze/goals/release-promotion-readiness.toml", "docs/status/SUPPORT_TIERS.md"]
 
 [[artifact]]
 id = ".adze/goals/glr-toolkit-productization.toml"
@@ -340,8 +367,18 @@ links_to = ["ADZE-PROP-0003", "plans/glr-toolkit/productization-plan.md", ".adze
 id = ".adze/goals/toolkit-excellence.toml"
 kind = "goal"
 path = ".adze/goals/toolkit-excellence.toml"
-status = "active"
+status = "complete"
 owner = "droid-factory"
 milestone = "post-0.9"
 source_of_truth_for = ["toolkit excellence and adoption agent work queue"]
 links_to = ["ADZE-PROP-0004", "plans/toolkit-excellence/implementation-plan.md", ".adze/goals/active.toml"]
+
+[[artifact]]
+id = ".adze/goals/release-promotion-readiness.toml"
+kind = "goal"
+path = ".adze/goals/release-promotion-readiness.toml"
+status = "active"
+owner = "droid-factory"
+milestone = "next public promotion"
+source_of_truth_for = ["release promotion readiness agent work queue"]
+links_to = ["ADZE-PROP-0005", "plans/release-promotion/implementation-plan.md", ".adze/goals/active.toml"]
