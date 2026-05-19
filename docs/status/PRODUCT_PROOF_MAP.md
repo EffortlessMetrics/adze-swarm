@@ -10,6 +10,8 @@ where is that proof owned?
 `SUPPORT_TIERS.md` remains the authoritative support-tier ledger. This file
 summarizes the current release-facing claims so users, maintainers, and agents
 do not have to mine the dense tier table for the common decision points.
+For the stricter objective-level completion audit, see
+[`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md).
 
 ## Claim Map
 
@@ -50,6 +52,8 @@ do not have to mine the dense tier table for the common decision points.
 ## Related Artifacts
 
 - `docs/status/SUPPORT_TIERS.md` - authoritative tier and proof ledger.
+- `docs/status/PRODUCT_OBJECTIVE_AUDIT.md` - objective-to-proof completion
+  audit and remaining non-completion reasons.
 - `docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md` - behavior
   contract for Stable claim proof.
 - `scripts/ci-product-stable.sh` - bounded Stable README product canaries.
