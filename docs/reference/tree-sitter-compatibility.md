@@ -19,6 +19,58 @@ error-recovery parity remain explicitly tiered in
 Query compatibility has its own subset reference:
 [`query-compatibility.md`](query-compatibility.md).
 
+## How To Use The Adapter
+
+Use the compatibility adapter when existing tooling expects Tree-sitter-shaped
+`Tree` and `Node` traversal. Native Adze code should prefer
+`grammar::parse()` for typed Rust values or `grammar::parse_document()` for
+document facts.
+
+There are two supported entry shapes.
+
+Use `ts_compat::Parser` when the integration is already written in
+Tree-sitter terms:
+
+```rust
+let mut parser = adze::ts_compat::Parser::new();
+parser.set_language(language.clone())?;
+let tree = parser.parse(source, None)?;
+let root = tree.root_node();
+```
+
+Use `Tree::from_document` when the application already has the native document
+and wants a compatibility view over the same parse truth:
+
+```rust
+let document = grammar::parse_document(source)?;
+let tree = adze::ts_compat::Tree::from_document(language.clone(), &document);
+let root = tree.root_node();
+```
+
+The second shape is the preferred product model for Adze-native tooling:
+parse once into `AdzeDocument`, then project the selected Tree-sitter-shaped
+view from that document.
+
+## Concept Map
+
+| Tree-sitter concept | Adze source |
+| --- | --- |
+| `Tree` | selected tree projected from `AdzeDocument` or parsed by `ts_compat::Parser` |
+| `Node` | selected document node facts exposed through `ts_compat::Node` |
+| `kind()` / `kind_id()` | alias-visible document identity |
+| `grammar_name()` / `grammar_id()` | raw grammar identity |
+| Fields | document edges plus generated language field metadata |
+| Byte and point ranges | document node ranges |
+| `ERROR`, missing, extra, aggregate error state | document flags and diagnostics where facts exist |
+| S-expression | selected document tree |
+| `node-types.json` | language metadata projection, still advisory for alias-visible parity |
+| Queries | documented subset in [`query-compatibility.md`](query-compatibility.md) |
+
+Use the native APIs instead when the code needs typed Rust AST values, raw GLR
+ambiguity alternatives, user-facing diagnostics, stable JSON/CLI schemas, or
+full Tree-sitter query parity. Those are separate Adze surfaces with separate
+support-tier rows.
+
 ## Selected-tree Compatibility Subset
 
 The compatibility adapter exposes one selected tree. Native GLR ambiguity
@@ -67,6 +119,20 @@ These are not product claims yet:
 - full imported grammar corpus compatibility;
 - raw GLR forest exposure through `ts_compat`.
 
+### Known gaps and not-planned boundaries
+
+The selected-tree adapter is not a promise that every Tree-sitter consumer can
+switch without inspection. Before adopting it, check these boundaries:
+
+- query behavior is a documented subset, not full Tree-sitter query parity;
+- alias-visible `node-types.json` parity is not promoted yet;
+- imported grammar corpus parity is not promoted yet;
+- parse-state metadata and incremental changed-range parity are not promoted;
+- raw GLR forest data is native Adze data and is not exposed through
+  `ts_compat`;
+- diagnostics remain native `AdzeDocument` facts even when error and missing
+  flags are projected onto compatibility nodes.
+
 ### Proof commands
 
 Representative selected-tree proof is tracked in
@@ -85,6 +151,10 @@ cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_to_sexp -- 
 Promotion of this subset should use the consolidated `ts_compat_selected_tree`
 matrix plus targeted method-family canaries rather than relying only on
 scattered tests.
+
+Do not promote this page, README wording, or support-tier rows to a Stable
+Tree-sitter compatibility claim unless the relevant method family has a proof
+command, CI lane, known-gap statement, and rollback path.
 
 ## Critical ABI Contract
 

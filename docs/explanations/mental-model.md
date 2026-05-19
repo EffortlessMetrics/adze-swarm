@@ -62,7 +62,7 @@ Use Tree-sitter-compatible views when you need ecosystem interop:
 
 ```rust
 let document = grammar::parse_document(source)?;
-let tree = document.as_tree_sitter();
+let tree = adze::ts_compat::Tree::from_document(language.clone(), &document);
 ```
 
 That compatibility surface exposes the selected tree. Native Adze APIs expose

@@ -577,9 +577,12 @@ When a tool needs Tree-sitter-style traversal, use the selected-tree
 compatibility projection instead of creating a second parser truth:
 
 ```rust
-fn print_sexp(source: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn print_sexp(
+    source: &str,
+    language: std::sync::Arc<adze::ts_compat::Language>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let document = grammar::parse_document(source)?;
-    let tree = document.as_tree_sitter();
+    let tree = adze::ts_compat::Tree::from_document(language, &document);
 
     println!("{}", tree.root_node().to_sexp());
     Ok(())
@@ -832,9 +835,12 @@ struct Highlight {
     scope: String,
 }
 
-fn highlight_code(source: &str) -> Result<Vec<Highlight>, Box<dyn std::error::Error>> {
+fn highlight_code(
+    source: &str,
+    language: std::sync::Arc<adze::ts_compat::Language>,
+) -> Result<Vec<Highlight>, Box<dyn std::error::Error>> {
     let document = grammar::parse_document(source)?;
-    let tree = document.as_tree_sitter();
+    let tree = adze::ts_compat::Tree::from_document(language, &document);
     let mut highlights = Vec::new();
     let mut cursor = tree.walk();
     
@@ -939,7 +945,7 @@ fn html_escape(s: &str) -> String {
 4. **Integration**
    - Use `parse()` for typed semantic values
    - Use `parse_document()` for document facts and diagnostics
-   - Use `as_tree_sitter()` only when you need compatibility with Tree-sitter-shaped tooling
+   - Use `ts_compat::Tree::from_document(...)` only when you need compatibility with Tree-sitter-shaped tooling
    - Leverage the type system for AST processing
    - Test with real-world inputs
 

@@ -184,7 +184,8 @@ source-aware predicates, byte range, and root-only mode.
 
 ### Work Item: diagnostics-recovery-example
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#228
 
 #### Goal
 
@@ -195,7 +196,7 @@ missing nodes, GLR bad input, and JSON diagnostic projection.
 
 ### Work Item: ts-compat-matrix-doc
 
-Status: ready
+Status: active
 
 #### Goal
 
