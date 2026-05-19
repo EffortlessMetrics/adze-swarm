@@ -349,6 +349,62 @@ fn readme_stable_claims_are_in_stable_product_lane() {
     }
 }
 
+#[test]
+fn cargo_install_adze_cli_claims_stay_release_surface_bounded() {
+    let docs = [
+        ("README.md", include_str!("../../README.md")),
+        ("cli/README.md", include_str!("../README.md")),
+        (
+            "docs/tutorials/quickstart-10-minutes.md",
+            include_str!("../../docs/tutorials/quickstart-10-minutes.md"),
+        ),
+        (
+            "docs/tutorials/getting-started.md",
+            include_str!("../../docs/tutorials/getting-started.md"),
+        ),
+        (
+            "book/src/getting-started/quickstart.md",
+            include_str!("../../book/src/getting-started/quickstart.md"),
+        ),
+        (
+            "docs/product/ACCEPTANCE_MATRIX.md",
+            include_str!("../../docs/product/ACCEPTANCE_MATRIX.md"),
+        ),
+        (
+            "docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md",
+            include_str!("../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md"),
+        ),
+        (
+            "docs/status/KNOWN_RED.md",
+            include_str!("../../docs/status/KNOWN_RED.md"),
+        ),
+        (
+            "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+            include_str!("../../docs/status/PRODUCT_OBJECTIVE_AUDIT.md"),
+        ),
+        (
+            "docs/status/PRODUCT_PROOF_MAP.md",
+            include_str!("../../docs/status/PRODUCT_PROOF_MAP.md"),
+        ),
+    ];
+
+    for (path, text) in docs {
+        for (idx, line) in text.lines().enumerate() {
+            if !line.contains("cargo install adze-cli") {
+                continue;
+            }
+
+            let context = surrounding_context(text, idx, 6).to_ascii_lowercase();
+            assert!(
+                install_claim_context_is_bounded(&context),
+                "`cargo install adze-cli` must stay explicitly bounded as a release-surface claim until a crates.io receipt exists.\nfile: {path}\nline: {}\ncontext:\n{}",
+                idx + 1,
+                surrounding_context(text, idx, 6)
+            );
+        }
+    }
+}
+
 #[derive(Debug)]
 struct StableCapabilityRow {
     surface: String,
@@ -539,6 +595,29 @@ fn inline_code_spans(text: &str) -> Vec<String> {
 
 fn is_required_gate(command: &str) -> bool {
     matches!(command, "just ci-supported" | "CI / ci-supported")
+}
+
+fn install_claim_context_is_bounded(context: &str) -> bool {
+    [
+        "intended published",
+        "only after",
+        "until `adze-cli` is published",
+        "until adze-cli is published",
+        "crates.io install receipt",
+        "release-surface",
+        "not prove crates.io",
+        "not a crates.io install claim",
+        "not a stable cli",
+    ]
+    .iter()
+    .any(|marker| context.contains(marker))
+}
+
+fn surrounding_context(text: &str, line_idx: usize, radius: usize) -> String {
+    let lines: Vec<&str> = text.lines().collect();
+    let start = line_idx.saturating_sub(radius);
+    let end = (line_idx + radius + 1).min(lines.len());
+    lines[start..end].join("\n")
 }
 
 fn grammar_module_from_readme(snippet: &str) -> String {
