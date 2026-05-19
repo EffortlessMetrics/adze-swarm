@@ -1,42 +1,27 @@
 #![no_main]
 
-use adze::*;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
-    // Convert random bytes to UTF-8 string (lossy is fine for fuzzing)
     let input = String::from_utf8_lossy(data);
 
-    // Try to tokenize the input
-    // This should never panic, only return errors
-    let _ = tokenize(&input);
+    if input.len() > 32 * 1024 {
+        return;
+    }
 
-    // Additional invariants to check:
-    // - Tokenizer should handle all valid UTF-8
-    // - Tokenizer should not allocate unbounded memory
-    // - Tokenizer should complete in reasonable time
+    // Rust tokenization should never panic on arbitrary UTF-8.
+    let tokens = input.parse::<proc_macro2::TokenStream>();
+
+    // If tokenization succeeded, token rendering should remain tokenizable.
+    if let Ok(stream) = tokens {
+        let rendered = stream.to_string();
+        let reparsed = rendered
+            .parse::<proc_macro2::TokenStream>()
+            .expect("rendered token stream should parse as tokens");
+
+        // Basic stability invariant: token count should be preserved.
+        let original_count = stream.clone().into_iter().count();
+        let reparsed_count = reparsed.into_iter().count();
+        assert_eq!(original_count, reparsed_count);
+    }
 });
-
-/// Helper function to tokenize input (placeholder - adapt to your lexer API)
-fn tokenize(input: &str) -> Result<Vec<Token>, LexError> {
-    // Your actual tokenization logic here
-    Ok(vec![])
-}
-
-#[derive(Debug)]
-struct Token {
-    kind: TokenKind,
-    text: String,
-    span: (usize, usize),
-}
-
-#[derive(Debug)]
-enum TokenKind {
-    Number,
-    Operator,
-    Identifier,
-    // ... other token types
-}
-
-#[derive(Debug)]
-struct LexError;
