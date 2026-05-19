@@ -22,11 +22,12 @@ end_state = [
 
 [[work_item]]
 id = "release-promotion-campaign-source-of-truth"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/release-promotion/implementation-plan.md"
+prs = [234]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
@@ -35,11 +36,11 @@ commands = [
 
 [[work_item]]
 id = "release-readiness-inventory"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md"
 spec = "ADZE-SPEC-0011"
 adr = ""
-plan = "plans/release-promotion/implementation-plan.md"
+plan = "plans/release-promotion/readiness-inventory.md"
 commands = [
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",
