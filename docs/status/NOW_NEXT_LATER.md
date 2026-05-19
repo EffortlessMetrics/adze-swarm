@@ -31,10 +31,10 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 ### Product gap burn-down
 - [x] Replace the completed release-promotion active manifest with an active product gap burn-down queue.
 - [x] Keep `adze-swarm` as the operating repo and public `adze` as release/public-intake unless a deliberate promotion PR opens.
-- [ ] Refresh the stable-product receipt from current `adze-swarm/main` and update the product objective audit if the result changed.
+- [x] Refresh the stable-product receipt from current `adze-swarm/main` and update the product objective audit if the result changed.
 - [ ] Fix or sharpen the support-tier boundary for the dangling-else selected-tree gap.
 - [ ] Fix or explicitly defer generated reduce/reduce preservation and typed extraction.
-- [ ] Revisit the public promotion decision only after the current product receipts are fresh.
+- [ ] Revisit the public promotion decision only after the GLR product gaps are fixed or explicitly bounded.
 
 ### Toolkit excellence campaign
 - [x] Consolidate the source-of-truth guardrails into one PR and close duplicate source-of-truth PRs.
@@ -69,7 +69,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Keep README feature claims aligned with [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md): no Stable claim without a named proof command; guarded by `readme_stable_claims_are_in_stable_product_lane`.
 - [x] Add stable-product canaries for the checked-in downstream demo, README quickstart, and Getting Started tutorial so clean downstream crates prove typed parsing and useful bad-input diagnostics.
 - [x] Latest local stable-product receipt: `just ci-product-stable` passed on
-      2026-05-19 from current `adze-swarm/main` after the SRP and GLR queue cleanup through commit `12b0f871`. This is
+      2026-05-19 from current `adze-swarm/main` after the product gap burn-down source-of-truth PR, commit `e7a7862c`. This is
       evidence for the README Stable claim lane, not a branch-protection change.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
