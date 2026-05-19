@@ -10,6 +10,8 @@ where is that proof owned?
 `SUPPORT_TIERS.md` remains the authoritative support-tier ledger. This file
 summarizes the current release-facing claims so users, maintainers, and agents
 do not have to mine the dense tier table for the common decision points.
+For the stricter objective-level completion audit, see
+[`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md).
 
 ## Claim Map
 
@@ -27,7 +29,7 @@ do not have to mine the dense tier table for the common decision points.
 | Tree-sitter compatibility projects from native document/schema data. | Stabilizing | `ADZE-SPEC-0006`; `docs/reference/tree-sitter-compatibility.md`; `SUPPORT_TIERS.md` | `cargo test -p adze --features "pure-rust,glr,ts-compat" --test ts_compat_selected_tree -- --nocapture`; `cargo test -p adze --features "pure-rust,ts-compat,query" --test ts_compat_imported_shape_smoke -- --nocapture`; `cargo test -p adze --features "pure-rust,ts-compat" --test ts_compat_node_types -- --nocapture` | Stabilizing selected-tree subset; not full Tree-sitter API, grammar-corpus, or query parity. |
 | Query compatibility exposes a documented Tree-sitter-like subset. | Stabilizing | `ADZE-SPEC-0013`; `docs/reference/query-compatibility.md`; `SUPPORT_TIERS.md` | `cargo run -p adze --features query --example query_highlighting`; `cargo test -p adze --features query --lib query -- --nocapture`; `cargo test -p adze --features "pure-rust,ts-compat,query" --test query_differential -- --nocapture` | Stabilizing for the documented subset; directives, full parity, and GLR-forest-wide matching remain future work. |
 | Native document JSON uses an experimental schema-tagged envelope. | Experimental | `ADZE-SPEC-0008`; `ADZE-ADR-0004`; `SUPPORT_TIERS.md` | `cargo test -p adze --features "pure-rust,serialization" --test adze_document_json -- --nocapture`; `cargo test -p adze --features "pure-rust,serialization,glr" --test adze_document_json parse_document_json_serializes_glr_ambiguity_summary -- --exact --nocapture` | Experimental `adze.document.v1`; not yet a stable CLI/WASM schema contract. |
-| CLI project scaffolding and document-output smoke checks are product-shaped tools. | Stabilizing | `SUPPORT_TIERS.md`; `cli/README.md` | `cargo test -p adze-cli test_init_default_cwd_generates_buildable_project -- --exact --nocapture`; `cargo test -p adze-cli test_init_generates_buildable_project -- --exact --nocapture`; `cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture`; `cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture`; `cargo test -p adze-cli parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture` | Stabilizing for starter and document-projection smoke behavior; still not a stable CLI/WASM schema contract. |
+| CLI project scaffolding and document-output smoke checks are product-shaped tools. | Stabilizing | `SUPPORT_TIERS.md`; `cli/README.md` | `cargo test -p adze-cli test_init_default_cwd_generates_buildable_project -- --exact --nocapture`; `cargo test -p adze-cli test_init_generates_buildable_project -- --exact --nocapture`; `cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture`; `cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture`; `cargo test -p adze-cli parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture`; `just package-local adze-cli` | Stabilizing for starter, document-projection smoke behavior, and local CLI package verification; still not a stable CLI/WASM schema contract or crates.io install claim. |
 | WASM compiles for the demo target. | Advisory | `SUPPORT_TIERS.md`; `KNOWN_RED.md` | `cargo check --manifest-path wasm-demo/Cargo.toml --target wasm32-unknown-unknown` | Compile signal only; browser/runtime behavior is not certified. |
 | Benchmarks use documented parser/projection fixture families and compile on explicit benchmark lanes. | Advisory | `SUPPORT_TIERS.md`; `benchmarks/README.md`; `docs/perf/baselines.md` | `cargo run -q -p xtask -- perf-receipt --profile product-smoke`; `cargo test -p adze-benchmarks --test verify_fixture_parsing verify_parse_bench_uses_real_parser_workload -- --exact --nocapture`; `cargo test -p adze-benchmarks --test verify_fixture_parsing verify_benchmark_fixture_families_are_documented -- --exact --nocapture`; `cargo bench -p adze-benchmarks --bench document_projection --no-run` | Benchmark evidence is manual/scheduled and advisory; compile-only projection benchmark proof is not a throughput or regression-threshold claim. |
 
@@ -36,11 +38,16 @@ do not have to mine the dense tier table for the common decision points.
 - A README Stable claim must have a matching `SUPPORT_TIERS.md` row and a
   repeatable proof command.
 - `ci-product stable canaries` is the bounded Stable-claim canary lane. It runs
-  on stable-claim PR surfaces, schedule, and manual dispatch, but remains
-  advisory until branch protection explicitly promotes it.
-- Latest local receipt: `just ci-product-stable` passed on 2026-05-19 from
-  current `adze-swarm/main` after PR #247. Treat this as current
-  proof evidence, not a required-gate promotion.
+  on stable-claim PR surfaces, schedule, and stable-only manual dispatch, but
+  remains advisory until branch protection explicitly promotes it. Manual
+  dispatch runs the broad advisory product lane only when `lane=all` is
+  selected.
+- Latest hosted receipt: GitHub workflow dispatch
+  [`Product Proof` run 26100132801](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26100132801)
+  passed on 2026-05-19 from current `adze-swarm/main` after PR #269. The
+  `ci-product stable canaries` job passed in 3m41s and the broad advisory
+  canaries skipped under the stable-only default. Treat this as current proof
+  evidence, not a required-gate promotion.
 - Experimental, Stabilizing, and Advisory rows here are not marketing claims.
   They are current evidence snapshots.
 - Do not promote any Stabilizing or Advisory surface to Stable from this
@@ -50,6 +57,8 @@ do not have to mine the dense tier table for the common decision points.
 ## Related Artifacts
 
 - `docs/status/SUPPORT_TIERS.md` - authoritative tier and proof ledger.
+- `docs/status/PRODUCT_OBJECTIVE_AUDIT.md` - objective-to-proof completion
+  audit and remaining non-completion reasons.
 - `docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md` - behavior
   contract for Stable claim proof.
 - `scripts/ci-product-stable.sh` - bounded Stable README product canaries.

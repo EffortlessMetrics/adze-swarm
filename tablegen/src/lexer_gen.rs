@@ -187,6 +187,24 @@ pub fn generate_lexer(
                     return true;
                 }
             });
+        } else if pattern == r"[a-z]+" {
+            token_matches.push(quote! {
+                let first = unsafe { ((*lexer).lookahead)(lexer) };
+                if first != 0 && (first as u8).is_ascii_lowercase() {
+                    unsafe {
+                        ((*lexer).advance)(lexer, false);
+                        while {
+                            let next = ((*lexer).lookahead)(lexer);
+                            next != 0 && (next as u8).is_ascii_lowercase()
+                        } {
+                            ((*lexer).advance)(lexer, false);
+                        }
+                        (*lexer).result_symbol = #symbol_index;
+                        ((*lexer).mark_end)(lexer);
+                    }
+                    return true;
+                }
+            });
         } else if pattern == r"[-+*/]" {
             token_matches.push(quote! {
                 let first = unsafe { ((*lexer).lookahead)(lexer) };

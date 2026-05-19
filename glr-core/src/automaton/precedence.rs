@@ -211,15 +211,15 @@ pub(super) fn decide_with_precedence(
 }
 
 #[inline]
-pub(super) fn decide_reduce_reduce(a: u16, b: u16, prec: &PrecTables) -> u16 {
+pub(super) fn decide_reduce_reduce(a: u16, b: u16, prec: &PrecTables) -> Option<u16> {
     let pa = prec.rule_prec.get(a as usize).map(|r| r.prec).unwrap_or(0);
     let pb = prec.rule_prec.get(b as usize).map(|r| r.prec).unwrap_or(0);
     if pa > pb {
-        a
+        Some(a)
     } else if pb > pa {
-        b
+        Some(b)
     } else {
-        a.min(b)
+        None
     }
 }
 
@@ -375,26 +375,26 @@ mod tests {
     #[test]
     fn decide_reduce_reduce_higher_a_wins() {
         let prec = tables_for_decision(vec![(3, Assoc::Left), (1, Assoc::Left)], vec![]);
-        assert_eq!(decide_reduce_reduce(0, 1, &prec), 0);
+        assert_eq!(decide_reduce_reduce(0, 1, &prec), Some(0));
     }
 
     #[test]
     fn decide_reduce_reduce_higher_b_wins() {
         let prec = tables_for_decision(vec![(1, Assoc::Left), (3, Assoc::Left)], vec![]);
-        assert_eq!(decide_reduce_reduce(0, 1, &prec), 1);
+        assert_eq!(decide_reduce_reduce(0, 1, &prec), Some(1));
     }
 
     #[test]
-    fn decide_reduce_reduce_equal_returns_min() {
+    fn decide_reduce_reduce_equal_preserves_conflict() {
         let prec = tables_for_decision(vec![(2, Assoc::Left), (2, Assoc::Left)], vec![]);
-        assert_eq!(decide_reduce_reduce(5, 1, &prec), 1);
+        assert_eq!(decide_reduce_reduce(0, 1, &prec), None);
     }
 
     #[test]
-    fn decide_reduce_reduce_out_of_bounds_falls_through_to_min() {
-        // Both ids out of range -> both default precs are 0 -> tie -> min(a,b).
+    fn decide_reduce_reduce_out_of_bounds_preserves_conflict() {
+        // Both ids out of range -> both default precs are 0 -> tie -> no resolution.
         let prec = tables_for_decision(vec![], vec![]);
-        assert_eq!(decide_reduce_reduce(7, 4, &prec), 4);
+        assert_eq!(decide_reduce_reduce(7, 4, &prec), None);
     }
 
     // ---- build_prec_tables --------------------------------------------

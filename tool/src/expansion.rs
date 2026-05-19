@@ -486,7 +486,9 @@ impl<'a> Precs<'a> {
 /// 1. Explicit opt-out: #[adze::no_inline] → do NOT inline
 /// 2. Unit variants: → do NOT inline (backward compatibility)
 /// 3. Precedence attributes: #[prec], #[prec_left], #[prec_right] → do NOT inline (backward compatibility)
-/// 4. Default: → inline (enables GLR conflict preservation)
+/// 4. Single-field non-leaf wrapper variants: → do NOT inline (preserves
+///    reduce/reduce variant identity)
+/// 5. Default: → inline (enables GLR conflict preservation)
 fn should_inline_variant(attrs: &[Attribute], fields: &Fields) -> bool {
     // Rule 1: Check for explicit no_inline attribute
     if attrs
@@ -512,8 +514,67 @@ fn should_inline_variant(attrs: &[Attribute], fields: &Fields) -> bool {
         return false;
     }
 
-    // Rule 4: Default - inline for GLR support
+    // Rule 4: Single-field non-leaf wrapper variants preserve their own
+    // symbol identity. Inlining `Choice::FromA(FromA)` and
+    // `Choice::FromB(FromB)` would collapse both alternatives to the same
+    // terminal before table generation can preserve the reduce/reduce cell.
+    if is_single_field_non_leaf_variant(attrs, fields) {
+        return false;
+    }
+
+    // Rule 5: Default - inline for GLR support
     true
+}
+
+fn is_single_field_non_leaf_variant(attrs: &[Attribute], fields: &Fields) -> bool {
+    if let Fields::Unnamed(fields_unnamed) = fields
+        && fields_unnamed.unnamed.len() == 1
+    {
+        if attrs
+            .iter()
+            .any(|attr| attr.path() == &syn::parse_quote!(adze::leaf))
+        {
+            return false;
+        }
+
+        let field = &fields_unnamed.unnamed[0];
+        return !field
+            .attrs
+            .iter()
+            .any(|attr| attr.path() == &syn::parse_quote!(adze::leaf));
+    }
+
+    false
+}
+
+fn single_field_non_leaf_target_name(attrs: &[Attribute], fields: &Fields) -> Option<String> {
+    let Fields::Unnamed(fields_unnamed) = fields else {
+        return None;
+    };
+    if fields_unnamed.unnamed.len() != 1 {
+        return None;
+    }
+
+    let field = &fields_unnamed.unnamed[0];
+    if attrs
+        .iter()
+        .any(|attr| attr.path() == &syn::parse_quote!(adze::leaf))
+        || field
+            .attrs
+            .iter()
+            .any(|attr| attr.path() == &syn::parse_quote!(adze::leaf))
+    {
+        return None;
+    }
+
+    let mut skip_over = HashSet::new();
+    skip_over.insert("Spanned");
+    skip_over.insert("Box");
+
+    match filter_inner_type(&field.ty, &skip_over) {
+        Type::Path(p) if p.path.segments.len() == 1 => Some(p.path.segments[0].ident.to_string()),
+        _ => None,
+    }
 }
 
 fn gen_struct_or_variant(
@@ -832,6 +893,7 @@ pub fn generate_grammar(module: &ItemMod) -> ToolResult<Value> {
 
     let mut extras_list = vec![];
     let mut externals_list = vec![];
+    let mut conflicts_list = vec![];
 
     let grammar_name = module
         .attrs
@@ -890,12 +952,19 @@ pub fn generate_grammar(module: &ItemMod) -> ToolResult<Value> {
         let (symbol, attrs) = match c {
             Item::Enum(e) => {
                 let mut members: Vec<Value> = vec![];
+                let mut wrapper_conflict_set = vec![];
 
                 for v in e.variants.iter() {
                     let variant_path = format!("{}_{}", e.ident, v.ident);
 
                     // Determine if this variant should be inlined (ADR-0003)
                     let inline = should_inline_variant(&v.attrs, &v.fields);
+                    if !inline && is_single_field_non_leaf_variant(&v.attrs, &v.fields) {
+                        wrapper_conflict_set.push(
+                            single_field_non_leaf_target_name(&v.attrs, &v.fields)
+                                .unwrap_or_else(|| variant_path.clone()),
+                        );
+                    }
 
                     // Generate the variant rule
                     let inline_rule = gen_struct_or_variant(
@@ -920,6 +989,10 @@ pub fn generate_grammar(module: &ItemMod) -> ToolResult<Value> {
                     };
 
                     members.push(variant_member);
+                }
+
+                if wrapper_conflict_set.len() > 1 {
+                    conflicts_list.push(json!(wrapper_conflict_set));
                 }
 
                 // For precedence to work correctly with the LR algorithm,
@@ -1030,6 +1103,14 @@ pub fn generate_grammar(module: &ItemMod) -> ToolResult<Value> {
             .as_object_mut()
             .unwrap()
             .insert("externals".to_string(), json!(externals_list));
+    }
+
+    // Only include conflicts if generated wrapper variants need them.
+    if !conflicts_list.is_empty() {
+        grammar
+            .as_object_mut()
+            .unwrap()
+            .insert("conflicts".to_string(), json!(conflicts_list));
     }
 
     Ok(grammar)

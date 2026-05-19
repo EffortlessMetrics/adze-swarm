@@ -368,13 +368,9 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                                 v.attrs.clone(),
                             ).ok()?;
 
-                            if v.ident == "Number" {
-                                Some(quote! {
-                                    return #extract_expr;
-                                })
-                            } else {
-                                None
-                            }
+                            Some(quote! {
+                                return #extract_expr;
+                            })
                         } else {
                             None
                         }
@@ -421,7 +417,7 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
 
                                     fn unwrap_hidden_rules<'a>(node: &'a ::adze::pure_parser::ParsedNode) -> &'a ::adze::pure_parser::ParsedNode {
                                         let non_extra_children: Vec<_> = node.children.iter().filter(|c| !c.is_extra).collect();
-                                        if (node.kind().starts_with('_') || non_extra_children.len() == 1) && !non_extra_children.is_empty() {
+                                        if (node.kind() == "source_file" || node.kind().starts_with('_')) && !non_extra_children.is_empty() {
                                             return unwrap_hidden_rules(non_extra_children[0]);
                                         }
                                         node
@@ -462,7 +458,7 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                                     fn unwrap_hidden_rules(node: ::adze::tree_sitter::Node) -> ::adze::tree_sitter::Node {
                                         let mut cursor = node.walk();
                                         let non_extra_children: Vec<_> = node.children(&mut cursor).filter(|c| !c.is_extra()).collect();
-                                        if (node.kind().starts_with('_') || non_extra_children.len() == 1) && !non_extra_children.is_empty() {
+                                        if (node.kind() == "source_file" || node.kind().starts_with('_')) && !non_extra_children.is_empty() {
                                             if let Some(child) = non_extra_children.first() {
                                                 return unwrap_hidden_rules(*child);
                                             }
