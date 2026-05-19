@@ -1,6 +1,6 @@
 id = "adze-public-promotion-execution"
 title = "Adze Public Promotion Execution"
-status = "active"
+status = "complete"
 owner = "release/product"
 created = "2026-05-19"
 
@@ -71,7 +71,7 @@ commands = [
 
 [[work_item]]
 id = "promotion-decision-record"
-status = "ready"
+status = "complete"
 proposal = "ADZE-PROP-0005-release-promotion-readiness"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"

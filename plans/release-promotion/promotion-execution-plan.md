@@ -1,6 +1,6 @@
 # Public Promotion Execution Plan
 
-Status: active
+Status: complete
 Owner: release/product
 Created: 2026-05-19
 Linked proposal: ../../docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md
@@ -218,7 +218,7 @@ with the promotion scope.
 
 ## Work Item: promotion-decision-record
 
-Status: ready
+Status: complete
 Linked proposal: ADZE-PROP-0005-release-promotion-readiness
 Linked spec: ADZE-SPEC-0011
 Linked ADR: ADZE-ADR-0001
@@ -254,6 +254,37 @@ split:
 git diff --check
 cargo run -q -p xtask -- check-active-goal --mode blocking
 ```
+
+### Decision Receipt - 2026-05-19
+
+Decision: proceed.
+
+Rationale:
+
+- PR #288 recorded the fresh promotion preflight and public drift refresh from
+  current `adze-swarm/main`.
+- Both `EffortlessMetrics/adze-swarm` and public `EffortlessMetrics/adze` had
+  no open PRs at the time of the decision.
+- Stable product and publishability receipts passed from the current swarm
+  state.
+- Public-only commits were classified as already present in `adze-swarm`,
+  superseded by newer swarm source-of-truth, or otherwise non-blocking.
+- No conflicting public-release work was observed.
+
+Next action:
+
+Prepare a public `EffortlessMetrics/adze` promotion PR using
+`plans/release-promotion/public-promotion-pr-plan.md`.
+
+Promotion boundaries:
+
+- Do not tag a release.
+- Do not publish crates.
+- Do not move release, signing, Cargo-token, branch-protection, or merge-queue
+  workflows.
+- Do not add new Stable claims beyond the claim freeze.
+- Do not claim crates.io `cargo install adze-cli` is proven until a real
+  crates.io install receipt exists.
 
 ### Rollback
 
