@@ -55,7 +55,8 @@ git diff --check
 
 ### Work Item: release-readiness-inventory
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#235
 Inventory: ./readiness-inventory.md
 
 #### Goal
@@ -74,7 +75,8 @@ rows, and proof commands that would matter for a public promotion.
 
 ### Work Item: public-drift-audit
 
-Status: ready
+Status: active
+Audit: ./public-drift-audit.md
 
 #### Goal
 

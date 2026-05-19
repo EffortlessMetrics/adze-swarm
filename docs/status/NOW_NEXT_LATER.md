@@ -39,7 +39,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 ### Release promotion readiness
 - [x] Open the release-promotion readiness campaign in `adze-swarm`.
 - [x] Inventory completed swarm campaigns and release-facing support-tier claims.
-- [ ] Audit public `adze` drift before preparing a promotion PR.
+- [x] Audit public `adze` drift before preparing a promotion PR.
 - [ ] Freeze release-facing claims and known limitations.
 - [ ] Prepare or defer the public promotion PR with proof and rollback.
 
