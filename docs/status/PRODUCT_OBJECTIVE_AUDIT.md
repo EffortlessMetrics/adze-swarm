@@ -2,7 +2,8 @@
 
 **Last updated:** 2026-05-19
 **Status:** incomplete; use this as an audit checklist, not as a support-tier
-promotion.
+promotion. The active execution lane is
+[`../../plans/product-gap-burn-down/implementation-plan.md`](../../plans/product-gap-burn-down/implementation-plan.md).
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
 
@@ -54,6 +55,10 @@ cargo test --manifest-path testing/downstream-starter/Cargo.toml
 cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse
 ```
 
+`just ci-product-stable` passed on 2026-05-19 from current `adze-swarm/main`
+after the SRP and GLR queue cleanup through commit `12b0f871`. This is evidence
+for the README Stable claim lane; it is not a branch-protection change.
+
 Current release-surface readiness receipts:
 
 ```bash
@@ -101,13 +106,15 @@ Do not mark the product objective complete while any of these are true:
 
 ## Next Concrete Actions
 
-1. Decide whether the next execution goal is public promotion, promotion
-   deferral, or a smaller split promotion.
-2. If public promotion proceeds, rerun the proof commands in
-   `plans/release-promotion/public-promotion-pr-plan.md` from current
+1. Refresh stable product receipts from current `adze-swarm/main` under the
+   product gap burn-down lane.
+2. Fix or explicitly bound the dangling-else selected-tree gap and generated
+   reduce/reduce gap before any broader GLR support-tier promotion.
+3. If public promotion proceeds after those receipts, rerun the proof commands
+   in `plans/release-promotion/public-promotion-pr-plan.md` from current
    `adze-swarm/main`.
-3. Add a crates.io install receipt before any doc claims `cargo install
+4. Add a crates.io install receipt before any doc claims `cargo install
    adze-cli` as the supported quickstart. The current local package receipt is
    publish-readiness evidence only.
-4. Consider promoting `ci-product-stable` only after advisory receipts are
+5. Consider promoting `ci-product-stable` only after advisory receipts are
    consistently green and branch-protection policy is updated deliberately.

@@ -1,7 +1,7 @@
 # Now / Next / Later
 
 **Last updated:** 2026-05-19
-**Status:** **Release promotion readiness complete** — `adze-swarm` is the operating repo, public `adze` remains release/public-intake, and the completed campaign leaves a deliberate public promotion decision in [`../../plans/release-promotion/public-promotion-pr-plan.md`](../../plans/release-promotion/public-promotion-pr-plan.md). Toolkit excellence is complete with closeout recorded in [`../../plans/toolkit-excellence/closeout.md`](../../plans/toolkit-excellence/closeout.md). Release promotion readiness is closed out in [`../../plans/release-promotion/closeout.md`](../../plans/release-promotion/closeout.md).
+**Status:** **Product gap burn-down active** — `adze-swarm` is the operating repo, public `adze` remains release/public-intake, and the active campaign is burning down the blockers named in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md). Toolkit excellence is complete with closeout recorded in [`../../plans/toolkit-excellence/closeout.md`](../../plans/toolkit-excellence/closeout.md). Release promotion readiness is closed out in [`../../plans/release-promotion/closeout.md`](../../plans/release-promotion/closeout.md), and the prepared public promotion decision remains in [`../../plans/release-promotion/public-promotion-pr-plan.md`](../../plans/release-promotion/public-promotion-pr-plan.md).
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -27,6 +27,14 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 ---
 
 ## Now
+
+### Product gap burn-down
+- [x] Replace the completed release-promotion active manifest with an active product gap burn-down queue.
+- [x] Keep `adze-swarm` as the operating repo and public `adze` as release/public-intake unless a deliberate promotion PR opens.
+- [ ] Refresh the stable-product receipt from current `adze-swarm/main` and update the product objective audit if the result changed.
+- [ ] Fix or sharpen the support-tier boundary for the dangling-else selected-tree gap.
+- [ ] Fix or explicitly defer generated reduce/reduce preservation and typed extraction.
+- [ ] Revisit the public promotion decision only after the current product receipts are fresh.
 
 ### Toolkit excellence campaign
 - [x] Consolidate the source-of-truth guardrails into one PR and close duplicate source-of-truth PRs.
@@ -61,7 +69,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Keep README feature claims aligned with [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md): no Stable claim without a named proof command; guarded by `readme_stable_claims_are_in_stable_product_lane`.
 - [x] Add stable-product canaries for the checked-in downstream demo, README quickstart, and Getting Started tutorial so clean downstream crates prove typed parsing and useful bad-input diagnostics.
 - [x] Latest local stable-product receipt: `just ci-product-stable` passed on
-      2026-05-19 from current `adze-swarm/main` after PR #247. This is
+      2026-05-19 from current `adze-swarm/main` after the SRP and GLR queue cleanup through commit `12b0f871`. This is
       evidence for the README Stable claim lane, not a branch-protection change.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
