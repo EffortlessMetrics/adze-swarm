@@ -41,7 +41,7 @@ jobs:
       github.event.label.name == 'coverage' ||
       github.event.label.name == 'full-ci'
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 10
     outputs:
       coverage_changed: ${{ steps.detect.outputs.coverage_changed }}
       full: ${{ steps.detect.outputs.full }}
