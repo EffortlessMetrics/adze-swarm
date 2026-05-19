@@ -23,6 +23,13 @@ struct GeneratedRecoveryCase {
     expected_token: &'static str,
 }
 
+struct ObjectLikeRecoveryCase {
+    label: &'static str,
+    source: &'static str,
+    byte_span: Range<usize>,
+    expected_token: &'static str,
+}
+
 fn generated_cases() -> Vec<GeneratedRecoveryCase> {
     vec![
         GeneratedRecoveryCase {
@@ -54,6 +61,35 @@ fn generated_cases() -> Vec<GeneratedRecoveryCase> {
             source: "1 +\n@",
             byte_span: 4..5,
             expected_token: r"/\d+/",
+        },
+    ]
+}
+
+fn object_like_cases() -> Vec<ObjectLikeRecoveryCase> {
+    vec![
+        ObjectLikeRecoveryCase {
+            label: "missing colon before value",
+            source: "{ name 1 }",
+            byte_span: 7..8,
+            expected_token: ":",
+        },
+        ObjectLikeRecoveryCase {
+            label: "multibyte invalid identifier continuation before colon",
+            source: "{ nam\u{00e9}: 1 }",
+            byte_span: 5..7,
+            expected_token: ":",
+        },
+        ObjectLikeRecoveryCase {
+            label: "multiline invalid value after colon",
+            source: "{\n name: nope\n}",
+            byte_span: 9..10,
+            expected_token: r"/\d+/",
+        },
+        ObjectLikeRecoveryCase {
+            label: "multiline unexpected EOF after entry",
+            source: "{\n name: 1\n",
+            byte_span: 11..11,
+            expected_token: "}",
         },
     ]
 }
@@ -153,6 +189,129 @@ fn generated_bad_input_matrix_preserves_document_diagnostics_and_json() {
                     .any(|token| token.as_str() == Some(case.expected_token))),
             "{} JSON diagnostic should serialize expected-token names: {json_diagnostic:?}",
             case.label
+        );
+    }
+}
+
+#[test]
+fn generated_object_like_bad_input_matrix_preserves_document_diagnostics_and_json() {
+    use adze_example::object_like_contract::grammar;
+
+    for case in object_like_cases() {
+        let parse_errors = match grammar::parse(case.source) {
+            Ok(ast) => panic!("{} unexpectedly parsed as {ast:?}", case.label),
+            Err(errors) => errors,
+        };
+        let parse_error = parse_errors
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| panic!("{} should produce a parse error", case.label));
+        let document = grammar::parse_document(case.source).unwrap_or_else(|err| {
+            panic!(
+                "{} should return partial object-like parse facts: {err:?}",
+                case.label
+            )
+        });
+        let diagnostic = document.diagnostics().first().unwrap_or_else(|| {
+            panic!(
+                "{} should produce an object-like document diagnostic",
+                case.label
+            )
+        });
+        let json = document.to_json_value();
+        let json_diagnostic = json["diagnostics"]
+            .as_array()
+            .and_then(|diagnostics| diagnostics.first())
+            .unwrap_or_else(|| {
+                panic!(
+                    "{} should serialize an object-like JSON diagnostic",
+                    case.label
+                )
+            });
+
+        assert_eq!(
+            parse_error.byte_span(),
+            case.byte_span,
+            "{} should keep its object-like generated parser byte-span contract",
+            case.label
+        );
+        assert_eq!(
+            diagnostic.byte_span(),
+            parse_error.byte_span(),
+            "{} object-like document diagnostic should agree with typed parser error",
+            case.label
+        );
+        assert_eq!(
+            diagnostic.point_range,
+            PointRange::from_byte_range(case.source, diagnostic.byte_span()),
+            "{} object-like diagnostic point range should be derived from the byte span",
+            case.label
+        );
+        assert_eq!(
+            diagnostic.expected, parse_error.expected,
+            "{} object-like document diagnostic should preserve expected tokens",
+            case.label
+        );
+        assert!(
+            diagnostic
+                .expected
+                .iter()
+                .any(|token| token == case.expected_token),
+            "{} should include the object-like expected-token name: {:?}",
+            case.label,
+            diagnostic.expected
+        );
+        assert!(
+            document.metadata().error_count > 0,
+            "{} object-like document metadata should record parser recovery",
+            case.label
+        );
+        assert!(
+            document.tree().has_errors(),
+            "{} object-like tree should carry errors",
+            case.label
+        );
+        assert_eq!(json["schema"].as_str(), Some(ADZE_DOCUMENT_JSON_SCHEMA));
+        assert_eq!(
+            json["metadata"]["error_count"].as_u64(),
+            Some(document.metadata().error_count as u64),
+            "{} object-like JSON metadata should preserve error count",
+            case.label
+        );
+        assert_eq!(
+            json_diagnostic["start_byte"].as_u64(),
+            Some(diagnostic.start_byte as u64),
+            "{} object-like JSON diagnostic start byte should match native diagnostic",
+            case.label
+        );
+        assert_eq!(
+            json_diagnostic["end_byte"].as_u64(),
+            Some(diagnostic.end_byte as u64),
+            "{} object-like JSON diagnostic end byte should match native diagnostic",
+            case.label
+        );
+        assert!(
+            json_diagnostic["expected"]
+                .as_array()
+                .is_some_and(|expected| expected
+                    .iter()
+                    .any(|token| token.as_str() == Some(case.expected_token))),
+            "{} object-like JSON diagnostic should serialize expected-token names: {json_diagnostic:?}",
+            case.label
+        );
+        assert!(
+            diagnostic
+                .message
+                .contains(&format!("expected one of: {}", case.expected_token)),
+            "{} object-like diagnostic message should name the expected token: {}",
+            case.label,
+            diagnostic.message
+        );
+        assert!(
+            !diagnostic.message.contains("SymbolId") && !diagnostic.message.contains("symbol "),
+            "{} object-like diagnostic message should not expose raw symbol internals: {}",
+            case.label,
+            diagnostic.message
         );
     }
 }
