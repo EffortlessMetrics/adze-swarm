@@ -217,7 +217,8 @@ query captures.
 
 ### Work Item: benchmark-product-receipts
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#231
 
 #### Goal
 
@@ -235,12 +236,18 @@ performance, or release-blocking regression claims.
 
 ### Work Item: proven-slice-promotion
 
-Status: ready
+Status: active
 
 #### Goal
 
 Promote only proven product slices in `docs/status/SUPPORT_TIERS.md`, with
 proof commands, CI lanes, README/book wording, limitations, and rollback notes.
+
+#### Claim Boundary
+
+This work promotes selected slices to Stabilizing only. It does not create new
+Stable claims, branch-protection requirements, full Tree-sitter parity, full
+query parity, or performance thresholds.
 
 ## Closeout Criteria
 

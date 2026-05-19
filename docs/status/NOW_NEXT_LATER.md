@@ -1,6 +1,6 @@
 # Now / Next / Later
 
-**Last updated:** 2026-05-18
+**Last updated:** 2026-05-19
 **Status:** **Toolkit excellence and adoption** — `adze-swarm` is the operating repo, public `adze` remains release/public-intake, and the next campaign turns the completed GLR toolkit foundation into a cohesive first-use and product-proof experience. The active campaign is tracked in [`../../.adze/goals/active.toml`](../../.adze/goals/active.toml) and [`../../plans/toolkit-excellence/implementation-plan.md`](../../plans/toolkit-excellence/implementation-plan.md).
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
@@ -32,8 +32,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Consolidate the source-of-truth guardrails into one PR and close duplicate source-of-truth PRs.
 - [x] Defer the CX33 backfill routing PR until a CX33 execution smoke exists; keep runner topology separate from product work.
 - [x] Close wrong-target public `adze` swarm PRs or direct useful work back to `adze-swarm`.
-- [ ] Define the product acceptance matrix for first-use, document, diagnostics, GLR ambiguity, Tree-sitter, query, JSON, CLI, WASM, and performance workflows.
-- [ ] Harden the starter project, downstream fixture, API choice guide, examples, compatibility matrix, performance receipts, and support-tier promotion sequence.
+- [x] Define the product acceptance matrix for first-use, document, diagnostics, GLR ambiguity, Tree-sitter, query, JSON, CLI, WASM, and performance workflows.
+- [x] Harden the starter project, downstream fixture, API choice guide, examples, compatibility matrix, and performance receipts.
+- [ ] Finish the support-tier promotion pass without adding new Stable claims.
 
 ### Correctness queue baseline
 - [x] Refresh live PR state with `gh pr list --state open --limit 20 --json number,title,isDraft,headRefName,updatedAt,url`.

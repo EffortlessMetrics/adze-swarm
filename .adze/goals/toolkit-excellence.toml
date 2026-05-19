@@ -187,11 +187,12 @@ commands = [
 
 [[work_item]]
 id = "benchmark-product-receipts"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0014"
 adr = ""
 plan = "plans/toolkit-excellence/implementation-plan.md"
+prs = [231]
 commands = [
   "cargo run -q -p xtask -- perf-receipt --profile product-smoke",
   "cargo test -p xtask perf_receipt -- --nocapture",
@@ -205,12 +206,17 @@ commands = [
 
 [[work_item]]
 id = "proven-slice-promotion"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0011"
 adr = ""
 plan = "plans/toolkit-excellence/implementation-plan.md"
 commands = [
+  "cargo test -p adze --features \"pure-rust,glr,ts-compat\" --test ts_compat_selected_tree -- --nocapture",
+  "cargo run -p adze --features query --example query_highlighting",
+  "cargo test -p adze --features query --lib query -- --nocapture",
+  "cargo test -p adze --features \"pure-rust,ts-compat,query\" --test query_differential -- --nocapture",
+  "cargo run -q -p xtask -- perf-receipt --profile product-smoke",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "git diff --check",
