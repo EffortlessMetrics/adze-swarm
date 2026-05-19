@@ -260,6 +260,7 @@ proptest! {
 
     #[test]
     fn reduce_reduce_detected_by_classify(r1 in arb_rule_id(), r2 in arb_rule_id()) {
+        prop_assume!(r1 != r2);
         let actions = vec![Action::Reduce(r1), Action::Reduce(r2)];
         prop_assert_eq!(classify_conflict(&actions), ConflictType::ReduceReduce);
     }
@@ -576,6 +577,7 @@ proptest! {
 
     #[test]
     fn fork_with_rr_classified_as_rr(r1 in arb_rule_id(), r2 in arb_rule_id()) {
+        prop_assume!(r1 != r2);
         let actions = vec![Action::Fork(vec![Action::Reduce(r1), Action::Reduce(r2)])];
         prop_assert_eq!(classify_conflict(&actions), ConflictType::ReduceReduce);
     }

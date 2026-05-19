@@ -179,7 +179,7 @@ pub fn extract_field<LT: Extract<T>, T>(
     if let Some(cursor) = cursor_opt.as_mut() {
         // Handle special case where a node has no children and represents a single-field struct
         let n = cursor.node();
-        if n.children.is_empty() && cursor.current_index == 0 {
+        if cursor.children.is_empty() && n.children.is_empty() && cursor.current_index == 0 {
             *cursor_opt = None;
             *last_idx = n.end_byte;
             return LT::extract(Some(n), source, *last_idx, closure_ref);
@@ -187,7 +187,20 @@ pub fn extract_field<LT: Extract<T>, T>(
 
         loop {
             let n = cursor.node();
-            if let Some(name) = cursor.field_name() {
+            if field_name
+                .parse::<usize>()
+                .is_ok_and(|idx| idx == cursor.current_index)
+            {
+                let out = LT::extract(Some(n), source, *last_idx, closure_ref);
+
+                if !cursor.goto_next_sibling() {
+                    *cursor_opt = None;
+                }
+
+                *last_idx = n.end_byte;
+
+                return out;
+            } else if let Some(name) = cursor.field_name() {
                 if name == field_name {
                     let out = LT::extract(Some(n), source, *last_idx, closure_ref);
 
@@ -201,19 +214,6 @@ pub fn extract_field<LT: Extract<T>, T>(
                 } else {
                     return LT::extract(None, source, *last_idx, closure_ref);
                 }
-            } else if field_name
-                .parse::<usize>()
-                .is_ok_and(|idx| idx == cursor.current_index)
-            {
-                let out = LT::extract(Some(n), source, *last_idx, closure_ref);
-
-                if !cursor.goto_next_sibling() {
-                    *cursor_opt = None;
-                }
-
-                *last_idx = n.end_byte;
-
-                return out;
             } else {
                 *last_idx = n.end_byte;
             }
