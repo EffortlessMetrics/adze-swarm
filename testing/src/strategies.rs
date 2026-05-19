@@ -129,5 +129,31 @@ mod tests {
             // not panic. We just verify the function doesn't crash.
             let _ = build_parse_table(&g);
         }
+
+
+        #[test]
+        fn precedence_within_expected_range(value in precedence_strategy()) {
+            prop_assert!((-10..=10).contains(&value));
+        }
+
+        #[test]
+        fn source_text_is_non_empty_ascii(text in source_text_strategy()) {
+            prop_assert!(!text.is_empty());
+            prop_assert!(text.len() <= 100);
+            prop_assert!(text.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '\t' | '\n')));
+        }
+
+        #[test]
+        fn edit_strategy_stays_in_bounds((pos, del, ins) in edit_strategy()) {
+            prop_assert!(pos < 50);
+            prop_assert!(del < 10);
+            prop_assert!(ins.len() <= 10);
+            prop_assert!(ins.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == ' '));
+        }
+
+        #[test]
+        fn associativity_strategy_returns_only_supported_values(assoc in associativity_strategy()) {
+            prop_assert!(matches!(assoc, Associativity::Left | Associativity::Right));
+        }
     }
 }
