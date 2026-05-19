@@ -17,11 +17,13 @@ A comprehensive guide to building parsers with Adze's macro-based grammar genera
 
 ## Quick Start
 
-The fastest supported path is the generated starter project:
+The fastest currently proven path is the generated starter project from a repo
+checkout. The intended published install command is `cargo install adze-cli`,
+but the current proof uses the CLI built from this checkout until `adze-cli` is
+published as a crates.io install surface:
 
 ```bash
-cargo install adze-cli
-adze init calc
+cargo run -p adze-cli -- init calc
 cd calc
 cargo test
 cargo run --example parse -- "1 + 2 * 3"
@@ -36,7 +38,8 @@ let document = grammar::parse_document("1 +")?;
 
 The repo backs this shape with `testing/downstream-starter`, a standalone
 fixture that proves path dependencies, `build.rs`, generated parser imports,
-diagnostics, and the parse example.
+diagnostics, and the parse example. Published `cargo install adze-cli` remains
+release-surface work, not a proven Stable claim yet.
 
 ### Installation
 
