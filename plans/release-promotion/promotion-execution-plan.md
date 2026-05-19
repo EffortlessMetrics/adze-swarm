@@ -273,8 +273,9 @@ Rationale:
 
 Next action:
 
-Prepare a public `EffortlessMetrics/adze` promotion PR using
-`plans/release-promotion/public-promotion-pr-plan.md`.
+Public `EffortlessMetrics/adze` promotion PR #794 has been prepared from this
+decision. Review and merge it manually if the public repo owner accepts the
+promotion; do not enable auto-merge as part of this execution lane.
 
 Promotion boundaries:
 
@@ -290,3 +291,72 @@ Promotion boundaries:
 
 Revert the decision note if it is incorrect. Close any unmerged public PR that
 was opened from a superseded decision.
+
+## Public Promotion PR Receipt
+
+Status: ready for manual public review
+Public PR: EffortlessMetrics/adze#794
+Public branch: `public/promote-swarm-2026-05-19`
+Public head: `2550b21f30e49956e0d44ca56b6bbcdee79749fd`
+Prepared: 2026-05-19
+
+### Scope
+
+PR #794 is the explicit public promotion PR prepared from this execution
+decision. It promotes the current `adze-swarm` source, documentation, proof
+maps, CI receipts, product fixtures, and support-tier-aligned claim boundaries
+into public `EffortlessMetrics/adze`.
+
+This public PR does not:
+
+- tag a release;
+- publish crates;
+- move release, signing, Cargo-token, branch-protection, or merge-queue
+  workflows;
+- add Stable claims beyond the recorded claim freeze;
+- claim crates.io `cargo install adze-cli` is proven.
+
+### Source-Side Fixups Included Before The Public Receipt Closed
+
+Two source-side `adze-swarm` fixes landed while proving #794:
+
+| PR | Result |
+| --- | --- |
+| #290 `ci: fix promotion receipt checks` | Merged. Refreshed `tools/ts-bridge/Cargo.lock` and raised the coverage path-detection timeout so the public promotion receipt could run without a checkout timeout. |
+| #291 `test(glr): require distinct reduces in rr proptest` | Merged. Corrected the reduce/reduce proptest so duplicate reduce rule IDs are not treated as a two-rule reduce/reduce conflict; this matches the existing `rr_duplicate_rule_ids` contract. |
+
+Both fixes were mirrored into the public promotion branch before the final
+public CI receipt.
+
+### Public CI Receipt - 2026-05-19
+
+On public `EffortlessMetrics/adze#794`, commit `2550b21f`, the refreshed public
+check set passed, including:
+
+- `Rust Small Result`;
+- `Supported Rust Gate`;
+- `PR Gate Success`;
+- `Source of Truth`;
+- `CI Lane Whitelist`;
+- `GLR Invariants`;
+- `Coverage Lite`;
+- `smoke (ubuntu-latest)` for `tools/ts-bridge`;
+- `ci-product stable canaries`;
+- `Test Core Crates (ir, glr-core, tablegen)`;
+- `Test Runtime Crates`;
+- `Test Pure Rust Implementation (ubuntu-latest, stable)`.
+
+Intentional skips remained skips: `Coverage Full`, broad advisory product
+canaries, CX43/CX53 implementation lanes not selected by routing, WASM build in
+the pure-rust matrix, and performance regression tests.
+
+### Current Boundary
+
+PR #794 is open, mergeable, and not draft. Auto-merge is not enabled. The public
+merge state is blocked by normal public review/merge controls, not by a failed
+CI receipt.
+
+If #794 is merged, record a promotion closeout and refresh public/main before
+starting any follow-up public release, tag, or publish work. If #794 is closed
+or superseded, record the reason and keep public `adze` as release/public-intake
+only.
