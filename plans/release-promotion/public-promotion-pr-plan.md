@@ -1,6 +1,6 @@
 # Public Promotion PR Plan
 
-Status: active
+Status: complete
 Owner: release/product
 Created: 2026-05-19
 Linked proposal: ../../docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md
@@ -14,6 +14,12 @@ Claim freeze: ./claim-freeze.md
 This plan defines how to prepare a future public `EffortlessMetrics/adze`
 promotion PR from `EffortlessMetrics/adze-swarm`. It does not open that public
 PR, tag a release, publish crates, or change release/signing workflows.
+
+This plan is a completed readiness artifact, not an active authorization to
+start public-repo work from a stale snapshot. Before opening any public
+promotion PR, create or select a fresh execution goal, refresh live public and
+swarm PR queues, and rerun the proof commands below from current
+`adze-swarm/main`.
 
 ## Promotion Preconditions
 
