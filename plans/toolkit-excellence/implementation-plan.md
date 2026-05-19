@@ -206,7 +206,8 @@ stabilizing, advisory, known-gap, and not-planned sections.
 
 ### Work Item: ts-compat-imported-shape-smoke
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#230
 
 #### Goal
 
@@ -216,13 +217,19 @@ query captures.
 
 ### Work Item: benchmark-product-receipts
 
-Status: ready
+Status: active
 
 #### Goal
 
 Add product receipt commands and baseline docs for parse, `parse_document`,
 typed projections, Tree-sitter projection, query, diagnostics, JSON, GLR
 ambiguity, and tablegen/ABI decode.
+
+#### Claim Boundary
+
+This work records advisory benchmark receipt commands. It does not introduce
+stable throughput, stable memory, Tree-sitter performance parity, incremental
+performance, or release-blocking regression claims.
 
 ## Phase 5: Support-tier Promotion
 

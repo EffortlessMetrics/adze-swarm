@@ -15,6 +15,15 @@ row explicitly names a blocking threshold and proof command.
 Ordinary pull requests may compile benchmarks, but they do not run full Criterion
 measurement by default.
 
+The current product smoke receipt is:
+
+```bash
+cargo run -q -p xtask -- perf-receipt --profile product-smoke
+```
+
+It prints advisory proof commands; it does not execute a benchmark run by
+itself and does not create a performance claim.
+
 ## Baseline Surfaces
 
 | Surface | Status | Current evidence | Default PR behavior |
@@ -30,6 +39,26 @@ measurement by default.
 | diagnostics rendering | future | needs recovery fixture benchmark | not run |
 | tablegen codegen | advisory | compile/test receipts only | not run |
 | TSLanguage ABI decode | advisory | tablegen ABI tests, no runtime threshold | not run |
+
+## Product Smoke Receipt
+
+The `product-smoke` receipt is the current release-readable performance proof
+index. It maps product-facing benchmark slices to commands that can be run
+locally, manually, or by scheduled evidence lanes.
+
+| Surface | Receipt command category | Claim boundary |
+| --- | --- | --- |
+| parse only | `parse_bench --no-run` | compile health for fixture-backed parse benchmarks |
+| `parse_document` | `document_projection --no-run` | compile health for document projection benchmarks |
+| typed AST projection | `document_projection --no-run` | compile health only; no throughput claim |
+| JSON projection | `document_projection --no-run` | compile health only; schema correctness is proven elsewhere |
+| benchmark inventory | `verify_fixture_parsing` tests | benchmark metadata and fixture families are documented |
+
+The receipt intentionally excludes stable claims for typed CST projection,
+Tree-sitter projection throughput, query matching throughput, GLR ambiguity
+summary throughput, diagnostics rendering throughput, stable memory use,
+incremental performance, and release-blocking thresholds until each surface has
+dedicated fixtures and support-tier proof.
 
 ## Receipt Fields
 
@@ -78,6 +107,12 @@ Compile-only benchmark health:
 
 ```bash
 cargo bench -p adze-benchmarks --no-run
+```
+
+Product smoke receipt:
+
+```bash
+cargo run -q -p xtask -- perf-receipt --profile product-smoke
 ```
 
 Document projection benchmark compile health:

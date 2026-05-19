@@ -27,7 +27,26 @@ cargo bench -p adze-benchmarks --no-run
 
 # Run a specific bench.
 cargo bench -p adze-benchmarks --bench parse_bench
+
+# Print the advisory product benchmark receipt command set.
+cargo run -q -p xtask -- perf-receipt --profile product-smoke
 ```
+
+## Product Smoke Receipt
+
+`product-smoke` is an advisory receipt profile for release/product review. It
+prints the fixture inventory checks and compile-only benchmark commands that
+cover the current product benchmark slices:
+
+- parse-only fixture health through `parse_bench --no-run`;
+- `parse_document`, typed AST projection, and JSON projection fixture health
+  through `document_projection --no-run`;
+- benchmark fixture-family and inventory consistency through
+  `verify_fixture_parsing`.
+
+This profile does not run Criterion measurement to completion and does not
+define throughput, memory, Tree-sitter parity, incremental parsing, or
+release-blocking regression claims.
 
 ## CI Coverage
 

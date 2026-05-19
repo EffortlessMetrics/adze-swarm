@@ -171,11 +171,12 @@ commands = [
 
 [[work_item]]
 id = "ts-compat-imported-shape-smoke"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/toolkit-excellence/implementation-plan.md"
+prs = [230]
 commands = [
   "cargo test -p adze --features \"pure-rust,ts-compat,query\" --test ts_compat_imported_shape_smoke -- --nocapture",
   "cargo test -p adze --features \"pure-rust,ts-compat\" --test ts_compat_node_types -- --nocapture",
@@ -186,14 +187,19 @@ commands = [
 
 [[work_item]]
 id = "benchmark-product-receipts"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0014"
 adr = ""
 plan = "plans/toolkit-excellence/implementation-plan.md"
 commands = [
+  "cargo run -q -p xtask -- perf-receipt --profile product-smoke",
+  "cargo test -p xtask perf_receipt -- --nocapture",
+  "cargo test -p adze-benchmarks --test verify_fixture_parsing verify_product_smoke_perf_receipt_is_documented -- --exact --nocapture",
   "cargo test -p adze-benchmarks --test verify_fixture_parsing verify_benchmark_fixture_families_are_documented -- --exact --nocapture",
-  "cargo bench -p adze-benchmarks --no-run",
+  "cargo bench -p adze-benchmarks --bench document_projection --no-run",
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",
 ]
 

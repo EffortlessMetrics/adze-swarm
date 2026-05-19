@@ -16,6 +16,7 @@ mod goto_indexing;
 mod grammar_json;
 mod lint;
 mod no_mangle;
+mod perf_receipt;
 mod policy;
 mod profile;
 mod ripr;
@@ -152,6 +153,12 @@ enum Commands {
         /// Regression threshold percentage (default: 5.0)
         #[arg(long, default_value = "5.0")]
         threshold: f64,
+    },
+    /// Print advisory performance receipt commands for product benchmark smoke.
+    PerfReceipt {
+        /// Receipt profile to print.
+        #[arg(long, value_enum, default_value = "product-smoke")]
+        profile: PerfReceiptProfile,
     },
     /// Run local environment doctor checks (toolchain, targets, workspace)
     Doctor,
@@ -403,6 +410,19 @@ impl From<FixtureSize> for profile::FixtureSize {
     }
 }
 
+#[derive(clap::ValueEnum, Clone, Copy, Debug)]
+enum PerfReceiptProfile {
+    ProductSmoke,
+}
+
+impl From<PerfReceiptProfile> for perf_receipt::Profile {
+    fn from(profile: PerfReceiptProfile) -> Self {
+        match profile {
+            PerfReceiptProfile::ProductSmoke => perf_receipt::Profile::ProductSmoke,
+        }
+    }
+}
+
 impl Grammar {
     fn name(&self) -> &'static str {
         match self {
@@ -510,6 +530,9 @@ fn main() -> Result<()> {
             threshold,
         } => {
             baseline::compare_baseline(&sh, &baseline_version, threshold)?;
+        }
+        Commands::PerfReceipt { profile } => {
+            perf_receipt::run(profile.into())?;
         }
         Commands::Lint {
             fix,
