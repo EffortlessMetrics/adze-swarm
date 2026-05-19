@@ -152,7 +152,8 @@ constructors or unsupported performance and incremental claims.
 
 ### Work Item: api-choice-guide
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#225
 
 #### Goal
 
@@ -162,7 +163,7 @@ Tree-sitter-shaped traversal, JSON, ambiguity summaries, and query.
 
 ### Work Item: glr-ambiguity-example
 
-Status: ready
+Status: active
 
 #### Goal
 
