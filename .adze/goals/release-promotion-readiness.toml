@@ -36,11 +36,12 @@ commands = [
 
 [[work_item]]
 id = "release-readiness-inventory"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md"
 spec = "ADZE-SPEC-0011"
 adr = ""
 plan = "plans/release-promotion/readiness-inventory.md"
+prs = [235]
 commands = [
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",
@@ -48,11 +49,11 @@ commands = [
 
 [[work_item]]
 id = "public-drift-audit"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md"
 spec = "ADZE-SPEC-0011"
 adr = ""
-plan = "plans/release-promotion/implementation-plan.md"
+plan = "plans/release-promotion/public-drift-audit.md"
 commands = [
   "gh pr list --repo EffortlessMetrics/adze --state open",
   "gh pr list --repo EffortlessMetrics/adze-swarm --state open",
