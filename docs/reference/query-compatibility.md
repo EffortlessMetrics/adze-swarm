@@ -113,6 +113,22 @@ Field constraints and anchors are part of the covered subset:
 These are covered behavior, not a Stable support-tier claim. They still need
 differential fixtures before broader Tree-sitter query parity promotion.
 
+## Runnable Cookbook Example
+
+The `query_highlighting` example demonstrates the current useful subset in one
+small hand-built parse tree:
+
+- capture-based highlight ranges;
+- field constraints;
+- first/adjacent/last anchor behavior;
+- source-aware `#match?` predicates;
+- byte-range filtering;
+- root-only matching.
+
+```bash
+cargo run -p adze --features query --example query_highlighting
+```
+
 ## Advisory Or Future
 
 These features are not product claims yet:

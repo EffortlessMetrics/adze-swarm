@@ -139,6 +139,12 @@ let matches = adze::query::matcher_v2::QueryMatcher::new(&query, source, &metada
 See [Query Compatibility](./query-compatibility.md) for the supported subset and
 known gaps.
 
+For a runnable query/highlighting walkthrough:
+
+```bash
+cargo run -p adze --features query --example query_highlighting
+```
+
 ## External Scanners
 
 External scanners remain an advanced integration surface. Use
@@ -153,4 +159,5 @@ The tested cookbook proof is:
 ```bash
 cargo test -p adze --features "pure-rust,glr,ts-compat" cookbook -- --nocapture
 cargo run -p adze --features "pure-rust,glr" --example glr_ambiguity
+cargo run -p adze --features query --example query_highlighting
 ```
