@@ -354,7 +354,12 @@ the pure-rust matrix, and performance regression tests.
 
 PR #794 is open, mergeable, and not draft. Auto-merge is not enabled. The public
 merge state is blocked by normal public review/merge controls, not by a failed
-CI receipt.
+CI receipt. The receipt above is historical for public commit `2550b21f`.
+Residual product-trust PRs #295-#300 landed in `adze-swarm` after that public
+branch was prepared, including the external-scanner claim-boundary and
+diagnostic-document receipts. Do not review, merge, or auto-merge #794 until the
+public promotion branch is refreshed from current `adze-swarm/main` or
+superseded by a new explicit promotion PR.
 
 If #794 is merged, record a promotion closeout and refresh public/main before
 starting any follow-up public release, tag, or publish work. If #794 is closed

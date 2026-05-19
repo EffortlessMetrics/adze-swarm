@@ -36,7 +36,8 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Fix generated reduce/reduce preservation and typed extraction with generated conflict-cell, selected-AST, and document ambiguity-summary proof.
 - [x] Revisit the public promotion decision now that the named GLR product gaps are fixed; outcome remains proceed conditionally with no public PR opened by default.
 - [x] Fix parser-v4 external-scanner emitted-token spans and record the focused dispatch/range plus diagnostic-document canaries.
-- [ ] Keep parser-generated external-scanner recovery explicitly future work until it has focused proof.
+- [x] Keep parser-generated external-scanner recovery explicitly future work until it has focused proof.
+- [ ] Treat public promotion PR #794 as requiring refresh or supersession before review/merge because it predates residual product-trust PRs #295-#300.
 
 ### Toolkit excellence campaign
 - [x] Consolidate the source-of-truth guardrails into one PR and close duplicate source-of-truth PRs.
