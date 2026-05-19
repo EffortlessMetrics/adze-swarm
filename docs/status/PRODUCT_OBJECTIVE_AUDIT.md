@@ -55,9 +55,12 @@ cargo test --manifest-path testing/downstream-starter/Cargo.toml
 cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse
 ```
 
-`just ci-product-stable` passed on 2026-05-19 from current `adze-swarm/main`
-after the product gap burn-down source-of-truth PR, commit `e7a7862c`. This is
-evidence for the README Stable claim lane; it is not a branch-protection change.
+GitHub workflow dispatch
+[`Product Proof` run 26100132801](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26100132801)
+passed on 2026-05-19 from current `adze-swarm/main` after PR #269, commit
+`0e7ccf51`. The `ci-product stable canaries` job passed in 3m41s and the broad
+advisory canaries skipped under the stable-only default. This is evidence for
+the README Stable claim lane; it is not a branch-protection change.
 
 Current release-surface readiness receipts:
 

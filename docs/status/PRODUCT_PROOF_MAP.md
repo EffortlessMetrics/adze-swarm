@@ -42,9 +42,12 @@ For the stricter objective-level completion audit, see
   remains advisory until branch protection explicitly promotes it. Manual
   dispatch runs the broad advisory product lane only when `lane=all` is
   selected.
-- Latest local receipt: `just ci-product-stable` passed on 2026-05-19 from
-  current `adze-swarm/main` after PR #247. Treat this as current
-  proof evidence, not a required-gate promotion.
+- Latest hosted receipt: GitHub workflow dispatch
+  [`Product Proof` run 26100132801](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26100132801)
+  passed on 2026-05-19 from current `adze-swarm/main` after PR #269. The
+  `ci-product stable canaries` job passed in 3m41s and the broad advisory
+  canaries skipped under the stable-only default. Treat this as current proof
+  evidence, not a required-gate promotion.
 - Experimental, Stabilizing, and Advisory rows here are not marketing claims.
   They are current evidence snapshots.
 - Do not promote any Stabilizing or Advisory surface to Stable from this

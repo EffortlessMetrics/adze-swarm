@@ -87,10 +87,12 @@ A broad-surface advisory lane now exists as `.github/workflows/product-proof.yml
 
 This lane is **not** part of required merge gates. It provides bounded canary proof across product surfaces that are outside `ci-supported`. A narrower `ci-product stable canaries` job runs `just ci-product-stable` on stable-claim PR surfaces, schedule, and stable-only manual dispatch, but it is also advisory until branch protection explicitly promotes it.
 
-Latest stable-product receipt: `just ci-product-stable` passed locally on
-2026-05-19 from current `adze-swarm/main` after PR #247, and the GitHub
-`ci-product stable canaries` job passed on PR #248. This remains advisory and
-is not part of required branch protection.
+Latest stable-product receipt: GitHub workflow dispatch
+[`Product Proof` run 26100132801](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26100132801)
+passed on 2026-05-19 from `adze-swarm/main` after PR #269. The
+`ci-product stable canaries` job passed in 3m41s and `ci-product advisory
+canaries` skipped under the stable-only default. This remains advisory and is
+not part of required branch protection.
 
 Current canaries:
 
