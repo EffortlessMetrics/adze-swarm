@@ -44,15 +44,18 @@ proposal = "ADZE-PROP-0004-toolkit-excellence"
 spec = "ADZE-SPEC-0005"
 adr = "ADZE-ADR-0001"
 plan = "plans/product-gap-burn-down/implementation-plan.md"
+prs = [298]
 commands = [
   "cargo test -p adze --features external_scanners",
+  "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests::test_parser_with_external_scanner -- --exact --nocapture",
+  "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests::test_external_scanner_rejects_token_not_in_valid_symbols -- --exact --nocapture",
   "cargo test -p adze --features \"pure-rust,glr,serialization,ts-compat\" --test recovery_matrix -- --nocapture",
   "git diff --check",
 ]
 
 [[work_item]]
 id = "product-objective-audit-refresh"
-status = "ready"
+status = "complete"
 proposal = "ADZE-PROP-0005-release-promotion-readiness"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"

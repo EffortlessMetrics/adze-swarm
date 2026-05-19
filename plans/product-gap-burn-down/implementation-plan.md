@@ -305,3 +305,96 @@ cargo run -q -p xtask -- check-doc-artifacts --mode blocking
 
 Revert status-only updates. If a public promotion PR is opened later, use the
 rollback plan in `plans/release-promotion/public-promotion-pr-plan.md`.
+
+## Work Item: external-scanner-recovery-proof
+
+Status: active
+Linked proposal: ../../docs/proposals/ADZE-PROP-0004-toolkit-excellence.md
+Linked spec: ../../docs/specs/ADZE-SPEC-0005-diagnostics-and-recovery.md
+Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
+Blocks:
+- public-promotion-blocker-watch
+Blocked by: n/a
+
+### Goal
+
+Keep the external-scanner product boundary honest by proving focused
+parser-v4 dispatch behavior while leaving parser-generated external-scanner
+recovery as future work until it has its own canaries.
+
+### Receipt
+
+PR #298 fixed parser-v4 external scanner token span reporting. The parser now
+captures the pre-scan byte position, slices emitted token text from that range,
+and rejects scanner-emitted tokens that are not valid in the current parser
+state.
+
+### Production Delta
+
+- Parser-v4 external scanner dispatch is synchronized with the parser loop
+  byte position before invoking the scanner.
+- Emitted scanner tokens preserve `start`, `end`, and text from the pre-scan
+  position instead of the scanner-advanced position.
+- `SUPPORT_TIERS.md` records focused external-scanner canaries while keeping
+  the surface Experimental.
+
+### Non-Goals
+
+- No support-tier promotion.
+- No stable external scanner API claim.
+- No parser-generated external-scanner recovery claim.
+- No public promotion change.
+
+### Proof Commands
+
+```bash
+cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_parser_with_external_scanner -- --exact --nocapture
+cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_rejects_token_not_in_valid_symbols -- --exact --nocapture
+cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests -- --nocapture
+cargo test -p adze --features external_scanners
+git diff --check
+```
+
+### Rollback
+
+Revert the parser-v4 span fix and the support-tier receipt update. Keep
+external scanners Experimental and keep recovery coverage listed as future
+work.
+
+## Work Item: product-objective-audit-refresh
+
+Status: complete
+Linked proposal: ../../docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md
+Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
+Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
+Blocks: n/a
+Blocked by: n/a
+
+### Goal
+
+Refresh the objective audit and proof map after the parser-v4
+external-scanner dispatch/span receipt lands, without implying that
+parser-generated scanner recovery is complete.
+
+### Production Delta
+
+Status and source-of-truth docs only.
+
+### Non-Goals
+
+- No runtime behavior change.
+- No support-tier promotion.
+- No public promotion PR.
+
+### Proof Commands
+
+```bash
+cargo run -q -p xtask -- check-doc-artifacts --mode blocking
+cargo run -q -p xtask -- check-active-goal --mode blocking
+git diff --check
+```
+
+### Rollback
+
+Revert the status-doc refresh. Do not revert PR #298 unless the parser-v4
+external-scanner behavior itself needs to be rolled back.
