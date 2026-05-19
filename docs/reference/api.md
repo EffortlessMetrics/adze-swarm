@@ -4,6 +4,9 @@
 
 This page describes the user-facing API ladder. For the authoritative support
 status of each surface, use [`SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md).
+If you are choosing between generated `parse()`, `parse_document()`, document
+projections, Tree-sitter compatibility, queries, JSON, and CLI surfaces, start
+with [Which API Should I Use?](./which-api-should-i-use.md).
 
 ## The Stable Front Door: Generated `parse()`
 

@@ -35,6 +35,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 *Information-oriented: technical descriptions and specifications.*
 
 - [**API Reference**](./reference/api.md) - Detailed docs for the `adze` crate and macro attributes.
+- [**Which API Should I Use?**](./reference/which-api-should-i-use.md) - Decision guide for `parse`, `parse_document`, document projections, Tree-sitter compatibility, queries, JSON, and CLI surfaces.
 - [**Grammar Examples**](./reference/grammar-examples.md) - Patterns for common constructs (Choices, Repeats, Optionals).
 - [**Parser Cookbook**](./reference/parser-cookbook.md) - Tested recipes for typed parsers, documents, diagnostics, GLR ambiguity, Tree-sitter-compatible output, and query captures.
 - [**Usage Examples**](./reference/usage-examples.md) - Practical code snippets for common tasks.
