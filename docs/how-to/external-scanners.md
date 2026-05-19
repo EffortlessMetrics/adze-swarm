@@ -1,6 +1,10 @@
 # External Scanner Integration Guide
 
-> **✅ Production Ready** (PR #59): Complete external scanner support in the pure-Rust parser implementation
+> **Status:** Experimental advanced integration surface. External scanner
+> support exists and has targeted tests, but it is not part of the Stable
+> product contract. Use the
+> [support-tier ledger](../status/SUPPORT_TIERS.md) for current proof commands
+> and limitations.
 
 This guide walks through integrating external scanners with adze's pure-Rust parser implementation. External scanners enable complex tokenization that cannot be expressed with regular expressions, such as indentation-sensitive parsing, heredoc strings, and context-sensitive tokenization.
 
@@ -17,10 +21,13 @@ This guide walks through integrating external scanners with adze's pure-Rust par
 
 adze supports two types of external scanners:
 
-- **C FFI Scanners**: Use existing Tree-sitter C external scanners with full ABI compatibility
+- **C FFI Scanners**: Use existing Tree-sitter C external scanners where the
+  ABI and language fixture have explicit proof.
 - **Pure-Rust Scanners**: Implement scanners directly in Rust using native traits
 
-Both approaches integrate seamlessly with the pure-Rust parser through the same runtime interface.
+Both approaches integrate with the pure-Rust parser through the same runtime
+interface, but scanner-heavy grammars should be treated as experimental unless
+their support-tier row names a repeatable proof command.
 
 ### When to Use External Scanners
 
@@ -652,6 +659,10 @@ impl ExternalScanner for BoundedScanner {
 
 ## Conclusion
 
-External scanners provide powerful capabilities for handling complex tokenization requirements that exceed the capabilities of regular expressions. The pure-Rust implementation offers both C FFI compatibility for reusing existing scanners and native Rust traits for type-safe, performant implementations.
+External scanners provide powerful capabilities for handling complex
+tokenization requirements that exceed the capabilities of regular expressions.
+The pure-Rust implementation exposes both C FFI and native Rust scanner paths,
+but both remain experimental unless a support-tier row promotes a narrower
+slice with proof.
 
 For questions or issues with external scanner integration, check the [test suite](../../runtime/tests/external_scanner_test.rs) for working examples or consult the [API Reference](../reference/api.md#external-scanners).
