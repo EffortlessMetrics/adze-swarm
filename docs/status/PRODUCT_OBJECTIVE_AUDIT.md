@@ -50,6 +50,7 @@ Current stable product receipts:
 ```bash
 just ci-supported
 just ci-product-stable
+cargo test -p adze-cli cargo_install_adze_cli_claims_stay_release_surface_bounded -- --exact --nocapture
 cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exact --nocapture
 cargo test --manifest-path testing/downstream-starter/Cargo.toml
 cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse
@@ -80,6 +81,7 @@ Current first-use / CLI boundary receipts:
 ```bash
 cargo test -p adze-cli test_init -- --nocapture
 cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture
+cargo test -p adze-cli cargo_install_adze_cli_claims_stay_release_surface_bounded -- --exact --nocapture
 just package-local adze-cli
 cargo info adze-cli
 cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z
@@ -89,6 +91,11 @@ cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version 
 patches for unpublished co-release crates. It passed on 2026-05-19 from
 `adze-swarm`, producing and verifying `adze-cli v0.8.0-dev`. This is local
 publish-readiness evidence, not a crates.io install receipt.
+
+`cargo_install_adze_cli_claims_stay_release_surface_bounded` keeps live
+beginner/status/spec docs from presenting `cargo install adze-cli` as a ready
+quickstart until a crates.io receipt exists. It is a claim-boundary canary, not
+registry installation proof.
 
 The `cargo info adze-cli` command must be run outside the workspace when it is
 used to verify registry publication. On 2026-05-19 it reported that `adze-cli`
