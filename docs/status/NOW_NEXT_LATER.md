@@ -32,7 +32,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Replace the completed release-promotion active manifest with an active product gap burn-down queue.
 - [x] Keep `adze-swarm` as the operating repo and public `adze` as release/public-intake unless a deliberate promotion PR opens.
 - [x] Refresh the stable-product receipt from current `adze-swarm/main` and update the product objective audit if the result changed.
-- [ ] Fix or sharpen the support-tier boundary for the dangling-else selected-tree gap.
+- [x] Fix the dangling-else selected-tree gap with generated selected-AST and ambiguity-summary proof.
 - [ ] Fix or explicitly defer generated reduce/reduce preservation and typed extraction.
 - [ ] Revisit the public promotion decision only after the GLR product gaps are fixed or explicitly bounded.
 

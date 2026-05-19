@@ -368,13 +368,9 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                                 v.attrs.clone(),
                             ).ok()?;
 
-                            if v.ident == "Number" {
-                                Some(quote! {
-                                    return #extract_expr;
-                                })
-                            } else {
-                                None
-                            }
+                            Some(quote! {
+                                return #extract_expr;
+                            })
                         } else {
                             None
                         }
