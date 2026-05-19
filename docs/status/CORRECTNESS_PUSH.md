@@ -1,6 +1,6 @@
 # Correctness Push Plan
 
-**Last updated:** 2026-05-17
+**Last updated:** 2026-05-19
 **Scope:** current parser/runtime, GLR, tablegen ABI, CLI, and product-proof convergence.
 
 This is the execution playbook for moving Adze from "bounded core lane is green" to "the product claims are behavior-proven." It is intentionally narrower than a roadmap: keep the required lane bounded, land focused correctness work only when it has receipts, and track remaining product gaps without hiding them inside broad policy or infrastructure PRs.
@@ -17,7 +17,9 @@ This is the execution playbook for moving Adze from "bounded core lane is green"
 - The broader product lane is advisory until each canary proves real behavior instead of only compile/no-run smoke.
 - README-stable claims must map to a proof command in `docs/status/SUPPORT_TIERS.md`.
 - Runtime2 remains an experimental proving ground unless a later promotion plan gives it required behavior tests and a public support contract.
-- Live GitHub state is the execution baseline. As of 2026-05-11, the correctness PR queue is empty after refreshing with `gh pr list --state open --limit 20 --json number,title,isDraft,headRefName,updatedAt,url`.
+- Live GitHub state is the execution baseline. As of 2026-05-19
+  after `adze-swarm` PR #248, live `gh pr list` checks showed no open PRs in
+  `EffortlessMetrics/adze-swarm` or public `EffortlessMetrics/adze`.
 
 ## Live-State Refresh
 
@@ -143,6 +145,11 @@ just ci-product-stable
 ```
 
 The stable product lane covers README stable proof-map alignment, clean-room README and Getting Started quickstarts, the checked-in downstream demo library and binary run, typed extraction exact-value and repeated-parse determinism tests, operator precedence, serialization doctests, and serialization roundtrip canaries. GLR ambiguity and broad structured parse-error diagnostics remain in the wider advisory lane until those surfaces graduate from Stabilizing.
+
+Latest receipt: `just ci-product-stable` passed locally on 2026-05-19 from
+current `adze-swarm/main` after PR #247, and GitHub
+`ci-product stable canaries` passed on PR #248. This remains advisory until
+branch protection explicitly promotes it.
 
 Rung 3 remains scheduled/manual: full workspace all-features, fuzzing, Miri, sanitizers, benchmarks, grammar corpus, runtime2, and browser WASM execution.
 
