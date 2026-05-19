@@ -105,6 +105,13 @@ let ambiguities = document.ambiguities();
 Tree-sitter-compatible output exposes the selected tree. Native Adze APIs expose
 ambiguity summaries separately.
 
+For a runnable example that prints the selected typed AST, document root,
+ambiguity summary, retained alternatives, and bad-input diagnostics:
+
+```bash
+cargo run -p adze --features "pure-rust,glr" --example glr_ambiguity
+```
+
 ## Tree-Sitter-Compatible Selected Tree
 
 Use the compatibility adapter when an editor or ecosystem tool expects
@@ -145,4 +152,5 @@ The tested cookbook proof is:
 
 ```bash
 cargo test -p adze --features "pure-rust,glr,ts-compat" cookbook -- --nocapture
+cargo run -p adze --features "pure-rust,glr" --example glr_ambiguity
 ```
