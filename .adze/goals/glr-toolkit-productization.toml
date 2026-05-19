@@ -360,6 +360,7 @@ adr = ""
 plan = "plans/glr-toolkit/productization-plan.md"
 prs = [152]
 commands = [
+  "cargo run -q -p xtask -- perf-receipt --profile product-smoke",
   "cargo test -p adze-benchmarks --test verify_fixture_parsing verify_benchmark_fixture_families_are_documented -- --exact --nocapture",
   "cargo bench -p adze-benchmarks --no-run",
   "git diff --check",
