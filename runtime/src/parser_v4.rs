@@ -672,6 +672,7 @@ impl Parser {
                 }
             } else {
                 // First try the external scanner for special tokens (indent/dedent/newline)
+                self.position = current_position;
                 if let Some(external_token) = self.try_external_scanner(current_state)? {
                     // CRITICAL: Prevent infinite loop on zero-length tokens
                     if external_token.end <= current_position {
@@ -1187,6 +1188,8 @@ impl Parser {
             }
         }
 
+        let token_start = self.position;
+
         // We need to temporarily take the scanner out to avoid double borrow
         let Some(mut scanner) = self.external_scanner.take() else {
             return Ok(None);
@@ -1203,10 +1206,12 @@ impl Parser {
                 return Ok(None);
             }
 
-            // Extract token text
-            let end = self.position + result.length;
+            // Extract token text from the pre-scan position. Scanners may advance
+            // the parser while looking ahead, so using the post-scan position here
+            // would report shifted ranges for every emitted token.
+            let end = token_start.saturating_add(result.length);
             let text = if end <= self.input.len() {
-                self.input[self.position..end].to_vec()
+                self.input[token_start..end].to_vec()
             } else {
                 Vec::new()
             };
@@ -1214,7 +1219,7 @@ impl Parser {
             Ok(Some(LexerToken {
                 symbol: SymbolId(result.symbol),
                 text,
-                start: self.position,
+                start: token_start,
                 end,
             }))
         } else {
@@ -1854,10 +1859,9 @@ mod tests {
             .expect("external scanner should emit NEWLINE");
         assert_eq!(scanned.symbol, SymbolId(0));
         // After scanner advances, position reflects post-scan state
-        assert_eq!(scanned.start, 1);
-        assert_eq!(scanned.end, 2);
-        // Text is empty because position advanced past input during scan
-        assert!(scanned.text.is_empty());
+        assert_eq!(scanned.start, 0);
+        assert_eq!(scanned.end, 1);
+        assert_eq!(scanned.text, b"\n");
     }
 
     #[derive(Default)]
