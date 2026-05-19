@@ -31,7 +31,8 @@ reopening public-repo drift or creating unsupported release claims.
 
 ### Work Item: release-promotion-campaign-source-of-truth
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#234
 
 #### Goal
 
@@ -54,7 +55,8 @@ git diff --check
 
 ### Work Item: release-readiness-inventory
 
-Status: ready
+Status: active
+Inventory: ./readiness-inventory.md
 
 #### Goal
 
