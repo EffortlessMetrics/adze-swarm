@@ -24,8 +24,8 @@ fuzz_target!(|data: &[u8]| {
 
 fn assert_ast_round_trip_file(file: &File) {
     let tokens = quote::quote!(#file).to_string();
-    let reparsed = parse_file(&tokens)
-        .expect("tokenized syn::File should parse when rendered back to source");
+    let reparsed =
+        parse_file(&tokens).expect("tokenized syn::File should parse when rendered back to source");
 
     // Structural invariant: rendering + reparsing should keep item count stable.
     assert_eq!(file.items.len(), reparsed.items.len());
@@ -37,5 +37,8 @@ fn assert_ast_round_trip_expr(expr: &Expr) {
         .expect("tokenized syn::Expr should parse when rendered back to source");
 
     // Structural invariant: formatting/reparse should preserve discrimant variant.
-    assert_eq!(std::mem::discriminant(expr), std::mem::discriminant(&reparsed));
+    assert_eq!(
+        std::mem::discriminant(expr),
+        std::mem::discriminant(&reparsed)
+    );
 }
