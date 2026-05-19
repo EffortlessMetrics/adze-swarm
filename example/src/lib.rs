@@ -18,6 +18,7 @@ pub mod lambda_calculus;
 pub mod object_like_contract;
 pub mod optionals;
 pub mod performance_test;
+pub mod reduce_reduce;
 pub mod regex_grammar;
 pub mod repetitions;
 pub mod test_precedence;

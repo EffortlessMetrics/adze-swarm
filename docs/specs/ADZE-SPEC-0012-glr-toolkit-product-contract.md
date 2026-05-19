@@ -33,11 +33,21 @@ diagnostic, JSON, CLI, and performance claims are reliable.
 
 ### B1. Adze has one obvious first-use path
 
-The first-use path must be:
+The intended published first-use path is:
 
 ```bash
 cargo install adze-cli
 adze init calc
+cd calc
+cargo test
+cargo run --example parse
+```
+
+Until `adze-cli` is published as a crates.io install surface, the current
+repo-proven path is:
+
+```bash
+cargo run -p adze-cli -- init calc
 cd calc
 cargo test
 cargo run --example parse
@@ -258,14 +268,15 @@ Before product slices can promote, the repo needs:
 ### Accepted: Typed parser happy path
 
 ```bash
-cargo install adze-cli
-adze init calc
+cargo run -p adze-cli -- init calc
 cd calc
 cargo test
 cargo run --example parse -- "1 + 2 * 3"
 ```
 
 The example returns a typed Rust value from `grammar::parse`.
+The `cargo install adze-cli` variant becomes accepted release-surface proof only
+after the CLI is published and the install path has a receipt.
 
 ### Accepted: Tooling path
 
