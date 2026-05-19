@@ -32,7 +32,7 @@ Adze should be release-readable as a Rust parser generator where:
 | Requirement | Evidence inspected | Current result | Gap / next action |
 | --- | --- | --- | --- |
 | Rust types define grammar and generated parsers return typed ASTs. | README core example; `SUPPORT_TIERS.md` Stable `Typed extraction` row; `PRODUCT_PROOF_MAP.md` Stable typed extraction claim. | Covered for the supported generated-parser contract. | Keep Stable claim limited to proof rows; do not broaden to every grammar shape. |
-| Quickstart works in a clean downstream crate. | `testing/downstream-starter/`; `docs/product/ACCEPTANCE_MATRIX.md`; `SUPPORT_TIERS.md` Pure-Rust parser row. | Covered for path-dependency downstream wiring and generated starter shape. | Published `cargo install adze-cli` is not proven until `adze-cli` is published and an install receipt exists. |
+| Quickstart works in a clean downstream crate. | `testing/downstream-starter/`; `docs/product/ACCEPTANCE_MATRIX.md`; `SUPPORT_TIERS.md` Pure-Rust parser row. | Covered for path-dependency downstream wiring, generated starter shape, and local `adze-cli` package verification. | Published `cargo install adze-cli` is not proven until `adze-cli` is published and an install receipt exists. |
 | Core pure-Rust pipeline is green, bounded, and boring. | `just ci-supported`; `Rust Small Result`; `KNOWN_RED.md` supported-lane description. | Covered as the required swarm gate plus local supported proof. | `ci-product-stable` remains advisory until branch protection explicitly promotes it. |
 | Tablegen emits valid tables. | `SUPPORT_TIERS.md` Tablegen `TSLanguage` ABI row; `PRODUCT_PROOF_MAP.md` tablegen ABI claim. | Stabilizing with compressed decode, field metadata, aliases, externals, lex modes, and conflict-cell proof. | Broader generated-language roundtrip and full Tree-sitter parity remain future work. |
 | GLR handles real conflicts honestly. | `SUPPORT_TIERS.md` GLR conflict routing row; `docs/product/ACCEPTANCE_MATRIX.md` GLR ambiguity row. | Stabilizing with generated conflict preservation, retained alternatives, deterministic selected output, ambiguity summaries, and no-panic bad-input guardrails. | Dangling-else selected-tree resolution and broader E2E conflict coverage remain product gaps. |
@@ -59,8 +59,14 @@ Current first-use / CLI boundary receipts:
 ```bash
 cargo test -p adze-cli test_init -- --nocapture
 cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture
+just package-local adze-cli
 cargo info adze-cli
 ```
+
+`just package-local adze-cli` packages and verifies the CLI crate with local
+patches for unpublished co-release crates. It passed on 2026-05-19 from
+`adze-swarm`, producing and verifying `adze-cli v0.8.0-dev`. This is local
+publish-readiness evidence, not a crates.io install receipt.
 
 The `cargo info adze-cli` command must be run outside the workspace when it is
 used to verify registry publication. On 2026-05-19 it reported that `adze-cli`
@@ -88,6 +94,7 @@ Do not mark the product objective complete while any of these are true:
    `plans/release-promotion/public-promotion-pr-plan.md` from current
    `adze-swarm/main`.
 3. Add a crates.io install receipt before any doc claims `cargo install
-   adze-cli` as the supported quickstart.
+   adze-cli` as the supported quickstart. The current local package receipt is
+   publish-readiness evidence only.
 4. Consider promoting `ci-product-stable` only after advisory receipts are
    consistently green and branch-protection policy is updated deliberately.

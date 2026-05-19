@@ -72,10 +72,11 @@ These may run as optional signal (nightly/manual/canary), but are not required f
 - deployment workflows (mdBook / pages)
 - performance regression canaries
 - All other `.github/workflows/ci.yml` jobs are optional unless explicitly promoted in settings.
-- Published `cargo install adze-cli` proof. The CLI package is publishable from
-  the repo, but current product proof uses the repo-built CLI and downstream
-  fixtures. Treat crates.io CLI installation as release-surface work until an
-  install receipt exists.
+- Published `cargo install adze-cli` proof. `just package-local adze-cli`
+  passed on 2026-05-19 and verifies the local CLI package with co-release
+  patches, but current product proof still uses the repo-built CLI and
+  downstream fixtures. Treat crates.io CLI installation as release-surface work
+  until an install receipt exists.
 
 ---
 
