@@ -146,9 +146,11 @@ just ci-product-stable
 
 The stable product lane covers README stable proof-map alignment, clean-room README and Getting Started quickstarts, the checked-in downstream demo library and binary run, typed extraction exact-value and repeated-parse determinism tests, operator precedence, serialization doctests, and serialization roundtrip canaries. GLR ambiguity and broad structured parse-error diagnostics remain in the wider advisory lane until those surfaces graduate from Stabilizing.
 
-Latest receipt: `just ci-product-stable` passed locally on 2026-05-19 from
-current `adze-swarm/main` after PR #247, and GitHub
-`ci-product stable canaries` passed on PR #248. This remains advisory until
+Latest receipt: GitHub workflow dispatch
+[`Product Proof` run 26100132801](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26100132801)
+passed on 2026-05-19 from current `adze-swarm/main` after PR #269. The
+`ci-product stable canaries` job passed in 3m41s and the broad advisory
+canaries skipped under the stable-only default. This remains advisory until
 branch protection explicitly promotes it.
 
 Rung 3 remains scheduled/manual: full workspace all-features, fuzzing, Miri, sanitizers, benchmarks, grammar corpus, runtime2, and browser WASM execution.

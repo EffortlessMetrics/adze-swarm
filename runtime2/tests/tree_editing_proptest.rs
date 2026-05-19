@@ -31,6 +31,16 @@ fn make_edit(start: usize, old_end: usize, new_end: usize) -> InputEdit {
     }
 }
 
+fn clamp_to_tree(pos: usize, tree_len: usize) -> usize {
+    pos.min(tree_len)
+}
+
+fn bounded_old_end(start: usize, del_len: usize, tree_len: usize, slack: usize) -> usize {
+    start
+        .saturating_add(del_len)
+        .min(tree_len.saturating_add(slack))
+}
+
 /// Build a simple tree: root [0, tree_len) with two children.
 fn two_child_tree(tree_len: usize) -> Tree {
     let mid = tree_len / 2;
@@ -113,7 +123,7 @@ proptest! {
         pos in 0..500usize,
         insert_len in 1..100usize,
     ) {
-        let pos = pos.min(tree_len);
+        let pos = clamp_to_tree(pos, tree_len);
         let mut tree = two_child_tree(tree_len);
         let orig_start = tree.root_node().start_byte();
         let edit = make_edit(pos, pos, pos + insert_len);
@@ -131,7 +141,7 @@ proptest! {
         pos in 0..500usize,
         insert_len in 1..100usize,
     ) {
-        let pos = pos.min(tree_len);
+        let pos = clamp_to_tree(pos, tree_len);
         let mut tree = two_child_tree(tree_len);
         let orig_end = tree.root_node().end_byte();
         let edit = make_edit(pos, pos, pos + insert_len);
@@ -147,8 +157,8 @@ proptest! {
         start in 0..500usize,
         del_len in 1..100usize,
     ) {
-        let start = start.min(tree_len);
-        let old_end = (start + del_len).min(tree_len + 100);
+        let start = clamp_to_tree(start, tree_len);
+        let old_end = bounded_old_end(start, del_len, tree_len, 100);
         let mut tree = two_child_tree(tree_len);
         let orig_end = tree.root_node().end_byte();
         let edit = make_edit(start, old_end, start);
@@ -165,7 +175,7 @@ proptest! {
         old_span in 1..50usize,
         new_span in 1..50usize,
     ) {
-        let start = start.min(tree_len);
+        let start = clamp_to_tree(start, tree_len);
         let old_end = start + old_span;
         let new_end = start + new_span;
         let mut tree = two_child_tree(tree_len);
@@ -186,7 +196,7 @@ proptest! {
         pos in 0..200usize,
         insert_len in 1..50usize,
     ) {
-        let pos = pos.min(tree_len);
+        let pos = clamp_to_tree(pos, tree_len);
         let mut tree = two_child_tree(tree_len);
         let edit = make_edit(pos, pos, pos + insert_len);
         if tree.edit(&edit).is_ok() {
@@ -203,8 +213,8 @@ proptest! {
         start in 0..200usize,
         del_len in 1..50usize,
     ) {
-        let start = start.min(tree_len);
-        let old_end = (start + del_len).min(tree_len + 50);
+        let start = clamp_to_tree(start, tree_len);
+        let old_end = bounded_old_end(start, del_len, tree_len, 50);
         let mut tree = two_child_tree(tree_len);
         let edit = make_edit(start, old_end, start);
         if tree.edit(&edit).is_ok() {
@@ -222,7 +232,7 @@ proptest! {
         old_span in 1..30usize,
         new_span in 1..30usize,
     ) {
-        let start = start.min(tree_len);
+        let start = clamp_to_tree(start, tree_len);
         let old_end = start + old_span;
         let new_end = start + new_span;
         let mut tree = two_child_tree(tree_len);
@@ -271,7 +281,7 @@ proptest! {
         pos in 0..200usize,
         insert_len in 1..50usize,
     ) {
-        let pos = pos.min(tree_len);
+        let pos = clamp_to_tree(pos, tree_len);
         let mut tree = two_child_tree(tree_len);
         let edit = make_edit(pos, pos, pos + insert_len);
         if tree.edit(&edit).is_ok() {
@@ -289,7 +299,7 @@ proptest! {
         pos in 0..200usize,
         insert_len in 1..50usize,
     ) {
-        let pos = pos.min(tree_len);
+        let pos = clamp_to_tree(pos, tree_len);
         let original = two_child_tree(tree_len);
         let mut edited = original.clone();
         let edit = make_edit(pos, pos, pos + insert_len);
@@ -306,7 +316,7 @@ proptest! {
         pos in 0..300usize,
         insert_len in 1..50usize,
     ) {
-        let pos = pos.min(tree_len);
+        let pos = clamp_to_tree(pos, tree_len);
         let mut tree = deep_tree(tree_len);
         let edit = make_edit(pos, pos, pos + insert_len);
         if tree.edit(&edit).is_ok() {
@@ -323,8 +333,8 @@ proptest! {
         start in 0..300usize,
         del_len in 1..50usize,
     ) {
-        let start = start.min(tree_len);
-        let old_end = (start + del_len).min(tree_len + 50);
+        let start = clamp_to_tree(start, tree_len);
+        let old_end = bounded_old_end(start, del_len, tree_len, 50);
         let mut tree = deep_tree(tree_len);
         let edit = make_edit(start, old_end, start);
         if tree.edit(&edit).is_ok() {
@@ -340,7 +350,7 @@ proptest! {
         tree_len in 10..200usize,
         pos in 0..200usize,
     ) {
-        let pos = pos.min(tree_len);
+        let pos = clamp_to_tree(pos, tree_len);
         let mut tree = two_child_tree(tree_len);
         let orig_end = tree.root_node().end_byte();
         let edit = make_edit(pos, pos, pos);
@@ -424,7 +434,7 @@ proptest! {
         old_span in 1..30usize,
         new_span in 1..30usize,
     ) {
-        let start = start.min(tree_len);
+        let start = clamp_to_tree(start, tree_len);
         let old_end = start + old_span;
         let new_end = start + new_span;
         let orig_count = {
@@ -447,8 +457,8 @@ proptest! {
         start in 0..200usize,
         del_len in 1..50usize,
     ) {
-        let start = start.min(tree_len);
-        let old_end = (start + del_len).min(tree_len + 50);
+        let start = clamp_to_tree(start, tree_len);
+        let old_end = bounded_old_end(start, del_len, tree_len, 50);
         let mut tree = two_child_tree(tree_len);
         let edit = make_edit(start, old_end, start);
         if tree.edit(&edit).is_ok() {
@@ -477,7 +487,7 @@ proptest! {
         pos in 0..200usize,
         span in 1..50usize,
     ) {
-        let pos = pos.min(tree_len);
+        let pos = clamp_to_tree(pos, tree_len);
         let mut tree = two_child_tree(tree_len);
         let orig_end = tree.root_node().end_byte();
         // Insert
@@ -526,7 +536,7 @@ proptest! {
         old_span in 1..20usize,
         new_span in 1..20usize,
     ) {
-        let start = start.min(tree_len);
+        let start = clamp_to_tree(start, tree_len);
         let old_end = start + old_span;
         let new_end = start + new_span;
         let mut tree = deep_tree(tree_len);
@@ -581,7 +591,7 @@ proptest! {
         pos in 0..200usize,
         new_len in 1..50usize,
     ) {
-        let pos = pos.min(tree_len);
+        let pos = clamp_to_tree(pos, tree_len);
         let mut tree = two_child_tree(tree_len);
         let orig_kind = tree.root_kind();
         let edit = make_edit(pos, pos, pos + new_len);
@@ -596,7 +606,7 @@ proptest! {
         pos in 0..200usize,
         new_len in 1..50usize,
     ) {
-        let pos = pos.min(tree_len);
+        let pos = clamp_to_tree(pos, tree_len);
         let mut tree = two_child_tree(tree_len);
         let orig_count = tree.root_node().child_count();
         let edit = make_edit(pos, pos, pos + new_len);
@@ -628,7 +638,7 @@ proptest! {
         pos in 0..200usize,
         insert_len in 1..50usize,
     ) {
-        let pos = pos.min(tree_len);
+        let pos = clamp_to_tree(pos, tree_len);
         let mut tree = two_child_tree(tree_len);
         let edit = make_edit(pos, pos, pos + insert_len);
         if tree.edit(&edit).is_ok() {

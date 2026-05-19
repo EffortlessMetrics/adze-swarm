@@ -1,15 +1,16 @@
 # Quickstart: First Parser In 10 Minutes
 
-This is the shortest supported path from a clean machine to a working Adze
-parser project.
+This is the shortest currently proven path from a repo checkout to a working
+Adze parser project. The intended published install command is
+`cargo install adze-cli`, but the current repo proof uses the CLI built from
+this checkout until `adze-cli` is published as a crates.io install surface.
 
 ## Create The Project
 
-Install the CLI and generate the starter parser:
+Build the CLI from this checkout and generate the starter parser:
 
 ```bash
-cargo install adze-cli
-adze init calc
+cargo run -p adze-cli -- init calc
 cd calc
 cargo test
 cargo run --example parse -- "1 + 2 * 3"
@@ -28,10 +29,11 @@ README.md
 ```
 
 The starter grammar parses arithmetic expressions into typed Rust values.
-The repository keeps the same user-shaped proof in
-`testing/downstream-starter`, which builds through a normal `build.rs`, tests
-the generated parser API, and runs the parse example from outside the main
-workspace.
+The repository keeps the same user-shaped proof in `testing/downstream-starter`,
+which builds through a normal `build.rs`, tests the generated parser API, and
+runs the parse example from outside the main workspace. That proof covers the
+starter-project shape and downstream wiring; it does not prove crates.io
+installation until the CLI is published.
 
 ## The Core Idea
 
