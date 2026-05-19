@@ -327,7 +327,8 @@ recovery as future work until it has its own canaries.
 PR #298 fixed parser-v4 external scanner token span reporting. The parser now
 captures the pre-scan byte position, slices emitted token text from that range,
 and rejects scanner-emitted tokens that are not valid in the current parser
-state.
+state. A follow-up parser-v4 canary proves bad input in a direct
+external-scanner grammar shape returns a diagnostic document with error facts.
 
 ### Production Delta
 
@@ -335,6 +336,8 @@ state.
   byte position before invoking the scanner.
 - Emitted scanner tokens preserve `start`, `end`, and text from the pre-scan
   position instead of the scanner-advanced position.
+- Direct parser-v4 `parse_document()` returns a diagnostic document for bad
+  input in an external-scanner grammar shape.
 - `SUPPORT_TIERS.md` records focused external-scanner canaries while keeping
   the surface Experimental.
 
@@ -350,6 +353,7 @@ state.
 ```bash
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_parser_with_external_scanner -- --exact --nocapture
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_rejects_token_not_in_valid_symbols -- --exact --nocapture
+cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_parse_document_bad_input_returns_diagnostic_document -- --exact --nocapture
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests -- --nocapture
 cargo test -p adze --features external_scanners
 git diff --check
