@@ -156,11 +156,12 @@ commands = [
 
 [[work_item]]
 id = "ts-compat-matrix-doc"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/toolkit-excellence/implementation-plan.md"
+prs = [229]
 commands = [
   "cargo test -p adze --features \"pure-rust,glr,ts-compat\" --test ts_compat_selected_tree -- --nocapture",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
@@ -170,13 +171,16 @@ commands = [
 
 [[work_item]]
 id = "ts-compat-imported-shape-smoke"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/toolkit-excellence/implementation-plan.md"
 commands = [
+  "cargo test -p adze --features \"pure-rust,ts-compat,query\" --test ts_compat_imported_shape_smoke -- --nocapture",
   "cargo test -p adze --features \"pure-rust,ts-compat\" --test ts_compat_node_types -- --nocapture",
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",
 ]
 
