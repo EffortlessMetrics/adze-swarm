@@ -134,6 +134,7 @@ Current canaries:
 - Checked-in downstream quickstart sample — **behavior** (`cargo test -p downstream-demo -- --nocapture`)
 - `adze` typed AST repeated-parse determinism — **behavior** (`cargo test -p adze --features pure-rust --test typed_ast_contract typed_ast_contract_repeated_parse_is_deterministic -- --exact --nocapture`)
 - `adze-cli` default-cwd init/check smoke — **behavior** (`cargo test -p adze-cli test_init_default_cwd_generates_buildable_project -- --exact --nocapture`)
+- `adze-cli` generated starter test/example/check smoke — **behavior** (`cargo test -p adze-cli test_init_generates_buildable_project -- --exact --nocapture`)
 - `adze-cli` clean-room init dependency smoke — **behavior** (`cargo test -p adze-cli test_init_cargo_toml_references_adze_dependency -- --exact --nocapture`)
 - `adze-cli` check rejects non-grammar Rust files — **behavior** (`cargo test -p adze-cli test_check_rejects_file_without_adze_grammar -- --exact --nocapture`)
 - `adze-cli` stats rejects non-grammar Rust files — **behavior** (`cargo test -p adze-cli test_stats_rejects_file_without_adze_grammar -- --exact --nocapture`)
