@@ -31,7 +31,6 @@ fn external_indent_e2e_partition_invariants() {
     );
 }
 
-
 #[test]
 #[ignore = "pure-rust parser integration unstable"]
 fn external_indent_token_in_table() {
