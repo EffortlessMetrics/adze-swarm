@@ -1,6 +1,6 @@
 id = "adze-release-promotion-readiness"
 title = "Adze Release Promotion Readiness"
-status = "active"
+status = "complete"
 owner = "droid-factory"
 created = "2026-05-19"
 
@@ -77,11 +77,12 @@ commands = [
 
 [[work_item]]
 id = "public-promotion-pr-plan"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md"
 spec = "ADZE-SPEC-0011"
 adr = ""
 plan = "plans/release-promotion/public-promotion-pr-plan.md"
+prs = [239]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "git diff --check",
@@ -89,11 +90,12 @@ commands = [
 
 [[work_item]]
 id = "release-promotion-readiness-closeout"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md"
 spec = "ADZE-SPEC-0011"
 adr = ""
-plan = "plans/release-promotion/implementation-plan.md"
+plan = "plans/release-promotion/closeout.md"
+prs = [240]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
