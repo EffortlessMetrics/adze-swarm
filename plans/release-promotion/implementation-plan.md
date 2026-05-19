@@ -1,6 +1,6 @@
 # Release Promotion Readiness Plan
 
-Status: active
+Status: complete
 Owner: release/product
 Created: 2026-05-19
 Linked proposal: ../../docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md
@@ -117,7 +117,8 @@ the promotion candidate.
 
 ### Work Item: public-promotion-pr-plan
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#239
 Promotion plan: ./public-promotion-pr-plan.md
 
 #### Goal
@@ -136,7 +137,9 @@ excluded surfaces.
 
 ### Work Item: release-promotion-readiness-closeout
 
-Status: ready
+Status: complete
+PR: EffortlessMetrics/adze-swarm#240
+Closeout: ./closeout.md
 
 #### Goal
 

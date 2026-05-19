@@ -1,7 +1,7 @@
 # Now / Next / Later
 
 **Last updated:** 2026-05-19
-**Status:** **Release promotion readiness** — `adze-swarm` is the operating repo, public `adze` remains release/public-intake, and the active campaign prepares a deliberate public promotion decision. Toolkit excellence is complete with closeout recorded in [`../../plans/toolkit-excellence/closeout.md`](../../plans/toolkit-excellence/closeout.md). The active campaign is tracked in [`../../.adze/goals/active.toml`](../../.adze/goals/active.toml) and [`../../plans/release-promotion/implementation-plan.md`](../../plans/release-promotion/implementation-plan.md).
+**Status:** **Release promotion readiness complete** — `adze-swarm` is the operating repo, public `adze` remains release/public-intake, and the completed campaign leaves a deliberate public promotion decision in [`../../plans/release-promotion/public-promotion-pr-plan.md`](../../plans/release-promotion/public-promotion-pr-plan.md). Toolkit excellence is complete with closeout recorded in [`../../plans/toolkit-excellence/closeout.md`](../../plans/toolkit-excellence/closeout.md). Release promotion readiness is closed out in [`../../plans/release-promotion/closeout.md`](../../plans/release-promotion/closeout.md).
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -42,6 +42,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Audit public `adze` drift before preparing a promotion PR.
 - [x] Freeze release-facing claims and known limitations.
 - [x] Prepare or defer the public promotion PR with proof and rollback.
+- [x] Close the release-promotion readiness campaign with an explicit proceed/defer/split decision point.
 
 ### Correctness queue baseline
 - [x] Refresh live PR state with `gh pr list --state open --limit 20 --json number,title,isDraft,headRefName,updatedAt,url`.
