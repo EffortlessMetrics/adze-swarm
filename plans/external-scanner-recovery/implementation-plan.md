@@ -132,7 +132,7 @@ Revert the test expansion PR.
 
 ## Work Item: parser-v4-external-diagnostic-detail
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0007-external-scanner-recovery-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0005-diagnostics-and-recovery.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -144,6 +144,14 @@ Blocked by: external-scanner-recovery-source-of-truth
 Harden direct parser-v4 external-scanner diagnostic canaries so they prove
 document error facts, span ordering, point ranges, and public expected names
 where available.
+
+### Receipt
+
+Parser-v4 external-scanner canaries now assert that rejected scanner emissions
+do not advance the parser input position, bad-input document diagnostics keep
+ordered source-bounded spans and matching point ranges, expected-token names
+remain public when present, and rendered diagnostics include the diagnostic
+message, source line, and caret marker.
 
 ### Production Delta
 
