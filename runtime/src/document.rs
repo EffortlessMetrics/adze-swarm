@@ -11,12 +11,15 @@ use adze_glr_core::{ParseTable, SymbolMetadata as TableSymbolMetadata};
 mod diagnostics;
 #[cfg(feature = "serialization")]
 mod json_projection;
+mod runtime_metadata;
 mod tree_builder;
 mod typed_conversion;
 
 use diagnostics::{attach_related_nodes, build_diagnostics, source_line};
 #[cfg(feature = "serialization")]
 use json_projection::{ambiguity_to_json, diagnostic_to_json, node_to_document_json};
+pub(crate) use runtime_metadata::DocumentRuntime;
+pub use runtime_metadata::{IncrementalFallbackReason, ParseMetadata};
 use tree_builder::{build_node_index, collect_edge_records, collect_node_records, insert_symbol};
 use typed_conversion::document_node_to_parsed_node;
 
@@ -381,13 +384,6 @@ impl AdzeDocument {
             }]
         })
     }
-}
-
-pub(crate) struct DocumentRuntime<'a> {
-    pub(crate) language_name: &'a str,
-    pub(crate) grammar: &'a Grammar,
-    pub(crate) parse_table: &'a ParseTable,
-    pub(crate) pure_language: Option<&'static crate::pure_parser::TSLanguage>,
 }
 
 /// A typed AST value paired with document-level syntax provenance.
@@ -1001,65 +997,6 @@ impl NodeFlags {
     /// Return whether this node or its descendants carry error state.
     pub fn has_error(&self) -> bool {
         self.has_error
-    }
-}
-
-/// Reason an incremental parse request fell back to a full reparse.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum IncrementalFallbackReason {
-    /// The document API can currently expose the requested lifecycle, but no
-    /// document-level reuse path is implemented for this parser path yet.
-    FullReparseOnly,
-    /// There was no trustworthy previous document or forest to reuse.
-    MissingOldDocument,
-    /// The supplied edit shape is not supported by the incremental path.
-    UnsupportedEdit,
-    /// The parser/runtime path does not support incremental reuse.
-    UnsupportedParser,
-}
-
-impl IncrementalFallbackReason {
-    /// Return the stable metadata string for this fallback reason.
-    #[must_use]
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::FullReparseOnly => "full_reparse_only",
-            Self::MissingOldDocument => "missing_old_document",
-            Self::UnsupportedEdit => "unsupported_edit",
-            Self::UnsupportedParser => "unsupported_parser",
-        }
-    }
-}
-
-/// Basic parse metadata for a native document.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ParseMetadata {
-    /// Number of parser recovery/error events recorded for this parse.
-    pub error_count: usize,
-    /// Whether a caller requested incremental parsing for this document.
-    pub incremental_requested: bool,
-    /// Whether an incremental reuse path actually produced this document.
-    pub incremental_used: bool,
-    /// Reason an incremental request fell back to a full reparse.
-    pub fallback_reason: Option<IncrementalFallbackReason>,
-}
-
-impl ParseMetadata {
-    /// Build metadata for an ordinary non-incremental parse.
-    #[must_use]
-    pub fn new(error_count: usize) -> Self {
-        Self {
-            error_count,
-            incremental_requested: false,
-            incremental_used: false,
-            fallback_reason: None,
-        }
-    }
-
-    /// Return whether this document records a full-reparse fallback.
-    #[must_use]
-    pub fn full_reparse_fallback(&self) -> bool {
-        self.incremental_requested && !self.incremental_used && self.fallback_reason.is_some()
     }
 }
 
