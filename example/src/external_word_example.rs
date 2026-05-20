@@ -60,4 +60,24 @@ mod tests {
         // This test would work once the full parser is generated
         // The word token helps ensure "if" is parsed as a keyword, not an identifier
     }
+
+    #[test]
+    fn generated_external_grammar_bad_input_returns_diagnostic_document() {
+        let source = "@";
+        let document = super::grammar::parse_document(source)
+            .expect("generated external-token grammar should return a diagnostic document");
+        let diagnostic = document
+            .diagnostics()
+            .first()
+            .expect("bad generated external-token input should produce a document diagnostic");
+
+        assert!(document.metadata().error_count > 0);
+        assert!(document.tree().has_errors());
+        assert!(diagnostic.start_byte <= diagnostic.end_byte);
+        assert!(diagnostic.end_byte <= source.len());
+        assert_eq!(
+            diagnostic.point_range,
+            adze::document::PointRange::from_byte_range(source, diagnostic.byte_span())
+        );
+    }
 }
