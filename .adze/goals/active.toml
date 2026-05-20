@@ -53,11 +53,12 @@ commands = [
 
 [[work_item]]
 id = "api-navigation-polish"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/user-experience-hardening/implementation-plan.md"
+prs = [351]
 commands = [
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",

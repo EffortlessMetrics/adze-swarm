@@ -1,8 +1,7 @@
 # Which API Should I Use?
 
-> **Doc status:** Product guide for the Toolkit Excellence campaign. Support
-> status remains authoritative in
-> [`SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md).
+> **Doc status:** User-experience hardening guide. Support status remains
+> authoritative in [`SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md).
 
 Adze has one native parse truth and several views over it:
 
@@ -26,13 +25,31 @@ Most users should start with generated `grammar::parse(source)`. Move to
 `grammar::parse_document(source)` when you need tooling facts, diagnostics,
 ranges, fields, Tree-sitter-shaped traversal, JSON, or GLR ambiguity summaries.
 
+## First Decision
+
+Use this ladder before reaching for lower-level runtime types:
+
+```rust
+let ast = grammar::parse(source)?;
+
+let report = grammar::parse_document(source)?;
+let document = report.document();
+let diagnostics = document.diagnostics();
+let tree = document.as_tree_sitter();
+let ambiguities = document.ambiguities();
+```
+
+The typed parser path is the beginner and library-author front door. The
+document path is the tooling front door. Compatibility, query, JSON, CLI, WASM,
+and performance surfaces stay bounded by their support-tier rows.
+
 ## Quick Choice Table
 
 | Need | Use | Why | Claim boundary |
 | --- | --- | --- | --- |
 | Typed Rust value | `grammar::parse(source)` | This is the stable generated parser front door. | Stable for the supported typed-extraction and pure-Rust parser rows in support tiers. |
 | Parse errors while building a typed parser | `grammar::parse(source)` error values | Generated parser errors carry spans and expected-token information for the documented matrix. | Structured parse errors are Stabilizing, not a blanket parser-recovery claim. |
-| Diagnostics, ranges, metadata, or tooling facts | `grammar::parse_document(source)` | Returns the native `AdzeDocument` parse product. | `AdzeDocument` is proof-backed but still Experimental. |
+| Diagnostics, ranges, metadata, or tooling facts | `grammar::parse_document(source)` | Returns the native `AdzeDocument` parse product. | `AdzeDocument` is Stabilizing for the documented generated-parser tooling path, not a Stable API claim. |
 | Generic syntax-tree traversal | `document.tree()` and document node APIs | Walks the selected document tree without Tree-sitter adapter assumptions. | Native document APIs are still promoted by support-tier rows, not by this guide. |
 | Typed CST traversal | Generated `syntax::*` wrappers over document node IDs | Gives Rust-native syntax wrappers while staying document-backed. | Typed CST is not Stable yet; use current generated-wrapper proof and known gaps. |
 | Typed AST from a tooling parse | Document typed-AST projection or generated document helpers | Keeps typed extraction and tooling facts tied to the same parse. | Projection support follows the document and typed-extraction support tiers. |

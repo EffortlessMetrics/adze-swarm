@@ -99,7 +99,11 @@ fn main() {
 Then call `grammar::parse(input)` to get `Result<YourType, Vec<ParseError>>`.
 
 For the shortest path, start with [Quickstart: First Parser In 10 Minutes](./docs/tutorials/quickstart-10-minutes.md).
-For the API ladder, read the [Mental Model](./docs/explanations/mental-model.md).
+For choosing between `parse`, `parse_document`, Tree-sitter-shaped traversal,
+queries, JSON, and CLI surfaces, read
+[Which API Should I Use?](./docs/reference/which-api-should-i-use.md). For the
+architecture behind that ladder, read the
+[Mental Model](./docs/explanations/mental-model.md).
 
 ## Current status
 
@@ -170,6 +174,7 @@ Additional workspace areas include grammar crates, benchmarks, WASM demos, golde
 ## Documentation
 
 - [Getting Started](./docs/tutorials/getting-started.md) — build your first parser
+- [Which API Should I Use?](./docs/reference/which-api-should-i-use.md) — choose the typed parser, document, compatibility, query, JSON, and CLI paths
 - [Architecture](./docs/explanations/architecture.md) — how the macro, tool, and runtime fit together
 - [Grammar Examples](./docs/reference/grammar-examples.md) — patterns for common constructs
 - [API Reference](https://docs.rs/adze) — generated docs on docs.rs
