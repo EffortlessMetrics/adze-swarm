@@ -26,6 +26,9 @@ const PRODUCT_PROOF_STABLE_SURFACES: &[&str] = &[
     "docs/tutorials/json-tutorial.md",
     "docs/status/SUPPORT_TIERS.md",
     "docs/status/NOW_NEXT_LATER.md",
+    "docs/README.md",
+    "docs/explanations/direct-forest-splicing.md",
+    "docs/explanations/glr-incremental-architecture.md",
     "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
     "docs/status/PRODUCT_PROOF_MAP.md",
     "docs/status/KNOWN_RED.md",
@@ -566,6 +569,46 @@ fn generated_book_output_stays_claim_bounded() {
             assert!(
                 !text.contains(needle),
                 "generated book output must not carry stale unproven product wording: {path}: {needle}"
+            );
+        }
+    }
+}
+
+#[test]
+fn incremental_source_docs_stay_claim_bounded() {
+    let docs = [
+        ("docs/README.md", include_str!("../../docs/README.md")),
+        (
+            "docs/explanations/direct-forest-splicing.md",
+            include_str!("../../docs/explanations/direct-forest-splicing.md"),
+        ),
+        (
+            "docs/explanations/glr-incremental-architecture.md",
+            include_str!("../../docs/explanations/glr-incremental-architecture.md"),
+        ),
+        (
+            "docs/explanations/incremental-parsing-theory.md",
+            include_str!("../../docs/explanations/incremental-parsing-theory.md"),
+        ),
+    ];
+    let forbidden = [
+        "Production Ready",
+        "production-ready",
+        "production ready",
+        "16x",
+        "16×",
+        "unprecedented",
+        "revolutionary",
+        "sub-millisecond",
+        "215μs",
+        "215us",
+    ];
+
+    for (path, text) in docs {
+        for needle in forbidden {
+            assert!(
+                !text.contains(needle),
+                "incremental source docs must not carry unproven product wording: {path}: {needle}"
             );
         }
     }

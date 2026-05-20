@@ -22,6 +22,9 @@ on:
       - docs/how-to/use-playground.md
       - cli/tests/readme_quickstart.rs
       - docs/product/ACCEPTANCE_MATRIX.md
+      - docs/README.md
+      - docs/explanations/direct-forest-splicing.md
+      - docs/explanations/glr-incremental-architecture.md
       - docs/reference/PUBLISH_CHECKLIST.md
       - docs/tutorials/quickstart-10-minutes.md
       - docs/tutorials/getting-started.md

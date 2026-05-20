@@ -57,7 +57,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**AdzeDocument Design Contract**](./design/adze-document.md) - Draft native parse-product contract for future CST, typed AST, diagnostics, and compatibility projections.
 - [**Typed CST Design Contract**](./design/typed-cst.md) - Draft generated typed syntax view over the native parse document.
 - [**GLR Internals**](./explanations/glr-internals.md) - Deep dive into the Generalized LR engine.
-- [**Incremental Theory**](./explanations/incremental-parsing-theory.md) - The Direct Forest Splicing algorithm.
+- [**Incremental Theory**](./explanations/incremental-parsing-theory.md) - Document snapshots, fallback metadata, and the current boundary around incremental reuse claims.
 - [**Test Strategy**](./explanations/test-strategy.md) - Why and how we test Adze.
 - [**Arena Allocation**](./explanations/arena-allocator.md) - Efficient memory management for parse trees.
 - [**Symbol Normalization**](./explanations/symbol-normalization.md) - How Adze simplifies complex grammar rules.
