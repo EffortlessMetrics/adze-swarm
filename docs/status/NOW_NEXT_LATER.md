@@ -114,7 +114,8 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       not confuse local package verification with a registry install receipt.
 - [x] Residual product-trust lane paused with no ready routine swarm work. The
       remaining active-manifest items are blocked on explicit release/publish
-      authorization and the post-publish crates.io install receipt.
+      authorization and the post-publish crates.io install receipt. Tracker:
+      [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
 
 ### Operational tail
 - [x] [Issue #269](https://github.com/EffortlessMetrics/adze/issues/269): pure-rust benchmark-compilation tail is removed from routine PRs; benchmark compile/performance signal remains in explicit performance and benchmark lanes.

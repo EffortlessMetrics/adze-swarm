@@ -228,7 +228,9 @@ Do not mark the product objective complete while any of these are true:
 The product-trust lane is paused in
 [`../../plans/product-gap-burn-down/handoff.md`](../../plans/product-gap-burn-down/handoff.md)
 because the remaining work requires explicit human release/publish
-authorization.
+authorization. The release authorization and post-publish crates.io install
+receipt are tracked in
+[`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
 
 1. If release/publish is authorized, refresh public `main`, rerun release
    preflight, follow `docs/reference/PUBLISH_CHECKLIST.md`, then run the

@@ -26,6 +26,9 @@ The remaining active-manifest items are blocked:
 - `explicit-release-publish-workflow`;
 - `crates-io-cli-install-receipt`.
 
+Tracker issue:
+[`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
+
 ## Why Paused
 
 The remaining work requires an explicit human release/publish decision. Agents
