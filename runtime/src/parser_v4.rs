@@ -2064,6 +2064,10 @@ mod tests {
             scanned.is_none(),
             "scanner emitted token that is false in valid_symbols and must be rejected",
         );
+        assert_eq!(
+            parser.position, 0,
+            "rejected external scanner token must not advance parser input position",
+        );
     }
 
     #[test]
@@ -2088,6 +2092,32 @@ mod tests {
         assert_eq!(
             diagnostic.point_range,
             crate::document::PointRange::from_byte_range(source, diagnostic.byte_span())
+        );
+        assert!(
+            diagnostic
+                .expected
+                .iter()
+                .all(|token| !token.contains("SymbolId") && !token.contains("symbol ")),
+            "expected-token names should be public: {:?}",
+            diagnostic.expected
+        );
+        assert!(
+            !diagnostic.message.trim().is_empty(),
+            "bad external-scanner input should include a diagnostic message",
+        );
+
+        let rendered = diagnostic.display_with_source(source).to_string();
+        assert!(
+            rendered.contains(&diagnostic.message),
+            "source-rendered diagnostic should include the diagnostic message",
+        );
+        assert!(
+            rendered.contains(source),
+            "source-rendered diagnostic should include the offending source line",
+        );
+        assert!(
+            rendered.contains('^'),
+            "source-rendered diagnostic should include a caret marker",
         );
     }
 
