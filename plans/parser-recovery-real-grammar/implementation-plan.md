@@ -80,7 +80,7 @@ manifest.
 
 ## Work Item: generated-external-real-grammar-matrix
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0009-parser-recovery-real-grammar-coverage.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0005-diagnostics-and-recovery.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -169,7 +169,6 @@ Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 Blocks: n/a
 Blocked by:
-- generated-external-real-grammar-matrix
 - parser-v4-scanner-recovery-smoke
 
 ### Goal

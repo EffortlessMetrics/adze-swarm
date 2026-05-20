@@ -121,6 +121,26 @@ mod tests {
                 label: "invalid expression in nested body",
                 source: "if 1: if @:",
             },
+            ExternalRecoveryCase {
+                label: "missing nested condition after external newline",
+                source: "if 1:\nif",
+            },
+            ExternalRecoveryCase {
+                label: "invalid nested expression after external newline",
+                source: "if 1:\nif @:",
+            },
+            ExternalRecoveryCase {
+                label: "missing nested colon after external newline",
+                source: "if 1:\nif 2",
+            },
+            ExternalRecoveryCase {
+                label: "trailing invalid token after nested body expression",
+                source: "if 1:\n2 @",
+            },
+            ExternalRecoveryCase {
+                label: "multibyte invalid nested body after crlf boundary",
+                source: "if 1:\r\nif 2: \u{03bb}",
+            },
         ];
 
         for case in cases {
@@ -189,6 +209,13 @@ mod tests {
                 "{} should expose public expected-token names: {:?}",
                 case.label,
                 diagnostic.expected
+            );
+            assert!(
+                !diagnostic.message.contains("SymbolId")
+                    && !diagnostic.message.contains("symbol "),
+                "{} should expose a public diagnostic message: {}",
+                case.label,
+                diagnostic.message
             );
 
             let rendered = diagnostic.display_with_source(case.source).to_string();
