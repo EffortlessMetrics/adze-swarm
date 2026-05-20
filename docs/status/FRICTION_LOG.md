@@ -1,6 +1,6 @@
 # Adze Friction Log
 
-**Last updated:** 2026-05-17
+**Last updated:** 2026-05-20
 
 If it happens twice, it's not "user error". It's friction we own until we remove it or document it well enough that it stops recurring.
 
