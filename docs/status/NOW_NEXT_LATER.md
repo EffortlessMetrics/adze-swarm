@@ -1,7 +1,7 @@
 # Now / Next / Later
 
 **Last updated:** 2026-05-20
-**Status:** **Residual product trust hardening active** — `adze-swarm` remains the operating repo for follow-up product-proof work, public promotion PR #795 has merged into public `adze`, and the remaining blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. Toolkit excellence is complete with closeout recorded in [`../../plans/toolkit-excellence/closeout.md`](../../plans/toolkit-excellence/closeout.md). Release promotion readiness is closed out in [`../../plans/release-promotion/closeout.md`](../../plans/release-promotion/closeout.md).
+**Status:** **Residual product trust hardening paused pending explicit release/publish authorization** — `adze-swarm` remains the operating repo for follow-up product-proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and the remaining blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. Toolkit excellence is complete with closeout recorded in [`../../plans/toolkit-excellence/closeout.md`](../../plans/toolkit-excellence/closeout.md). Release promotion readiness is closed out in [`../../plans/release-promotion/closeout.md`](../../plans/release-promotion/closeout.md). Current handoff: [`../../plans/product-gap-burn-down/handoff.md`](../../plans/product-gap-burn-down/handoff.md).
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -102,6 +102,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       `adze-cli` is not present in crates.io. The active goal now carries a
       blocked `crates-io-cli-install-receipt` item so agents do not confuse
       local package verification with a registry install receipt.
+- [x] Residual product-trust lane paused with no ready routine swarm work. The
+      remaining active-manifest items are blocked on explicit release/publish
+      authorization and the post-publish crates.io install receipt.
 
 ### Operational tail
 - [x] [Issue #269](https://github.com/EffortlessMetrics/adze/issues/269): pure-rust benchmark-compilation tail is removed from routine PRs; benchmark compile/performance signal remains in explicit performance and benchmark lanes.
