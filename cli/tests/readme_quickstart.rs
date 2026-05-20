@@ -2,6 +2,40 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+const PRODUCT_PROOF_STABLE_SURFACES: &[&str] = &[
+    "README.md",
+    "FAQ.md",
+    "QUICK_START.md",
+    "cli/README.md",
+    "book/src/getting-started.md",
+    "book/src/getting-started/quickstart.md",
+    "book/src/getting-started/installation.md",
+    "book/src/getting-started/migration.md",
+    "book/src/appendix/faq.md",
+    "book/src/advanced/optimizer-usage.md",
+    "book/src/guide/dynamic-loading.md",
+    "book/src/guide/troubleshooting.md",
+    "book/src/guide/migration.md",
+    "book/src/reference/cli-reference.md",
+    "docs/how-to/use-playground.md",
+    "docs/product/ACCEPTANCE_MATRIX.md",
+    "docs/reference/PUBLISH_CHECKLIST.md",
+    "docs/tutorials/quickstart-10-minutes.md",
+    "docs/tutorials/getting-started.md",
+    "docs/tutorials/json-tutorial.md",
+    "docs/status/SUPPORT_TIERS.md",
+    "docs/status/NOW_NEXT_LATER.md",
+    "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+    "docs/status/PRODUCT_PROOF_MAP.md",
+    "docs/status/KNOWN_RED.md",
+    "docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md",
+    "docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md",
+    "cli/tests/readme_quickstart.rs",
+    "samples/downstream-demo/**",
+    "scripts/ci-product-stable.sh",
+    ".github/workflows/product-proof.yml",
+];
+
 #[test]
 fn readme_arithmetic_quickstart_builds_and_runs() {
     let temp = tempfile::tempdir().expect("tempdir");
@@ -357,6 +391,18 @@ fn readme_stable_claims_are_in_stable_product_lane() {
 }
 
 #[test]
+fn product_proof_workflow_routes_stable_claim_surfaces() {
+    let workflow = include_str!("../../.github/workflows/product-proof.yml");
+
+    for path in PRODUCT_PROOF_STABLE_SURFACES {
+        assert!(
+            workflow_path_filter_contains(workflow, path),
+            "Product Proof workflow must run stable product canaries when `{path}` changes"
+        );
+    }
+}
+
+#[test]
 fn cargo_install_adze_cli_claims_stay_release_surface_bounded() {
     let docs = [
         ("README.md", include_str!("../../README.md")),
@@ -524,6 +570,11 @@ fn stable_surface_lookup_key(surface: &str) -> String {
         .trim()
         .trim_matches('`')
         .to_ascii_lowercase()
+}
+
+fn workflow_path_filter_contains(workflow: &str, path: &str) -> bool {
+    let expected = format!("- {path}");
+    workflow.lines().any(|line| line.trim() == expected)
 }
 
 fn readme_stable_capability_rows(readme: &str) -> Vec<StableCapabilityRow> {

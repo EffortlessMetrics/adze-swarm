@@ -50,6 +50,7 @@ Current stable product receipts:
 ```bash
 just ci-supported
 just ci-product-stable
+cargo test -p adze-cli product_proof_workflow_routes_stable_claim_surfaces -- --exact --nocapture
 cargo test -p adze-cli cargo_install_adze_cli_claims_stay_release_surface_bounded -- --exact --nocapture
 cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exact --nocapture
 cargo test --manifest-path testing/downstream-starter/Cargo.toml
@@ -239,7 +240,9 @@ release-surface shapes until co-release crates have crates.io receipts. It is a
 claim-boundary canary, not dependency-resolution or install proof.
 The `Product Proof` workflow path filter covers these live claim-boundary docs
 so edits to the scanned docs route to the stable product canaries while the lane
-remains advisory.
+remains advisory. The `product_proof_workflow_routes_stable_claim_surfaces`
+canary keeps the workflow path filter aligned with the stable product and
+claim-boundary surfaces.
 
 Hosted PR #334 also passed `Rust Small Result`, `ci-product stable canaries`,
 `Source of Truth`, `Supported Rust Gate`, `Test Pure Rust Implementation
