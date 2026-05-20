@@ -70,6 +70,18 @@ mod tests {
     fn generated_external_grammar_bad_input_matrix_returns_diagnostic_document() {
         let cases = [
             ExternalRecoveryCase {
+                label: "empty source",
+                source: "",
+            },
+            ExternalRecoveryCase {
+                label: "whitespace-only source",
+                source: "   ",
+            },
+            ExternalRecoveryCase {
+                label: "keyword without condition",
+                source: "if",
+            },
+            ExternalRecoveryCase {
                 label: "invalid root token",
                 source: "@",
             },
@@ -94,8 +106,20 @@ mod tests {
                 source: "if 1: @",
             },
             ExternalRecoveryCase {
+                label: "multibyte invalid body token after colon",
+                source: "if 1: \u{03bb}",
+            },
+            ExternalRecoveryCase {
                 label: "invalid body token after external newline boundary",
                 source: "if 1:\n@",
+            },
+            ExternalRecoveryCase {
+                label: "invalid body token after crlf external newline boundary",
+                source: "if 1:\r\n@",
+            },
+            ExternalRecoveryCase {
+                label: "invalid expression in nested body",
+                source: "if 1: if @:",
             },
         ];
 
@@ -165,6 +189,13 @@ mod tests {
                 "{} should expose public expected-token names: {:?}",
                 case.label,
                 diagnostic.expected
+            );
+
+            let rendered = diagnostic.display_with_source(case.source).to_string();
+            assert!(
+                rendered.contains(&diagnostic.message),
+                "{} source-rendered diagnostic should include the diagnostic message",
+                case.label
             );
         }
     }

@@ -39,7 +39,7 @@ commands = [
 
 [[work_item]]
 id = "generated-external-recovery-matrix-expansion"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0007-external-scanner-recovery-hardening.md"
 spec = "ADZE-SPEC-0005"
 adr = "ADZE-ADR-0001"

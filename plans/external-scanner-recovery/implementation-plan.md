@@ -84,7 +84,7 @@ Revert the setup PR to restore the previous paused no-active-lane manifest.
 
 ## Work Item: generated-external-recovery-matrix-expansion
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0007-external-scanner-recovery-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0005-diagnostics-and-recovery.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -96,6 +96,12 @@ Blocked by: external-scanner-recovery-source-of-truth
 Expand the generated external-token malformed-input matrix beyond the current
 root, keyword, missing-colon, trailing-token, multibyte, body, and newline
 boundary cases.
+
+### Receipt
+
+Adds empty-source, whitespace-only, missing-condition, multibyte body-token,
+CRLF boundary, and nested invalid-expression cases to the generated
+external-token recovery matrix.
 
 ### Production Delta
 
