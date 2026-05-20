@@ -176,6 +176,27 @@ Promotion boundary:
 - The public promotion branch must be refreshed from current `adze-swarm/main`
   or superseded before review/merge whenever `adze-swarm/main` advances.
 
+### Fresh Receipt - 2026-05-20 After Promotion Watch Refresh
+
+Refreshed from `adze-swarm/main` at commit `e965cba2` after PRs #309-#310.
+
+Proof results:
+
+- `gh pr view 795 --repo EffortlessMetrics/adze --json
+  state,mergeable,headRefOid,reviewDecision,autoMergeRequest`: passed; #795 is
+  open, mergeable, green, auto-merge-enabled, and still blocked only by the
+  public approving-review requirement.
+- `just ci-product-stable`: passed from current `adze-swarm/main`.
+- `just check-publishable`: passed for `adze-common`, `adze-ir`,
+  `adze-glr-core`, `adze-tablegen`, `adze-macro`, `adze-tool`, `adze-cli`, and
+  `adze`.
+
+Promotion boundary:
+
+- Public PR #795 remains the current explicit promotion PR.
+- The public promotion branch must be refreshed from current `adze-swarm/main`
+  if the swarm branch advances again before review/merge.
+
 ### Rollback
 
 Record defer if any proof fails and do not open a public PR.
