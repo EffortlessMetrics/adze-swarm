@@ -244,7 +244,7 @@ Revert the focused walkthrough PR.
 
 ## Work Item: performance-receipt-guidance
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0014-performance-and-regression.md
 Linked ADR: n/a
@@ -255,9 +255,19 @@ Blocked by: user-experience-hardening-source-of-truth
 
 Improve performance receipt guidance without adding unreceipted speed claims.
 
+### Receipt
+
+Landed in PR #231.
+
 ### Production Delta
 
-To be defined by the PR that picks this item.
+- `cargo run -q -p xtask -- perf-receipt --profile product-smoke` prints the
+  advisory benchmark receipt set for parse, `parse_document`, typed AST
+  projection, JSON projection, and benchmark inventory surfaces.
+- `benchmarks/README.md`, `docs/perf/baselines.md`, and
+  `docs/status/SUPPORT_TIERS.md` keep benchmark evidence advisory and avoid
+  stable throughput, memory-use, Tree-sitter parity, incremental-performance,
+  or release-blocking regression-threshold claims.
 
 ### Non-Goals
 

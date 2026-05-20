@@ -81,11 +81,12 @@ commands = [
 
 [[work_item]]
 id = "performance-receipt-guidance"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0014"
 adr = ""
 plan = "plans/user-experience-hardening/implementation-plan.md"
+prs = [231]
 commands = [
   "cargo run -q -p xtask -- perf-receipt --profile product-smoke",
   "git diff --check",
