@@ -1,6 +1,6 @@
 id = "adze-external-scanner-recovery-hardening"
 title = "Adze External Scanner Recovery Hardening"
-status = "active"
+status = "paused"
 owner = "droid-factory"
 created = "2026-05-20"
 
@@ -9,6 +9,18 @@ Close the named non-release product-trust gap around parser-generated
 external-scanner recovery by adding focused generated-parser and parser-v4
 diagnostic proof while keeping external scanners Experimental until support
 tiers explicitly promote a proven slice.
+"""
+
+pause_reason = """
+All planned non-release external-scanner recovery hardening work is complete.
+The remaining external-scanner limitations are broader future coverage and any
+support-tier promotion review, not an active ready queue.
+"""
+
+handoff = """
+Release/publish authorization remains tracked on EffortlessMetrics/adze-swarm#325.
+Future non-release work should open a fresh active goal in adze-swarm. Public
+EffortlessMetrics/adze remains the release/public-intake/publish surface.
 """
 
 end_state = [
@@ -64,7 +76,7 @@ commands = [
 
 [[work_item]]
 id = "support-tier-boundary-refresh"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0007-external-scanner-recovery-hardening.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"

@@ -1,7 +1,7 @@
 # Now / Next / Later
 
 **Last updated:** 2026-05-20
-**Status:** **External scanner recovery hardening active in adze-swarm** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The current non-release lane is [`../../plans/external-scanner-recovery/implementation-plan.md`](../../plans/external-scanner-recovery/implementation-plan.md), focused on parser-generated external-token recovery proof. Current handoff: [`../../.adze/goals/active.toml`](../../.adze/goals/active.toml).
+**Status:** **External scanner recovery hardening complete; no selected routine non-release lane** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The latest non-release lane is closed out in [`../../plans/external-scanner-recovery/closeout.md`](../../plans/external-scanner-recovery/closeout.md). Current handoff: [`../../.adze/goals/active.toml`](../../.adze/goals/active.toml).
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -58,9 +58,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 
 ### External scanner recovery hardening
 - [x] Open a focused active lane for parser-generated external-token recovery proof.
-- [ ] Expand the generated external-token malformed-input matrix.
-- [ ] Harden direct parser-v4 external-scanner diagnostic-detail canaries.
-- [ ] Refresh support-tier and product-audit wording after proof exists.
+- [x] Expand the generated external-token malformed-input matrix.
+- [x] Harden direct parser-v4 external-scanner diagnostic-detail canaries.
+- [x] Refresh support-tier and product-audit wording after proof exists.
 
 ### Release promotion readiness
 - [x] Open the release-promotion readiness campaign in `adze-swarm`.
@@ -161,9 +161,10 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       The `Product Proof` workflow is path-routed across the same live
       claim-boundary docs so edits to those files wake the stable product
       canaries without changing branch protection.
-- [x] Residual product-trust lane paused with no ready routine swarm work. The
-      remaining active-manifest items are blocked on explicit release/publish
-      authorization and the post-publish crates.io install receipt. Tracker:
+- [x] External scanner recovery hardening closed out with no support-tier
+      promotion. Future routine non-release work should open a fresh active
+      goal in `adze-swarm`; release/publish authorization and post-publish
+      crates.io install receipt remain tracked separately in
       [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
 
 ### Operational tail

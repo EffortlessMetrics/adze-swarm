@@ -46,7 +46,7 @@ Existing lanes include:
 - [`release-promotion/`](./release-promotion/implementation-plan.md) for the completed public promotion readiness campaign, prepared public-promotion decision plan, and active promotion execution plan.
 - [`product-gap-burn-down/`](./product-gap-burn-down/implementation-plan.md) for the completed product-objective blocker burn-down lane.
 - [`user-experience-hardening/`](./user-experience-hardening/closeout.md) for the completed non-release adoption polish lane.
-- [`external-scanner-recovery/`](./external-scanner-recovery/implementation-plan.md) for the active non-release parser-generated external-token recovery proof lane.
+- [`external-scanner-recovery/`](./external-scanner-recovery/closeout.md) for the completed non-release parser-generated external-token recovery proof lane.
 
 ## Plan header
 
