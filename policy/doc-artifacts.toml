@@ -151,6 +151,25 @@ links_to = [
 ]
 
 [[artifact]]
+id = "ADZE-PROP-0008"
+kind = "proposal"
+path = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
+status = "accepted"
+owner = "runtime/tooling"
+milestone = "post-0.9"
+source_of_truth_for = ["query and tooling expansion rationale", "non-release query/tooling proof campaign"]
+links_to = [
+  "ADZE-SPEC-0011",
+  "ADZE-SPEC-0012",
+  "ADZE-SPEC-0013",
+  "ADZE-ADR-0001",
+  "plans/query-tooling-expansion/implementation-plan.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/query-tooling-expansion.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = "ADZE-SPEC-0001"
 kind = "spec"
 path = "docs/specs/ADZE-SPEC-0001-package-surface-boundary.md"
@@ -484,6 +503,21 @@ links_to = [
 ]
 
 [[artifact]]
+id = "plans/query-tooling-expansion/implementation-plan.md"
+kind = "plan"
+path = "plans/query-tooling-expansion/implementation-plan.md"
+status = "active"
+owner = "runtime/tooling"
+milestone = "post-0.9"
+source_of_truth_for = ["query and tooling expansion implementation sequence"]
+links_to = [
+  "ADZE-PROP-0008",
+  ".adze/goals/active.toml",
+  ".adze/goals/query-tooling-expansion.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = ".adze/goals/glr-toolkit-productization.toml"
 kind = "goal"
 path = ".adze/goals/glr-toolkit-productization.toml"
@@ -562,6 +596,21 @@ links_to = [
   ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
+id = ".adze/goals/query-tooling-expansion.toml"
+kind = "goal"
+path = ".adze/goals/query-tooling-expansion.toml"
+status = "active"
+owner = "droid-factory"
+milestone = "post-0.9"
+source_of_truth_for = ["query and tooling expansion agent work queue"]
+links_to = [
+  "ADZE-PROP-0008",
+  "plans/query-tooling-expansion/implementation-plan.md",
+  ".adze/goals/active.toml",
+  "docs/status/SUPPORT_TIERS.md",
 ]
 
 [[artifact]]
