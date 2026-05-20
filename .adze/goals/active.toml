@@ -99,7 +99,7 @@ spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/product-gap-burn-down/implementation-plan.md"
 commands = [
-  "cargo info adze-cli",
+  "cargo info --registry crates-io adze-cli",
   "just package-local adze-cli",
   "cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run",
   "just check-publishable",

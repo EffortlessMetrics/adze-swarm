@@ -37,7 +37,7 @@ publish crates, mutate signing or Cargo-token workflows, or claim
 ## Latest Receipts
 
 ```bash
-cargo info adze-cli
+cargo info --registry crates-io adze-cli
 just package-local adze-cli
 cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run
 just check-publishable
@@ -49,7 +49,9 @@ git diff --check
 
 Observed results:
 
-- `cargo info adze-cli` reported that `adze-cli` is not present in crates.io.
+- `cargo info --registry crates-io adze-cli` reported that `adze-cli` is not
+  present in crates.io. The explicit registry flag avoids resolving the local
+  workspace package.
 - `just package-local adze-cli` passed for the local CLI package.
 - The crates.io install verifier dry run printed the post-publish command
   shape and did not contact crates.io.
