@@ -176,6 +176,10 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - Revisit the currently deferred incremental path once the surrounding runtime contracts are steadier.
 
 ### 🔍 Query and tooling expansion
-- Implement remaining Tree-sitter query predicates and cookbook coverage.
+- Broaden query compatibility only through
+  [`ADZE-SPEC-0013`](../specs/ADZE-SPEC-0013-query-compatibility.md):
+  field constraints, anchors, and the source-aware predicate subset are already
+  documented as covered; remaining work is broader alternation/directive,
+  imported-fixture, differential-corpus, and GLR-forest matching proof.
 - Continue CLI/tooling polish now that the basic command surface exists.
 - Stabilize the LSP generator and related developer tooling for broader use.
