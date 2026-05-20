@@ -1,7 +1,7 @@
 # Now / Next / Later
 
 **Last updated:** 2026-05-20
-**Status:** **No active non-release lane selected after user-experience hardening closeout** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and the remaining blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. Toolkit excellence is complete with closeout recorded in [`../../plans/toolkit-excellence/closeout.md`](../../plans/toolkit-excellence/closeout.md). User experience hardening is complete with closeout recorded in [`../../plans/user-experience-hardening/closeout.md`](../../plans/user-experience-hardening/closeout.md). Current handoff: [`../../.adze/goals/active.toml`](../../.adze/goals/active.toml).
+**Status:** **External scanner recovery hardening active in adze-swarm** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The current non-release lane is [`../../plans/external-scanner-recovery/implementation-plan.md`](../../plans/external-scanner-recovery/implementation-plan.md), focused on parser-generated external-token recovery proof. Current handoff: [`../../.adze/goals/active.toml`](../../.adze/goals/active.toml).
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -55,6 +55,12 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Define the product acceptance matrix for first-use, document, diagnostics, GLR ambiguity, Tree-sitter, query, JSON, CLI, WASM, and performance workflows.
 - [x] Harden the starter project, downstream fixture, API choice guide, examples, compatibility matrix, and performance receipts.
 - [x] Finish the support-tier promotion pass without adding new Stable claims.
+
+### External scanner recovery hardening
+- [x] Open a focused active lane for parser-generated external-token recovery proof.
+- [ ] Expand the generated external-token malformed-input matrix.
+- [ ] Harden direct parser-v4 external-scanner diagnostic-detail canaries.
+- [ ] Refresh support-tier and product-audit wording after proof exists.
 
 ### Release promotion readiness
 - [x] Open the release-promotion readiness campaign in `adze-swarm`.
