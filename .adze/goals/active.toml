@@ -1,6 +1,6 @@
 id = "adze-query-tooling-expansion"
 title = "Adze Query and Tooling Expansion"
-status = "active"
+status = "paused"
 owner = "droid-factory"
 created = "2026-05-20"
 
@@ -9,6 +9,13 @@ Continue non-release product work by making query and tooling behavior easier
 to exercise, understand, and prove while keeping Tree-sitter query
 compatibility a documented subset and keeping release/publish work blocked on
 explicit authorization.
+"""
+
+pause_reason = """
+The planned non-release query/tooling expansion work is complete. Future
+non-release work should open a fresh active goal in adze-swarm. Release,
+publish, signing, Cargo-token, and crates.io install-receipt work remains
+blocked on issue #325 until explicitly authorized.
 """
 
 end_state = [
@@ -28,7 +35,7 @@ proposal = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/query-tooling-expansion/implementation-plan.md"
-prs = []
+prs = [371]
 issues = [325]
 commands = [
   "python -c \"import tomllib; tomllib.load(open('.adze/goals/active.toml', 'rb')); tomllib.load(open('.adze/goals/query-tooling-expansion.toml', 'rb')); tomllib.load(open('policy/doc-artifacts.toml', 'rb'))\"",
@@ -44,6 +51,7 @@ proposal = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
 spec = "ADZE-SPEC-0013"
 adr = "ADZE-ADR-0001"
 plan = "plans/query-tooling-expansion/implementation-plan.md"
+prs = [372]
 commands = [
   "cargo test -p adze --features query --example query_highlighting -- --nocapture",
   "cargo test -p adze --features query --lib query -- --nocapture",
@@ -58,6 +66,7 @@ proposal = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
 spec = "ADZE-SPEC-0013"
 adr = "ADZE-ADR-0001"
 plan = "plans/query-tooling-expansion/implementation-plan.md"
+prs = [373]
 commands = [
   "cargo test -p adze --features \"pure-rust,ts-compat,query\" --test query_differential -- --nocapture",
   "cargo test -p adze --features query --lib query -- --nocapture",
@@ -66,7 +75,7 @@ commands = [
 
 [[work_item]]
 id = "support-tier-boundary-refresh"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"

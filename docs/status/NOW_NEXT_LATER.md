@@ -1,7 +1,7 @@
 # Now / Next / Later
 
 **Last updated:** 2026-05-20
-**Status:** **Query/tooling expansion active; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The latest completed non-release lane is closed out in [`../../plans/external-scanner-recovery/closeout.md`](../../plans/external-scanner-recovery/closeout.md). The current active lane is query/tooling expansion: [`../../plans/query-tooling-expansion/implementation-plan.md`](../../plans/query-tooling-expansion/implementation-plan.md).
+**Status:** **Query/tooling expansion complete; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The latest completed non-release lane is closed out in [`../../plans/query-tooling-expansion/closeout.md`](../../plans/query-tooling-expansion/closeout.md). Future routine non-release work should open a fresh active goal in `adze-swarm`.
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -35,7 +35,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       subset without making full query parity or stable CLI schema claims.
 - [x] Add or refresh query gap-matrix receipts for supported behavior and
       explicit known gaps.
-- [ ] Refresh support-tier or product-audit wording only after new proof
+- [x] Refresh support-tier or product-audit wording only after new proof
       commands exist.
 
 ### Product gap burn-down
