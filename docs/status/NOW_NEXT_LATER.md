@@ -85,7 +85,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       residual product-trust PRs #318-#322. This refreshes the advisory
       README-stable, clean-room quickstart, downstream fixture, typed AST,
       precedence, serialization, and bounded CLI install-claim proof from the
-      current swarm state.
+      current swarm state. It was refreshed again on 2026-05-20 from
+      `adze-swarm/main` at commit `5498967c` after release-blocker tracker PRs
+      #324-#327.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
       the remaining `cargo install adze-cli`, advisory stable-product lane, and
