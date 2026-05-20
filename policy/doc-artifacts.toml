@@ -401,7 +401,7 @@ links_to = [
 id = "plans/user-experience-hardening/implementation-plan.md"
 kind = "plan"
 path = "plans/user-experience-hardening/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "runtime/product"
 milestone = "post-0.9"
 source_of_truth_for = ["user experience hardening implementation sequence"]
@@ -409,6 +409,22 @@ links_to = [
   "ADZE-PROP-0006",
   ".adze/goals/active.toml",
   ".adze/goals/user-experience-hardening.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = "plans/user-experience-hardening/closeout.md"
+kind = "plan"
+path = "plans/user-experience-hardening/closeout.md"
+status = "complete"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["user experience hardening closeout receipts and claim boundaries"]
+links_to = [
+  "ADZE-PROP-0006",
+  "plans/user-experience-hardening/implementation-plan.md",
+  ".adze/goals/user-experience-hardening.toml",
+  ".adze/goals/archive/2026-05-20-user-experience-hardening.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -463,15 +479,30 @@ links_to = [
 id = ".adze/goals/user-experience-hardening.toml"
 kind = "goal"
 path = ".adze/goals/user-experience-hardening.toml"
-status = "active"
+status = "complete"
 owner = "droid-factory"
 milestone = "post-0.9"
 source_of_truth_for = ["user experience hardening agent work queue"]
 links_to = [
   "ADZE-PROP-0006",
   "plans/user-experience-hardening/implementation-plan.md",
+  "plans/user-experience-hardening/closeout.md",
   ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/archive/2026-05-20-user-experience-hardening.toml"
+kind = "goal"
+path = ".adze/goals/archive/2026-05-20-user-experience-hardening.toml"
+status = "complete"
+owner = "droid-factory"
+milestone = "post-0.9"
+source_of_truth_for = ["archived user experience hardening complete manifest"]
+links_to = [
+  "ADZE-PROP-0006",
+  "plans/user-experience-hardening/implementation-plan.md",
+  "plans/user-experience-hardening/closeout.md",
 ]
 
 [[artifact]]

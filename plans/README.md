@@ -45,7 +45,7 @@ Existing lanes include:
 - [`toolkit-excellence/`](./toolkit-excellence/implementation-plan.md) for the completed toolkit excellence and adoption campaign.
 - [`release-promotion/`](./release-promotion/implementation-plan.md) for the completed public promotion readiness campaign, prepared public-promotion decision plan, and active promotion execution plan.
 - [`product-gap-burn-down/`](./product-gap-burn-down/implementation-plan.md) for the completed product-objective blocker burn-down lane.
-- [`user-experience-hardening/`](./user-experience-hardening/implementation-plan.md) for the active non-release adoption polish lane.
+- [`user-experience-hardening/`](./user-experience-hardening/closeout.md) for the completed non-release adoption polish lane.
 
 ## Plan header
 
