@@ -339,10 +339,9 @@ state. PR #300 added a follow-up parser-v4 canary proving bad input in a direct
 external-scanner grammar shape returns a diagnostic document with error facts.
 PR #309 added a generated external-token grammar canary proving generated
 `parse_document()` returns a diagnostic document with bounded byte spans and
-matching point ranges for malformed input. The follow-up generated
-external-token matrix expands that proof across malformed root, keyword,
-missing-colon, and trailing-token inputs while keeping the surface
-Experimental.
+matching point ranges for malformed input. PR #316 expanded that generated
+external-token proof across malformed root, keyword, missing-colon, and
+trailing-token inputs while keeping the surface Experimental.
 
 ### Production Delta
 

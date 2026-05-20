@@ -111,12 +111,12 @@ PR #298 fixed parser-v4 external scanner token spans so emitted tokens use the
 pre-scan byte position and preserve token text. This closes the focused
 dispatch/span gap for the parser-v4 scanner canaries. The follow-up parser-v4
 document canary proves bad input in a direct external-scanner grammar shape
-returns a diagnostic document with error facts. The generated external-token
-example matrix proves generated `parse_document()` returns diagnostic documents
-with bounded byte spans, matching point ranges, selected-tree error facts, and
-public expected-token names for malformed root, keyword, missing-colon, and
-trailing-token inputs. These receipts do not close the broader
-parser-generated external-scanner recovery gap,
+returns a diagnostic document with error facts. PR #316 expanded the generated
+external-token example matrix proving generated `parse_document()` returns
+diagnostic documents with bounded byte spans, matching point ranges,
+selected-tree error facts, and public expected-token names for malformed root,
+keyword, missing-colon, and trailing-token inputs. These receipts do not close
+the broader parser-generated external-scanner recovery gap,
 promote external scanners out of Experimental, or create a stable public scanner
 API claim.
 
