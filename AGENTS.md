@@ -97,13 +97,31 @@ just --version    # Command runner
 
 ## Essential Commands
 
-### PR Gate (MUST PASS before submitting)
+### GitHub PR Gate
+
+The required `adze-swarm` merge gate is:
+
+```text
+Rust Small Result
+```
+
+This is the normalized result check from the routed Rust-small workflow. Do not
+require the implementation lanes (`Rust Small on CX43`, `Rust Small on CX53`,
+or `Rust Small on GitHub Hosted`) directly; exactly one of those may run or
+skip depending on router state.
+
+### Local Supported Proof
+
+Run this before submitting changes that touch the supported core pipeline or
+release-facing proof surface:
 
 ```bash
 just ci-supported
 ```
 
-This runs formatting, clippy, and tests on the 7 core pipeline crates. It is the single required check for branch protection.
+This runs formatting, clippy, and tests on the 7 core pipeline crates. It is
+the local supported/product proof, not the `adze-swarm` branch-protection
+context.
 
 ### Building
 
@@ -177,7 +195,7 @@ just check-msrv            # Verify all Cargo.toml rust-version fields match
 
 ## Architecture
 
-### Core Pipeline (7 crates — PR gate scope)
+### Core Pipeline (7 crates — supported proof scope)
 
 These are checked by `just ci-supported`:
 
@@ -261,17 +279,20 @@ Enforced via `[workspace.lints.rust]`:
 
 ## CI Workflows
 
-16 workflows in `.github/workflows/`. Key ones:
+18 workflows in `.github/workflows/`. Key ones:
 
 | Workflow | Purpose |
 |----------|---------|
-| `ci.yml` | Main CI with `ci-supported` job (PR gate) |
-| `pure-rust-ci.yml` | Pure-Rust implementation |
+| `em-ci-routed-rust.yml` | Required routed PR gate that emits `Rust Small Result` |
+| `ci.yml` | Scheduled/manual legacy supported CI lane |
+| `pure-rust-ci.yml` | Path-routed Pure-Rust implementation |
 | `core-tests.yml` | Core crate testing |
 | `golden-tests.yml` | Tree-sitter parity |
 | `microcrate-ci.yml` | Post-collapse support/governance risk packs |
-| `fuzz.yml` | Fuzz testing |
-| `benchmarks.yml` | Performance benchmarks |
+| `coverage.yml` | Coverage lite/full lanes |
+| `product-proof.yml` | Stable/advisory product canaries |
+| `pr-gate.yml` | PR policy and lightweight receipts |
+| `ci-policy.yml` | CI lane whitelist and source-of-truth checks |
 
 See `docs/status/KNOWN_RED.md` for intentional exclusions.
 
@@ -289,14 +310,14 @@ just clippy
 # 3. Test
 just test
 
-# 4. Full PR gate
+# 4. Local supported proof when touching the supported core pipeline
 just ci-supported
 
 # 5. If snapshots changed
 cargo insta review
 ```
 
-If all pass, the PR is ready for review.
+Hosted `adze-swarm` PRs must also pass `Rust Small Result` before merge.
 
 ## Environment Variables
 

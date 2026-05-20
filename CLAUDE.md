@@ -40,7 +40,8 @@ contains unrelated staged changes.
 ## Quick Reference
 
 ```bash
-just ci-supported          # Required PR gate — must pass before merge
+# Required adze-swarm GitHub merge gate: Rust Small Result
+just ci-supported          # Local supported/product proof
 cargo t2                   # Run tests (2 threads, stable)
 just test                  # Run core lib tests
 just clippy                # Lint core crates
@@ -120,10 +121,24 @@ just check-msrv            # Verify MSRV consistency across all Cargo.toml files
 ```
 
 ### PR Gate
-```bash
-just ci-supported          # THE required PR gate — runs fmt, clippy, and tests on core crates
+The required `adze-swarm` GitHub merge gate is:
+
+```text
+Rust Small Result
 ```
-This is the single supported CI lane for branch protection. It checks: `adze`, `adze-macro`, `adze-tool`, `adze-common`, `adze-ir`, `adze-glr-core`, `adze-tablegen`. See `docs/status/KNOWN_RED.md` for exclusions.
+
+This is the normalized result check from `.github/workflows/em-ci-routed-rust.yml`.
+Do not require `Rust Small on CX43`, `Rust Small on CX53`, or `Rust Small on
+GitHub Hosted` directly; those are router implementation lanes.
+
+For local supported/product proof, run:
+
+```bash
+just ci-supported          # runs fmt, clippy, and tests on core crates
+```
+This checks: `adze`, `adze-macro`, `adze-tool`, `adze-common`, `adze-ir`,
+`adze-glr-core`, `adze-tablegen`. See `docs/status/KNOWN_RED.md` for
+exclusions.
 
 ### Pre-commit Hooks
 ```bash
@@ -139,7 +154,7 @@ Hooks are in `.githooks/pre-commit` (install via `.githooks/install.sh`).
 
 Adze is an AST-first grammar toolchain for Rust. Define the shape of your syntax in Rust, then parse into that shape. Build-time: types -> macros -> IR -> tables. Run-time: text -> GLR -> trees -> typed values.
 
-The workspace has **75 members** organized into several layers:
+The workspace has **29 members** organized into several layers:
 
 ### Core Pipeline (7 crates — covered by `just ci-supported`)
 
@@ -164,18 +179,21 @@ Located in `grammars/`: `python`, `javascript`, `go`, `python-simple`, `test-vec
   - `builder.rs` — Forest-to-tree conversion with performance monitoring
   - `tree.rs` — Enhanced Tree with incremental editing support
 
-### Governance-as-Code Micro-Crates (47 crates in `crates/`)
+### Post-Collapse Support Crates
 
-Policy enforcement, concurrency management, and testing infrastructure as code. Categories:
-- **`concurrency-*`** (11): Thread pool caps, environment normalization, bootstrap policies
-- **`governance-*`** (7): Runtime governance, matrix contracts, metadata
-- **`bdd-*`** (7): BDD testing fixtures, governance, grammar analysis
-- **`parser-*`** (4): Parser contracts, feature contracts, backend abstraction
-- **`feature-policy-*`** (2): Feature flag policy enforcement
-- **`runtime-governance*`** (4): Runtime governance API and matrix
-- Other: `ts-format-core`, `linecol-core`, `stack-pool-core`, `parsetable-metadata`
+The `crates/` directory now contains durable SRP support crates after the
+microcrate-to-SRP collapse:
 
-These are tested via `microcrate-ci.yml`, **not** `just ci-supported`.
+- **`bdd-governance-core`** — BDD/governance helpers
+- **`common-type-ops-core`** — shared type-transformation helpers
+- **`linecol-core`** — line/column utilities
+- **`parsetable-metadata`** — parse-table metadata helpers
+- **`ts-c-harness`** — excluded C/Tree-sitter harness; build explicitly when
+  needed
+
+The included support crates are path-routed through `microcrate-ci.yml` and
+related risk-pack checks. They are not part of the 7-crate `just ci-supported`
+core pipeline unless a specific proof command includes them.
 
 ### Developer Tools
 
@@ -209,26 +227,28 @@ exclude = ["runtime/fuzz", "tools/ts-bridge", "crates/ts-c-harness", "example"]
 
 ## CI and Workflows
 
-16 workflows in `.github/workflows/`:
+18 workflows in `.github/workflows/`:
 
 | Workflow | Purpose |
 |----------|---------|
-| `ci.yml` | Main CI — includes `ci-supported` job (PR gate) |
-| `pure-rust-ci.yml` | Pure-Rust implementation tests |
+| `em-ci-routed-rust.yml` | Required routed PR gate that emits `Rust Small Result` |
+| `ci.yml` | Scheduled/manual legacy supported CI lane |
+| `pure-rust-ci.yml` | Path-routed Pure-Rust implementation tests |
 | `core-tests.yml` | Core crate testing |
 | `golden-tests.yml` | Tree-sitter parity validation |
-| `microcrate-ci.yml` | Governance micro-crate testing |
-| `fuzz.yml` | Fuzz testing |
-| `benchmarks.yml` | Performance benchmarks |
-| `performance.yml` | Performance tracking |
-| `criterion-smoke.yml` | Benchmark smoke tests |
+| `microcrate-ci.yml` | Post-collapse support/governance risk packs |
+| `coverage.yml` | Coverage lite/full lanes |
+| `criterion-smoke.yml` | Benchmark compile smoke tests |
+| `product-proof.yml` | Stable/advisory product canaries |
+| `pr-plan.yml` | Canonical PR plan computation |
+| `pr-gate.yml` | PR policy and lightweight receipts |
+| `ci-policy.yml` | CI lane whitelist and source-of-truth checks |
 | `test-policy.yml` | Test policy enforcement |
-| `smoke-ts-bridge.yml` | ts-bridge link verification |
 | `ts-bridge-parity.yml` | ts-bridge parity tests |
 | `ts-bridge-smoke.yml` | ts-bridge smoke tests |
 | `clippy-quarantine-report.yml` | Clippy quarantine reporting |
-| `release.yml` | Release automation |
-| `mdbook.yml` | Documentation site build |
+| `badge-endpoints.yml` | Generated badge endpoint checks |
+| `ripr.yml` | ripr advisory receipt |
 
 See `docs/status/KNOWN_RED.md` for intentional exclusions from the supported lane.
 
