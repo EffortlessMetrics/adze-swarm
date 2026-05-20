@@ -193,7 +193,7 @@ Revert the focused docs PR.
 
 ## Work Item: diagnostics-query-ts-compat-walkthroughs
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -205,9 +205,20 @@ Blocked by: user-experience-hardening-source-of-truth
 Add or refresh walkthroughs for diagnostics, query, and selected-tree
 compatibility only when examples or canaries back the behavior.
 
+### Receipt
+
+Landed in PR #353.
+
 ### Production Delta
 
-To be defined by the PR that picks this item.
+- Added a diagnostics and recovery reference page that links typed parser
+  errors, `parse_document()` diagnostics, GLR bad input, JSON projection
+  boundaries, and proof commands.
+- Linked the new diagnostics reference from the docs index.
+- Routed the diagnostics reference through Product Proof path filters and the
+  route canary.
+- Cross-linked the diagnostics page with the existing query and Tree-sitter
+  compatibility references.
 
 ### Non-Goals
 

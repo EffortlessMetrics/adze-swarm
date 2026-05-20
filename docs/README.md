@@ -41,6 +41,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Usage Examples**](./reference/usage-examples.md) - Practical code snippets for common tasks.
 - [**Language Support**](./reference/language-support.md) - Status of built-in grammars (Python, JS, Go).
 - [**Known Limitations**](./reference/known-limitations.md) - Current status of experimental features.
+- [**Diagnostics And Recovery**](./reference/diagnostics-and-recovery.md) - Typed parser errors, `parse_document()` diagnostics, GLR bad input, JSON projection boundaries, and proof commands.
 - [**Tree-sitter Compatibility**](./reference/tree-sitter-compatibility.md) - Supported selected-tree adapter subset and table-format invariants.
 - [**Migrating From Tree-sitter**](./reference/migrating-from-tree-sitter.md) - Mapping from Tree-sitter trees, nodes, fields, node-types, queries, errors, and ambiguity to Adze's document-centered model.
 - [**Query Compatibility**](./reference/query-compatibility.md) - Supported Tree-sitter query subset, source-aware behavior, and known gaps.
