@@ -63,9 +63,9 @@ passed on 2026-05-19 from current `adze-swarm/main` after PR #281, commit
 advisory canaries skipped under the stable-only default. This is evidence for
 the README Stable claim lane; it is not a branch-protection change.
 
-Local receipt after residual product-trust PRs #295-#303: `just
-ci-product-stable` passed on 2026-05-19 from `adze-swarm/main` at commit
-`b613ebbb`, and the refreshed public promotion PR later passed the hosted
+Local receipt after residual product-trust PRs #295-#310: `just
+ci-product-stable` passed on 2026-05-20 from `adze-swarm/main` at commit
+`e965cba2`, and the refreshed public promotion PR later passed the hosted
 `ci-product stable canaries` job. These receipts cover README stable proof
 alignment, bounded published CLI install-claim wording, clean-room README/
 Getting Started/book quickstarts, checked-in downstream demo, standalone
@@ -125,8 +125,9 @@ just check-publishable
 ```
 
 `just check-publishable` passed on 2026-05-19 from `adze-swarm/main` after
-PR #253 and again at commit `b613ebbb` after residual product-trust PRs
-#295-#301. It verifies publish-order metadata and `cargo package --list` for
+PR #253, again at commit `b613ebbb` after residual product-trust PRs
+#295-#301, and again on 2026-05-20 at commit `e965cba2` after PRs #309-#310.
+It verifies publish-order metadata and `cargo package --list` for
 the core publish surface (`adze-common`, `adze-ir`, `adze-glr-core`,
 `adze-tablegen`, `adze-macro`, `adze-tool`, `adze-cli`, and `adze`). This is
 package metadata/file-list evidence only; it does not publish crates or prove
