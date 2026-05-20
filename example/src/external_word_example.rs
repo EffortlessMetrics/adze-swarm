@@ -85,9 +85,28 @@ mod tests {
                 label: "trailing invalid token after expression",
                 source: "name @",
             },
+            ExternalRecoveryCase {
+                label: "multibyte invalid expression after keyword",
+                source: "if \u{03bb}:",
+            },
+            ExternalRecoveryCase {
+                label: "invalid body token after colon",
+                source: "if 1: @",
+            },
+            ExternalRecoveryCase {
+                label: "invalid body token after external newline boundary",
+                source: "if 1:\n@",
+            },
         ];
 
         for case in cases {
+            let parse_errors = match super::grammar::parse(case.source) {
+                Ok(_) => panic!("{} unexpectedly parsed successfully", case.label),
+                Err(errors) => errors,
+            };
+            let parse_error = parse_errors
+                .first()
+                .unwrap_or_else(|| panic!("{} should produce a parse error", case.label));
             let document = super::grammar::parse_document(case.source).unwrap_or_else(|err| {
                 panic!(
                     "{} should return a generated external-token diagnostic document: {err:?}",
@@ -101,6 +120,17 @@ mod tests {
                 )
             });
 
+            assert_eq!(
+                diagnostic.byte_span(),
+                parse_error.byte_span(),
+                "{} document diagnostic should agree with generated parser error span",
+                case.label
+            );
+            assert_eq!(
+                diagnostic.expected, parse_error.expected,
+                "{} document diagnostic should preserve expected-token names",
+                case.label
+            );
             assert!(
                 document.metadata().error_count > 0,
                 "{} should record parser recovery in document metadata",

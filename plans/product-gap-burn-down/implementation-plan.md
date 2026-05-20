@@ -341,7 +341,10 @@ PR #309 added a generated external-token grammar canary proving generated
 `parse_document()` returns a diagnostic document with bounded byte spans and
 matching point ranges for malformed input. PR #316 expanded that generated
 external-token proof across malformed root, keyword, missing-colon, and
-trailing-token inputs while keeping the surface Experimental.
+trailing-token inputs while keeping the surface Experimental. A follow-up
+matrix canary adds multibyte expression, invalid body, and newline-boundary
+body inputs and proves generated `parse()` errors agree with
+`parse_document()` diagnostics on spans and expected-token names.
 
 ### Production Delta
 
@@ -352,8 +355,9 @@ trailing-token inputs while keeping the surface Experimental.
 - Direct parser-v4 `parse_document()` returns a diagnostic document for bad
   input in an external-scanner grammar shape.
 - Generated external-token grammar `parse_document()` returns diagnostic
-  documents for malformed root, keyword, missing-colon, and trailing-token
-  inputs.
+  documents for malformed root, keyword, missing-colon, trailing-token,
+  multibyte expression, invalid body, and newline-boundary body inputs, and
+  agrees with generated `parse()` on diagnostic spans and expected-token names.
 - `SUPPORT_TIERS.md` records focused external-scanner canaries while keeping
   the surface Experimental.
 
