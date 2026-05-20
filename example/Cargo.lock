@@ -33,7 +33,15 @@ version = "0.1.0"
 name = "adze-common"
 version = "0.8.0-dev"
 dependencies = [
+ "adze-common-type-ops-core",
  "quote",
+ "syn 2.0.106",
+]
+
+[[package]]
+name = "adze-common-type-ops-core"
+version = "0.1.0"
+dependencies = [
  "syn 2.0.106",
 ]
 
@@ -42,6 +50,7 @@ name = "adze-example"
 version = "0.8.0-dev"
 dependencies = [
  "adze",
+ "adze-glr-core",
  "adze-tool",
  "codemap",
  "codemap-diagnostic",
