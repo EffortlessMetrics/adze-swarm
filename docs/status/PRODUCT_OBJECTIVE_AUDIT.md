@@ -313,12 +313,12 @@ Do not mark the product objective complete while any of these are true:
 
 ## Next Concrete Actions
 
-The routine product-proof and user-experience lanes are closed out. The current
-manifest is paused in
-[`../../.adze/goals/active.toml`](../../.adze/goals/active.toml)
-because the remaining release-surface work requires explicit human
-release/publish authorization. The release authorization and post-publish
-crates.io install receipt are tracked in
+The routine product-proof and user-experience lanes are closed out. A fresh
+non-release lane now targets the remaining generated external-scanner recovery
+proof gap:
+[`../../plans/external-scanner-recovery/implementation-plan.md`](../../plans/external-scanner-recovery/implementation-plan.md).
+Release authorization and post-publish crates.io install receipt work remain
+separate and tracked in
 [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
 
 1. If release/publish is authorized, refresh public `main`, rerun release
@@ -329,6 +329,6 @@ crates.io install receipt are tracked in
    signing/Cargo-token workflows, or claim `cargo install adze-cli`.
 3. Consider promoting `ci-product-stable` only after advisory receipts are
    consistently green and branch-protection policy is updated deliberately.
-4. If release is not authorized and more non-release work is desired, open a
-   fresh active goal in `adze-swarm` before starting implementation or proof
-   PRs.
+4. For non-release work, continue in `adze-swarm` under the active external
+   scanner recovery lane and do not promote external scanners beyond their
+   proven support-tier slice.
