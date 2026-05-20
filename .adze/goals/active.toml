@@ -70,14 +70,16 @@ commands = [
 
 [[work_item]]
 id = "public-promotion-blocker-watch"
-status = "active"
+status = "complete"
 proposal = "ADZE-PROP-0005-release-promotion-readiness"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/release-promotion/public-promotion-pr-plan.md"
+prs = [795]
 commands = [
   "gh pr view 795 --repo EffortlessMetrics/adze --json state,mergeable,headRefOid,reviewDecision,autoMergeRequest",
   "gh pr checks 795 --repo EffortlessMetrics/adze",
+  "gh workflow run ci.yml --repo EffortlessMetrics/adze --ref public/promote-swarm-2026-05-19 -f run_full_ci=false -f run_ci_supported_examples=false",
   "just ci-product-stable",
   "just check-publishable",
 ]

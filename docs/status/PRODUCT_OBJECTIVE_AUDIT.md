@@ -1,6 +1,6 @@
 # Product Objective Audit
 
-**Last updated:** 2026-05-19
+**Last updated:** 2026-05-20
 **Status:** incomplete; use this as an audit checklist, not as a support-tier
 promotion. The active execution lane is
 [`../../plans/product-gap-burn-down/implementation-plan.md`](../../plans/product-gap-burn-down/implementation-plan.md).
@@ -41,7 +41,7 @@ Adze should be release-readable as a Rust parser generator where:
 | Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors and External scanners rows; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, generated-parser matrix canaries, and object-like `parse_document()`/JSON recovery proof for separator, UTF-8, multiline value, and multiline EOF cases. External-scanner dispatch now has focused parser-v4 proof for emitted-token byte spans/text, rejection of scanner tokens that are invalid in the parser state, direct parser-v4 `parse_document()` diagnostic-document behavior for bad input in an external-scanner grammar shape, and generated external-token grammar diagnostic-document behavior for malformed input. | Full parser-generated external-scanner recovery coverage remains future work; any Stable promotion still needs support-tier review. |
 | Every Stable README claim maps to proof. | README capability table; `SUPPORT_TIERS.md`; `readme_stable_claims_are_in_stable_product_lane`; `scripts/ci-product-stable.sh`. | Covered by current proof map and stable-product canaries. | The stable-product lane is still advisory, not branch-protection required. |
 | Experimental/developing surfaces are clearly labeled. | README capability table; `SUPPORT_TIERS.md`; `KNOWN_RED.md`; `PRODUCT_PROOF_MAP.md`. | Covered for runtime2, broader grammars, WASM, Tree-sitter interop, CLI, benchmarks, typed CST, incremental, and JSON. | Re-check after any README, support-tier, or release-facing wording change. |
-| Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI document JSON recovery diagnostics. | Partially covered by local/downstream fixtures and CLI recovery smoke. | Published CLI install, public promotion, and any future crates.io release surface need fresh receipts. |
+| Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI document JSON recovery diagnostics; public promotion PR #795. | Covered for local/downstream fixtures, CLI recovery smoke, and public repository promotion. | Published CLI install and any future crates.io release surface need fresh receipts. |
 
 ## Commands And Receipts
 
@@ -63,9 +63,9 @@ passed on 2026-05-19 from current `adze-swarm/main` after PR #281, commit
 advisory canaries skipped under the stable-only default. This is evidence for
 the README Stable claim lane; it is not a branch-protection change.
 
-Local receipt after residual product-trust PRs #295-#310: `just
+Local receipt after residual product-trust PRs #295-#311: `just
 ci-product-stable` passed on 2026-05-20 from `adze-swarm/main` at commit
-`e965cba2`, and the refreshed public promotion PR later passed the hosted
+`464a32a9`, and the refreshed public promotion PR later passed the hosted
 `ci-product stable canaries` job. These receipts cover README stable proof
 alignment, bounded published CLI install-claim wording, clean-room README/
 Getting Started/book quickstarts, checked-in downstream demo, standalone
@@ -126,30 +126,32 @@ just check-publishable
 
 `just check-publishable` passed on 2026-05-19 from `adze-swarm/main` after
 PR #253, again at commit `b613ebbb` after residual product-trust PRs
-#295-#301, and again on 2026-05-20 at commit `e965cba2` after PRs #309-#310.
+#295-#301, again on 2026-05-20 at commit `e965cba2` after PRs #309-#310, and
+again on 2026-05-20 at commit `464a32a9` after PR #311.
 It verifies publish-order metadata and `cargo package --list` for
 the core publish surface (`adze-common`, `adze-ir`, `adze-glr-core`,
 `adze-tablegen`, `adze-macro`, `adze-tool`, `adze-cli`, and `adze`). This is
 package metadata/file-list evidence only; it does not publish crates or prove
 registry installation.
 
-Current public promotion PR receipt:
+Current public promotion receipt:
 
 Public `EffortlessMetrics/adze#795` supersedes closed/unmerged public PR #794.
-It was opened from the explicit public promotion execution decision after the
-promotion branch was refreshed to the current `adze-swarm/main` tree. Verify
-the exact public head SHA live before review or merge because each accepted
-`adze-swarm` refresh can advance the promotion source. The refreshed public
-PR #795 check set passed on
-2026-05-20, including `Rust Small Result`, `Supported Rust Gate`, `PR Gate
+It was opened from the explicit public promotion execution decision, refreshed
+to `adze-swarm/main` commit `464a32a9`, and merged into public `main` on
+2026-05-20 as squash commit `a0d593e8`. The promoted public tree matches the
+`adze-swarm/main` tree at `464a32a9`. The refreshed public PR #795 check set
+passed on 2026-05-20, including `Rust Small Result`, `Supported Rust Gate`, `PR Gate
 Success`, `Source of Truth`, `CI Lane Whitelist`, `GLR Invariants`, `Coverage
 Lite`, `ci-product stable canaries`, `Test Core Crates`, `Test Runtime Crates`,
 and `Test Pure Rust Implementation`.
 
-This is a ready-for-review public promotion receipt, not a completed
-promotion. PR #795 remains open, mergeable, not draft, and has squash
-auto-merge enabled. The public merge state is blocked by the public `main`
-branch requirement for one approving review, not by failed CI.
+The public `main` branch-protection context was corrected from stale
+`ci-supported` to `Rust Small Result`, matching `.github/settings.yml` in the
+promoted tree. Before that correction, a manual `CI` workflow dispatch on the
+promotion branch also passed the legacy `ci-supported` job. No release tag,
+crate publish, signing, or Cargo-token workflow change happened as part of the
+promotion.
 
 Current first-use / CLI boundary receipts:
 
@@ -190,11 +192,6 @@ Do not mark the product objective complete while any of these are true:
 - `cargo install adze-cli` has no crates.io install receipt.
 - `ci-product-stable` is advisory and not a required branch-protection gate.
 - Full parser-generated external-scanner recovery coverage remains future work.
-- Public promotion has not happened. Public PR #795 is open, refreshed through
-  the latest source-side example-crate proof fix, green, and auto-merge-enabled, but
-  it still requires one public approving review before it can merge. Public
-  `EffortlessMetrics/adze` remains release/public-intake until promotion is
-  accepted.
 - GLR conflict routing, structured parse errors, Tree-sitter compatibility,
   query compatibility, CLI document output, and `AdzeDocument` are not all
   Stable; their current tiers and limitations are recorded in
@@ -202,11 +199,9 @@ Do not mark the product objective complete while any of these are true:
 
 ## Next Concrete Actions
 
-1. Review and approve public `EffortlessMetrics/adze#795`, or leave it parked
-   as the explicit green promotion PR until review is available. If
-   `adze-swarm/main` advances before review, refresh or supersede #795 again
-   before merge. If it merges, record a promotion closeout and refresh
-   public/main before any tag, publish, or release-workflow work.
+1. Refresh public `main` locally before any tag, publish, or release-workflow
+   work. Public promotion PR #795 has merged, but it did not publish crates or
+   prove registry installation.
 2. Run the crates.io install receipt after publish and before any doc claims
    `cargo install adze-cli` as the supported quickstart. The current local
    package receipt and verifier dry run are publish-readiness evidence only.

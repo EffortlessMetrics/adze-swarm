@@ -197,6 +197,32 @@ Promotion boundary:
 - The public promotion branch must be refreshed from current `adze-swarm/main`
   if the swarm branch advances again before review/merge.
 
+### Fresh Receipt - 2026-05-20 Public Promotion Merge
+
+Public `EffortlessMetrics/adze#795` was refreshed from `adze-swarm/main` at
+commit `464a32a9` after PR #311 and merged into public `main` on 2026-05-20 as
+squash commit `a0d593e8`.
+
+Proof results:
+
+- `gh pr view 795 --repo EffortlessMetrics/adze --json state,mergedAt,mergeCommit,headRefOid`: passed; #795 is merged and the promoted head was `bcfddbd4`.
+- `gh pr checks 795 --repo EffortlessMetrics/adze`: passed after the final branch refresh.
+- `gh workflow run ci.yml --repo EffortlessMetrics/adze --ref public/promote-swarm-2026-05-19 -f run_full_ci=false -f run_ci_supported_examples=false`: passed and emitted the legacy public `ci-supported` context.
+- `just ci-product-stable`: passed from current `adze-swarm/main`.
+- `just check-publishable`: passed for `adze-common`, `adze-ir`,
+  `adze-glr-core`, `adze-tablegen`, `adze-macro`, `adze-tool`, `adze-cli`, and
+  `adze`.
+
+Promotion boundary:
+
+- The public branch-protection required context was corrected from stale
+  `ci-supported` to `Rust Small Result`, matching `.github/settings.yml` in
+  the promoted tree.
+- No release tag, crate publish, signing workflow, Cargo-token workflow, or
+  new Stable claim was added by this promotion.
+- Public `main` must be refreshed locally before any follow-up tag, publish,
+  release-workflow, or crates.io install-receipt work.
+
 ### Rollback
 
 Record defer if any proof fails and do not open a public PR.
@@ -344,17 +370,19 @@ was opened from a superseded decision.
 
 ## Public Promotion PR Receipt
 
-Status: ready for manual public review
+Status: merged
 Current public PR: EffortlessMetrics/adze#795
 Superseded public PR: EffortlessMetrics/adze#794 (closed/unmerged)
 Public branch: `public/promote-swarm-2026-05-19`
-Public head: verify live before review or merge
+Public head before merge: `bcfddbd4`
+Public merge commit: `a0d593e8`
 Prepared: 2026-05-20
+Merged: 2026-05-20
 
 ### Scope
 
-PR #795 is the current explicit public promotion PR prepared from this execution
-decision. It promotes the current `adze-swarm` source, documentation, proof
+PR #795 was the explicit public promotion PR prepared from this execution
+decision. It promoted the current `adze-swarm` source, documentation, proof
 maps, CI receipts, product fixtures, and support-tier-aligned claim boundaries
 into public `EffortlessMetrics/adze`.
 
@@ -408,11 +436,10 @@ the pure-rust matrix, and performance regression tests.
 
 ### Current Boundary
 
-PR #795 is open, mergeable, and not draft. Squash auto-merge is enabled. The
-public merge state is blocked by normal public review/merge controls, not by a
-failed CI receipt. Public PR #794 is closed/unmerged and superseded by #795.
+PR #795 is merged. Public PR #794 is closed/unmerged and superseded by #795.
+The live public `main` tree now matches the `adze-swarm/main` tree at commit
+`464a32a9`.
 
-If #795 is merged, record a promotion closeout and refresh public/main before
-starting any follow-up public release, tag, or publish work. If #795 is closed
-or superseded, record the reason and keep public `adze` as release/public-intake
-only.
+Refresh public/main before starting any follow-up public release, tag, publish,
+or crates.io install-receipt work. The promotion itself did not tag a release,
+publish crates, or prove `cargo install adze-cli`.
