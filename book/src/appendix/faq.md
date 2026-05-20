@@ -98,12 +98,17 @@ the same module unless you are writing a test or adapter.
 ### Build fails with macro errors
 
 Ensure both dependencies are present:
+
+This versioned dependency block is the intended release-surface shape after the
+coordinated publish. Current repo proof uses local/path dependencies from this
+checkout until crates.io receipts exist for the co-release crates.
+
 ```toml
 [dependencies]
-adze = "0.8.0-dev"
+adze = "0.9.0"
 
 [build-dependencies]
-adze-tool = "0.8.0-dev"
+adze-tool = "0.9.0"
 ```
 
 ### Grammar has conflicts
@@ -170,7 +175,7 @@ Start with the pure-Rust parser surface and keep optional adapters out of the
 build until you need them:
 
 ```toml
-adze = { version = "0.8.0-dev", features = ["pure-rust"] }
+adze = { version = "0.9.0", features = ["pure-rust"] }
 ```
 
 ## Migration Questions

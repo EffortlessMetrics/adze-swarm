@@ -6,12 +6,16 @@ This chapter walks you through installing Adze, defining your first grammar, bui
 
 Add the runtime and build-tool crates to your `Cargo.toml`:
 
+The versioned dependency block is the intended release-surface shape after the
+coordinated publish. Current repo proof uses local/path dependencies from this
+checkout until crates.io receipts exist for the co-release crates.
+
 ```toml
 [dependencies]
-adze = "0.8"
+adze = "0.9.0"
 
 [build-dependencies]
-adze-tool = "0.8"
+adze-tool = "0.9.0"
 ```
 
 Then create a `build.rs` in your project root:

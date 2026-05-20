@@ -8,9 +8,13 @@ The optimizer is disabled by default to ensure stability. To enable it, use the 
 
 ### In Cargo.toml
 
+The versioned dependency line is the intended release-surface shape after the
+coordinated publish. Current repo proof uses local/path dependencies from this
+checkout until crates.io receipts exist for the co-release crates.
+
 ```toml
 [dependencies]
-adze-tool = { version = "0.8", features = ["optimize"] }
+adze-tool = { version = "0.9.0", features = ["optimize"] }
 ```
 
 ### Via Command Line

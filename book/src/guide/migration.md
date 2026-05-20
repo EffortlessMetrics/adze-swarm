@@ -93,11 +93,13 @@ rust-sitter-tool = "0.4"
 
 ```toml
 # ── After ──────────────────────────────────────────
+# Release-surface shape after the coordinated publish; current repo proof uses
+# local/path dependencies until crates.io receipts exist for co-release crates.
 [dependencies]
-adze = "0.8"
+adze = "0.9.0"
 
 [build-dependencies]
-adze-tool = "0.8"
+adze-tool = "0.9.0"
 ```
 
 ### Repository URL
@@ -233,12 +235,16 @@ Follow these steps in order. Each step is independently committable.
 
 Replace every `rust-sitter` dependency with its `adze` equivalent:
 
+The target versioned dependency names are release-surface shapes after the
+coordinated publish. Current repo proof uses local/path dependencies until
+crates.io receipts exist for the co-release crates.
+
 ```toml
 # runtime crate
-rust-sitter = "0.4"   →   adze = "0.8"
+rust-sitter = "0.4"   ->   adze = "0.9.0"
 
 # build tool
-rust-sitter-tool = "0.4"   →   adze-tool = "0.8"
+rust-sitter-tool = "0.4"   ->   adze-tool = "0.9.0"
 ```
 
 Run `cargo update` to pull the new crates.

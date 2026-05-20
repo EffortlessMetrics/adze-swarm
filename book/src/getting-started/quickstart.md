@@ -14,12 +14,16 @@ cd adze-quickstart
 
 Add Adze to `Cargo.toml`:
 
+The versioned dependency block is the intended release-surface shape after the
+coordinated publish. Current repo proof uses local/path dependencies from this
+checkout until crates.io receipts exist for the co-release crates.
+
 ```toml
 [dependencies]
-adze = { version = "0.8.0-dev", default-features = false }
+adze = { version = "0.9.0", default-features = false }
 
 [build-dependencies]
-adze-tool = "0.8.0-dev"
+adze-tool = "0.9.0"
 
 [features]
 default = ["pure-rust"]

@@ -186,6 +186,7 @@ Current first-use / CLI boundary receipts:
 cargo test -p adze-cli test_init -- --nocapture
 cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture
 cargo test -p adze-cli cargo_install_adze_cli_claims_stay_release_surface_bounded -- --exact --nocapture
+cargo test -p adze-cli co_release_dependency_snippets_stay_release_surface_bounded -- --exact --nocapture
 just package-local adze-cli
 cargo info --registry crates-io adze
 cargo info --registry crates-io adze-tool
@@ -213,6 +214,12 @@ receipt.
 beginner/status/spec docs from presenting `cargo install adze-cli` as a
 release-surface quickstart until a crates.io receipt exists. It is a
 claim-boundary canary, not registry installation proof.
+
+`co_release_dependency_snippets_stay_release_surface_bounded` keeps live
+README/FAQ/tutorial/book dependency snippets that name `adze-tool` or
+registry-shaped `cargo add --build adze-tool` commands explicitly bounded as
+release-surface shapes until co-release crates have crates.io receipts. It is a
+claim-boundary canary, not dependency-resolution or install proof.
 
 Use `cargo info --registry crates-io adze-cli` when verifying registry
 publication. The explicit registry flag avoids resolving the local workspace

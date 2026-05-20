@@ -8,15 +8,14 @@ With Adze, you can define your entire grammar with annotations on idiomatic Rust
 
 ## Key Features
 
-### 🚀 v0.8.0-dev Highlights
+### 0.9.0 Highlights
 
-- **GLR Parsing**: Full support for ambiguous grammars with efficient fork/merge handling
-- **Pure-Rust Option**: Generate static parsers at compile-time without C dependencies  
-- **Enhanced Error Recovery**: Sophisticated error recovery strategies for robust parsing
-- **Two-Phase Parser**: Proper reduction-shift separation for correct GLR semantics
-- **Comprehensive Testing**: Golden tests, benchmarks, and validation infrastructure
-- **WASM Support**: Full WebAssembly compatibility with the pure-Rust backend
-- **Performance Optimizations**: SIMD lexing, parallel parsing, and memory pooling
+- **Generated Parser Front Door**: Define Rust grammar types and call generated parsers.
+- **Pure-Rust Option**: Generate static parsers at compile time without C dependencies.
+- **Structured Diagnostics**: Use supported parser errors and document diagnostics for bad input.
+- **GLR Ambiguity Handling**: Use documented GLR conflict-routing and ambiguity-summary surfaces.
+- **Document Projections**: Inspect `AdzeDocument`, typed views, Tree-sitter-shaped selected trees, and JSON according to support tiers.
+- **Proof-Tracked Surfaces**: Support tiers, proof commands, known gaps, and release receipts are tracked in repo docs.
 
 ## Quick Example
 
