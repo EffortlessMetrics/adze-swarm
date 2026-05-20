@@ -326,7 +326,7 @@ Status: ready for manual public review
 Current public PR: EffortlessMetrics/adze#795
 Superseded public PR: EffortlessMetrics/adze#794 (closed/unmerged)
 Public branch: `public/promote-swarm-2026-05-19`
-Public head: `be8efd96b61876ab475ef919081f0c039f6a6038`
+Public head: verify live before review or merge
 Prepared: 2026-05-20
 
 ### Scope
@@ -364,8 +364,8 @@ latest public CI receipt.
 
 ### Public CI Receipt - 2026-05-20
 
-On public `EffortlessMetrics/adze#795`, commit `be8efd96`, the refreshed public
-check set passed, including:
+On public `EffortlessMetrics/adze#795`, the refreshed public check set passed
+on 2026-05-20, including:
 
 - `Rust Small Result`;
 - `Supported Rust Gate`;
