@@ -96,6 +96,8 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       PRs #336-#338 routed claim-boundary docs into Product Proof, clarified
       the query expansion tail, and moved remaining active artifact receipt
       actions to Node 24-compatible artifact action versions.
+      `Product Proof` is now also path-routed on this status file because it
+      carries stable-product receipt and release-boundary wording.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
       the remaining `cargo install adze-cli`, advisory stable-product lane, and

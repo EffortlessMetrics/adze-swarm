@@ -26,6 +26,7 @@ on:
       - docs/tutorials/getting-started.md
       - docs/tutorials/json-tutorial.md
       - docs/status/SUPPORT_TIERS.md
+      - docs/status/NOW_NEXT_LATER.md
       - docs/status/PRODUCT_OBJECTIVE_AUDIT.md
       - docs/status/PRODUCT_PROOF_MAP.md
       - docs/status/KNOWN_RED.md
