@@ -93,11 +93,12 @@ commands = [
 
 [[work_item]]
 id = "local-proof-loop-friction"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0011"
 adr = ""
 plan = "plans/user-experience-hardening/implementation-plan.md"
+prs = [329]
 commands = [
   "just ci-supported",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
