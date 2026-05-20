@@ -300,9 +300,10 @@ Rationale:
 
 Next action:
 
-Public `EffortlessMetrics/adze` promotion PR #794 has been prepared from this
-decision. Review and merge it manually if the public repo owner accepts the
-promotion; do not enable auto-merge as part of this execution lane.
+Public `EffortlessMetrics/adze` promotion PR #794 was prepared from this
+decision and later superseded by public PR #795 after the promotion branch was
+refreshed to current `adze-swarm/main`. Review and merge the current public
+promotion PR manually if the public repo owner accepts the promotion.
 
 Promotion boundaries:
 
@@ -322,14 +323,15 @@ was opened from a superseded decision.
 ## Public Promotion PR Receipt
 
 Status: ready for manual public review
-Public PR: EffortlessMetrics/adze#794
+Current public PR: EffortlessMetrics/adze#795
+Superseded public PR: EffortlessMetrics/adze#794 (closed/unmerged)
 Public branch: `public/promote-swarm-2026-05-19`
-Public head: `2550b21f30e49956e0d44ca56b6bbcdee79749fd`
-Prepared: 2026-05-19
+Public head: `be8efd96b61876ab475ef919081f0c039f6a6038`
+Prepared: 2026-05-20
 
 ### Scope
 
-PR #794 is the explicit public promotion PR prepared from this execution
+PR #795 is the current explicit public promotion PR prepared from this execution
 decision. It promotes the current `adze-swarm` source, documentation, proof
 maps, CI receipts, product fixtures, and support-tier-aligned claim boundaries
 into public `EffortlessMetrics/adze`.
@@ -343,21 +345,26 @@ This public PR does not:
 - add Stable claims beyond the recorded claim freeze;
 - claim crates.io `cargo install adze-cli` is proven.
 
-### Source-Side Fixups Included Before The Public Receipt Closed
+### Source-Side Fixups Included Before The Current Public Receipt
 
-Two source-side `adze-swarm` fixes landed while proving #794:
+Source-side `adze-swarm` fixes landed while proving and refreshing the public
+promotion branch:
 
 | PR | Result |
 | --- | --- |
 | #290 `ci: fix promotion receipt checks` | Merged. Refreshed `tools/ts-bridge/Cargo.lock` and raised the coverage path-detection timeout so the public promotion receipt could run without a checkout timeout. |
 | #291 `test(glr): require distinct reduces in rr proptest` | Merged. Corrected the reduce/reduce proptest so duplicate reduce rule IDs are not treated as a two-rule reduce/reduce conflict; this matches the existing `rr_duplicate_rule_ids` contract. |
+| #303 `docs(status): keep install claim receipt bounded` | Merged. Kept the install-proof gap explicit without immediately stale promotion SHA text. |
+| #304 `docs(status): refresh public promotion audit` | Merged. Refreshed the product objective audit from the active promotion branch. |
+| #305 `docs(status): stabilize promotion audit receipt wording` | Merged. Made audit wording less SHA-sensitive for routine promotion branch refreshes. |
+| #306 `test(example): declare GLR core dev dependency` | Merged. Added the direct example-crate dev dependency needed for direct excluded-manifest GLR/example tests. |
 
-Both fixes were mirrored into the public promotion branch before the final
-public CI receipt.
+These fixes were mirrored into the current public promotion branch before the
+latest public CI receipt.
 
-### Public CI Receipt - 2026-05-19
+### Public CI Receipt - 2026-05-20
 
-On public `EffortlessMetrics/adze#794`, commit `2550b21f`, the refreshed public
+On public `EffortlessMetrics/adze#795`, commit `be8efd96`, the refreshed public
 check set passed, including:
 
 - `Rust Small Result`;
@@ -379,16 +386,11 @@ the pure-rust matrix, and performance regression tests.
 
 ### Current Boundary
 
-PR #794 is open, mergeable, and not draft. Auto-merge is not enabled. The public
-merge state is blocked by normal public review/merge controls, not by a failed
-CI receipt. The receipt above is historical for public commit `2550b21f`.
-Residual product-trust PRs #295-#301 landed in `adze-swarm` after that public
-branch was prepared, including the external-scanner claim-boundary and
-diagnostic-document receipts. Do not review, merge, or auto-merge #794 until the
-public promotion branch is refreshed from current `adze-swarm/main` or
-superseded by a new explicit promotion PR.
+PR #795 is open, mergeable, and not draft. Squash auto-merge is enabled. The
+public merge state is blocked by normal public review/merge controls, not by a
+failed CI receipt. Public PR #794 is closed/unmerged and superseded by #795.
 
-If #794 is merged, record a promotion closeout and refresh public/main before
-starting any follow-up public release, tag, or publish work. If #794 is closed
+If #795 is merged, record a promotion closeout and refresh public/main before
+starting any follow-up public release, tag, or publish work. If #795 is closed
 or superseded, record the reason and keep public `adze` as release/public-intake
 only.
