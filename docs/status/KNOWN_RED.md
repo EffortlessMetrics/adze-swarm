@@ -88,7 +88,7 @@ These may run as optional signal (nightly/manual/canary), but are not required f
 
 A broad-surface advisory lane now exists as `.github/workflows/product-proof.yml` and runs `scripts/ci-product.sh` on schedule or manual dispatch with `lane=all`.
 
-This lane is **not** part of required merge gates. It provides bounded canary proof across product surfaces that are outside `ci-supported`. A narrower `ci-product stable canaries` job runs `just ci-product-stable` on stable-claim PR surfaces, schedule, and stable-only manual dispatch, but it is also advisory until branch protection explicitly promotes it.
+This lane is **not** part of required merge gates. It provides bounded canary proof across product surfaces that are outside `ci-supported`. A narrower `ci-product stable canaries` job runs `just ci-product-stable` on stable-claim and claim-boundary PR surfaces, schedule, and stable-only manual dispatch, but it is also advisory until branch protection explicitly promotes it.
 
 Latest stable-product receipt: GitHub workflow dispatch
 [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)

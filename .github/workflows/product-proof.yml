@@ -5,13 +5,32 @@ on:
     branches: [main]
     paths:
       - README.md
+      - FAQ.md
+      - QUICK_START.md
+      - cli/README.md
       - book/src/getting-started/quickstart.md
+      - book/src/getting-started.md
+      - book/src/getting-started/installation.md
+      - book/src/getting-started/migration.md
+      - book/src/appendix/faq.md
+      - book/src/advanced/optimizer-usage.md
+      - book/src/guide/dynamic-loading.md
+      - book/src/guide/troubleshooting.md
+      - book/src/guide/migration.md
+      - book/src/reference/cli-reference.md
+      - docs/how-to/use-playground.md
       - cli/tests/readme_quickstart.rs
+      - docs/product/ACCEPTANCE_MATRIX.md
+      - docs/reference/PUBLISH_CHECKLIST.md
+      - docs/tutorials/quickstart-10-minutes.md
       - docs/tutorials/getting-started.md
+      - docs/tutorials/json-tutorial.md
       - docs/status/SUPPORT_TIERS.md
+      - docs/status/PRODUCT_OBJECTIVE_AUDIT.md
       - docs/status/PRODUCT_PROOF_MAP.md
       - docs/status/KNOWN_RED.md
       - docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
+      - docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
       - samples/downstream-demo/**
       - scripts/ci-product-stable.sh
       - .github/workflows/product-proof.yml
