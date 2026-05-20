@@ -193,7 +193,13 @@ temporary root and runs
 `adze --version`. The `--dry-run` mode is pre-publish command-shape evidence
 only; it does not contact crates.io and does not close the install-receipt gap.
 The dry-run command shape was refreshed on 2026-05-20 from `adze-swarm/main` at
-commit `390ab76f`.
+commit `df4be63a` after PRs #319-#320 and printed:
+
+```text
+cargo info --registry crates-io adze-cli
+cargo install --registry crates-io adze-cli --root <temp-root> --version X.Y.Z --locked
+<temp-root>/bin/adze.exe --version
+```
 
 ## Current Non-Completion Reasons
 

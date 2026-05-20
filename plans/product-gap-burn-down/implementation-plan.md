@@ -461,6 +461,17 @@ On 2026-05-20 from `adze-swarm/main` at commit `390ab76f`:
 This is a release decision preflight receipt, not a publish, tag, or install
 receipt.
 
+Follow-up PRs #319-#320 hardened the verifier on `adze-swarm/main` through
+commit `df4be63a`: the metadata check now runs
+`cargo info --registry crates-io adze-cli`, and the dry-run now prints the
+fully qualified install command:
+
+```text
+cargo install --registry crates-io adze-cli --root <temp-root> --version X.Y.Z --locked
+```
+
+The dry-run remains command-shape evidence only.
+
 ### Non-Goals
 
 - No crate publish.

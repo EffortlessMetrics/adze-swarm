@@ -102,9 +102,12 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       `cargo info --registry crates-io adze-cli` was refreshed on 2026-05-20
       and reported that `adze-cli` is not present in crates.io. The explicit
       registry flag prevents Cargo from resolving the local workspace package,
-      and the active goal carries a blocked `crates-io-cli-install-receipt`
-      item so agents do not confuse local package verification with a registry
-      install receipt.
+      and PRs #319-#320 hardened the post-publish verifier so both metadata
+      lookup and `cargo install` use the explicit `crates-io` registry. The
+      verifier dry-run was refreshed on 2026-05-20 from `adze-swarm/main` at
+      commit `df4be63a` and printed the fully qualified command plan. The active
+      goal carries a blocked `crates-io-cli-install-receipt` item so agents do
+      not confuse local package verification with a registry install receipt.
 - [x] Residual product-trust lane paused with no ready routine swarm work. The
       remaining active-manifest items are blocked on explicit release/publish
       authorization and the post-publish crates.io install receipt.
