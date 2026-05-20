@@ -1,12 +1,14 @@
-# Direct Forest Splicing: A Revolutionary Approach to GLR Incremental Parsing
+# Direct Forest Splicing: Disabled GLR Incremental Parsing Design
 
 > **⚠️ Implementation Status**: The Direct Forest Splicing algorithm is currently **disabled** and falls back to fresh parsing for consistency. The algorithm is implemented but has known issues that cause behavioral differences with fresh parsing. See `glr_incremental.rs` for details.
 
-> **Understanding-Oriented Documentation**: This document explains the theoretical foundations, design decisions, and architectural benefits of the Direct Forest Splicing algorithm implemented in PR #62.
+> **Claim Boundary**: This document is design history and theory, not a supported performance contract. Adze does not currently promise Direct Forest Splicing speedups, stable incremental reuse percentages, or stable incremental node identity.
+
+> **Understanding-Oriented Documentation**: This document explains the theoretical foundations, design decisions, and architectural intent of the Direct Forest Splicing algorithm implemented in PR #62.
 
 ## Overview
 
-Direct Forest Splicing is a novel incremental parsing algorithm specifically designed for GLR (Generalized LR) parsers that achieves unprecedented performance improvements by fundamentally rethinking how incremental parsing works. Instead of traditional state restoration approaches, it combines parse forests through surgical splicing operations.
+Direct Forest Splicing is an experimental incremental parsing design for GLR (Generalized LR) parsers. Instead of traditional state restoration approaches, it attempts to combine parse forests through splicing operations. The implementation is disabled because fresh parsing remains the current correctness boundary.
 
 **Key Innovation**: Parse only the changed region and surgically splice it with unchanged regions, avoiding the expensive state restoration that plagues traditional incremental parsers.
 
@@ -79,7 +81,7 @@ fn parse_middle_segment(
 }
 ```
 
-**Revolutionary Aspect**: We completely avoid state restoration by parsing the middle segment fresh. This works because GLR parsers naturally handle ambiguity and can generate all valid interpretations without needing perfect context.
+**Design Intent**: The algorithm avoids state restoration by parsing the middle segment fresh. This is plausible because GLR parsers naturally handle ambiguity and can generate multiple interpretations, but Adze does not currently expose this path as a supported optimization.
 
 ### Phase 3: Forest Extraction (Conservative Reuse)
 
@@ -151,7 +153,9 @@ fn splice_forests(
 
 **Range Correction Logic**: All byte positions in the suffix forest must be adjusted by the edit delta (new_size - old_size) to maintain consistency with the new input text.
 
-## Performance Analysis
+## Performance Model
+
+This section describes the intended cost model. It is not a benchmark receipt and should not be used as a release claim.
 
 ### Complexity Comparison
 
@@ -164,21 +168,18 @@ fn splice_forests(
 
 **Total Complexity**: O(middle_size + reusable_nodes + suffix_size) vs O(edit_depth × context_size + middle_size + tree_size)
 
-### Why 16x Speedup is Achievable
+### Expected Optimization Levers
 
-The dramatic performance improvement comes from several factors:
+The intended optimization comes from several factors:
 
-1. **State Restoration Elimination**: Avoids the 3-4x overhead of traditional approaches
+1. **State Restoration Elimination**: Avoids restoration work from traditional approaches
 2. **Parse Locality**: Only parses the actual changed content, not surrounding context
 3. **Forest Sharing**: Arc-based node sharing eliminates redundant memory allocation
 4. **Conservative Boundaries**: Aggressive reuse through conservative boundary checking
 
-### Empirical Results (PR #62 Validation)
+### Historical Experiment (PR #62)
 
-For a 1,000-token arithmetic expression with a single token edit:
-- **Full Parse**: 3.5ms (baseline)
-- **Direct Forest Splicing**: 215μs (16.3x improvement)
-- **Subtree Reuse**: 999/1000 nodes (99.9% reuse rate)
+PR #62 included an experimental arithmetic-expression benchmark while this path was being explored. Those numbers are not a current support-tier receipt and are not repeated here as a product claim. Future incremental performance claims need repeatable fixtures, documented hardware/context, CI or scheduled receipts, and support-tier entries.
 
 ## GLR-Specific Advantages
 
@@ -266,7 +267,7 @@ fn is_safe_to_reuse(node: &ForestNode, edit_ranges: &[Range<usize>]) -> bool {
 }
 ```
 
-This conservative approach ensures correctness at the cost of potentially reduced reuse, but in practice achieves 99%+ reuse rates for typical edits.
+This conservative approach is designed to prioritize correctness at the cost of potentially reduced reuse. Adze should only document concrete reuse rates after those rates are backed by repeatable benchmark fixtures and support-tier receipts.
 
 ### Parse Consistency Validation
 
@@ -327,9 +328,9 @@ impl AdaptiveReuseStrategy {
 
 ## Conclusion
 
-Direct Forest Splicing represents a fundamental advance in incremental parsing technology, specifically designed for the complexities of GLR parsers. By avoiding traditional state restoration and leveraging the natural structure of GLR parse forests, it achieves unprecedented performance improvements while maintaining full correctness guarantees.
+Direct Forest Splicing remains a GLR-specific incremental parsing design that may inform future optimization work. Today, Adze uses fresh parsing as the correctness boundary when this path is disabled, so this document should be read as design context rather than a supported user-facing feature.
 
-The algorithm's success demonstrates that domain-specific optimizations can yield dramatic improvements over general-purpose approaches. Its conservative reuse strategy, GLR-aware design, and surgical splicing operations create a parsing system that scales to real-time editing scenarios while preserving the full expressiveness of ambiguous grammars.
+The design is still useful because it captures the constraints any future incremental GLR optimizer must satisfy: conservative reuse, range validation, ambiguity preservation, and explicit measurement before promotion.
 
 **Key Takeaways for Implementers**:
 1. **Avoid State Restoration**: Parse fresh regions rather than reconstructing complex parser states
@@ -338,4 +339,4 @@ The algorithm's success demonstrates that domain-specific optimizations can yiel
 4. **Validate Everything**: Comprehensive validation catches edge cases before they become bugs
 5. **Measure Performance**: Instrument reuse effectiveness to guide optimization decisions
 
-This approach opens new possibilities for high-performance language servers, real-time syntax highlighting, and interactive development tools that require sub-millisecond parsing responsiveness.
+This approach may support future language-server, syntax-highlighting, and interactive-tooling work after correctness and performance receipts exist.

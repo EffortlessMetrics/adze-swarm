@@ -1,7 +1,7 @@
 # GLR Incremental Parsing Architecture
 
-**Status**: Implementation Complete (September 2025)  
-**Completion**: PR Finalization with conservative fallback strategy
+**Status**: Experimental lifecycle architecture with conservative fallback
+**Completion**: PR finalization established the fallback boundary; optimized reuse is future work.
 
 This document explains the architectural decisions and design rationale behind adze's GLR incremental parsing implementation.
 
@@ -194,12 +194,12 @@ fn apply_edit(&mut self, edit: &GLREdit) -> Result<(), String> {
 1. **GLR Compatibility**: Architecture specifically designed for GLR parsing requirements
 2. **External Scanner Support**: Full support for complex tokenization patterns
 3. **Correctness Guarantee**: Behavioral consistency with fresh parsing
-4. **Foundation for Optimization**: Clean architecture ready for performance improvements
+4. **Foundation for Optimization**: Clean architecture ready for measured future optimization work
 5. **Production Robustness**: Comprehensive error handling and memory safety
 
 ### Future Benefits (Post-Optimization)
 
-1. **Performance Gains**: Potential for significant speedup through targeted reuse
+1. **Performance Gains**: Potential for measured speedup through targeted reuse
 2. **Ambiguity Preservation**: Maintain parse alternatives during incremental updates
 3. **Advanced Use Cases**: Support for research applications and language analysis tools
 4. **Resource Efficiency**: Reduced memory and CPU usage for large files
@@ -233,7 +233,7 @@ fn apply_edit(&mut self, edit: &GLREdit) -> Result<(), String> {
 **Alternative**: Traditional GSS state restoration
 
 **Rationale**: Direct Forest Splicing provides:
-1. Better performance characteristics for GLR
+1. A plausible optimization model for GLR
 2. Avoids expensive state restoration overhead
 3. More natural fit for GLR forest structures
 4. Cleaner separation between parsing and incremental logic
@@ -246,7 +246,7 @@ fn apply_edit(&mut self, edit: &GLREdit) -> Result<(), String> {
 2. **Comprehensive Coverage**: Supports external scanners, error handling, and complex use cases
 3. **Correctness Priority**: Behavioral consistency ensures reliable operation
 4. **Future-Ready**: Prepared for performance optimizations without architectural changes
-5. **Documentation**: Comprehensive documentation and examples for users
+5. **Documentation**: Documentation for the architecture and current fallback boundary
 
 ### Areas for Future Enhancement
 
@@ -257,6 +257,6 @@ fn apply_edit(&mut self, edit: &GLREdit) -> Result<(), String> {
 
 ## Conclusion
 
-The GLR incremental parsing architecture represents a strategic investment in correctness-first design that provides a robust foundation for future performance optimizations. The conservative fallback approach ensures production readiness while maintaining the flexibility needed for advanced GLR-specific incremental parsing techniques.
+The GLR incremental parsing architecture represents a strategic investment in correctness-first design that provides a robust foundation for future measured optimizations. The conservative fallback approach preserves fresh-parse behavior while maintaining the flexibility needed for advanced GLR-specific incremental parsing techniques.
 
-The implementation successfully demonstrates that GLR incremental parsing is architecturally sound and can be integrated into adze's ecosystem while maintaining backward compatibility and production quality standards.
+The implementation demonstrates that GLR incremental parsing can be integrated into Adze's architecture without creating a second parse truth. Optimized reuse, performance claims, and support-tier promotion remain future work that needs repeatable receipts.
