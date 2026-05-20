@@ -54,7 +54,10 @@ Observed results:
   workspace package.
 - `just package-local adze-cli` passed for the local CLI package.
 - The crates.io install verifier dry run printed the post-publish command
-  shape and did not contact crates.io.
+  shape and did not contact crates.io. As of PRs #319-#320 on
+  `adze-swarm/main` at commit `df4be63a`, the dry-run prints both
+  `cargo info --registry crates-io adze-cli` and
+  `cargo install --registry crates-io adze-cli --root <temp-root> --version X.Y.Z --locked`.
 - `just check-publishable` passed for the release surface.
 - `adze-swarm` PR #316 expanded the generated external-token
   diagnostic-document canary into a malformed-input matrix, and the focused
