@@ -211,8 +211,7 @@ mod tests {
                 diagnostic.expected
             );
             assert!(
-                !diagnostic.message.contains("SymbolId")
-                    && !diagnostic.message.contains("symbol "),
+                !diagnostic.message.contains("SymbolId") && !diagnostic.message.contains("symbol "),
                 "{} should expose a public diagnostic message: {}",
                 case.label,
                 diagnostic.message
