@@ -32,6 +32,7 @@ const PRODUCT_PROOF_STABLE_SURFACES: &[&str] = &[
     "docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md",
     "cli/tests/readme_quickstart.rs",
     "samples/downstream-demo/**",
+    "scripts/ci-product.sh",
     "scripts/ci-product-stable.sh",
     ".github/workflows/product-proof.yml",
 ];
