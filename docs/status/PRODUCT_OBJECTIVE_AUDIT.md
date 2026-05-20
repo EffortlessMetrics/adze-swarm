@@ -2,8 +2,8 @@
 
 **Last updated:** 2026-05-20
 **Status:** incomplete; use this as an audit checklist, not as a support-tier
-promotion. The external-scanner recovery hardening lane is closed out, and no
-routine non-release execution lane is selected in
+promotion. The query/tooling expansion lane is closed out, and no routine
+non-release execution lane is selected in
 [`../../.adze/goals/active.toml`](../../.adze/goals/active.toml).
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
@@ -41,8 +41,8 @@ Adze should be release-readable as a Rust parser generator where:
 | Typed extraction is deterministic. | `typed_ast_contract_left_associative_addition`; `typed_ast_contract_repeated_parse_is_deterministic`; `readme_arithmetic_quickstart_builds_and_runs`. | Covered for Stable typed extraction rows. | Keep determinism claims scoped to supported generated-parser shapes. |
 | Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors and External scanners rows; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof; `docs/reference/diagnostics-and-recovery.md`. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, generated-parser matrix canaries, object-like `parse_document()`/JSON recovery proof, and user-facing diagnostics/recovery guidance from PR #353. External-scanner dispatch now has focused parser-v4 proof for emitted-token byte spans/text, rejection of scanner tokens that are invalid in the parser state without advancing input position, direct parser-v4 `parse_document()` diagnostic-document behavior for bad input in an external-scanner grammar shape with rendered source context, and generated external-token grammar diagnostic-document matrix behavior for malformed root, empty/whitespace input, keyword/missing-condition, missing-colon, trailing-token, multibyte expression, multibyte body-token, invalid body, newline/CRLF boundary, and nested invalid-expression inputs. The generated matrix also compares `parse()` errors with `parse_document()` diagnostics for span and expected-token agreement. | Broader real-grammar parser-generated external-scanner recovery coverage remains future work; any Stable promotion still needs support-tier review. |
 | Every Stable README claim maps to proof. | README capability table; `SUPPORT_TIERS.md`; `readme_stable_claims_are_in_stable_product_lane`; `scripts/ci-product-stable.sh`. | Covered by current proof map and stable-product canaries. | The stable-product lane is still advisory, not branch-protection required. |
-| Experimental/developing surfaces are clearly labeled. | README capability table; `SUPPORT_TIERS.md`; `KNOWN_RED.md`; `PRODUCT_PROOF_MAP.md`. | Covered for runtime2, broader grammars, WASM, Tree-sitter interop, CLI, benchmarks, typed CST, incremental, and JSON. | Re-check after any README, support-tier, or release-facing wording change. |
-| Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI document JSON recovery diagnostics; public promotion PR #795; user-experience hardening closeout. | Covered for local/downstream fixtures, CLI recovery smoke, public repository promotion, starter README polish, diagnostics/recovery guidance, performance receipt boundaries, and local proof-loop friction mitigation. | Published CLI install and any future crates.io release surface need fresh receipts. |
+| Experimental/developing surfaces are clearly labeled. | README capability table; `SUPPORT_TIERS.md`; `KNOWN_RED.md`; `PRODUCT_PROOF_MAP.md`; query/tooling closeout. | Covered for runtime2, broader grammars, WASM, Tree-sitter interop, CLI, benchmarks, typed CST, incremental, JSON, and the documented query subset. Query remains Stabilizing for the documented subset, not full Tree-sitter query parity. | Re-check after any README, support-tier, or release-facing wording change. |
+| Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI document JSON recovery diagnostics; public promotion PR #795; user-experience hardening closeout; query/tooling closeout. | Covered for local/downstream fixtures, CLI recovery smoke, public repository promotion, starter README polish, diagnostics/recovery guidance, performance receipt boundaries, query example/differential receipts, and local proof-loop friction mitigation. | Published CLI install and any future crates.io release surface need fresh receipts. |
 
 ## Commands And Receipts
 
@@ -123,6 +123,17 @@ included `Rust Small Result`, Source of Truth, CI Lane Whitelist, GLR
 Invariants, Docs Gate, PR Gate Success, Product Proof where relevant, and
 `Supported Rust Gate` on the final closeout. The post-closeout `active.toml`
 state is paused with no selected non-release lane.
+
+Latest query/tooling expansion closeout: PRs #371-#374 completed the
+non-release query subset proof refresh and archived it in
+[`../../plans/query-tooling-expansion/closeout.md`](../../plans/query-tooling-expansion/closeout.md).
+The closeout records the `query_highlighting` example receipt and test, the
+expanded `query_differential` matrix, refreshed support-tier/product-proof
+wording, and the explicit boundary that query remains Stabilizing for the
+documented subset rather than full Tree-sitter query parity. GitHub receipts
+included `Rust Small Result`, Source of Truth, CI Lane Whitelist, GLR
+Invariants, and `ci-product stable canaries` where relevant. The post-closeout
+`active.toml` state is paused with no selected non-release lane.
 
 Current CI-tail receipts:
 
@@ -317,9 +328,12 @@ Do not mark the product objective complete while any of these are true:
 
 ## Next Concrete Actions
 
-The routine product-proof, user-experience, and external-scanner recovery
-hardening lanes are closed out:
-[`../../plans/external-scanner-recovery/closeout.md`](../../plans/external-scanner-recovery/closeout.md).
+The routine product-proof, user-experience, external-scanner recovery, and
+query/tooling expansion lanes are closed out:
+[`../../plans/user-experience-hardening/closeout.md`](../../plans/user-experience-hardening/closeout.md),
+[`../../plans/external-scanner-recovery/closeout.md`](../../plans/external-scanner-recovery/closeout.md),
+and
+[`../../plans/query-tooling-expansion/closeout.md`](../../plans/query-tooling-expansion/closeout.md).
 Release authorization and post-publish crates.io install receipt work remain
 separate and tracked in
 [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
@@ -333,4 +347,5 @@ separate and tracked in
 3. Consider promoting `ci-product-stable` only after advisory receipts are
    consistently green and branch-protection policy is updated deliberately.
 4. For future non-release work, open a fresh active goal in `adze-swarm`; do
-   not promote external scanners beyond their proven support-tier slice.
+   not promote external scanners or query compatibility beyond their proven
+   support-tier slices.
