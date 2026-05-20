@@ -374,6 +374,14 @@ fn cargo_install_adze_cli_claims_stay_release_surface_bounded() {
             include_str!("../../book/src/getting-started/quickstart.md"),
         ),
         (
+            "book/src/reference/cli-reference.md",
+            include_str!("../../book/src/reference/cli-reference.md"),
+        ),
+        (
+            "book/src/guide/dynamic-loading.md",
+            include_str!("../../book/src/guide/dynamic-loading.md"),
+        ),
+        (
             "docs/product/ACCEPTANCE_MATRIX.md",
             include_str!("../../docs/product/ACCEPTANCE_MATRIX.md"),
         ),
