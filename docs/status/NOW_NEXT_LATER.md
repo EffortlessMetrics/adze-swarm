@@ -120,6 +120,12 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       reported that `adze-cli` is not present in crates.io. The active
       goal carries a blocked `crates-io-cli-install-receipt` item so agents do
       not confuse local package verification with a registry install receipt.
+- [x] Latest root README dependency-boundary receipt:
+      `cargo info --registry crates-io adze` reports published `adze` 0.8.0,
+      while `cargo info --registry crates-io adze-tool` reports no registry
+      package. The root README install block now explicitly says the dependency
+      block is a release-surface dependency shape, not a crates.io install
+      receipt for every co-release crate.
 - [x] Residual product-trust lane paused with no ready routine swarm work. The
       remaining active-manifest items are blocked on explicit release/publish
       authorization and the post-publish crates.io install receipt. Tracker:

@@ -187,9 +187,19 @@ cargo test -p adze-cli test_init -- --nocapture
 cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture
 cargo test -p adze-cli cargo_install_adze_cli_claims_stay_release_surface_bounded -- --exact --nocapture
 just package-local adze-cli
+cargo info --registry crates-io adze
+cargo info --registry crates-io adze-tool
 cargo info --registry crates-io adze-cli
 cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked
 ```
+
+The root README install block is now explicitly bounded as a release-surface
+dependency shape rather than a crates.io install receipt for every co-release
+crate. On 2026-05-20, `cargo info --registry crates-io adze` reported published
+`adze` 0.8.0, while `cargo info --registry crates-io adze-tool` reported that
+`adze-tool` could not be found in crates.io. Until the coordinated publish
+receipt exists, the README dependency block must not be treated as proof that
+the current repo can be consumed directly from crates.io.
 
 `just package-local adze-cli` packages and verifies the CLI crate with local
 patches for unpublished co-release crates. It passed on 2026-05-19 from
@@ -200,9 +210,9 @@ bump. This is local publish-readiness evidence, not a crates.io install
 receipt.
 
 `cargo_install_adze_cli_claims_stay_release_surface_bounded` keeps live
-beginner/status/spec docs from presenting `cargo install adze-cli` as a ready
-quickstart until a crates.io receipt exists. It is a claim-boundary canary, not
-registry installation proof.
+beginner/status/spec docs from presenting `cargo install adze-cli` as a
+release-surface quickstart until a crates.io receipt exists. It is a
+claim-boundary canary, not registry installation proof.
 
 Use `cargo info --registry crates-io adze-cli` when verifying registry
 publication. The explicit registry flag avoids resolving the local workspace
@@ -235,6 +245,8 @@ cargo install --registry crates-io adze-cli --root <temp-root> --version X.Y.Z -
 Do not mark the product objective complete while any of these are true:
 
 - `cargo install adze-cli` has no crates.io install receipt.
+- The root README dependency block is release-surface-bounded because
+  `adze-tool` does not yet have a crates.io metadata receipt.
 - `ci-product-stable` is advisory and not a required branch-protection gate.
 - Broader parser-generated external-scanner recovery coverage remains future work.
 - GLR conflict routing, structured parse errors, Tree-sitter compatibility,
