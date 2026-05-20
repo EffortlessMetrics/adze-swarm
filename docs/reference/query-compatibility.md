@@ -127,6 +127,7 @@ small hand-built parse tree:
 
 ```bash
 cargo run -p adze --features query --example query_highlighting
+cargo test -p adze --features query --example query_highlighting -- --nocapture
 ```
 
 ## Advisory Or Future
@@ -147,6 +148,7 @@ Representative local proof:
 ```bash
 cargo test -p adze --features query --lib query -- --nocapture
 cargo test -p adze --features query --lib query::matcher_v2 -- --nocapture
+cargo test -p adze --features query --example query_highlighting -- --nocapture
 ```
 
 Future promotion requires a supported-subset differential corpus:

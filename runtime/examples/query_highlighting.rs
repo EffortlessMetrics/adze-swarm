@@ -13,6 +13,21 @@ use adze_glr_core::SymbolMetadata;
 use adze_ir::{Grammar, ProductionId, Rule, SymbolId, Token, TokenPattern};
 
 fn main() {
+    let receipt = run_demo();
+    println!("query highlighting receipt: {receipt:?}");
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct QueryHighlightingReceipt {
+    highlight_ranges: Vec<(usize, usize)>,
+    source_aware_capture_ranges: Vec<(usize, usize)>,
+    byte_range_number_capture: Vec<(usize, usize)>,
+    out_of_range_number_matches: usize,
+    cleared_byte_range_number_matches: usize,
+    root_only_identifier_matches: usize,
+}
+
+fn run_demo() -> QueryHighlightingReceipt {
     let source = "foo+1";
     let grammar = query_fixture_grammar();
     let metadata = query_fixture_metadata();
@@ -31,8 +46,8 @@ fn main() {
     )
     .expect("highlight query should compile");
     let highlights = Highlighter::new(highlight_query).highlight(&tree);
-    assert_eq!(highlight_ranges(&highlights), vec![(0, 3), (3, 4), (4, 5)]);
-    println!("highlight ranges: {highlights:?}");
+    let highlight_ranges = highlight_ranges(&highlights);
+    assert_eq!(highlight_ranges, vec![(0, 3), (3, 4), (4, 5)]);
 
     let source_aware_query = compile_query(
         "(root left: (identifier @name) right: (number @value))\n(#match? @name \"^[a-z]+$\")",
@@ -42,10 +57,9 @@ fn main() {
     let source_aware_matches =
         QueryMatcher::new(&source_aware_query, source, &metadata).matches(&tree);
     assert_eq!(source_aware_matches.len(), 1);
-    println!(
-        "source-aware captures: {:?}",
-        source_aware_capture_ranges(&source_aware_matches[0].captures)
-    );
+    let source_aware_capture_ranges =
+        source_aware_capture_ranges(&source_aware_matches[0].captures);
+    assert_eq!(source_aware_capture_ranges, vec![(0, 3), (4, 5)]);
 
     let number_query =
         compile_query("(number @number)", &grammar).expect("number query should compile");
@@ -54,10 +68,17 @@ fn main() {
     let range_matches = range_cursor.collect_matches(&number_query, &tree);
     assert_eq!(range_matches.len(), 1);
     assert_eq!(range_matches[0].captures[0].node.start_byte, 4);
-    println!(
-        "byte-range number capture: {:?}",
-        cursor_capture_ranges(&range_matches[0].captures)
-    );
+    let byte_range_number_capture = cursor_capture_ranges(&range_matches[0].captures);
+    assert_eq!(byte_range_number_capture, vec![(4, 5)]);
+
+    range_cursor.set_byte_range(0..3);
+    let out_of_range_number_matches = range_cursor.collect_matches(&number_query, &tree).len();
+    assert_eq!(out_of_range_number_matches, 0);
+
+    range_cursor.clear_byte_range();
+    let cleared_byte_range_number_matches =
+        range_cursor.collect_matches(&number_query, &tree).len();
+    assert_eq!(cleared_byte_range_number_matches, 1);
 
     let identifier_query =
         compile_query("(identifier @variable)", &grammar).expect("identifier query should compile");
@@ -68,7 +89,16 @@ fn main() {
         root_only_matches.is_empty(),
         "root-only matching should not recurse into identifier children"
     );
-    println!("root-only identifier matches: {}", root_only_matches.len());
+    let root_only_identifier_matches = root_only_matches.len();
+
+    QueryHighlightingReceipt {
+        highlight_ranges,
+        source_aware_capture_ranges,
+        byte_range_number_capture,
+        out_of_range_number_matches,
+        cleared_byte_range_number_matches,
+        root_only_identifier_matches,
+    }
 }
 
 fn node(symbol: u16, start_byte: usize, end_byte: usize) -> ParseNode {
@@ -183,4 +213,24 @@ fn cursor_capture_ranges(captures: &[QueryCapture]) -> Vec<(usize, usize)> {
         .iter()
         .map(|capture| (capture.node.start_byte, capture.node.end_byte))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn query_highlighting_example_receipt_covers_supported_subset() {
+        assert_eq!(
+            run_demo(),
+            QueryHighlightingReceipt {
+                highlight_ranges: vec![(0, 3), (3, 4), (4, 5)],
+                source_aware_capture_ranges: vec![(0, 3), (4, 5)],
+                byte_range_number_capture: vec![(4, 5)],
+                out_of_range_number_matches: 0,
+                cleared_byte_range_number_matches: 1,
+                root_only_identifier_matches: 0,
+            }
+        );
+    }
 }
