@@ -94,6 +94,15 @@ serialization, and bounded CLI install-claim canaries after the workspace
 version moved to 0.9.0. It is still advisory product proof, not a
 branch-protection change.
 
+Latest local receipt after release-surface claim-boundary PRs #332-#334:
+`just ci-product-stable` passed on 2026-05-20 from `adze-swarm/main` at commit
+`45e40f16`. This refreshes README-stable proof alignment, bounded
+`cargo install adze-cli` wording, the co-release dependency snippet boundary
+canary, clean-room README/Getting Started/book quickstarts, checked-in and
+standalone downstream fixtures, typed AST determinism, precedence, and core
+table serialization from the current swarm state. It is still advisory product
+proof, not a branch-protection change.
+
 Current CI-tail receipts:
 
 - PR #284 bounded `pure-rust-ci` and `pr-gate` Rust tail steps so advisory
@@ -220,6 +229,13 @@ README/FAQ/tutorial/book dependency snippets that name `adze-tool` or
 registry-shaped `cargo add --build adze-tool` commands explicitly bounded as
 release-surface shapes until co-release crates have crates.io receipts. It is a
 claim-boundary canary, not dependency-resolution or install proof.
+
+Hosted PR #334 also passed `Rust Small Result`, `ci-product stable canaries`,
+`Source of Truth`, `Supported Rust Gate`, `Test Pure Rust Implementation
+(ubuntu-latest, stable)`, and the relevant docs/runtime receipt jobs before the
+post-merge check set finished green. No release tag, crate publish,
+signing/Cargo-token workflow change, or support-tier promotion happened in that
+PR.
 
 Use `cargo info --registry crates-io adze-cli` when verifying registry
 publication. The explicit registry flag avoids resolving the local workspace

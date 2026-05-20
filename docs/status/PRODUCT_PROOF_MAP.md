@@ -2,7 +2,7 @@
 
 **Status:** release-readable companion to `SUPPORT_TIERS.md`
 **Source of truth:** `SUPPORT_TIERS.md`
-**Last updated:** 2026-05-19
+**Last updated:** 2026-05-20
 
 This map answers one question quickly: which product claims have proof, and
 where is that proof owned?
