@@ -92,7 +92,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       and `just check-publishable` passed on 2026-05-19 from `adze-swarm`;
       `just check-publishable` was refreshed again on 2026-05-20 at commits
       `e965cba2` after residual product-trust PRs #309-#310 and `464a32a9`
-      after PR #311.
+      after PR #311, then `just package-local adze-cli` and
+      `just check-publishable` were refreshed on 2026-05-20 from
+      `adze-swarm/main` at commit `390ab76f`.
       These are package verification receipts, not crates.io install or publish
       claims.
 - [x] Latest crates.io CLI install-boundary receipt: `cargo info adze-cli`

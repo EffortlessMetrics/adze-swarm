@@ -86,7 +86,7 @@ commands = [
 
 [[work_item]]
 id = "release-publish-decision-preflight"
-status = "ready"
+status = "complete"
 proposal = "ADZE-PROP-0005-release-promotion-readiness"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
@@ -99,9 +99,18 @@ commands = [
 ]
 
 [[work_item]]
-id = "crates-io-cli-install-receipt"
+id = "explicit-release-publish-workflow"
 status = "blocked"
 blocked_by = ["release-publish-decision-preflight"]
+proposal = "ADZE-PROP-0005-release-promotion-readiness"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/product-gap-burn-down/implementation-plan.md"
+
+[[work_item]]
+id = "crates-io-cli-install-receipt"
+status = "blocked"
+blocked_by = ["explicit-release-publish-workflow"]
 proposal = "ADZE-PROP-0005-release-promotion-readiness"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
