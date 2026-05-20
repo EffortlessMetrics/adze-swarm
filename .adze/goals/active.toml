@@ -51,7 +51,7 @@ proposal = "ADZE-PROP-0004-toolkit-excellence"
 spec = "ADZE-SPEC-0005"
 adr = "ADZE-ADR-0001"
 plan = "plans/product-gap-burn-down/implementation-plan.md"
-prs = [298, 300, 309, 316]
+prs = [298, 300, 309, 316, 343]
 commands = [
   "cargo test -p adze --features external_scanners",
   "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests::test_parser_with_external_scanner -- --exact --nocapture",

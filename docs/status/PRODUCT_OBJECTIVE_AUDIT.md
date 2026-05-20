@@ -154,8 +154,8 @@ returns a diagnostic document with error facts. PR #316 expanded the generated
 external-token example matrix proving generated `parse_document()` returns
 diagnostic documents with bounded byte spans, matching point ranges,
 selected-tree error facts, and public expected-token names for malformed root,
-keyword, missing-colon, and trailing-token inputs. A follow-up matrix canary
-adds multibyte expression, invalid body, and newline-boundary body inputs and
+keyword, missing-colon, and trailing-token inputs. PR #343 adds multibyte
+expression, invalid body, and newline-boundary body inputs and
 compares generated `parse()` errors with `parse_document()` diagnostics for
 span and expected-token agreement. These receipts do not close the broader
 parser-generated external-scanner recovery gap, promote external scanners out
