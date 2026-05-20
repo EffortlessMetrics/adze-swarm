@@ -2,6 +2,11 @@
 
 How to publish the Adze release surface to crates.io.
 
+Current release/publish authorization and the post-publish crates.io install
+receipt are tracked in
+[`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
+That issue is a tracker, not authorization by itself.
+
 ## Publish Order
 
 Crates **must** be published in dependency order. The source of truth for the
