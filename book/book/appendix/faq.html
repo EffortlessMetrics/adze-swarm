@@ -184,27 +184,32 @@
                         <h1 id="frequently-asked-questions"><a class="header" href="#frequently-asked-questions">Frequently Asked Questions</a></h1>
 <h2 id="general-questions"><a class="header" href="#general-questions">General Questions</a></h2>
 <h3 id="what-is-adze"><a class="header" href="#what-is-adze">What is Adze?</a></h3>
-<p>Adze is a Rust framework that makes it easy to create efficient parsers by leveraging the Tree-sitter parser generator. It allows you to define grammars using Rust's type system with procedural macros.</p>
+<p>Adze is a Rust-native parser generator and runtime. It lets you define a
+grammar with Rust types and macros, generate a parser at build time, and parse
+directly into typed Rust values.</p>
 <h3 id="how-does-it-differ-from-tree-sitter"><a class="header" href="#how-does-it-differ-from-tree-sitter">How does it differ from Tree-sitter?</a></h3>
-<p>While Tree-sitter requires writing grammars in JavaScript, Adze lets you define grammars directly in Rust with type safety and IDE support. It generates Tree-sitter-compatible parsers while providing a more ergonomic Rust API.</p>
+<p>Tree-sitter starts with JavaScript grammar files and exposes a syntax-tree API.
+Adze starts with Rust grammar types and exposes <code>grammar::parse()</code> as the
+ergonomic typed-AST path. When tooling needs tree data, <code>parse_document()</code>
+returns the native parse product, and Tree-sitter-compatible output is a
+selected-tree adapter over that document data.</p>
+<p>Adze does not claim full Tree-sitter runtime, query, node-types, or imported
+grammar corpus parity.</p>
 <h3 id="what-languages-are-supported"><a class="header" href="#what-languages-are-supported">What languages are supported?</a></h3>
 <p>Adze can parse any language you define a grammar for. Example grammars are provided for JavaScript, Python, Go, and more. See the <a href="../reference/language-support.html">Language Support</a> page for details.</p>
 <h2 id="technical-questions"><a class="header" href="#technical-questions">Technical Questions</a></h2>
 <h3 id="what-is-glr-parsing"><a class="header" href="#what-is-glr-parsing">What is GLR parsing?</a></h3>
 <p>GLR (Generalized LR) parsing is an extension of LR parsing that can handle ambiguous grammars by maintaining multiple parse stacks. When the parser encounters ambiguity, it forks and explores all possibilities, merging when paths converge.</p>
-<h3 id="should-i-use-the-pure-rust-or-c-backend"><a class="header" href="#should-i-use-the-pure-rust-or-c-backend">Should I use the pure-Rust or C backend?</a></h3>
-<p><strong>Use pure-Rust if you need:</strong></p>
+<h3 id="which-parser-path-should-i-use"><a class="header" href="#which-parser-path-should-i-use">Which parser path should I use?</a></h3>
+<p>Use the generated pure-Rust parser path by default:</p>
 <ul>
-<li>WASM support</li>
-<li>No C dependencies</li>
-<li>Better cross-compilation</li>
-<li>Static parser generation</li>
+<li><code>grammar::parse(source)</code> for typed Rust values;</li>
+<li><code>grammar::parse_document(source)</code> for diagnostics, syntax/document facts,
+ambiguity summaries, JSON, and compatibility projections.</li>
 </ul>
-<p><strong>Use the C backend if you need:</strong></p>
-<ul>
-<li>Maximum compatibility with existing Tree-sitter tools</li>
-<li>Specific Tree-sitter features not yet in pure-Rust</li>
-</ul>
+<p>Use the Tree-sitter-compatible adapter only when an ecosystem tool expects
+Tree-sitter-shaped traversal. It is an advisory selected-tree subset, not the
+native parse truth.</p>
 <h3 id="how-do-i-handle-whitespace"><a class="header" href="#how-do-i-handle-whitespace">How do I handle whitespace?</a></h3>
 <p>Define whitespace as an "extra" token that's automatically skipped:</p>
 <pre><code class="language-rust">#[adze::extra]
@@ -213,39 +218,41 @@ struct Whitespace {
     _ws: (),
 }</code></pre>
 <h3 id="can-i-use-external-scanners"><a class="header" href="#can-i-use-external-scanners">Can I use external scanners?</a></h3>
-<p>Yes, but with limitations in the current beta. Basic external scanner support exists, but the full Tree-sitter external scanner API is still being implemented.</p>
+<p>Yes, but treat them as an advanced and experimental surface. Existing examples
+exercise scanner-style integration, but the full Tree-sitter external scanner
+API is not a Stable product contract.</p>
 <h2 id="performance-questions"><a class="header" href="#performance-questions">Performance Questions</a></h2>
 <h3 id="how-fast-is-adze"><a class="header" href="#how-fast-is-adze">How fast is Adze?</a></h3>
-<p>Adze parsers are comparable in speed to hand-written parsers:</p>
-<ul>
-<li><strong>Parsing</strong>: 50-200 MB/s typical</li>
-<li><strong>Incremental</strong>: Sub-millisecond for typical edits</li>
-<li><strong>Memory</strong>: Low overhead with object pooling</li>
-</ul>
+<p>Performance depends on the grammar, conflict shape, generated tables,
+diagnostics, and projections used. Benchmarks are advisory evidence until they
+are tied to fixture-backed performance receipts and support-tier rows.</p>
 <h3 id="does-it-support-incremental-parsing"><a class="header" href="#does-it-support-incremental-parsing">Does it support incremental parsing?</a></h3>
-<p>Yes! Incremental parsing is fully supported, allowing efficient reparsing after edits. This is essential for editor integrations.</p>
+<p>Incremental parsing is experimental. The accepted contract is document-centered:
+edits produce a new <code>AdzeDocument</code>, fallback to full reparse must be visible in
+metadata, and changed ranges may be conservative. Adze does not currently make a
+Stable claim about subtree reuse or edit-time speedups.</p>
 <h3 id="what-optimizations-are-available"><a class="header" href="#what-optimizations-are-available">What optimizations are available?</a></h3>
-<p>Enable optimizations via features:</p>
-<ul>
-<li><code>optimize</code>: Grammar optimizer</li>
-<li><code>parallel</code>: Multi-threaded parsing</li>
-<li><code>simd</code>: SIMD-accelerated lexing</li>
-</ul>
+<p>Use the default generated pure-Rust path first. Performance work should be
+measured against the benchmark and fixture matrix instead of enabled through
+undocumented feature flags.</p>
 <h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
 <h3 id="multiple-applicable-items-in-scope-error"><a class="header" href="#multiple-applicable-items-in-scope-error">"Multiple applicable items in scope" error</a></h3>
-<p>You likely have conflicting backend features enabled. Choose only one:</p>
-<ul>
-<li><code>pure-rust</code></li>
-<li><code>tree-sitter-c2rust</code></li>
-<li><code>tree-sitter-standard</code></li>
-</ul>
+<p>This usually means two generated helper traits or parser surfaces are both in
+scope. Narrow the imports and use the generated module's intended public API:</p>
+<pre><code class="language-rust">let ast = grammar::parse(source)?;
+let report = grammar::parse_document(source);</code></pre>
+<p>Avoid mixing low-level runtime, compatibility, and generated parser imports in
+the same module unless you are writing a test or adapter.</p>
 <h3 id="build-fails-with-macro-errors"><a class="header" href="#build-fails-with-macro-errors">Build fails with macro errors</a></h3>
 <p>Ensure both dependencies are present:</p>
+<p>This versioned dependency block is the intended release-surface shape after the
+coordinated publish. Current repo proof uses local/path dependencies from this
+checkout until crates.io receipts exist for the co-release crates.</p>
 <pre><code class="language-toml">[dependencies]
-adze = "0.8.0-dev"
+adze = "0.9.0"
 
 [build-dependencies]
-adze-tool = "0.8.0-dev"
+adze-tool = "0.9.0"
 </code></pre>
 <h3 id="grammar-has-conflicts"><a class="header" href="#grammar-has-conflicts">Grammar has conflicts</a></h3>
 <p>This is normal for ambiguous grammars. Options:</p>
@@ -292,8 +299,9 @@ const HIGH: u32 = 10;
 #[adze::prec_right(30)] // Exponentiation
 #[adze::prec(40)]       // Comparison operators</code></pre>
 <h3 id="wasm-build-fails"><a class="header" href="#wasm-build-fails">WASM build fails</a></h3>
-<p>Make sure you're using the <code>pure-rust</code> feature:</p>
-<pre><code class="language-toml">adze = { version = "0.8.0-dev", features = ["pure-rust"] }
+<p>Start with the pure-Rust parser surface and keep optional adapters out of the
+build until you need them:</p>
+<pre><code class="language-toml">adze = { version = "0.9.0", features = ["pure-rust"] }
 </code></pre>
 <h2 id="migration-questions"><a class="header" href="#migration-questions">Migration Questions</a></h2>
 <h3 id="how-do-i-migrate-from-tree-sitter"><a class="header" href="#how-do-i-migrate-from-tree-sitter">How do I migrate from Tree-sitter?</a></h3>
@@ -303,12 +311,14 @@ const HIGH: u32 = 10;
 <ul>
 <li>GLR parsing support</li>
 <li>Enhanced error recovery</li>
-<li>Pure-Rust backend option</li>
-<li>Improved incremental parsing</li>
+<li>Pure-Rust parser generation as the main path</li>
+<li>Early document, compatibility, and incremental lifecycle foundations</li>
 </ul>
 <p>See the <a href="changelog.html">Changelog</a> for details.</p>
 <h3 id="is-08-stable"><a class="header" href="#is-08-stable">Is 0.8 stable?</a></h3>
-<p>0.8.0-dev is feature-complete and under RC hardening.</p>
+<p>Use the support-tier ledger as the source of truth. Some surfaces are Stable,
+while document, Tree-sitter-compatible, incremental, query, CLI, and WASM
+surfaces may still be Stabilizing, Experimental, or Advisory.</p>
 <h2 id="contributing"><a class="header" href="#contributing">Contributing</a></h2>
 <h3 id="how-can-i-contribute"><a class="header" href="#how-can-i-contribute">How can I contribute?</a></h3>
 <p>We welcome contributions! See our <a href="../../CONTRIBUTING.html">Contributing Guide</a> for:</p>

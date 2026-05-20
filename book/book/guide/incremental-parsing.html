@@ -181,280 +181,132 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="incremental-parsing-in-adze"><a class="header" href="#incremental-parsing-in-adze">Incremental Parsing in adze</a></h1>
-<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
-<p>adze provides <strong>production-ready incremental parsing</strong> with the revolutionary <strong>Direct Forest Splicing algorithm</strong> (PR #58), achieving <strong>16x performance improvements</strong> over traditional approaches. Instead of reparsing entire documents, the system surgically reuses unchanged parse forest segments.</p>
-<h2 id="key-benefits-pr-58---production-ready"><a class="header" href="#key-benefits-pr-58---production-ready">Key Benefits (PR #58 - Production Ready)</a></h2>
-<ul>
-<li><strong>16x Performance Improvement</strong>: Direct Forest Splicing eliminates state restoration overhead</li>
-<li><strong>99.9% Subtree Reuse</strong>: Demonstrated 999/1000 subtree reuse for typical single-token edits</li>
-<li><strong>GLR Compatible</strong>: Maintains full ambiguity support during incremental updates</li>
-<li><strong>Conservative Correctness</strong>: Only reuses subtrees completely outside edit ranges</li>
-<li><strong>Tree-sitter API</strong>: Seamless integration via <code>Parser::parse(source, Some(&amp;old_tree))</code></li>
-</ul>
-<p>This revolutionary approach makes adze the fastest incremental parser for real-time IDE features, language servers, and live editing scenarios.</p>
-<h2 id="direct-forest-splicing-architecture"><a class="header" href="#direct-forest-splicing-architecture">Direct Forest Splicing Architecture</a></h2>
-<h3 id="revolutionary-algorithm-pr-58"><a class="header" href="#revolutionary-algorithm-pr-58">Revolutionary Algorithm (PR #58)</a></h3>
-<p>The Direct Forest Splicing algorithm revolutionizes incremental parsing by eliminating expensive state restoration:</p>
-<ol>
-<li><strong>Chunk Identification</strong> - Token-level diff identifies unchanged prefix/suffix ranges</li>
-<li><strong>Middle-Only Parsing</strong> - Parses ONLY the edited segment, avoiding state restoration</li>
-<li><strong>Forest Extraction</strong> - Recursively extracts reusable nodes from old parse forest</li>
-<li><strong>Surgical Splicing</strong> - Combines prefix + new middle + suffix with proper byte/token ranges</li>
-</ol>
-<h3 id="core-components"><a class="header" href="#core-components">Core Components</a></h3>
-<ol>
-<li>
-<p><strong>Tree-sitter Compatible Edit Operations</strong></p>
-<pre><code class="language-rust">use adze::ts_compat::{InputEdit, Point};
-
-let edit = InputEdit {
-    start_byte: 10,
-    old_end_byte: 15,
-    new_end_byte: 20,
-    start_position: Point { row: 0, column: 10 },
-    old_end_position: Point { row: 0, column: 15 },
-    new_end_position: Point { row: 0, column: 20 },
-};</code></pre>
-</li>
-<li>
-<p><strong>Production Parser API</strong></p>
-<pre><code class="language-rust">use adze::ts_compat::{Parser, Tree};
-
-let mut parser = Parser::new();
-parser.set_language(language)?;
-
-// Initial parse
-let tree = parser.parse("fn main() {}", None)?;
-
-// Apply edit and reparse incrementally
-let mut edited_tree = tree.clone();
-edited_tree.edit(&amp;edit);
-let new_tree = parser.parse("fn hello_world() {}", Some(&amp;edited_tree));</code></pre>
-</li>
-<li>
-<p><strong>Conservative Forest Reuse</strong></p>
-<ul>
-<li>Only reuses subtrees completely outside edit ranges</li>
-<li>Preserves GLR ambiguities during incremental updates</li>
-<li>Validates token boundaries and structural integrity</li>
-</ul>
-</li>
-<li>
-<p><strong>Performance Monitoring</strong></p>
-<pre><code class="language-bash"># Enable performance logging
-ADZE_LOG_PERFORMANCE=true cargo test incremental
-
-# Global reuse counters
-use adze::glr_incremental::{get_reuse_count, reset_reuse_counter};
+                        <h1 id="incremental-parsing"><a class="header" href="#incremental-parsing">Incremental Parsing</a></h1>
+<blockquote>
+<p><strong>Doc status:</strong> Incremental parsing is Experimental. The accepted contract is
+a document lifecycle contract, not a stable performance or subtree-reuse
+promise.</p>
+</blockquote>
+<p>Incremental parsing in Adze must attach to the canonical document model:</p>
+<pre><code class="language-text">old source
+  -&gt; grammar::parse_document(old_source)
+  -&gt; AdzeDocument snapshot
+  -&gt; edit description
+  -&gt; new AdzeDocument snapshot
+  -&gt; changed ranges / fallback metadata
 </code></pre>
-</li>
-</ol>
-<h2 id="how-it-works-direct-forest-splicing-algorithm"><a class="header" href="#how-it-works-direct-forest-splicing-algorithm">How It Works: Direct Forest Splicing Algorithm</a></h2>
-<p>The production implementation uses the revolutionary <strong>Direct Forest Splicing</strong> algorithm that achieves unprecedented performance by avoiding traditional state restoration.</p>
-<h3 id="1-chunk-identification-token-level-diff"><a class="header" href="#1-chunk-identification-token-level-diff">1. Chunk Identification (Token-Level Diff)</a></h3>
-<p>When an edit occurs, the algorithm:</p>
-<ul>
-<li><strong>Identifies unchanged prefix</strong>: Finds the longest unchanged token sequence before the edit</li>
-<li><strong>Identifies unchanged suffix</strong>: Finds the longest unchanged token sequence after the edit</li>
-<li><strong>Isolates edit region</strong>: Marks only the middle segment containing the actual changes</li>
-<li><strong>Preserves token boundaries</strong>: Ensures splicing occurs at clean token boundaries</li>
-</ul>
-<h3 id="2-middle-only-parsing-revolutionary-approach"><a class="header" href="#2-middle-only-parsing-revolutionary-approach">2. Middle-Only Parsing (Revolutionary Approach)</a></h3>
-<p>Instead of traditional incremental parsing that restores parser state:</p>
-<ul>
-<li><strong>Parse only the middle</strong>: GLR parser processes ONLY the edited segment</li>
-<li><strong>Skip state restoration</strong>: Avoids the 3-4x overhead of traditional incremental approaches</li>
-<li><strong>Generate fresh forest</strong>: Creates a new GLR parse forest for just the changed region</li>
-<li><strong>Maintain GLR properties</strong>: Preserves ambiguities and parse alternatives in the middle segment</li>
-</ul>
-<h3 id="3-forest-extraction-subtree-reuse"><a class="header" href="#3-forest-extraction-subtree-reuse">3. Forest Extraction (Subtree Reuse)</a></h3>
-<p>The algorithm efficiently reuses parse results:</p>
-<ul>
-<li><strong>Recursive extraction</strong>: Walks the old parse forest and extracts reusable subtrees</li>
-<li><strong>Conservative boundaries</strong>: Only reuses subtrees completely outside edit ranges</li>
-<li><strong>GLR-aware reuse</strong>: Preserves parse ambiguities during subtree extraction</li>
-<li><strong>Range validation</strong>: Ensures extracted subtrees don't overlap with edited regions</li>
-</ul>
-<h3 id="4-surgical-splicing-forest-combination"><a class="header" href="#4-surgical-splicing-forest-combination">4. Surgical Splicing (Forest Combination)</a></h3>
-<p>The final step combines all components:</p>
-<ul>
-<li><strong>Prefix splicing</strong>: Attaches unchanged prefix forest with correct byte ranges</li>
-<li><strong>Middle integration</strong>: Inserts the newly parsed middle segment</li>
-<li><strong>Suffix splicing</strong>: Attaches unchanged suffix forest with updated byte offsets</li>
-<li><strong>Range correction</strong>: Adjusts all byte positions to account for edit size changes</li>
-<li><strong>Ambiguity preservation</strong>: Maintains all GLR parse alternatives across splice boundaries</li>
-</ul>
-<h3 id="5-glr-integration-benefits"><a class="header" href="#5-glr-integration-benefits">5. GLR Integration Benefits</a></h3>
-<p>This approach is specifically designed for GLR parsers:</p>
-<ul>
-<li><strong>Ambiguity preservation</strong>: Multiple parse interpretations are maintained across edits</li>
-<li><strong>Conflict handling</strong>: Parse conflicts in unchanged regions remain valid</li>
-<li><strong>Performance scaling</strong>: Reuse effectiveness scales with file size (larger files = better reuse rates)</li>
-<li><strong>Memory efficiency</strong>: Shared forest nodes reduce memory overhead</li>
-</ul>
-<h2 id="usage-example-production-api---pr-62"><a class="header" href="#usage-example-production-api---pr-62">Usage Example (Production API - PR #62)</a></h2>
-<pre><code class="language-rust">use adze::parser_v4::{Parser, Tree};
-use adze::pure_incremental::Edit;
-use adze::pure_parser::Point;
-use adze::glr_incremental::{get_reuse_count, reset_reuse_counter};
-
-// Create parser (requires grammar, table, and language name)
-let mut parser = Parser::new(grammar, parse_table, "my_language".to_string());
-
-// Initial parse
-let tree1 = parser.parse("let x = 42;")?;
-
-// User changes "42" to "43"
-let edit = Edit {
-    start_byte: 8,
-    old_end_byte: 10,
-    new_end_byte: 10,
-    start_point: Point { row: 0, column: 8 },
-    old_end_point: Point { row: 0, column: 10 },
-    new_end_point: Point { row: 0, column: 10 },
-};
-
-// Reset reuse counter to track performance
-reset_reuse_counter();
-
-// Incremental reparse with automatic GLR routing
-let tree2 = parser.reparse("let x = 43;", &amp;tree1, &amp;edit)?;
-
-// Check subtree reuse statistics (when incremental_glr feature enabled)
-#[cfg(feature = "incremental_glr")]
-{
-    let reused = get_reuse_count();
-    println!("Reused {} subtrees", reused);
-    // Typical result: significant reuse for small edits
-}
-
-// Verify parsing succeeded
-assert_eq!(tree2.error_count, 0);</code></pre>
-<h2 id="feature-flags"><a class="header" href="#feature-flags">Feature Flags</a></h2>
-<p>Incremental parsing requires specific feature flags:</p>
-<pre><code class="language-toml">[dependencies]
-# Production incremental parsing (recommended)
-adze = { version = "0.8", features = ["incremental_glr"] }
-
-# Alternative: basic incremental support (legacy)
-adze = { version = "0.8", features = ["incremental_glr"] }
-
-# All features (comprehensive)
-adze = { version = "0.8", features = ["all-features"] }
+<p>The key rule is the same as the rest of the parser product:</p>
+<pre><code class="language-text">AdzeDocument is the one parse truth.
 </code></pre>
-<h2 id="performance-characteristics-validated-in-pr-62"><a class="header" href="#performance-characteristics-validated-in-pr-62">Performance Characteristics (Validated in PR #62)</a></h2>
-<h3 id="benchmark-results-direct-forest-splicing"><a class="header" href="#benchmark-results-direct-forest-splicing">Benchmark Results (Direct Forest Splicing)</a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Edit Type</th><th>Full Parse Time</th><th>Incremental Time</th><th>Speedup</th><th>Subtree Reuse</th></tr></thead><tbody>
-<tr><td>Single token</td><td>3.5ms</td><td>215μs</td><td><strong>16.3x</strong></td><td>999/1000</td></tr>
-<tr><td>Small word</td><td>~4.2ms</td><td>~280μs</td><td><strong>15.0x</strong></td><td>995/1000</td></tr>
-<tr><td>Line edit</td><td>~5.8ms</td><td>~520μs</td><td><strong>11.2x</strong></td><td>980/1000</td></tr>
-<tr><td>Block edit</td><td>~12ms</td><td>~1.8ms</td><td><strong>6.7x</strong></td><td>850/1000</td></tr>
-<tr><td>File append</td><td>~3.1ms</td><td>~180μs</td><td><strong>17.2x</strong></td><td>1000/1000</td></tr>
+<p>Incremental parsing must not become a separate runtime path with a separate
+tree, separate diagnostics, or hidden reuse claims.</p>
+<h2 id="current-contract"><a class="header" href="#current-contract">Current Contract</a></h2>
+<p>The accepted lifecycle contract is:</p>
+<ul>
+<li>a parse returns an immutable document snapshot;</li>
+<li>edits produce a new document snapshot;</li>
+<li>document-local node IDs are not stable across documents;</li>
+<li>cross-document identity requires explicit reuse, changed-range, or provenance
+metadata;</li>
+<li>fallback to a full reparse must be visible in parse metadata.</li>
+</ul>
+<p>The target shape is not a stable API promise yet, but it describes the behavior
+incremental work must converge on:</p>
+<pre><code class="language-rust ignore">let old = grammar::parse_document(old_source)?;
+let newer = old.reparse(new_source, &amp;[edit], ParseOptions::default())?;
+
+assert!(newer.metadata().incremental_requested);
+
+if !newer.metadata().incremental_used {
+    eprintln!("full reparse fallback: {:?}", newer.metadata().fallback_reason);
+}</code></pre>
+<p>This is a product honesty requirement. It is better to report a full reparse
+fallback than to silently claim incremental reuse that did not happen.</p>
+<h2 id="non-goals"><a class="header" href="#non-goals">Non-Goals</a></h2>
+<p>The current contract does not promise:</p>
+<ul>
+<li>stable incremental performance;</li>
+<li>a guaranteed reuse percentage;</li>
+<li>cross-document stable node handles;</li>
+<li>full Tree-sitter incremental API parity;</li>
+<li>full GLR forest reuse;</li>
+<li>release-blocking incremental support.</li>
+</ul>
+<h2 id="recommended-user-path"><a class="header" href="#recommended-user-path">Recommended User Path</a></h2>
+<p>Use the stable typed path when you only need values:</p>
+<pre><code class="language-rust">let ast = grammar::parse(source)?;</code></pre>
+<p>Use the document path when you are building editor, CLI, or language tooling:</p>
+<pre><code class="language-rust">let document = grammar::parse_document(source)?;
+let diagnostics = document.diagnostics();
+let tree = document.tree();</code></pre>
+<p>Incremental behavior should layer on top of that document lifecycle. Tooling
+should always be prepared for a full-reparse fallback until the support tier
+changes.</p>
+<h2 id="metadata-first"><a class="header" href="#metadata-first">Metadata First</a></h2>
+<p>Every incremental result needs metadata that answers:</p>
+<div class="table-wrapper"><table><thead><tr><th>Question</th><th>Why it matters</th></tr></thead><tbody>
+<tr><td>Was incremental parsing requested?</td><td>Distinguishes ordinary parses from editor-driven reparses.</td></tr>
+<tr><td>Was incremental parsing actually used?</td><td>Prevents silent reuse claims.</td></tr>
+<tr><td>Why did it fall back?</td><td>Gives users and agents a debuggable receipt.</td></tr>
+<tr><td>What changed?</td><td>Lets tooling update diagnostics, highlights, and caches conservatively.</td></tr>
 </tbody></table>
 </div>
-<p><em>Benchmarks performed on 1,000-token arithmetic expressions on modern hardware</em></p>
-<h3 id="performance-features-production-validated"><a class="header" href="#performance-features-production-validated">Performance Features (Production Validated)</a></h3>
+<p>If the runtime cannot safely prove reuse, it should return a correct document
+with fallback metadata.</p>
+<h2 id="changed-ranges"><a class="header" href="#changed-ranges">Changed Ranges</a></h2>
+<p>Changed ranges are conservative receipts. They should be safe for downstream
+tooling even before Adze claims stable incremental performance.</p>
+<p>For a full-reparse fallback, a conservative implementation may report:</p>
 <ul>
-<li><strong>16x average speedup</strong> for typical single-token edits</li>
-<li><strong>999/1000 subtree reuse</strong> achieved through conservative reuse strategy</li>
-<li><strong>Sub-millisecond parsing</strong> for most common edit scenarios</li>
-<li><strong>Linear scaling</strong>: Performance improves with larger files due to better reuse ratios</li>
-<li><strong>Zero overhead</strong>: No performance cost when <code>incremental_glr</code> feature disabled</li>
+<li>the whole document;</li>
+<li>the text-diff range;</li>
+<li>or another explicit fallback range that does not hide uncertainty.</li>
 </ul>
-<h2 id="implementation-details"><a class="header" href="#implementation-details">Implementation Details</a></h2>
-<h3 id="subtree-validation"><a class="header" href="#subtree-validation">Subtree Validation</a></h3>
-<p>Reusable subtrees must satisfy:</p>
-<ol>
-<li>No overlap with edited regions</li>
-<li>Token sequence matches at subtree position</li>
-<li>Symbol is valid for current parser state</li>
-<li>No fragile tokens that might change meaning</li>
-</ol>
-<h3 id="memory-management"><a class="header" href="#memory-management">Memory Management</a></h3>
+<p>Do not treat unchanged ranges as proof of stable node identity unless the API
+explicitly provides provenance metadata.</p>
+<h2 id="glr-and-ambiguity"><a class="header" href="#glr-and-ambiguity">GLR And Ambiguity</a></h2>
+<p>GLR incremental work must preserve the same native truth model:</p>
 <ul>
-<li>Subtrees are reference-counted (<code>Arc&lt;Subtree&gt;</code>)</li>
-<li>Old trees are automatically garbage collected</li>
-<li>Pool size is bounded to prevent unbounded growth</li>
+<li>the new document has one selected tree;</li>
+<li>ambiguity summaries remain document facts;</li>
+<li>Tree-sitter-compatible output exposes the selected tree only;</li>
+<li>raw forest reuse/export stays experimental unless support tiers change.</li>
 </ul>
-<h3 id="thread-safety"><a class="header" href="#thread-safety">Thread Safety</a></h3>
+<h2 id="proof-before-promotion"><a class="header" href="#proof-before-promotion">Proof Before Promotion</a></h2>
+<p>Incremental parsing should remain Experimental until these receipts exist for
+supported generated parser paths:</p>
 <ul>
-<li>Parser itself is not thread-safe (single-threaded parsing)</li>
-<li>Subtrees can be shared across threads (immutable Arc)</li>
-<li>Multiple parsers can share the same grammar</li>
+<li>full-reparse fallback metadata canary;</li>
+<li>changed-range canary;</li>
+<li>unsupported incremental path fails honestly or reports fallback;</li>
+<li>reparse result remains an <code>AdzeDocument</code>;</li>
+<li>diagnostics and ambiguity summaries agree with the new document;</li>
+<li>benchmarks are tied to fixtures and do not replace correctness proof.</li>
 </ul>
-<h2 id="benchmarking"><a class="header" href="#benchmarking">Benchmarking</a></h2>
-<p>Run incremental parsing benchmarks:</p>
-<pre><code class="language-bash">cargo bench --bench incremental_parsing
+<p>Focused proof belongs in the incremental lifecycle lane:</p>
+<pre><code class="language-bash">cargo test -p adze --features incremental_glr --test glr_incremental_comprehensive -- --nocapture
+git diff --check
 </code></pre>
-<p>This compares:</p>
+<p>Use the supported gate before submitting product changes:</p>
+<pre><code class="language-bash">just ci-supported
+</code></pre>
+<h2 id="known-limits"><a class="header" href="#known-limits">Known Limits</a></h2>
 <ul>
-<li>Full parse time (baseline)</li>
-<li>Single character edit</li>
-<li>Line insertion</li>
-<li>Block deletion</li>
-<li>File append</li>
+<li>Incremental parsing is not a Stable product claim.</li>
+<li>Performance numbers require benchmark receipts.</li>
+<li>Full Tree-sitter incremental API parity is not claimed.</li>
+<li>Full GLR forest reuse is not claimed.</li>
+<li>Node IDs remain document-local.</li>
 </ul>
-<h2 id="implementation-status-september-2025"><a class="header" href="#implementation-status-september-2025">Implementation Status (September 2025)</a></h2>
-<h3 id="-completed-pr-62"><a class="header" href="#-completed-pr-62">✅ Completed (PR #62)</a></h3>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
 <ul>
-<li><strong>Production API</strong>: <code>Parser::reparse()</code> method integrated and working</li>
-<li><strong>Automatic GLR Integration</strong>: Routes to GLR incremental parsing when feature enabled</li>
-<li><strong>Subtree Reuse Tracking</strong>: Global counters for performance monitoring</li>
-<li><strong>Graceful Fallback</strong>: Falls back to full parse when incremental parsing fails</li>
-<li><strong>Comprehensive Testing</strong>: Full test suite including verification tests</li>
-<li><strong>Performance Validation</strong>: 16x speedup demonstrated for typical edits</li>
-<li><strong>Feature Flag Integration</strong>: Properly gated with <code>incremental_glr</code> feature</li>
+<li><a href="parser-generation.html">Parser Generation</a></li>
+<li><a href="error-recovery.html">Error Recovery</a></li>
+<li><a href="performance.html">Performance</a></li>
+<li><a href="../reference/known-limitations.html">Known Limitations</a></li>
+<li><code>docs/specs/ADZE-SPEC-0009-incremental-document-lifecycle.md</code></li>
+<li><code>docs/status/SUPPORT_TIERS.md</code></li>
 </ul>
-<h3 id="performance-results-achieved"><a class="header" href="#performance-results-achieved">Performance Results Achieved</a></h3>
-<ul>
-<li><strong>Large File Test</strong>: 1,000 tokens, single edit
-<ul>
-<li>Full parse: 3.5ms</li>
-<li>Incremental parse: 215μs</li>
-<li><strong>Speedup: 16.34×</strong></li>
-<li><strong>Reused: 999 subtrees</strong></li>
-</ul>
-</li>
-</ul>
-<h2 id="future-improvements"><a class="header" href="#future-improvements">Future Improvements</a></h2>
-<ol>
-<li>
-<p><strong>Enhanced Reuse Strategies</strong></p>
-<ul>
-<li>Grammar-aware root selection in splicing</li>
-<li>Configurable reuse granularity thresholds</li>
-<li>Context-sensitive subtree matching</li>
-</ul>
-</li>
-<li>
-<p><strong>Performance Optimizations</strong></p>
-<ul>
-<li>CI performance regression gates</li>
-<li>Parallel subtree validation for large files</li>
-<li>Profile-guided optimization based on usage patterns</li>
-</ul>
-</li>
-<li>
-<p><strong>Extended Incremental Support</strong></p>
-<ul>
-<li>Incremental lexing for token stream reuse</li>
-<li>Multi-edit batching for complex operations</li>
-<li>Incremental query result updates</li>
-</ul>
-</li>
-</ol>
-<h2 id="conclusion"><a class="header" href="#conclusion">Conclusion</a></h2>
-<p>Incremental parsing is now a <strong>production-ready cornerstone feature</strong> that enables adze to power real-time IDE experiences. The implementation provides Tree-sitter compatible performance with the safety and extensibility of pure Rust.</p>
-<p><strong>Key Achievements</strong>:</p>
-<ul>
-<li>✅ <strong>16x performance improvement</strong> for typical edits</li>
-<li>✅ <strong>Production API</strong> integrated into main Parser</li>
-<li>✅ <strong>Comprehensive testing</strong> with verification suite</li>
-<li>✅ <strong>Feature-gated</strong> with graceful fallback behavior</li>
-<li>✅ <strong>Tree-sitter compatible</strong> API patterns</li>
-</ul>
-<p>For detailed usage instructions, see <a href="../../../docs/how-to/incremental-parsing-guide.html">How to Use Incremental Parsing</a>.</p>
 
                     </main>
 

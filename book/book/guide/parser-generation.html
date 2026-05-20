@@ -182,195 +182,159 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="parser-generation"><a class="header" href="#parser-generation">Parser Generation</a></h1>
-<p>This chapter explains how Adze transforms your grammar definitions into efficient parsers.</p>
-<h2 id="the-generation-process"><a class="header" href="#the-generation-process">The Generation Process</a></h2>
-<h3 id="build-time-generation"><a class="header" href="#build-time-generation">Build-Time Generation</a></h3>
-<p>Adze uses a build script to generate parsers at compile time:</p>
-<ol>
-<li><strong>Grammar Extraction</strong>: The <code>adze-tool</code> reads your Rust source files</li>
-<li><strong>IR Generation</strong>: Converts Rust types to an intermediate representation</li>
-<li><strong>Parser Generation</strong>: Creates Tree-sitter grammar JSON or pure-Rust tables</li>
-<li><strong>Compilation</strong>: Compiles the generated parser into your binary</li>
-</ol>
-<h3 id="generated-files"><a class="header" href="#generated-files">Generated Files</a></h3>
-<p>When you build with <code>ADZE_EMIT_ARTIFACTS=true</code>, you can inspect:</p>
-<pre><code>target/debug/build/*/out/
-├── grammar.json        # Tree-sitter grammar
-├── parser.c           # Generated C parser (C backend)
-├── parser_tables.rs   # Generated Rust tables (pure-Rust)
-└── node-types.json    # AST node type information
+<blockquote>
+<p><strong>Doc status:</strong> Aligned with the generated-parser product surface. The stable
+front door is generated <code>grammar::parse()</code>. Tooling uses generated
+<code>grammar::parse_document()</code>. GLR, Tree-sitter compatibility, document JSON,
+and incremental surfaces follow their support-tier rows.</p>
+</blockquote>
+<p>Adze turns Rust grammar types into generated parser code at build time. The
+ordinary user path is:</p>
+<pre><code class="language-text">Rust type annotations
+  -&gt; grammar IR
+  -&gt; parse table
+  -&gt; generated parser module
+  -&gt; grammar::parse(source)
 </code></pre>
-<h2 id="runtime-backends"><a class="header" href="#runtime-backends">Runtime Backends</a></h2>
-<h3 id="glr-runtime-runtime2---production-ready"><a class="header" href="#glr-runtime-runtime2---production-ready">GLR Runtime (runtime2) - <strong>Production Ready</strong></a></h3>
-<p>The modern GLR runtime provides:</p>
-<ul>
-<li><strong>Tree-sitter Compatible API</strong>: Drop-in replacement with <code>Parser::new()</code>, <code>parse()</code>, etc.</li>
-<li><strong>GLR Engine Integration</strong>: Handles ambiguous grammars with multiple parse paths</li>
-<li><strong>Incremental Parsing</strong>: Automatic subtree reuse with conservative conflict avoidance</li>
-<li><strong>Performance Monitoring</strong>: Built-in metrics via <code>ADZE_LOG_PERFORMANCE</code></li>
-<li><strong>Feature Gates</strong>: <code>glr</code>, <code>incremental_glr</code>, <code>arenas</code> for different capabilities</li>
-</ul>
-<pre><code class="language-rust">use adze_runtime::{Parser, Language};
-
-let mut parser = Parser::new();
-parser.set_language(glr_language)?;  // Validates parse table presence
-let tree = parser.parse_utf8("def main(): pass", None)?;</code></pre>
-<h3 id="pure-rust-backend-runtime"><a class="header" href="#pure-rust-backend-runtime">Pure-Rust Backend (runtime)</a></h3>
-<p>The original pure-Rust backend generates:</p>
-<ul>
-<li>Static parse tables as Rust constants</li>
-<li>Compile-time optimized state machines</li>
-<li>Zero runtime parser generation</li>
-<li>WASM-compatible parsing</li>
-</ul>
-<h3 id="c-backend"><a class="header" href="#c-backend">C Backend</a></h3>
-<p>The C backend generates:</p>
-<ul>
-<li>Tree-sitter grammar.json</li>
-<li>C parser via Tree-sitter CLI</li>
-<li>Runtime parser initialization</li>
-</ul>
-<h2 id="optimization-phases"><a class="header" href="#optimization-phases">Optimization Phases</a></h2>
-<p>With the <code>optimize</code> feature enabled:</p>
+<p>The tooling path uses the same generated parser and returns the canonical
+document model:</p>
+<pre><code class="language-text">source
+  -&gt; generated parser
+  -&gt; AdzeDocument
+      -&gt; typed AST
+      -&gt; generic CST
+      -&gt; typed CST
+      -&gt; diagnostics
+      -&gt; ambiguity summaries
+      -&gt; Tree-sitter-compatible selected tree
+      -&gt; JSON / CLI projections
+</code></pre>
+<p><code>AdzeDocument</code> is the one parse truth. Optional views project from it rather
+than creating separate parser products.</p>
+<h2 id="build-time-generation"><a class="header" href="#build-time-generation">Build-Time Generation</a></h2>
+<p>Adze generation has four main steps:</p>
 <ol>
-<li><strong>Dead Code Elimination</strong>: Removes unreachable rules</li>
-<li><strong>Inline Expansion</strong>: Inlines simple rules</li>
-<li><strong>State Minimization</strong>: Reduces parser states</li>
-<li><strong>Table Compression</strong>: Compresses parse tables</li>
+<li><strong>Grammar extraction</strong>: <code>adze-tool</code> reads Rust source marked with Adze
+attributes.</li>
+<li><strong>IR generation</strong>: Rust types become grammar IR.</li>
+<li><strong>Table generation</strong>: tablegen builds compressed parser tables and metadata.</li>
+<li><strong>Parser emission</strong>: generated Rust modules expose the user APIs.</li>
 </ol>
-<h2 id="understanding-parse-tables"><a class="header" href="#understanding-parse-tables">Understanding Parse Tables</a></h2>
-<h3 id="lr1-tables"><a class="header" href="#lr1-tables">LR(1) Tables</a></h3>
-<p>The parser uses LR(1) tables containing:</p>
+<p>The generated module should be the API most application code calls:</p>
+<pre><code class="language-rust">let ast = grammar::parse("1 + 2 * 3")?;</code></pre>
+<p>Use the document path when a tool needs syntax facts, diagnostics, ambiguity, or
+compatibility projections:</p>
+<pre><code class="language-rust">let document = grammar::parse_document("1 +")?;
+let diagnostics = document.diagnostics();
+let root = document.tree().root();</code></pre>
+<h2 id="generated-artifacts"><a class="header" href="#generated-artifacts">Generated Artifacts</a></h2>
+<p>When <code>ADZE_EMIT_ARTIFACTS=true</code>, builds can emit inspectable artifacts under the
+build output directory. Exact paths depend on the generated grammar, but common
+artifact families are:</p>
+<pre><code class="language-text">grammar.json
+parser_tables.rs
+node-types.json
+*.parsetable
+</code></pre>
+<p>Treat emitted artifacts as receipts and debugging aids unless a support-tier row
+promotes them for a public surface. For example, <code>node-types.json</code> and
+Tree-sitter-compatible metadata are useful, but full Tree-sitter parity is not a
+stable claim.</p>
+<h2 id="runtime-surfaces"><a class="header" href="#runtime-surfaces">Runtime Surfaces</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Surface</th><th>Use</th><th>Support posture</th></tr></thead><tbody>
+<tr><td><code>grammar::parse(source)</code></td><td>Typed Rust values</td><td>Stable front door</td></tr>
+<tr><td><code>grammar::parse_document(source)</code></td><td>Tooling document facts</td><td>Experimental/Stabilizing by surface</td></tr>
+<tr><td><code>document.as_tree_sitter()</code></td><td>Selected-tree compatibility</td><td>Advisory subset</td></tr>
+<tr><td>document JSON</td><td>Schema-tagged document projection</td><td>Experimental/advisory</td></tr>
+<tr><td>incremental document lifecycle</td><td>Reparse/fallback metadata</td><td>Experimental</td></tr>
+</tbody></table>
+</div>
+<p>Lower-level parser, table, and compatibility modules exist for generated code
+and implementation work. They are not the ordinary user entry point.</p>
+<h2 id="glr-generation"><a class="header" href="#glr-generation">GLR Generation</a></h2>
+<p>GLR support preserves and routes conflict cells that ordinary LR parsing cannot
+represent as a single action. The current product posture is:</p>
 <ul>
-<li><strong>Action Table</strong>: Maps (state, token) → action</li>
-<li><strong>Goto Table</strong>: Maps (state, non-terminal) → state</li>
-<li><strong>Reduce Table</strong>: Production rules for reductions</li>
+<li>GLR conflict routing is <strong>Stabilizing</strong>.</li>
+<li>Generated parser canaries prove selected-tree determinism for specific
+conflict classes.</li>
+<li>Ambiguity summaries are native document facts.</li>
+<li>Tree-sitter-compatible output exposes the selected tree only.</li>
 </ul>
-<h3 id="glr-extensions-production-ready---enhanced-v061"><a class="header" href="#glr-extensions-production-ready---enhanced-v061">GLR Extensions (Production Ready - Enhanced v0.6.1)</a></h3>
-<p>GLR parsing in runtime2 provides robust conflict resolution:</p>
-<ul>
-<li><strong>Multi-Action Cells</strong>: Each (state, symbol) pair can hold multiple conflicting actions</li>
-<li><strong>Runtime Forking</strong>: Parser dynamically forks on conflicts, exploring all valid paths</li>
-<li><strong>Precedence Disambiguation</strong>: Correctly resolves operator precedence (e.g., <code>1+2*3</code> → <code>1+(2*3)</code>)</li>
-<li><strong>Error Recovery</strong>: Graceful handling of malformed input with error node insertion</li>
-<li><strong>EOF Processing</strong>: Fixed <code>process_eof()</code> parameter usage for proper end-of-input handling</li>
-<li><strong>Forest Management</strong>: Efficient handling of ambiguous parse forests</li>
-<li><strong>Tree Conversion</strong>: High-performance forest-to-tree conversion with metrics</li>
-<li><strong>Conflict Preservation</strong>: Precedence/associativity orders actions but preserves alternatives</li>
-</ul>
-<p><strong>Example: Handling Ambiguous Grammar</strong></p>
-<pre><code class="language-rust">// Grammar with shift/reduce conflicts
-#[adze::language]
-struct Module {
-    statements: Vec&lt;Statement&gt;, // REPEAT(_statement) creates conflicts
-}
+<p>Example generated usage stays the same:</p>
+<pre><code class="language-rust">let ast = grammar::parse(source)?;
 
-// GLR parser handles both:
-// 1. Empty files (reduce to empty module)
-// 2. Files with statements (shift tokens)
-let tree = parser.parse_utf8("", None)?;          // Empty file
-let tree = parser.parse_utf8("def main():", None)?; // With statement
-
-// Error recovery example:
-let tree = parser.parse_utf8("1 + + 2", None)?;   // Recovers from double operator
-// Result includes error nodes for invalid syntax while continuing to parse</code></pre>
-<h3 id="error-recovery-enhancements-v061"><a class="header" href="#error-recovery-enhancements-v061">Error Recovery Enhancements (v0.6.1)</a></h3>
-<p>The GLR parser now includes robust error recovery:</p>
-<pre><code class="language-rust">// Input with syntax errors:
-let malformed_input = "def func( # missing closing paren\n  pass";
-
-// Parser gracefully recovers:
-let tree = parser.parse_utf8(malformed_input, None)?;
-
-// Parse tree includes error nodes:
-Module {
-    statements: vec![
-        FunctionDef {
-            name: Identifier("func"),
-            params: ErrorNode {           // Error recovery inserted
-                children: [/* partial param list */]
-            },
-            body: Block {
-                statements: [Pass]        // Continues parsing after error
-            }
-        }
-    ]
-}</code></pre>
+let document = grammar::parse_document(source)?;
+println!("ambiguities: {}", document.ambiguities().len());</code></pre>
+<p>Do not infer broad stable GLR, full forest, full Tree-sitter parity, or query
+parity from the existence of generated GLR paths. Use
+<code>docs/status/SUPPORT_TIERS.md</code> for the current proof map.</p>
 <h2 id="debugging-generation"><a class="header" href="#debugging-generation">Debugging Generation</a></h2>
-<h3 id="enable-debug-output"><a class="header" href="#enable-debug-output">Enable Debug Output</a></h3>
-<pre><code class="language-bash">RUST_LOG=debug cargo build
-</code></pre>
-<p>Shows:</p>
-<ul>
-<li>Grammar extraction steps</li>
-<li>Conflict detection</li>
-<li>Table generation</li>
-<li>Optimization decisions</li>
-<li>GLR state construction</li>
-</ul>
-<h3 id="enable-performance-monitoring"><a class="header" href="#enable-performance-monitoring">Enable Performance Monitoring</a></h3>
-<pre><code class="language-bash">ADZE_LOG_PERFORMANCE=true cargo run
-</code></pre>
-<p>Outputs:</p>
-<pre><code>🚀 Forest-&gt;Tree conversion: 1247 nodes, depth 23, took 2.1ms
-</code></pre>
-<h3 id="inspect-generated-grammar"><a class="header" href="#inspect-generated-grammar">Inspect Generated Grammar</a></h3>
+<h3 id="emit-artifacts"><a class="header" href="#emit-artifacts">Emit artifacts</a></h3>
 <pre><code class="language-bash">ADZE_EMIT_ARTIFACTS=true cargo build
-cat target/debug/build/*/out/grammar.json | jq
 </code></pre>
-<h3 id="glr-specific-debugging"><a class="header" href="#glr-specific-debugging">GLR-Specific Debugging</a></h3>
-<pre><code class="language-rust">// Debug GLR parse table loading
-let language = Language::new_glr(parse_table, tokenizer, symbols);
-match language.validate_glr() {
-    Ok(()) =&gt; println!("GLR validation passed"),
-    Err(msg) =&gt; eprintln!("GLR validation failed: {}", msg),
-}</code></pre>
+<p>Use this when you need to inspect generated grammar JSON, parser tables,
+node-types metadata, or <code>.parsetable</code> receipts.</p>
+<h3 id="enable-runtime-logging"><a class="header" href="#enable-runtime-logging">Enable runtime logging</a></h3>
+<pre><code class="language-bash">ADZE_LOG_PERFORMANCE=true cargo test -p adze --features "pure-rust,glr"
+</code></pre>
+<p>Runtime performance logs are diagnostic output, not a performance contract.
+Performance claims should be tied to benchmark fixtures and receipts.</p>
+<h3 id="run-focused-proof"><a class="header" href="#run-focused-proof">Run focused proof</a></h3>
+<pre><code class="language-bash">cargo test -p adze-glr-core conflict ambiguity -- --nocapture
+cargo test -p adze-tablegen --all-features
+cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_e2e_ambiguous_grammar_glr -- --nocapture
+</code></pre>
+<p>Before submitting product-facing changes, run the supported gate:</p>
+<pre><code class="language-bash">just ci-supported
+</code></pre>
 <h2 id="common-issues"><a class="header" href="#common-issues">Common Issues</a></h2>
-<h3 id="large-parse-tables"><a class="header" href="#large-parse-tables">Large Parse Tables</a></h3>
-<p>Large grammars can generate big tables. Solutions:</p>
+<h3 id="large-parse-tables"><a class="header" href="#large-parse-tables">Large parse tables</a></h3>
+<p>Large grammars can produce large tables. Prefer focused changes first:</p>
 <ol>
-<li>Enable the <code>optimize</code> feature for table compression</li>
-<li>Simplify grammar rules and reduce conflicts</li>
-<li>Use <code>Box</code> for recursive types to reduce stack usage</li>
-<li>Consider using GLR runtime2 which handles complex grammars efficiently</li>
+<li>simplify grammar rules when possible;</li>
+<li>reduce accidental conflicts;</li>
+<li>inspect emitted artifacts;</li>
+<li>run tablegen/GLR proof before claiming product support.</li>
 </ol>
-<h3 id="slow-build-times"><a class="header" href="#slow-build-times">Slow Build Times</a></h3>
+<h3 id="slow-build-times"><a class="header" href="#slow-build-times">Slow build times</a></h3>
 <p>Parser generation can be slow for complex grammars:</p>
 <ol>
-<li>Use <code>cargo check</code> during development</li>
-<li>Enable incremental compilation</li>
-<li>Consider splitting large grammars</li>
-<li>Use runtime2 for faster development iteration</li>
+<li>use <code>cargo check</code> or <code>just check-fast</code> during iteration;</li>
+<li>keep generated artifacts available when debugging;</li>
+<li>split large changes into smaller grammar/tablegen slices;</li>
+<li>avoid broad full-matrix or coverage proof unless the lane requires it.</li>
 </ol>
-<h3 id="glr-memory-usage"><a class="header" href="#glr-memory-usage">GLR Memory Usage</a></h3>
-<p>GLR parsing uses more memory due to multiple parse paths:</p>
+<h3 id="glr-memory-usage"><a class="header" href="#glr-memory-usage">GLR memory usage</a></h3>
+<p>GLR parsing may retain more state because it explores conflicting paths:</p>
 <ol>
-<li>Enable <code>arenas</code> feature for better allocation performance</li>
-<li>Monitor forest-to-tree conversion metrics</li>
-<li>Use incremental parsing to reduce full parse frequency</li>
-<li>Consider parser timeouts for pathological inputs</li>
+<li>benchmark representative fixtures before optimizing;</li>
+<li>inspect ambiguity summaries to understand conflict shape;</li>
+<li>keep full-forest export experimental until the support tier changes;</li>
+<li>prefer selected-tree/document projections for ordinary tooling.</li>
 </ol>
-<h2 id="runtime-selection-guide"><a class="header" href="#runtime-selection-guide">Runtime Selection Guide</a></h2>
-<h3 id="choose-runtime2-glr-when"><a class="header" href="#choose-runtime2-glr-when">Choose runtime2 (GLR) when:</a></h3>
+<h2 id="choosing-an-api"><a class="header" href="#choosing-an-api">Choosing An API</a></h2>
+<p>Choose <code>grammar::parse()</code> when:</p>
 <ul>
-<li>Parsing ambiguous grammars (C++, natural language)</li>
-<li>Need incremental parsing performance</li>
-<li>Want Tree-sitter API compatibility</li>
-<li>Require robust conflict handling</li>
+<li>you want typed semantic Rust values;</li>
+<li>you are writing an application parser;</li>
+<li>you do not need diagnostics or syntax-tree inspection.</li>
 </ul>
-<h3 id="choose-runtime-pure-rust-when"><a class="header" href="#choose-runtime-pure-rust-when">Choose runtime (Pure Rust) when:</a></h3>
+<p>Choose <code>grammar::parse_document()</code> when:</p>
 <ul>
-<li>WASM deployment is critical</li>
-<li>Grammar is unambiguous</li>
-<li>Maximum performance for simple grammars</li>
-<li>Minimal binary size requirements</li>
+<li>you need diagnostics, source ranges, fields, or CST facts;</li>
+<li>you are building CLI/editor/tooling integrations;</li>
+<li>you need GLR ambiguity summaries;</li>
+<li>you need Tree-sitter-compatible selected-tree or JSON projections.</li>
 </ul>
+<p>Use lower-level table or compatibility modules only for implementation work,
+advanced integration, or proof lanes.</p>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
 <ul>
-<li>Learn about <a href="incremental-parsing.html">Incremental Parsing</a></li>
-<li>Explore <a href="performance.html">Performance Optimization</a></li>
-<li>Read about <a href="error-recovery.html">Error Recovery</a></li>
-<li>Understand <a href="glr-ambiguity.html">GLR Ambiguity Handling</a></li>
+<li><a href="../getting-started/quickstart.html">Quickstart</a></li>
+<li><a href="../reference/api.html">API Reference</a></li>
+<li><a href="../reference/known-limitations.html">Known Limitations</a></li>
+<li><code>docs/status/SUPPORT_TIERS.md</code></li>
 </ul>
 
                     </main>

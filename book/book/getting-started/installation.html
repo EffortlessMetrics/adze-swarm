@@ -185,83 +185,66 @@
 <p>This chapter covers how to install and set up Adze in your project.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
-<li>Rust 1.92.0 or later (2024 edition)</li>
+<li>Rust 1.95.0 or later (2024 edition)</li>
 <li>Cargo (comes with Rust)</li>
 </ul>
 <h2 id="adding-dependencies"><a class="header" href="#adding-dependencies">Adding Dependencies</a></h2>
 <p>Add Adze to your <code>Cargo.toml</code>:</p>
+<p>The versioned dependency block is the intended release-surface shape after the
+coordinated publish. Current repo proof uses local/path dependencies from this
+checkout until crates.io receipts exist for the co-release crates.</p>
 <pre><code class="language-toml">[dependencies]
-adze = "0.8"
+adze = { version = "0.9.0", default-features = false }
 
 [build-dependencies]
-adze-tool = "0.8"
+adze-tool = "0.9.0"
+
+[features]
+default = ["pure-rust"]
+pure-rust = ["adze/pure-rust"]
 </code></pre>
-<h2 id="choosing-a-backend"><a class="header" href="#choosing-a-backend">Choosing a Backend</a></h2>
-<p>Adze offers three backend options via feature flags:</p>
-<h3 id="pure-rust-backend-recommended"><a class="header" href="#pure-rust-backend-recommended">Pure-Rust Backend (Recommended)</a></h3>
-<p>The pure-Rust backend generates static parsers at compile-time without C dependencies:</p>
-<pre><code class="language-toml">[dependencies]
-adze = { version = "0.8", features = ["pure-rust"] }
-</code></pre>
-<p><strong>Advantages:</strong></p>
-<ul>
-<li>No C dependencies</li>
-<li>Full WASM support</li>
-<li>Better compile-time optimization</li>
-<li>Easier cross-compilation</li>
-</ul>
-<h3 id="c2rust-backend"><a class="header" href="#c2rust-backend">C2Rust Backend</a></h3>
-<p>Legacy backend using transpiled C code:</p>
-<pre><code class="language-toml">[dependencies]
-adze = { version = "0.8", features = ["tree-sitter-c2rust"] }
-</code></pre>
-<h3 id="standard-tree-sitter-backend"><a class="header" href="#standard-tree-sitter-backend">Standard Tree-sitter Backend</a></h3>
-<p>Uses the standard Tree-sitter C runtime:</p>
-<pre><code class="language-toml">[dependencies]
-adze = { version = "0.8", features = ["tree-sitter-standard"] }
-</code></pre>
+<p>The generated pure-Rust parser path is the supported front door. Lower-level
+compatibility, WASM, CLI, and experimental runtime surfaces follow their
+support-tier rows and should not be treated as the default installation path.</p>
+<h2 id="feature-posture"><a class="header" href="#feature-posture">Feature Posture</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Use</th><th>Support posture</th></tr></thead><tbody>
+<tr><td><code>pure-rust</code></td><td>Generated parser front door</td><td>Stable</td></tr>
+<tr><td><code>glr</code></td><td>Ambiguous grammar conflict routing</td><td>Stabilizing</td></tr>
+<tr><td><code>serialization</code></td><td>Core table serialization and document JSON</td><td>Stable/advisory by surface</td></tr>
+<tr><td><code>ts-compat</code></td><td>Tree-sitter-compatible selected-tree adapter</td><td>Advisory</td></tr>
+<tr><td><code>incremental_glr</code></td><td>Incremental lifecycle experiments</td><td>Experimental</td></tr>
+</tbody></table>
+</div>
 <h2 id="build-configuration"><a class="header" href="#build-configuration">Build Configuration</a></h2>
 <p>Create a <code>build.rs</code> file in your project root:</p>
 <pre><code class="language-rust">use std::path::PathBuf;
 
 fn main() {
-    // Rebuild if source files change
-    println!("cargo:rerun-if-changed=src");
-    
-    // Generate parsers from grammar definitions
-    adze_tool::build_parsers(&amp;PathBuf::from("src/main.rs"));
+    println!("cargo::rustc-check-cfg=cfg(adze_unsafe_attrs)");
+    adze_tool::build_parsers(&amp;PathBuf::from("src/lib.rs"));
 }</code></pre>
-<h2 id="optional-features"><a class="header" href="#optional-features">Optional Features</a></h2>
-<p>Additional features you can enable:</p>
-<pre><code class="language-toml">[dependencies]
-adze = {
-    version = "0.8",
-    features = [
-        "pure-rust",      # Pure Rust backend
-        "optimize",       # Enable grammar optimizer
-        "parallel",       # Parallel parsing support
-        "simd",          # SIMD-accelerated lexing
-    ]
-}
-</code></pre>
 <h2 id="verifying-installation"><a class="header" href="#verifying-installation">Verifying Installation</a></h2>
-<p>Create a simple test file to verify your setup:</p>
+<p>Create <code>src/lib.rs</code> with a tiny grammar and test:</p>
 <pre><code class="language-rust">#[adze::grammar("test")]
-mod grammar {
+pub mod grammar {
     #[adze::language]
-    #[adze::leaf(text = "hello")]
-    struct Hello;
+    #[derive(Debug, PartialEq)]
+    pub enum Word {
+        Hello(#[adze::leaf(text = "hello")] ()),
+    }
 }
 
-fn main() {
-    match grammar::parse("hello") {
-        Ok(_) =&gt; println!("Adze is working!"),
-        Err(e) =&gt; eprintln!("Parse error: {}", e),
+#[cfg(test)]
+mod tests {
+    use super::grammar::{self, Word};
+
+    #[test]
+    fn parses_hello() {
+        assert_eq!(grammar::parse("hello").unwrap(), Word::Hello(()));
     }
 }</code></pre>
 <p>Run with:</p>
-<pre><code class="language-bash">cargo build
-cargo run
+<pre><code class="language-bash">cargo test
 </code></pre>
 <h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
 <h3 id="common-issues"><a class="header" href="#common-issues">Common Issues</a></h3>
@@ -277,19 +260,20 @@ cargo run
 <p><strong>"Multiple applicable items in scope" errors</strong></p>
 <ul>
 <li>This usually means you have conflicting features enabled</li>
-<li>Choose only one backend feature</li>
+<li>Start from the <code>pure-rust</code> feature shape above</li>
 </ul>
 </li>
 <li>
 <p><strong>WASM compilation fails</strong></p>
 <ul>
-<li>Ensure you're using the <code>pure-rust</code> feature</li>
-<li>The C-based backends don't support WASM</li>
+<li>WASM is advisory compile-signal territory, not the beginner path</li>
+<li>Check the current support-tier row before relying on browser/runtime behavior</li>
 </ul>
 </li>
 </ol>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
-<p>Now that you have Adze installed, proceed to the <a href="quickstart.html">Quick Start</a> guide to create your first grammar!</p>
+<p>Now that you have Adze installed, proceed to the <a href="quickstart.html">Quick Start</a>
+guide to create your first grammar.</p>
 
                     </main>
 

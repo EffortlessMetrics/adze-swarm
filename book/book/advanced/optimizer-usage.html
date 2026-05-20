@@ -186,8 +186,11 @@
 <h2 id="enabling-the-optimizer"><a class="header" href="#enabling-the-optimizer">Enabling the Optimizer</a></h2>
 <p>The optimizer is disabled by default to ensure stability. To enable it, use the <code>optimize</code> feature flag:</p>
 <h3 id="in-cargotoml"><a class="header" href="#in-cargotoml">In Cargo.toml</a></h3>
+<p>The versioned dependency line is the intended release-surface shape after the
+coordinated publish. Current repo proof uses local/path dependencies from this
+checkout until crates.io receipts exist for the co-release crates.</p>
 <pre><code class="language-toml">[dependencies]
-adze-tool = { version = "0.8", features = ["optimize"] }
+adze-tool = { version = "0.9.0", features = ["optimize"] }
 </code></pre>
 <h3 id="via-command-line"><a class="header" href="#via-command-line">Via Command Line</a></h3>
 <pre><code class="language-bash">cargo build --features adze-tool/optimize

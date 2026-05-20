@@ -181,111 +181,89 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="microcrate-guide"><a class="header" href="#microcrate-guide">Microcrate Guide</a></h1>
-<p>Adze follows a <strong>single-responsibility-principle (SRP) microcrate</strong> architecture. Each crate owns one concern, keeps a narrow public API, and declares its dependencies explicitly. This page catalogues every workspace crate, grouped by layer.</p>
-<h2 id="core-pipeline-crates"><a class="header" href="#core-pipeline-crates">Core pipeline crates</a></h2>
-<p>These crates form the main grammar-to-parser pipeline:</p>
-<div class="table-wrapper"><table><thead><tr><th>Crate</th><th>Path</th><th>Responsibility</th></tr></thead><tbody>
-<tr><td><code>adze-macro</code></td><td><code>macro/</code></td><td>Proc-macro attributes (<code>#[adze::grammar]</code>, <code>#[adze::leaf]</code>, etc.)</td></tr>
-<tr><td><code>adze-common</code></td><td><code>common/</code></td><td>Shared grammar expansion logic used by both the macro and the build tool</td></tr>
-<tr><td><code>adze-ir</code></td><td><code>ir/</code></td><td>Grammar intermediate representation, normalization, validation, and optimization</td></tr>
-<tr><td><code>adze-glr-core</code></td><td><code>glr-core/</code></td><td>FIRST/FOLLOW sets, LR(1) item sets, canonical collection, conflict detection</td></tr>
-<tr><td><code>adze-tablegen</code></td><td><code>tablegen/</code></td><td>Table compression and static <code>Language</code> struct generation (Tree-sitter ABI)</td></tr>
-<tr><td><code>adze-tool</code></td><td><code>tool/</code></td><td>Build-time driver (<code>build_parsers()</code>), code emission, visualization</td></tr>
-<tr><td><code>adze</code></td><td><code>runtime/</code></td><td>Runtime library: <code>Extract</code> trait, error recovery, visitor, serialization</td></tr>
-<tr><td><code>adze-runtime2</code></td><td><code>runtime2/</code></td><td>Production GLR runtime: <code>Parser</code>, <code>Tree</code>, forest builder, incremental editing</td></tr>
-</tbody></table>
-</div>
-<h2 id="concurrency-crates"><a class="header" href="#concurrency-crates">Concurrency crates</a></h2>
-<p>No standalone concurrency microcrates remain. Concurrency caps, environment contracts, normalization, planning, and bounded-map helpers now live under the runtime owner module <code>adze::concurrency_caps</code>.</p>
-<h2 id="governance-and-bdd-crates"><a class="header" href="#governance-and-bdd-crates">Governance and BDD crates</a></h2>
-<p>Quality-assurance infrastructure for feature tracking and behavioral contracts:</p>
-<div class="table-wrapper"><table><thead><tr><th>Crate</th><th>Path</th><th>Responsibility</th></tr></thead><tbody>
-<tr><td><code>bdd-contract</code></td><td><code>crates/bdd-contract/</code></td><td>Shared BDD scenario and phase contracts</td></tr>
-<tr><td><code>bdd-grammar-fixtures</code></td><td><code>crates/bdd-grammar-fixtures/</code></td><td>Test fixtures and grammar-level BDD analysis</td></tr>
-<tr><td><code>bdd-governance-contract</code></td><td><code>crates/bdd-governance-contract/</code></td><td>Governance BDD contracts</td></tr>
-<tr><td><code>bdd-governance-core</code></td><td><code>crates/bdd-governance-core/</code></td><td>Governance BDD snapshots/matrix composition</td></tr>
-<tr><td><code>bdd-governance-reporting-core</code></td><td><code>crates/bdd-governance-reporting-core/</code></td><td>Profile-aware governance report/status formatting</td></tr>
-<tr><td><code>bdd-governance-fixtures</code></td><td><code>crates/bdd-governance-fixtures/</code></td><td>Governance test fixtures</td></tr>
-<tr><td><code>bdd-scenario-fixtures</code></td><td><code>crates/bdd-scenario-fixtures/</code></td><td>Shared BDD scenario fixtures</td></tr>
-<tr><td><code>bdd-grid-contract</code></td><td><code>crates/bdd-grid-contract/</code></td><td>Grid/matrix BDD contracts</td></tr>
-<tr><td><code>bdd-grid-core</code></td><td><code>crates/bdd-grid-core/</code></td><td>Grid BDD evaluation logic</td></tr>
-<tr><td><code>governance-contract</code></td><td><code>crates/governance-contract/</code></td><td>Core governance trait contracts</td></tr>
-<tr><td><code>governance-metadata</code></td><td><code>crates/governance-metadata/</code></td><td>Governance metadata types</td></tr>
-<tr><td><code>governance-matrix-contract</code></td><td><code>crates/governance-matrix-contract/</code></td><td>Feature matrix contracts</td></tr>
-<tr><td><code>governance-matrix-core</code></td><td><code>crates/governance-matrix-core/</code></td><td>Feature matrix evaluation</td></tr>
-<tr><td><code>governance-matrix-core-impl</code></td><td><code>crates/governance-matrix-core-impl/</code></td><td>Feature matrix implementation</td></tr>
-<tr><td><code>governance-runtime-core</code></td><td><code>crates/governance-runtime-core/</code></td><td>Runtime governance checks</td></tr>
-<tr><td><code>governance-runtime-reporting</code></td><td><code>crates/governance-runtime-reporting/</code></td><td>Governance reports</td></tr>
-<tr><td><code>runtime-governance</code></td><td><code>crates/runtime-governance/</code></td><td>Runtime governance integration</td></tr>
-<tr><td><code>runtime-governance-api</code></td><td><code>crates/runtime-governance-api/</code></td><td>Public governance API</td></tr>
-<tr><td><code>runtime-governance-matrix</code></td><td><code>crates/runtime-governance-matrix/</code></td><td>Runtime feature matrix</td></tr>
-<tr><td><code>runtime2-governance</code></td><td><code>crates/runtime2-governance/</code></td><td>GLR runtime governance</td></tr>
-<tr><td><code>feature-policy-contract</code></td><td><code>crates/feature-policy-contract/</code></td><td>Feature-flag policy contracts</td></tr>
-<tr><td><code>feature-policy-core</code></td><td><code>crates/feature-policy-core/</code></td><td>Feature-flag policy logic</td></tr>
-<tr><td><code>parser-contract</code></td><td><code>crates/parser-contract/</code></td><td>Parser trait contracts</td></tr>
-<tr><td><code>parser-governance-contract</code></td><td><code>crates/parser-governance-contract/</code></td><td>Parser governance contracts</td></tr>
-<tr><td><code>parser-feature-contract</code></td><td><code>crates/parser-feature-contract/</code></td><td>Parser feature contracts</td></tr>
-<tr><td><code>parser-backend-core</code></td><td><code>crates/parser-backend-core/</code></td><td>Backend abstraction</td></tr>
-</tbody></table>
-</div>
-<h2 id="utility-and-supporting-crates"><a class="header" href="#utility-and-supporting-crates">Utility and supporting crates</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Crate</th><th>Path</th><th>Responsibility</th></tr></thead><tbody>
-<tr><td><code>parsetable-metadata</code></td><td><code>crates/parsetable-metadata/</code></td><td>Parse-table metadata types</td></tr>
-<tr><td><code>ts-format-core</code></td><td><code>crates/ts-format-core/</code></td><td>Tree-sitter format utilities</td></tr>
-<tr><td><code>stack-pool-core</code></td><td><code>crates/stack-pool-core/</code></td><td>Stack-based object pooling</td></tr>
-<tr><td><code>glr-versioning</code></td><td><code>crates/glr-versioning/</code></td><td>GLR version tracking</td></tr>
-<tr><td><code>glr-test-support</code></td><td><code>glr-test-support/</code></td><td>Test helpers for GLR crates</td></tr>
-<tr><td><code>linecol-core</code></td><td><code>crates/linecol-core/</code></td><td>Line/column position computation</td></tr>
-<tr><td><code>error-location-core</code></td><td><code>crates/error-location-core/</code></td><td>Shared parse error location type and offset conversion</td></tr>
-</tbody></table>
-</div>
-<h2 id="application-and-tooling-crates"><a class="header" href="#application-and-tooling-crates">Application and tooling crates</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Crate</th><th>Path</th><th>Responsibility</th></tr></thead><tbody>
-<tr><td><code>adze-cli</code></td><td><code>cli/</code></td><td>Command-line interface</td></tr>
-<tr><td><code>lsp-generator</code></td><td><code>lsp-generator/</code></td><td>LSP server code generation</td></tr>
-<tr><td><code>playground</code></td><td><code>playground/</code></td><td>Interactive grammar playground</td></tr>
-<tr><td><code>wasm-demo</code></td><td><code>wasm-demo/</code></td><td>Browser-based WASM demo</td></tr>
-<tr><td><code>ts-bridge</code></td><td><code>tools/ts-bridge/</code></td><td>Extracts parse tables from compiled Tree-sitter grammars</td></tr>
-</tbody></table>
-</div>
-<h2 id="test-and-example-crates"><a class="header" href="#test-and-example-crates">Test and example crates</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Crate</th><th>Path</th><th>Responsibility</th></tr></thead><tbody>
-<tr><td><code>example</code></td><td><code>example/</code></td><td>Example grammars (arithmetic, optionals, repetitions, etc.)</td></tr>
-<tr><td><code>golden-tests</code></td><td><code>golden-tests/</code></td><td>Tree-sitter compatibility verification</td></tr>
-<tr><td><code>testing</code></td><td><code>testing/</code></td><td>Shared test utilities</td></tr>
-<tr><td><code>test-mini</code></td><td><code>test-mini/</code></td><td>Minimal integration smoke tests</td></tr>
-<tr><td><code>benchmarks</code></td><td><code>benchmarks/</code></td><td>Performance benchmarks</td></tr>
-<tr><td><code>downstream-demo</code></td><td><code>samples/downstream-demo/</code></td><td>Demonstrates downstream consumption</td></tr>
-<tr><td><code>xtask</code></td><td><code>xtask/</code></td><td>Workspace automation tasks</td></tr>
-</tbody></table>
-</div>
-<h2 id="grammar-crates"><a class="header" href="#grammar-crates">Grammar crates</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Crate</th><th>Path</th><th>Language</th></tr></thead><tbody>
-<tr><td><code>adze-javascript</code></td><td><code>grammars/javascript/</code></td><td>JavaScript grammar</td></tr>
-<tr><td><code>adze-python</code></td><td><code>grammars/python/</code></td><td>Python grammar (with external scanner)</td></tr>
-<tr><td><code>adze-python-simple</code></td><td><code>grammars/python-simple/</code></td><td>Simplified Python grammar</td></tr>
-<tr><td><code>adze-go</code></td><td><code>grammars/go/</code></td><td>Go grammar</td></tr>
-<tr><td><code>test-vec-wrapper</code></td><td><code>grammars/test-vec-wrapper/</code></td><td>Test helper grammar</td></tr>
-</tbody></table>
-</div>
-<h2 id="how-crates-relate"><a class="header" href="#how-crates-relate">How crates relate</a></h2>
-<p>The dependency graph is intentionally acyclic and layered. A quick rule of thumb:</p>
+                        <h1 id="crate-and-package-boundary-guide"><a class="header" href="#crate-and-package-boundary-guide">Crate And Package Boundary Guide</a></h1>
+<blockquote>
+<p><strong>Doc status:</strong> <code>policy/package-boundary.toml</code> is the source of truth for
+package classification. This page is an explanatory map, not the policy
+ledger.</p>
+</blockquote>
+<p>Adze used to describe its workspace as a broad microcrate architecture. The
+current rule is narrower:</p>
+<pre><code class="language-text">Prefer owner modules inside existing packages.
+Create or keep a package only when the package-boundary ledger justifies it.
+</code></pre>
+<p>Every workspace package should be classified as one of:</p>
 <ul>
-<li><strong>Contract crates</strong> (<code>*-contract</code>) define traits. They have no logic and no dependencies beyond <code>std</code>.</li>
-<li><strong>Core crates</strong> (<code>*-core</code>) implement those traits. They depend only on their contract crate.</li>
-<li><strong>Integration crates</strong> (e.g., <code>runtime-governance</code>) wire cores together behind a façade.</li>
-<li><strong>Application crates</strong> (<code>cli</code>, <code>playground</code>, <code>tool</code>) sit at the top and pull in whatever they need.</li>
+<li>published product or support crate;</li>
+<li>dev-only tooling/test crate;</li>
+<li>owner-module migration target.</li>
 </ul>
-<p>This keeps compile times low, enforces API boundaries, and makes it straightforward to swap implementations.</p>
-<h2 id="adding-a-new-microcrate"><a class="header" href="#adding-a-new-microcrate">Adding a new microcrate</a></h2>
+<p>There is no durable category for an unpublished production package without a
+clear owner, proof impact, and review path.</p>
+<h2 id="core-product-pipeline"><a class="header" href="#core-product-pipeline">Core Product Pipeline</a></h2>
+<p>These crates form the supported grammar-to-parser pipeline:</p>
+<div class="table-wrapper"><table><thead><tr><th>Crate</th><th>Path</th><th>Responsibility</th></tr></thead><tbody>
+<tr><td><code>adze</code></td><td><code>runtime/</code></td><td>Main runtime library: generated <code>parse()</code>, <code>parse_document()</code>, <code>Extract</code>, diagnostics, document/projection APIs</td></tr>
+<tr><td><code>adze-macro</code></td><td><code>macro/</code></td><td>Proc-macro attributes such as <code>#[adze::grammar]</code> and <code>#[adze::leaf]</code></td></tr>
+<tr><td><code>adze-tool</code></td><td><code>tool/</code></td><td>Build-time parser generation and code emission</td></tr>
+<tr><td><code>adze-common</code></td><td><code>common/</code></td><td>Shared grammar expansion logic</td></tr>
+<tr><td><code>adze-ir</code></td><td><code>ir/</code></td><td>Grammar intermediate representation and normalization</td></tr>
+<tr><td><code>adze-glr-core</code></td><td><code>glr-core/</code></td><td>LR/GLR table construction and conflict representation</td></tr>
+<tr><td><code>adze-tablegen</code></td><td><code>tablegen/</code></td><td>Table compression, metadata, and ABI-oriented generation</td></tr>
+</tbody></table>
+</div>
+<p>These are the crates covered by the supported PR gate.</p>
+<h2 id="experimental-runtime-surface"><a class="header" href="#experimental-runtime-surface">Experimental Runtime Surface</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Crate</th><th>Path</th><th>Posture</th></tr></thead><tbody>
+<tr><td><code>adze-runtime</code></td><td><code>runtime2/</code></td><td>Experimental proving ground; not the public-primary runtime contract</td></tr>
+</tbody></table>
+</div>
+<p><code>runtime2/</code> can remain useful for implementation experiments, but user-facing
+docs should not describe it as the production runtime. Stable product claims
+must route through generated parser APIs and support-tier proof.</p>
+<h2 id="durable-support-crates"><a class="header" href="#durable-support-crates">Durable Support Crates</a></h2>
+<p>The post-collapse support crates are intentionally few:</p>
+<div class="table-wrapper"><table><thead><tr><th>Crate</th><th>Path</th><th>Responsibility</th></tr></thead><tbody>
+<tr><td><code>adze-bdd-governance-core</code></td><td><code>crates/bdd-governance-core/</code></td><td>Governance BDD snapshots and matrix composition</td></tr>
+<tr><td><code>adze-common-type-ops-core</code></td><td><code>crates/common-type-ops-core/</code></td><td>Shared type-shape helpers used by macro/tool code</td></tr>
+<tr><td><code>adze-linecol-core</code></td><td><code>crates/linecol-core/</code></td><td>Byte/line/column source location support</td></tr>
+<tr><td><code>adze-parsetable-metadata</code></td><td><code>crates/parsetable-metadata/</code></td><td>Shared parse-table metadata contracts</td></tr>
+</tbody></table>
+</div>
+<p><code>crates/ts-c-harness/</code> is excluded from ordinary workspace commands and should
+not be treated as a supported product package.</p>
+<h2 id="tooling-tests-and-fixtures"><a class="header" href="#tooling-tests-and-fixtures">Tooling, Tests, And Fixtures</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Area</th><th>Examples</th><th>Product posture</th></tr></thead><tbody>
+<tr><td>CLI/tooling</td><td><code>cli/</code>, <code>lsp-generator/</code>, <code>xtask/</code></td><td>Support-tiered; not automatically stable</td></tr>
+<tr><td>Benchmarks/perf</td><td><code>benchmarks/</code></td><td>Advisory receipts, not merge-blocking product proof by default</td></tr>
+<tr><td>Golden/test support</td><td><code>golden-tests/</code>, <code>testing/</code>, <code>glr-test-support/</code>, <code>test-mini/</code></td><td>Dev/test proof infrastructure</td></tr>
+<tr><td>Grammar fixtures</td><td><code>grammars/python/</code>, <code>grammars/javascript/</code>, <code>grammars/go/</code>, <code>grammars/python-simple/</code>, <code>grammars/test-vec-wrapper/</code></td><td>Reference/dev fixtures unless promoted by support tiers</td></tr>
+<tr><td>Demos</td><td><code>playground/</code>, <code>wasm-demo/</code>, <code>samples/downstream-demo/</code></td><td>Advisory/demo surfaces</td></tr>
+</tbody></table>
+</div>
+<h2 id="adding-or-keeping-a-package"><a class="header" href="#adding-or-keeping-a-package">Adding Or Keeping A Package</a></h2>
+<p>Before adding a package, ask:</p>
 <ol>
-<li><code>cargo init crates/my-new-core --lib</code></li>
-<li>Add it to the <code>[workspace] members</code> list in the root <code>Cargo.toml</code>.</li>
-<li>Give it a narrow, descriptive name following the <code>&lt;domain&gt;-&lt;layer&gt;-core</code> convention.</li>
-<li>If it defines a public API contract, split the trait into a <code>&lt;domain&gt;-&lt;layer&gt;-contract</code> crate first.</li>
-<li>Wire it into the integration crate that needs it.</li>
+<li>Can this be an owner module inside an existing crate?</li>
+<li>Is the package public, dev-only, or a temporary migration target?</li>
+<li>Who owns it?</li>
+<li>Which support-tier or policy row does it affect?</li>
+<li>Which proof command covers it?</li>
+<li>What is the rollback or owner-module collapse path?</li>
 </ol>
+<p>If a new package is still justified, update:</p>
+<pre><code class="language-text">Cargo.toml
+policy/package-boundary.toml
+docs/status/SUPPORT_TIERS.md, if the package affects a product claim
+</code></pre>
+<p>Then run:</p>
+<pre><code class="language-bash">cargo run -q -p xtask -- check-package-boundary
+git diff --check
+</code></pre>
+<h2 id="rule-of-thumb"><a class="header" href="#rule-of-thumb">Rule Of Thumb</a></h2>
+<p>Use packages for durable ownership boundaries. Use modules for ordinary
+implementation structure. Support-tier claims should depend on repeatable proof,
+not on the presence of another crate.</p>
 
                     </main>
 

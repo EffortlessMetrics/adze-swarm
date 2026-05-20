@@ -187,23 +187,24 @@
 <pre><code>adze testing ecosystem:
 ├── Unit Tests           # Individual component testing
 ├── Integration Tests    # Cross-component workflow testing  
-├── Golden Tests        # Tree-sitter compatibility verification
+├── Golden Tests        # Advisory Tree-sitter compatibility receipts
 ├── Property Tests      # Grammar-agnostic behavior validation
 ├── Snapshot Tests      # Visual regression testing with insta
 ├── Benchmark Tests     # Performance measurement and regression detection
 └── Fuzzing Tests      # Automated input generation for edge cases
 </code></pre>
 <h2 id="golden-tests-compatibility-verification"><a class="header" href="#golden-tests-compatibility-verification">Golden Tests: Compatibility Verification</a></h2>
-<p>Golden tests ensure byte-for-byte compatibility with official Tree-sitter parsers.</p>
+<p>Golden tests compare selected fixture outputs with Tree-sitter references. They
+are advisory compatibility receipts, not a blanket full-parity claim.</p>
 <h3 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h3>
 <pre><code class="language-bash"># Generate reference files (one-time setup)
 cd golden-tests
 ./generate_references.sh
 
-# Run all golden tests
-cargo test --features all-grammars
+# Run the current focused advisory canary
+cargo test -p adze-golden-tests javascript_canary_expression_golden --features javascript-grammar -- --nocapture
 
-# Run language-specific tests
+# Run language-specific packages when that surface changed
 cargo test --features python-grammar
 cargo test --features javascript-grammar
 </code></pre>
@@ -224,11 +225,11 @@ git commit -m "Update golden tests for parser changes"
 </code></pre>
 <p><strong>When to Use Golden Tests:</strong></p>
 <ul>
-<li>Verifying parser output matches Tree-sitter exactly</li>
+<li>Checking selected-tree output against documented Tree-sitter references</li>
 <li>Testing real-world code samples</li>
 <li>Regression testing after parser modifications</li>
 <li>Cross-platform compatibility validation</li>
-<li>CI/CD compatibility gates</li>
+<li>Advisory compatibility receipts</li>
 </ul>
 <h2 id="unit-tests-component-testing"><a class="header" href="#unit-tests-component-testing">Unit Tests: Component Testing</a></h2>
 <p>Unit tests focus on individual functions and modules:</p>
@@ -388,23 +389,22 @@ cargo test test_external_lexer_column_tracking
 cargo test test_external_lexer_eof
 cargo test test_external_lexer_included_range_start
 
-# Run runtime tests with external lexer integration
-cargo test -p adze --features all-features
+# Run runtime tests with explicit external-scanner coverage
+cargo test -p adze --features external_scanners
 </code></pre>
 <h3 id="integration-testing"><a class="header" href="#integration-testing">Integration Testing</a></h3>
 <p>External lexer utilities are tested for integration with:</p>
 <ul>
-<li><strong>Tree-sitter FFI Interface</strong>: Ensuring full compatibility with <code>TSLexer</code> API</li>
+<li><strong>Tree-sitter FFI Interface</strong>: Exercising the supported <code>TSLexer</code> adapter subset</li>
 <li><strong>Memory Safety</strong>: Pointer handling and null checks</li>
 <li><strong>Position Tracking</strong>: Accurate byte and column position management</li>
 <li><strong>Error Handling</strong>: Graceful handling of boundary conditions</li>
 </ul>
-<p><strong>Test Results Summary (PR #67)</strong>:</p>
+<p><strong>Support posture:</strong></p>
 <ul>
-<li>✅ All external lexer tests (column tracking, EOF, range detection) pass</li>
-<li>✅ Full runtime test suite passes (128/128 tests)</li>
-<li>✅ Clippy passes without warnings</li>
-<li>✅ Tree-sitter FFI compatibility verified</li>
+<li>External scanners are experimental until promoted in <code>docs/status/SUPPORT_TIERS.md</code>.</li>
+<li>Focused tests should name the feature and parser surface they prove.</li>
+<li>Broad feature piles are avoided in ordinary PR guidance.</li>
 </ul>
 <h2 id="snapshot-tests-visual-regression-testing"><a class="header" href="#snapshot-tests-visual-regression-testing">Snapshot Tests: Visual Regression Testing</a></h2>
 <p>Snapshot tests use the <code>insta</code> crate for visual regression testing:</p>
@@ -441,8 +441,8 @@ cargo bench
 
 # Run specific benchmark suites
 cargo bench --bench parsing_benchmarks
-cargo bench --bench glr_performance
-cargo bench --bench incremental_benchmarks
+cargo bench --bench parse_bench
+cargo bench --bench incremental_bench
 
 # Generate performance reports
 cargo bench -- --output-format html
@@ -546,7 +546,7 @@ jobs:
       - run: |
           cd golden-tests
           ./generate_references.sh
-          cargo test --features all-grammars
+          cargo test --features javascript-grammar
           
   property-tests:
     runs-on: ubuntu-latest
@@ -589,30 +589,22 @@ fn test_parser()</code></pre>
 <pre><code class="language-rust">#[test]
 fn test_specific_behavior() {
     // Arrange: Set up test data
-    let source = "def foo(): pass";
-    let mut parser = Parser::new();
+    let source = "1 + 2";
     
     // Act: Perform the operation
-    let result = parser.parse(source);
+    let result = grammar::parse(source);
     
     // Assert: Verify expected behavior
     assert!(result.is_ok());
-    assert_eq!(result.tree.root_node().kind(), "module");
 }</code></pre>
 <p><strong>Error Testing:</strong></p>
 <pre><code class="language-rust">#[test]
 fn test_error_conditions() {
     // Test both success and failure cases
-    assert!(parser.parse("valid input").is_ok());
-    assert!(parser.parse("invalid input").is_err());
-    
-    // Verify specific error types
-    match parser.parse("malformed") {
-        Err(ParseError::UnexpectedToken { position, .. }) =&gt; {
-            assert_eq!(position, 42);
-        }
-        _ =&gt; panic!("Expected UnexpectedToken error"),
-    }
+    assert!(grammar::parse("1 + 2").is_ok());
+
+    let report = grammar::parse_document("1 +");
+    assert!(!report.diagnostics().is_empty());
 }</code></pre>
 <h3 id="test-maintenance"><a class="header" href="#test-maintenance">Test Maintenance</a></h3>
 <p><strong>Keep Tests Fast:</strong></p>
@@ -623,14 +615,14 @@ let source = load_entire_django_codebase();  // Bad for unit tests</code></pre>
 <pre><code class="language-rust">// Each test should be independent
 #[test]
 fn test_independent_parsing() {
-    let parser = Parser::new();  // Fresh parser for each test
-    // ...
+    let ast = grammar::parse("1 + 2").unwrap();
+    assert_eq!(format!("{ast:?}"), "Add(Number(1), (), Number(2))");
 }</code></pre>
 <p><strong>Use Appropriate Test Types:</strong></p>
 <ul>
 <li><strong>Unit tests</strong>: Single function behavior</li>
 <li><strong>Integration tests</strong>: Multi-component workflows</li>
-<li><strong>Golden tests</strong>: Compatibility verification</li>
+<li><strong>Golden tests</strong>: Advisory compatibility receipts</li>
 <li><strong>Property tests</strong>: Universal invariants</li>
 <li><strong>Benchmarks</strong>: Performance characteristics</li>
 </ul>
@@ -641,7 +633,10 @@ fn test_independent_parsing() {
 <li><strong>Read <a href="contributing.html">Contributing Guide</a></strong> for development workflows</li>
 <li><strong>See <a href="../guide/performance.html">Performance Guide</a></strong> for optimization strategies</li>
 </ul>
-<p>A robust testing strategy ensures adze remains reliable, performant, and compatible with Tree-sitter's reference implementations across all supported use cases.</p>
+<p>A robust testing strategy keeps Adze reliable while preserving support-tier
+truthfulness: generated typed parsing is the stable user path, document and
+compatibility surfaces are promoted only when their proof commands, examples,
+and limitations line up.</p>
 
                     </main>
 
