@@ -163,7 +163,7 @@ cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diag
 cargo test -p adze-cli cargo_install_adze_cli_claims_stay_release_surface_bounded -- --exact --nocapture
 just package-local adze-cli
 cargo info --registry crates-io adze-cli
-cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z
+cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked
 ```
 
 `just package-local adze-cli` packages and verifies the CLI crate with local
@@ -184,7 +184,9 @@ crates.io, so `cargo install adze-cli` remains a release-surface target rather
 than current product proof.
 
 `cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version
-X.Y.Z` is the post-publish receipt hook for the missing crates.io install proof.
+X.Y.Z --locked` is the post-publish receipt hook for the missing crates.io
+install proof. The verifier's metadata check uses the explicit `crates-io`
+registry so the receipt cannot pass by resolving the local workspace package.
 It installs from crates.io into an isolated temporary root and runs
 `adze --version`. The `--dry-run` mode is pre-publish command-shape evidence
 only; it does not contact crates.io and does not close the install-receipt gap.
