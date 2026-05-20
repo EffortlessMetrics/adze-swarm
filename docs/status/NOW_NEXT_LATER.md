@@ -95,7 +95,10 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       stable product lane. It was refreshed again at commit `72d2faa7` after
       PRs #336-#338 routed claim-boundary docs into Product Proof, clarified
       the query expansion tail, and moved remaining active artifact receipt
-      actions to Node 24-compatible artifact action versions.
+      actions to Node 24-compatible artifact action versions. It was refreshed
+      again at commit `8d4cc1cd` after PRs #339-#341 refreshed the stable
+      receipt status, path-routed this rolling status file, and added the
+      Product Proof stable-surface routing canary.
       `Product Proof` is now also path-routed on this status file because it
       carries stable-product receipt and release-boundary wording.
       The path list is guarded by
