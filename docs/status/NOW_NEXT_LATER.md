@@ -38,6 +38,10 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Fix parser-v4 external-scanner emitted-token spans and record the focused dispatch/range plus diagnostic-document canaries.
 - [x] Add first parser-generated external-token grammar diagnostic-document proof while keeping full parser-generated external-scanner recovery explicitly future work.
 - [x] Expand the generated external-token diagnostic-document proof into a malformed-input matrix in `adze-swarm` PR #316 while keeping external scanners Experimental.
+- [x] Extend the generated external-token malformed-input matrix in
+      `adze-swarm` PR #343 so `parse()` errors and `parse_document()`
+      diagnostics agree on spans and expected-token names for multibyte,
+      body, and newline-boundary cases.
 - [x] Supersede public promotion PR #794 with refreshed public promotion PR #795 after `adze-swarm` advanced through the residual product-trust fixes and promotion-receipt refreshes.
 - [x] Merge public promotion PR #795 into public `adze` after the required public branch-protection context was corrected to `Rust Small Result` and the legacy `ci-supported` dispatch receipt passed.
 
