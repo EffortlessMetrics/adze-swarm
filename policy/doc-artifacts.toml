@@ -108,6 +108,28 @@ links_to = [
 ]
 
 [[artifact]]
+id = "ADZE-PROP-0006"
+kind = "proposal"
+path = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
+status = "accepted"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["user experience hardening rationale", "non-release adoption polish campaign"]
+links_to = [
+  "ADZE-SPEC-0011",
+  "ADZE-SPEC-0012",
+  "ADZE-SPEC-0013",
+  "ADZE-SPEC-0014",
+  "ADZE-ADR-0001",
+  "ADZE-ADR-0003",
+  "ADZE-ADR-0004",
+  "plans/user-experience-hardening/implementation-plan.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/user-experience-hardening.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = "ADZE-SPEC-0001"
 kind = "spec"
 path = "docs/specs/ADZE-SPEC-0001-package-surface-boundary.md"
@@ -376,6 +398,21 @@ links_to = [
 ]
 
 [[artifact]]
+id = "plans/user-experience-hardening/implementation-plan.md"
+kind = "plan"
+path = "plans/user-experience-hardening/implementation-plan.md"
+status = "active"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["user experience hardening implementation sequence"]
+links_to = [
+  "ADZE-PROP-0006",
+  ".adze/goals/active.toml",
+  ".adze/goals/user-experience-hardening.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = ".adze/goals/glr-toolkit-productization.toml"
 kind = "goal"
 path = ".adze/goals/glr-toolkit-productization.toml"
@@ -419,5 +456,35 @@ links_to = [
   "ADZE-PROP-0005",
   "plans/product-gap-burn-down/implementation-plan.md",
   ".adze/goals/active.toml",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
+id = ".adze/goals/user-experience-hardening.toml"
+kind = "goal"
+path = ".adze/goals/user-experience-hardening.toml"
+status = "active"
+owner = "droid-factory"
+milestone = "post-0.9"
+source_of_truth_for = ["user experience hardening agent work queue"]
+links_to = [
+  "ADZE-PROP-0006",
+  "plans/user-experience-hardening/implementation-plan.md",
+  ".adze/goals/active.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/archive/2026-05-20-residual-product-trust-hardening-paused.toml"
+kind = "goal"
+path = ".adze/goals/archive/2026-05-20-residual-product-trust-hardening-paused.toml"
+status = "paused"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["archived residual product trust hardening handoff"]
+links_to = [
+  "ADZE-PROP-0004",
+  "ADZE-PROP-0005",
+  "plans/product-gap-burn-down/implementation-plan.md",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
 ]
