@@ -135,7 +135,9 @@ just check-publishable
 `just check-publishable` passed on 2026-05-19 from `adze-swarm/main` after
 PR #253, again at commit `b613ebbb` after residual product-trust PRs
 #295-#301, again on 2026-05-20 at commit `e965cba2` after PRs #309-#310, and
-again on 2026-05-20 at commit `464a32a9` after PR #311.
+again on 2026-05-20 at commit `464a32a9` after PR #311. It was refreshed again
+on 2026-05-20 from current `adze-swarm/main` at commit `fc959ec1`, after the
+stable-product receipt status update.
 It verifies publish-order metadata and `cargo package --list` for
 the core publish surface (`adze-common`, `adze-ir`, `adze-glr-core`,
 `adze-tablegen`, `adze-macro`, `adze-tool`, `adze-cli`, and `adze`). This is
@@ -186,8 +188,9 @@ registry installation proof.
 Use `cargo info --registry crates-io adze-cli` when verifying registry
 publication. The explicit registry flag avoids resolving the local workspace
 package. It reported on 2026-05-20 that `adze-cli` could not be found in
-crates.io, so `cargo install adze-cli` remains a release-surface target rather
-than current product proof.
+crates.io, including a current-main refresh at commit `fc959ec1`, so
+`cargo install adze-cli` remains a release-surface target rather than current
+product proof.
 
 `cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version
 X.Y.Z --locked` is the post-publish receipt hook for the missing crates.io
@@ -199,7 +202,8 @@ temporary root and runs
 `adze --version`. The `--dry-run` mode is pre-publish command-shape evidence
 only; it does not contact crates.io and does not close the install-receipt gap.
 The dry-run command shape was refreshed on 2026-05-20 from `adze-swarm/main` at
-commit `df4be63a` after PRs #319-#320 and printed:
+commit `df4be63a` after PRs #319-#320 and refreshed again from current
+`adze-swarm/main` at commit `fc959ec1`; it printed:
 
 ```text
 cargo info --registry crates-io adze-cli

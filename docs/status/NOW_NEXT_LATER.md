@@ -96,7 +96,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       `e965cba2` after residual product-trust PRs #309-#310 and `464a32a9`
       after PR #311, then `just package-local adze-cli` and
       `just check-publishable` were refreshed on 2026-05-20 from
-      `adze-swarm/main` at commit `390ab76f`.
+      `adze-swarm/main` at commit `390ab76f`. `just check-publishable` was
+      refreshed again on 2026-05-20 from current `adze-swarm/main` at commit
+      `fc959ec1` after the stable-product receipt status update.
       These are package verification receipts, not crates.io install or publish
       claims.
 - [x] Latest crates.io CLI install-boundary receipt:
@@ -106,7 +108,8 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       and PRs #319-#320 hardened the post-publish verifier so both metadata
       lookup and `cargo install` use the explicit `crates-io` registry. The
       verifier dry-run was refreshed on 2026-05-20 from `adze-swarm/main` at
-      commit `df4be63a` and printed the fully qualified command plan. The active
+      commit `df4be63a` and again at commit `fc959ec1`, printing the fully
+      qualified command plan. The active
       goal carries a blocked `crates-io-cli-install-receipt` item so agents do
       not confuse local package verification with a registry install receipt.
 - [x] Residual product-trust lane paused with no ready routine swarm work. The

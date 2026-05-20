@@ -50,15 +50,18 @@ git diff --check
 Observed results:
 
 - `cargo info --registry crates-io adze-cli` reported that `adze-cli` is not
-  present in crates.io. The explicit registry flag avoids resolving the local
-  workspace package.
+  present in crates.io, including a 2026-05-20 refresh from current
+  `adze-swarm/main` at commit `fc959ec1`. The explicit registry flag avoids
+  resolving the local workspace package.
 - `just package-local adze-cli` passed for the local CLI package.
 - The crates.io install verifier dry run printed the post-publish command
   shape and did not contact crates.io. As of PRs #319-#320 on
   `adze-swarm/main` at commit `df4be63a`, the dry-run prints both
   `cargo info --registry crates-io adze-cli` and
   `cargo install --registry crates-io adze-cli --root <temp-root> --version X.Y.Z --locked`.
-- `just check-publishable` passed for the release surface.
+- The verifier dry run and `just check-publishable` were refreshed again from
+  current `adze-swarm/main` at commit `fc959ec1`; `just check-publishable`
+  passed for the release surface.
 - `adze-swarm` PR #316 expanded the generated external-token
   diagnostic-document canary into a malformed-input matrix, and the focused
   matrix command passed locally and in the PR's `ci-product stable canaries`
