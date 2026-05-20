@@ -31,6 +31,10 @@ Output format (single artifact)
 ### Required PR gate(s)
 - <check name> — where defined, what it runs
 
+For `adze-swarm`, verify that this is `Rust Small Result`. Do not report
+`just ci-supported` as the hosted required PR gate; it is the local
+supported/product proof command.
+
 ### Canonical local commands
 - Supported proof (local):
 - Fast slice-local checks:

@@ -39,10 +39,12 @@ Invariants that must hold in all code submitted to this repository.
 4. **Test runtime**: `just test` completes in <60s on 4-core machine
 
 ## CI Compliance
-1. **PR gate pass**: `just ci-supported` runs clean
-2. **No clippy warnings**: All core crates pass `cargo clippy -D warnings`
-3. **Format compliance**: All code passes `cargo fmt --all --check`
-4. **Policy compliance**: No new panics without allowlist exception
+1. **Hosted PR gate pass**: `Rust Small Result` is green for `adze-swarm` PRs
+2. **Local supported proof**: `just ci-supported` runs clean when the change
+   affects supported/release-facing surfaces
+3. **No clippy warnings**: All core crates pass `cargo clippy -D warnings`
+4. **Format compliance**: All code passes `cargo fmt --all --check`
+5. **Policy compliance**: No new panics without allowlist exception
 
 ## PR Metadata
 1. **Title clarity**: PR title describes the change, not the result

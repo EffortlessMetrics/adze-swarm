@@ -66,8 +66,9 @@ bench-perf:
 snap:
     cargo insta review
 
-# Required PR gate: this is the single supported CI lane for branch protection
-# See docs/status/KNOWN_RED.md; update it whenever ci-supported command targets change.
+# Local supported/release-facing proof. The hosted adze-swarm merge gate is
+# `Rust Small Result`; see .github/CI_LANES.md. Update KNOWN_RED whenever
+# ci-supported command targets change.
 ci-supported:
     ./scripts/ci-supported.sh
 

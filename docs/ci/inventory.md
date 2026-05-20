@@ -19,17 +19,24 @@ See `adze-rollout-status.md` for status of each item.
 
 | File | Role | State |
 | --- | --- | --- |
+| `em-ci-routed-rust.yml` | Routed `Rust Small Result` base gate for `adze-swarm` PRs and merge groups | Active required context |
 | `pr-plan.yml` | Reusable; computes LEM/band/docs_only from `xtask ci-plan` | Active |
 | `pr-gate.yml` | Aggregates Supported + Docs Gate → `PR Gate Success` | Active |
+| `ci.yml` | Legacy public full-CI support lane; schedule/dispatch in swarm | Active scheduled/manual |
 | `ci-policy.yml` | CI lane whitelist advisory lint | Active |
 | `ripr.yml` | ripr advisory with workspace MSRV install and stub fallback | Active advisory |
-| `fuzz.yml` | Label/push/schedule-gated runtime fuzz; build smoke on parser/glr PRs | Active |
 | `pure-rust-ci.yml` | Matrix-setup: ubuntu/stable on code-path PRs; full matrix on labels/dispatch | Active |
 | `ts-bridge-smoke.yml` | Path-routed bridge smoke; Linux by default, full OS matrix on labels/dispatch | Active |
+| `ts-bridge-parity.yml` | Scheduled/manual bridge parity advisory lane | Active advisory |
 | `golden-tests.yml` | Grammar-path and `ci:golden`/`full-ci` label gated | Active |
 | `microcrate-ci.yml` | Risk-pack-routed crate groups plus path-routed receipt jobs | Active |
-| `benchmarks.yml` | Label-gated (`ci:perf`/`benchmarks`/`full-ci`) full benchmark suite | Active |
-| `performance.yml` | Path-gated benchmark compile smoke by default; full `performance-check` only on `ci:perf`/`full-ci` PR labels | Active advisory |
+| `coverage.yml` | Path/label-routed coverage-lite/full; LCOV artifacts are proof and Codecov upload is non-blocking | Active advisory |
+| `criterion-smoke.yml` | Scheduled/manual benchmark compile smoke | Active advisory |
+| `product-proof.yml` | Stable/advisory product proof lanes for support-tier and README claim boundaries | Active advisory |
+| `core-tests.yml` | Scheduled/manual core all-features canary | Active scheduled/manual |
+| `test-policy.yml` | Static policy checks on PRs plus manual runtime caps | Active advisory |
+| `clippy-quarantine-report.yml` | Weekly/manual quarantine report | Active advisory |
+| `badge-endpoints.yml` | Manual badge endpoint refresh automation | Active dispatch |
 
 ## xtask commands
 

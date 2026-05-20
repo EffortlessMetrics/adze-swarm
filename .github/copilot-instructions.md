@@ -1,6 +1,6 @@
 # Copilot Instructions — Adze
 
-Adze is an AST-first grammar toolchain for Rust. Rust 2024 edition, MSRV 1.95.0, 28-crate workspace.
+Adze is an AST-first grammar toolchain for Rust. Rust 2024 edition, MSRV 1.95.0, 29-member workspace.
 
 ## Code Conventions
 
@@ -45,7 +45,7 @@ Adze is an AST-first grammar toolchain for Rust. Rust 2024 edition, MSRV 1.95.0,
 
 ## Naming Conventions
 
-- **Crate names**: `kebab-case` (e.g., `adze-glr-core`, `concurrency-caps-core`)
+- **Crate names**: `kebab-case` (e.g., `adze-glr-core`, `common-type-ops-core`)
 - **Modules**: `snake_case`
 - **Types**: `PascalCase` with purpose suffix — `SymbolId`, `ParseTable`, `ActionCell`
 - **Features**: `kebab-case` (e.g., `test-api`, `glr-core`, `external-scanners`)
@@ -134,12 +134,24 @@ Core pipeline crates: `adze`, `adze-macro`, `adze-tool`, `adze-common`, `adze-ir
 ## Key Commands
 
 ```bash
-just ci-supported          # Required PR gate
+just ci-supported          # Local supported/product proof
 cargo t2                   # Test with 2 threads
 just clippy                # Lint core crates
 cargo fmt --all --check    # Check formatting
 cargo insta review         # Review snapshots
 ```
+
+## GitHub PR Gate
+
+For `EffortlessMetrics/adze-swarm`, the required hosted merge gate is
+`Rust Small Result` from `.github/workflows/em-ci-routed-rust.yml`.
+
+`Rust Small on CX43`, `Rust Small on CX53`, and
+`Rust Small on GitHub Hosted` are routed implementation lanes. Do not treat
+them as separate required branch-protection contexts.
+
+Use `just ci-supported` for local supported/release-facing proof. It is not the
+normal hosted merge gate for swarm PRs.
 
 ## Do NOT
 

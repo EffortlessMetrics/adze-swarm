@@ -48,7 +48,6 @@ Required branch protection context: `Rust Small Result`.
 | `ci-policy.yml` | `CI Lane Whitelist` | PR + push | Advisory | xtask lane whitelist lint |
 | `ci-policy.yml` | `Source of Truth` | PR + push | Advisory | doc-artifacts and active-goal ledger checks |
 | `ripr.yml` | `ripr advisory` | PR | PR-only | Advisory report; non-blocking |
-| `droid-review.yml` | `droid-review` | PR (non-draft) | PR-only | Factory Droid auto-review; `continue-on-error` |
 
 ### Push / scheduled (main health, not PR-blocking)
 
@@ -88,17 +87,12 @@ In `adze-swarm`, the legacy `ci.yml` jobs run on schedule or via `workflow_dispa
 | `coverage.yml` | `Coverage Full` | `full-ci` PR + dispatch | Advisory | Broader workspace/features LCOV artifact; Codecov upload non-blocking |
 | `product-proof.yml` | `ci-product stable canaries` | Path-routed PR + scheduled + dispatch | PR-only/manual | Bounded Stable README/support-tier and claim-boundary docs proof lane; manual dispatch defaults to this lane; not required unless branch protection promotes it |
 | `core-tests.yml` | `core` | Scheduled (nightly) + dispatch | Scheduled | Full nightly canary: clippy, doc, all-features |
-| `benchmarks.yml` | `Performance Benchmarks` | Push + labeled PR | Push | Benchmark comparison for PRs |
-| `benchmarks.yml` | `Criterion HTML Report` | Dispatch only | Advisory | Manual Criterion HTML report generation |
-| `coverage.yml` | `Codecov Coverage` | Push + labeled PR | Push | Dedicated coverage lane |
 | `microcrate-ci.yml` | `Formatting` through `Strict Docs` | Path-routed PR + dispatch | PR-only/manual | Receipt jobs and crate-group tests route by affected Rust/package surface |
 | `golden-tests.yml` | `Golden Tests` | Path-routed PR + dispatch | PR-only/manual | Tree-sitter parity validation |
-| `performance.yml` | `Performance Regression Check` | PR (path-routed) | PR-only | Benchmark comparison on perf-impact changes |
 | `test-policy.yml` | `Enforce Test Policy` | Policy/docs PR + manual | Advisory | Test naming, disabled-test prevention, static inventory; runtime caps on manual dispatch with cold-compile hang guard |
-| `mdbook.yml` | `build` + `deploy` | Push + PR | Push | Documentation site build |
 | `ts-bridge-smoke.yml` | `ts-bridge matrix setup` | Path-routed PR + dispatch | Advisory | Selects Linux-only default smoke or full OS matrix on explicit request |
 | `ts-bridge-smoke.yml` | `smoke` | Path-routed PR + dispatch | PR-only/manual | Linux-only ts-bridge smoke by default; full OS on `platform-matrix`, `full-ci`, or dispatch |
-| `release.yml` | Various release jobs | Dispatch only | Dispatch | Manual release workflow |
+| `badge-endpoints.yml` | `refresh` | Dispatch only | Advisory | Manual badge endpoint refresh that opens an automation PR |
 
 ### Advisory (nightly / unstable / non-blocking)
 
@@ -117,10 +111,6 @@ These jobs use nightly toolchains, unstable features, or are explicitly marked
 | `criterion-smoke.yml` | `benchmark` | Scheduled (weekly) + dispatch | Non-blocking; compile-checks `adze-benchmarks` |
 | `ts-bridge-parity.yml` | `parity` | Scheduled (nightly) + dispatch | Non-blocking; `continue-on-error` |
 | `clippy-quarantine-report.yml` | `quarantine-report` | Scheduled (weekly) + dispatch | Report only |
-| `droid-security-scan.yml` | `droid-security-scan` | Scheduled (weekly) + dispatch | Advisory scan; `continue-on-error` |
-| `fuzz.yml` | `fuzz` | Scheduled + labeled PR + dispatch | Fuzz targets; time-boxed |
-| `droid-review.yml` | `droid-review` | PR (non-draft) | AI review; `continue-on-error` |
-| `droid.yml` | `droid` | @droid mentions | AI assistant; `continue-on-error` |
 
 ---
 
