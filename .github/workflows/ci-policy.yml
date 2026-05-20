@@ -43,7 +43,7 @@ jobs:
           exit $status
       - name: Upload whitelist receipt
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: ci-lane-whitelist-receipt
           path: |
@@ -89,7 +89,7 @@ jobs:
           cargo run -q -p xtask -- check-active-goal --mode blocking 2>&1 | tee target/policy/active-goal.log
       - name: Upload source-of-truth receipts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: source-of-truth-receipts
           path: |
@@ -163,7 +163,7 @@ jobs:
           cargo test -p xtask goto_indexing -- --nocapture 2>&1 | tee target/policy/goto-indexing-tests.log
       - name: Upload GLR invariant receipts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: glr-invariant-receipts
           path: |
