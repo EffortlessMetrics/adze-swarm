@@ -203,11 +203,16 @@ Do not mark the product objective complete while any of these are true:
 
 ## Next Concrete Actions
 
-1. Refresh public `main` locally before any tag, publish, or release-workflow
-   work. Public promotion PR #795 has merged, but it did not publish crates or
-   prove registry installation.
-2. Run the crates.io install receipt after publish and before any doc claims
-   `cargo install adze-cli` as the supported quickstart. The current local
-   package receipt and verifier dry run are publish-readiness evidence only.
+The product-trust lane is paused in
+[`../../plans/product-gap-burn-down/handoff.md`](../../plans/product-gap-burn-down/handoff.md)
+because the remaining work requires explicit human release/publish
+authorization.
+
+1. If release/publish is authorized, refresh public `main`, rerun release
+   preflight, follow `docs/reference/PUBLISH_CHECKLIST.md`, then run the
+   crates.io install receipt after publish and before any doc claims
+   `cargo install adze-cli` as the supported quickstart.
+2. If no release/publish authorization exists, do not tag, publish, mutate
+   signing/Cargo-token workflows, or claim `cargo install adze-cli`.
 3. Consider promoting `ci-product-stable` only after advisory receipts are
    consistently green and branch-protection policy is updated deliberately.

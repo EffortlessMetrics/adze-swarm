@@ -1,6 +1,6 @@
 id = "adze-residual-product-trust-hardening"
 title = "Adze Residual Product Trust Hardening"
-status = "active"
+status = "paused"
 owner = "runtime/product"
 created = "2026-05-19"
 
@@ -9,6 +9,13 @@ Burn down the remaining product-trust gaps that surfaced after the public
 promotion execution closeout. Keep work in adze-swarm, keep public adze as the
 release/public-intake surface, and either prove or explicitly bound every
 remaining product claim before public promotion.
+"""
+
+pause_reason = """
+All routine swarm product-proof work in this lane is complete. The remaining
+items require explicit human release/publish authorization before any tag,
+crate publish, Cargo-token, signing, or crates.io install-receipt work can
+proceed.
 """
 
 end_state = [

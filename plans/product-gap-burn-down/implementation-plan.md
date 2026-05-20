@@ -1,6 +1,6 @@
 # Product Gap Burn-Down Plan
 
-Status: active
+Status: paused
 Owner: runtime/product
 Created: 2026-05-19
 Linked proposal:
@@ -24,6 +24,13 @@ Burn down the remaining blockers named in
 `docs/status/PRODUCT_OBJECTIVE_AUDIT.md` without broadening public claims. This
 plan owns the next execution queue after the completed toolkit excellence and
 release-promotion readiness campaigns.
+
+## Handoff State
+
+The routine swarm work for this lane is paused. The current active manifest has
+no ready work items: the release/publish preflight is complete, and the only
+remaining items are blocked on explicit human release/publish authorization and
+the post-publish crates.io install receipt.
 
 ## Operating Rules
 
