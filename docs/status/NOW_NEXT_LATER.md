@@ -95,6 +95,11 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       after PR #311.
       These are package verification receipts, not crates.io install or publish
       claims.
+- [x] Latest crates.io CLI install-boundary receipt: `cargo info adze-cli`
+      was refreshed outside the workspace on 2026-05-20 and reported that
+      `adze-cli` is not present in crates.io. The active goal now carries a
+      blocked `crates-io-cli-install-receipt` item so agents do not confuse
+      local package verification with a registry install receipt.
 
 ### Operational tail
 - [x] [Issue #269](https://github.com/EffortlessMetrics/adze/issues/269): pure-rust benchmark-compilation tail is removed from routine PRs; benchmark compile/performance signal remains in explicit performance and benchmark lanes.

@@ -83,3 +83,29 @@ commands = [
   "just ci-product-stable",
   "just check-publishable",
 ]
+
+[[work_item]]
+id = "release-publish-decision-preflight"
+status = "ready"
+proposal = "ADZE-PROP-0005-release-promotion-readiness"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/product-gap-burn-down/implementation-plan.md"
+commands = [
+  "cargo info adze-cli",
+  "just package-local adze-cli",
+  "cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run",
+  "just check-publishable",
+]
+
+[[work_item]]
+id = "crates-io-cli-install-receipt"
+status = "blocked"
+blocked_by = ["release-publish-decision-preflight"]
+proposal = "ADZE-PROP-0005-release-promotion-readiness"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/product-gap-burn-down/implementation-plan.md"
+commands = [
+  "cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked",
+]
