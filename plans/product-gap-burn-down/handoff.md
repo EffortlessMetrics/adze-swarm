@@ -44,6 +44,7 @@ cargo info --registry crates-io adze-cli
 just package-local adze-cli
 cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run
 just check-publishable
+scripts/ci-product.sh --dry-run
 cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_matrix_returns_diagnostic_document --features pure-rust -- --exact --nocapture
 cargo run -q -p xtask -- check-active-goal --mode blocking
 cargo run -q -p xtask -- check-doc-artifacts --mode blocking
@@ -73,6 +74,11 @@ Observed results:
   newline-boundary body inputs to that generated external-token matrix and
   proves generated `parse()` errors agree with `parse_document()` diagnostics
   on spans and expected-token names.
+- `adze-swarm` PR #345 registered the focused external-scanner commands in the
+  advisory `scripts/ci-product.sh` lane, routed edits to that script through
+  Product Proof, and passed `Rust Small Result`, `Source of Truth`,
+  `ci-product stable canaries`, `Supported Rust Gate`, and the broad Pure Rust
+  implementation tail.
 - Source-of-truth checks passed.
 
 ## Resume Conditions

@@ -42,6 +42,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       `adze-swarm` PR #343 so `parse()` errors and `parse_document()`
       diagnostics agree on spans and expected-token names for multibyte,
       body, and newline-boundary cases.
+- [x] Register the focused external-scanner parser-v4 and generated matrix
+      commands in the advisory `ci-product.sh` lane in `adze-swarm` PR #345,
+      with Product Proof routing for future edits to that script.
 - [x] Supersede public promotion PR #794 with refreshed public promotion PR #795 after `adze-swarm` advanced through the residual product-trust fixes and promotion-receipt refreshes.
 - [x] Merge public promotion PR #795 into public `adze` after the required public branch-protection context was corrected to `Rust Small Result` and the legacy `ci-supported` dispatch receipt passed.
 
