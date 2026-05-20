@@ -1,7 +1,7 @@
 # Now / Next / Later
 
-**Last updated:** 2026-05-19
-**Status:** **Residual product trust hardening active** — `adze-swarm` is the operating repo, public `adze` remains release/public-intake, and the remaining blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any public promotion. Toolkit excellence is complete with closeout recorded in [`../../plans/toolkit-excellence/closeout.md`](../../plans/toolkit-excellence/closeout.md). Release promotion readiness is closed out in [`../../plans/release-promotion/closeout.md`](../../plans/release-promotion/closeout.md), and any public promotion still requires a fresh explicit execution goal using [`../../plans/release-promotion/public-promotion-pr-plan.md`](../../plans/release-promotion/public-promotion-pr-plan.md).
+**Last updated:** 2026-05-20
+**Status:** **Residual product trust hardening active** — `adze-swarm` remains the operating repo for follow-up product-proof work, public promotion PR #795 has merged into public `adze`, and the remaining blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. Toolkit excellence is complete with closeout recorded in [`../../plans/toolkit-excellence/closeout.md`](../../plans/toolkit-excellence/closeout.md). Release promotion readiness is closed out in [`../../plans/release-promotion/closeout.md`](../../plans/release-promotion/closeout.md).
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -38,7 +38,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Fix parser-v4 external-scanner emitted-token spans and record the focused dispatch/range plus diagnostic-document canaries.
 - [x] Add first parser-generated external-token grammar diagnostic-document proof while keeping full parser-generated external-scanner recovery explicitly future work.
 - [x] Supersede public promotion PR #794 with refreshed public promotion PR #795 after `adze-swarm` advanced through the residual product-trust fixes and promotion-receipt refreshes.
-- [ ] Keep public promotion PR #795 parked for review unless a reviewer approves it; all checks are green and squash auto-merge is enabled, but public promotion has not completed.
+- [x] Merge public promotion PR #795 into public `adze` after the required public branch-protection context was corrected to `Rust Small Result` and the legacy `ci-supported` dispatch receipt passed.
 
 ### Toolkit excellence campaign
 - [x] Consolidate the source-of-truth guardrails into one PR and close duplicate source-of-truth PRs.
@@ -80,18 +80,19 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       This is evidence for the README Stable claim lane, not a
       branch-protection change.
 - [x] Latest local stable-product receipt: `just ci-product-stable` passed on
-      2026-05-20 from current `adze-swarm/main` at commit `e965cba2` after
-      residual product-trust PRs #295-#310. This refreshes the advisory
+      2026-05-20 from current `adze-swarm/main` at commit `464a32a9` after
+      residual product-trust PRs #295-#311. This refreshes the advisory
       README-stable, clean-room quickstart, downstream fixture, typed AST,
       precedence, and serialization proof from the current swarm state.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
-      the remaining `cargo install adze-cli`, branch-protection, and public
-      promotion gaps.
+      the remaining `cargo install adze-cli`, advisory stable-product lane, and
+      support-tier limitation gaps.
 - [x] Latest release-surface package receipts: `just package-local adze-cli`
       and `just check-publishable` passed on 2026-05-19 from `adze-swarm`;
-      `just check-publishable` was refreshed again on 2026-05-20 at commit
-      `e965cba2` after residual product-trust PRs #309-#310.
+      `just check-publishable` was refreshed again on 2026-05-20 at commits
+      `e965cba2` after residual product-trust PRs #309-#310 and `464a32a9`
+      after PR #311.
       These are package verification receipts, not crates.io install or publish
       claims.
 
