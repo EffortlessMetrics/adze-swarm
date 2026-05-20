@@ -1,6 +1,6 @@
 # External Scanner Recovery Hardening Plan
 
-Status: active
+Status: complete
 Owner: runtime/diagnostics
 Created: 2026-05-20
 Linked proposal: ../../docs/proposals/ADZE-PROP-0007-external-scanner-recovery-hardening.md
@@ -183,7 +183,7 @@ Revert the focused parser-v4 test PR.
 
 ## Work Item: support-tier-boundary-refresh
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0007-external-scanner-recovery-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -196,6 +196,13 @@ Blocked by:
 
 Refresh support-tier and product-audit wording after new proof exists, without
 overclaiming external-scanner stability.
+
+### Receipt
+
+Support-tier and product-audit wording now names the expanded generated
+external-token malformed-input matrix and parser-v4 diagnostic-detail canaries.
+External scanners remain Experimental; broader generated external-scanner
+coverage and any promotion review remain future work.
 
 ### Production Delta
 

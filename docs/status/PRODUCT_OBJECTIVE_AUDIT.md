@@ -2,8 +2,8 @@
 
 **Last updated:** 2026-05-20
 **Status:** incomplete; use this as an audit checklist, not as a support-tier
-promotion. No routine non-release execution lane is active after the
-user-experience hardening closeout; the current manifest is paused at
+promotion. The external-scanner recovery hardening lane is closed out, and no
+routine non-release execution lane is selected in
 [`../../.adze/goals/active.toml`](../../.adze/goals/active.toml).
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
@@ -39,7 +39,7 @@ Adze should be release-readable as a Rust parser generator where:
 | Tablegen emits valid tables. | `SUPPORT_TIERS.md` Tablegen `TSLanguage` ABI row; `PRODUCT_PROOF_MAP.md` tablegen ABI claim. | Stabilizing with compressed decode, field metadata, aliases, externals, lex modes, and conflict-cell proof. | Broader generated-language roundtrip and full Tree-sitter parity remain future work. |
 | GLR handles real conflicts honestly. | `SUPPORT_TIERS.md` GLR conflict routing row; `docs/product/ACCEPTANCE_MATRIX.md` GLR ambiguity row. | Stabilizing with generated shift/reduce conflict preservation, generated reduce/reduce preservation and selected typed-AST extraction, dangling-else nearest-else selected typed AST proof, retained alternatives, deterministic selected output, ambiguity summaries, and no-panic bad-input guardrails. | Broader conflict-class coverage and any Stable GLR promotion still require support-tier proof review. |
 | Typed extraction is deterministic. | `typed_ast_contract_left_associative_addition`; `typed_ast_contract_repeated_parse_is_deterministic`; `readme_arithmetic_quickstart_builds_and_runs`. | Covered for Stable typed extraction rows. | Keep determinism claims scoped to supported generated-parser shapes. |
-| Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors and External scanners rows; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof; `docs/reference/diagnostics-and-recovery.md`. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, generated-parser matrix canaries, object-like `parse_document()`/JSON recovery proof, and user-facing diagnostics/recovery guidance from PR #353. External-scanner dispatch now has focused parser-v4 proof for emitted-token byte spans/text, rejection of scanner tokens that are invalid in the parser state, direct parser-v4 `parse_document()` diagnostic-document behavior for bad input in an external-scanner grammar shape, and generated external-token grammar diagnostic-document matrix behavior for malformed root, keyword, missing-colon, trailing-token, multibyte expression, invalid body, and newline-boundary body inputs. The generated matrix also compares `parse()` errors with `parse_document()` diagnostics for span and expected-token agreement. | Broader parser-generated external-scanner recovery coverage remains future work; any Stable promotion still needs support-tier review. |
+| Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors and External scanners rows; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof; `docs/reference/diagnostics-and-recovery.md`. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, generated-parser matrix canaries, object-like `parse_document()`/JSON recovery proof, and user-facing diagnostics/recovery guidance from PR #353. External-scanner dispatch now has focused parser-v4 proof for emitted-token byte spans/text, rejection of scanner tokens that are invalid in the parser state without advancing input position, direct parser-v4 `parse_document()` diagnostic-document behavior for bad input in an external-scanner grammar shape with rendered source context, and generated external-token grammar diagnostic-document matrix behavior for malformed root, empty/whitespace input, keyword/missing-condition, missing-colon, trailing-token, multibyte expression, multibyte body-token, invalid body, newline/CRLF boundary, and nested invalid-expression inputs. The generated matrix also compares `parse()` errors with `parse_document()` diagnostics for span and expected-token agreement. | Broader real-grammar parser-generated external-scanner recovery coverage remains future work; any Stable promotion still needs support-tier review. |
 | Every Stable README claim maps to proof. | README capability table; `SUPPORT_TIERS.md`; `readme_stable_claims_are_in_stable_product_lane`; `scripts/ci-product-stable.sh`. | Covered by current proof map and stable-product canaries. | The stable-product lane is still advisory, not branch-protection required. |
 | Experimental/developing surfaces are clearly labeled. | README capability table; `SUPPORT_TIERS.md`; `KNOWN_RED.md`; `PRODUCT_PROOF_MAP.md`. | Covered for runtime2, broader grammars, WASM, Tree-sitter interop, CLI, benchmarks, typed CST, incremental, and JSON. | Re-check after any README, support-tier, or release-facing wording change. |
 | Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI document JSON recovery diagnostics; public promotion PR #795; user-experience hardening closeout. | Covered for local/downstream fixtures, CLI recovery smoke, public repository promotion, starter README polish, diagnostics/recovery guidance, performance receipt boundaries, and local proof-loop friction mitigation. | Published CLI install and any future crates.io release surface need fresh receipts. |
@@ -168,16 +168,20 @@ external-token example matrix proving generated `parse_document()` returns
 diagnostic documents with bounded byte spans, matching point ranges,
 selected-tree error facts, and public expected-token names for malformed root,
 keyword, missing-colon, and trailing-token inputs. PR #343 adds multibyte
-expression, invalid body, and newline-boundary body inputs and
-compares generated `parse()` errors with `parse_document()` diagnostics for
-span and expected-token agreement. PR #345 added the focused parser-v4 and
-generated external-token proof commands to the broad advisory `ci-product.sh`
-lane and routed edits to that script through Product Proof. Hosted PR #345
-passed `Rust Small Result`, `Source of Truth`, `ci-product stable canaries`,
-`Supported Rust Gate`, and the broad Pure Rust implementation tail. These
-receipts do not close the broader parser-generated external-scanner recovery
-gap, promote external scanners out of Experimental, or create a stable public
-scanner API claim.
+expression, invalid body, and newline-boundary body inputs and compares
+generated `parse()` errors with `parse_document()` diagnostics for span and
+expected-token agreement. PR #345 added the focused parser-v4 and generated
+external-token proof commands to the broad advisory `ci-product.sh` lane and
+routed edits to that script through Product Proof. PR #359 adds empty-source,
+whitespace-only, missing-condition, multibyte body-token, CRLF boundary, and
+nested invalid-expression generated cases. PR #360 adds parser-v4 canaries for
+rejected-token input-position safety and rendered source diagnostics. Hosted PR
+#345 passed `Rust Small Result`, `Source of Truth`, `ci-product stable
+canaries`, `Supported Rust Gate`, and the broad Pure Rust implementation tail;
+PRs #359 and #360 passed `Rust Small Result`, Source of Truth, and the relevant
+path-routed proof receipts. These receipts do not close the broader
+parser-generated external-scanner recovery gap, promote external scanners out
+of Experimental, or create a stable public scanner API claim.
 
 Current release-surface readiness receipts:
 
@@ -305,7 +309,7 @@ Do not mark the product objective complete while any of these are true:
 - The root README dependency block is release-surface-bounded because
   `adze-tool` does not yet have a crates.io metadata receipt.
 - `ci-product-stable` is advisory and not a required branch-protection gate.
-- Broader parser-generated external-scanner recovery coverage remains future work.
+- Broader real-grammar parser-generated external-scanner recovery coverage remains future work.
 - GLR conflict routing, structured parse errors, Tree-sitter compatibility,
   query compatibility, CLI document output, and `AdzeDocument` are not all
   Stable; their current tiers and limitations are recorded in
@@ -313,10 +317,9 @@ Do not mark the product objective complete while any of these are true:
 
 ## Next Concrete Actions
 
-The routine product-proof and user-experience lanes are closed out. A fresh
-non-release lane now targets the remaining generated external-scanner recovery
-proof gap:
-[`../../plans/external-scanner-recovery/implementation-plan.md`](../../plans/external-scanner-recovery/implementation-plan.md).
+The routine product-proof, user-experience, and external-scanner recovery
+hardening lanes are closed out:
+[`../../plans/external-scanner-recovery/closeout.md`](../../plans/external-scanner-recovery/closeout.md).
 Release authorization and post-publish crates.io install receipt work remain
 separate and tracked in
 [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
@@ -329,6 +332,5 @@ separate and tracked in
    signing/Cargo-token workflows, or claim `cargo install adze-cli`.
 3. Consider promoting `ci-product-stable` only after advisory receipts are
    consistently green and branch-protection policy is updated deliberately.
-4. For non-release work, continue in `adze-swarm` under the active external
-   scanner recovery lane and do not promote external scanners beyond their
-   proven support-tier slice.
+4. For future non-release work, open a fresh active goal in `adze-swarm`; do
+   not promote external scanners beyond their proven support-tier slice.

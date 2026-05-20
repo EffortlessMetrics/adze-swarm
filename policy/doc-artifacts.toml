@@ -143,6 +143,7 @@ links_to = [
   "ADZE-SPEC-0012",
   "ADZE-ADR-0001",
   "plans/external-scanner-recovery/implementation-plan.md",
+  "plans/external-scanner-recovery/closeout.md",
   ".adze/goals/active.toml",
   ".adze/goals/external-scanner-recovery-hardening.toml",
   "docs/status/SUPPORT_TIERS.md",
@@ -452,7 +453,7 @@ links_to = [
 id = "plans/external-scanner-recovery/implementation-plan.md"
 kind = "plan"
 path = "plans/external-scanner-recovery/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "runtime/diagnostics"
 milestone = "post-0.9"
 source_of_truth_for = ["external scanner recovery hardening implementation sequence"]
@@ -460,6 +461,24 @@ links_to = [
   "ADZE-PROP-0007",
   ".adze/goals/active.toml",
   ".adze/goals/external-scanner-recovery-hardening.toml",
+  "plans/external-scanner-recovery/closeout.md",
+  "docs/status/SUPPORT_TIERS.md",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
+id = "plans/external-scanner-recovery/closeout.md"
+kind = "plan"
+path = "plans/external-scanner-recovery/closeout.md"
+status = "complete"
+owner = "runtime/diagnostics"
+milestone = "post-0.9"
+source_of_truth_for = ["external scanner recovery hardening closeout receipts and claim boundaries"]
+links_to = [
+  "ADZE-PROP-0007",
+  "plans/external-scanner-recovery/implementation-plan.md",
+  ".adze/goals/external-scanner-recovery-hardening.toml",
+  ".adze/goals/archive/2026-05-20-external-scanner-recovery-hardening.toml",
   "docs/status/SUPPORT_TIERS.md",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
 ]
@@ -531,16 +550,32 @@ links_to = [
 id = ".adze/goals/external-scanner-recovery-hardening.toml"
 kind = "goal"
 path = ".adze/goals/external-scanner-recovery-hardening.toml"
-status = "active"
+status = "complete"
 owner = "droid-factory"
 milestone = "post-0.9"
 source_of_truth_for = ["external scanner recovery hardening agent work queue"]
 links_to = [
   "ADZE-PROP-0007",
   "plans/external-scanner-recovery/implementation-plan.md",
+  "plans/external-scanner-recovery/closeout.md",
+  ".adze/goals/archive/2026-05-20-external-scanner-recovery-hardening.toml",
   ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
+id = ".adze/goals/archive/2026-05-20-external-scanner-recovery-hardening.toml"
+kind = "goal"
+path = ".adze/goals/archive/2026-05-20-external-scanner-recovery-hardening.toml"
+status = "complete"
+owner = "droid-factory"
+milestone = "post-0.9"
+source_of_truth_for = ["archived external scanner recovery hardening complete manifest"]
+links_to = [
+  "ADZE-PROP-0007",
+  "plans/external-scanner-recovery/implementation-plan.md",
+  "plans/external-scanner-recovery/closeout.md",
 ]
 
 [[artifact]]

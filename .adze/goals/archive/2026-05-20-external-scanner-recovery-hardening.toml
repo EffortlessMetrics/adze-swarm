@@ -29,7 +29,7 @@ proposal = "docs/proposals/ADZE-PROP-0007-external-scanner-recovery-hardening.md
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/external-scanner-recovery/implementation-plan.md"
-prs = []
+prs = [358]
 issues = [325]
 commands = [
   "python -c \"import tomllib; tomllib.load(open('.adze/goals/active.toml', 'rb')); tomllib.load(open('.adze/goals/external-scanner-recovery-hardening.toml', 'rb')); tomllib.load(open('policy/doc-artifacts.toml', 'rb'))\"",
@@ -45,6 +45,7 @@ proposal = "docs/proposals/ADZE-PROP-0007-external-scanner-recovery-hardening.md
 spec = "ADZE-SPEC-0005"
 adr = "ADZE-ADR-0001"
 plan = "plans/external-scanner-recovery/implementation-plan.md"
+prs = [359]
 commands = [
   "cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_matrix_returns_diagnostic_document --features pure-rust -- --exact --nocapture",
   "git diff --check",
@@ -57,6 +58,7 @@ proposal = "docs/proposals/ADZE-PROP-0007-external-scanner-recovery-hardening.md
 spec = "ADZE-SPEC-0005"
 adr = "ADZE-ADR-0001"
 plan = "plans/external-scanner-recovery/implementation-plan.md"
+prs = [360]
 commands = [
   "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests::test_external_scanner_parse_document_bad_input_returns_diagnostic_document -- --exact --nocapture",
   "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests::test_external_scanner_rejects_token_not_in_valid_symbols -- --exact --nocapture",
