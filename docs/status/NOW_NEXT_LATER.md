@@ -92,7 +92,10 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       after PRs #332-#334 bounded root README, book, and live co-release
       dependency snippets, adding
       `co_release_dependency_snippets_stay_release_surface_bounded` to the
-      stable product lane.
+      stable product lane. It was refreshed again at commit `72d2faa7` after
+      PRs #336-#338 routed claim-boundary docs into Product Proof, clarified
+      the query expansion tail, and moved remaining active artifact receipt
+      actions to Node 24-compatible artifact action versions.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
       the remaining `cargo install adze-cli`, advisory stable-product lane, and

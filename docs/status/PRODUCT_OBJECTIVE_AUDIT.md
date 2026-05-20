@@ -103,6 +103,14 @@ standalone downstream fixtures, typed AST determinism, precedence, and core
 table serialization from the current swarm state. It is still advisory product
 proof, not a branch-protection change.
 
+Latest local receipt after product-proof routing and Node 24 artifact-action
+maintenance PRs #336-#338: `just ci-product-stable` passed on 2026-05-20 from
+`adze-swarm/main` at commit `72d2faa7`. This reran the same advisory
+README-stable, install/dependency claim-boundary, clean-room quickstart,
+downstream fixture, typed AST determinism, precedence, and serialization
+canaries from the current swarm state. It is still advisory product proof, not
+a branch-protection change.
+
 Current CI-tail receipts:
 
 - PR #284 bounded `pure-rust-ci` and `pr-gate` Rust tail steps so advisory
