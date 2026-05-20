@@ -142,6 +142,7 @@ cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::te
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_rejects_token_not_in_valid_symbols -- --exact --nocapture
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_parse_document_bad_input_returns_diagnostic_document -- --exact --nocapture
 cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_matrix_returns_diagnostic_document --features pure-rust -- --exact --nocapture
+scripts/ci-product.sh --dry-run
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests -- --nocapture
 cargo test -p adze --features external_scanners
 ```
@@ -157,9 +158,14 @@ selected-tree error facts, and public expected-token names for malformed root,
 keyword, missing-colon, and trailing-token inputs. PR #343 adds multibyte
 expression, invalid body, and newline-boundary body inputs and
 compares generated `parse()` errors with `parse_document()` diagnostics for
-span and expected-token agreement. These receipts do not close the broader
-parser-generated external-scanner recovery gap, promote external scanners out
-of Experimental, or create a stable public scanner API claim.
+span and expected-token agreement. PR #345 added the focused parser-v4 and
+generated external-token proof commands to the broad advisory `ci-product.sh`
+lane and routed edits to that script through Product Proof. Hosted PR #345
+passed `Rust Small Result`, `Source of Truth`, `ci-product stable canaries`,
+`Supported Rust Gate`, and the broad Pure Rust implementation tail. These
+receipts do not close the broader parser-generated external-scanner recovery
+gap, promote external scanners out of Experimental, or create a stable public
+scanner API claim.
 
 Current release-surface readiness receipts:
 

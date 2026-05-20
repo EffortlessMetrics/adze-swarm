@@ -344,7 +344,9 @@ external-token proof across malformed root, keyword, missing-colon, and
 trailing-token inputs while keeping the surface Experimental. PR #343 added
 multibyte expression, invalid body, and newline-boundary body inputs and proves
 generated `parse()` errors agree with `parse_document()` diagnostics on spans
-and expected-token names.
+and expected-token names. PR #345 registered those focused external-scanner
+commands in the advisory product canary lane while keeping the lane non-required
+and the surface Experimental.
 
 ### Production Delta
 
@@ -358,6 +360,9 @@ and expected-token names.
   documents for malformed root, keyword, missing-colon, trailing-token,
   multibyte expression, invalid body, and newline-boundary body inputs, and
   agrees with generated `parse()` on diagnostic spans and expected-token names.
+- `scripts/ci-product.sh` carries the focused external-scanner commands in the
+  broad advisory product lane, and edits to that script route through Product
+  Proof.
 - `SUPPORT_TIERS.md` records focused external-scanner canaries while keeping
   the surface Experimental.
 
@@ -375,6 +380,7 @@ cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::te
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_rejects_token_not_in_valid_symbols -- --exact --nocapture
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_parse_document_bad_input_returns_diagnostic_document -- --exact --nocapture
 cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_matrix_returns_diagnostic_document --features pure-rust -- --exact --nocapture
+scripts/ci-product.sh --dry-run
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests -- --nocapture
 cargo test -p adze --features external_scanners
 git diff --check
@@ -387,7 +393,9 @@ receipt updates. Revert PR #309 to remove the generated external-token
 diagnostic-document canary and receipt updates. Revert PR #298 only if the
 scanner span behavior itself needs to be rolled back. Keep external scanners
 Experimental and keep full parser-generated recovery coverage listed as future
-work.
+work. Revert PR #345 only to remove advisory-lane routing of these commands; do
+not treat that rollback as a behavior rollback for the underlying scanner
+receipts.
 
 ## Work Item: product-objective-audit-refresh
 
