@@ -45,6 +45,11 @@ release-surface work, not a proven Stable claim yet.
 
 Add adze to your `Cargo.toml`:
 
+The versioned dependency block below is the intended release-surface shape.
+Until the publish/install receipt is recorded in
+[`PRODUCT_OBJECTIVE_AUDIT.md`](../status/PRODUCT_OBJECTIVE_AUDIT.md), the
+proved path uses local/path dependencies from this checkout.
+
 ```toml
 [dependencies]
 adze = { version = "0.9.0", default-features = false }

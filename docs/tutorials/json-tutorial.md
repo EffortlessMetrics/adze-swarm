@@ -21,6 +21,10 @@ cd adze-json-demo
 
 Add Adze to your `Cargo.toml`:
 
+The versioned dependency block below is a release-surface shape for the
+coordinated 0.9.0 publish. Current repo proof uses local/path dependencies until
+the crates.io metadata and install receipts exist.
+
 ```toml
 [dependencies]
 adze = "0.9.0"

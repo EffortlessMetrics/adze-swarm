@@ -30,24 +30,30 @@ adze is a parser generator for Rust that lets you define grammars using Rust typ
 | **Incremental Parsing** | 🚧 Experimental | ✅ Mature |
 | **Editor Integration** | 🚧 Coming | ✅ Extensive |
 
-**Use adze if**: You want type-safe parsing in pure Rust, need WASM support, or want to handle ambiguous grammars.
+**Use adze if**: You want type-safe generated parsers in Rust, can work within
+the documented support tiers, or need covered GLR conflict-handling shapes.
 
 **Use tree-sitter if**: You need mature editor integration or battle-tested incremental parsing today.
 
-### Is adze production-ready?
+### What is stable today?
 
-**v0.8.x**: Macro-based grammar generation is production-ready on the current release line.
-- Core parsing (LR): stable, enabled by default
-- GLR parsing: available via `features = ["glr"]`
-- Type-safe ASTs: Working
-- WASM support: Ready
+The stable front door is generated pure-Rust parsing into typed Rust values for
+the shapes covered in `docs/status/SUPPORT_TIERS.md`.
 
-**Not yet ready**:
-- Incremental parsing (experimental)
-- Full query system (in progress)
-- Editor plugins (future)
+**Stable or release-readable slices**:
+- Core generated parser path: use the default generated `grammar::parse()`.
+- Type-safe AST extraction: stable for the documented generated-parser contract.
+- Pure-Rust parser table serialization: stable for the support-tier row.
 
-**Recommendation**: Great for new projects, CLI tools, and WASM apps. See [ROADMAP.md](./ROADMAP.md) for current status.
+**Developing slices**:
+- GLR conflict routing: stabilizing for covered conflict classes.
+- Diagnostics, `AdzeDocument`, Tree-sitter-shaped output, query compatibility,
+  CLI projections, WASM, and broader editor integrations: follow their support
+  tiers and known gaps.
+
+**Recommendation**: Use Adze for Rust-native generated parsers and tooling
+experiments that match the support-tier proof. See [ROADMAP.md](./ROADMAP.md)
+and `docs/status/SUPPORT_TIERS.md` for current status.
 
 ### What does GLR mean? Do I need it?
 
@@ -72,12 +78,17 @@ adze supports both — LR is the default; enable GLR with `features = ["glr"]` i
 
 Add to your `Cargo.toml`:
 
+The versioned dependency block is a release-surface shape for the coordinated
+publish. Until `docs/status/PRODUCT_OBJECTIVE_AUDIT.md` records crates.io
+metadata/install receipts for the co-release crates, use the repo quickstart or
+local/path dependencies for proof from this checkout.
+
 ```toml
 [dependencies]
-adze = "0.8"
+adze = "0.9.0"
 
 [build-dependencies]
-adze-tool = "0.8"
+adze-tool = "0.9.0"
 ```
 
 See [QUICK_START.md](./QUICK_START.md) for a 5-minute tutorial.

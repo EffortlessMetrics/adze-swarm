@@ -1,6 +1,6 @@
 # Quick Start - Get Parsing in 5 Minutes
 
-> **Doc status:** being refreshed to match dev head (0.8.0-dev).
+> **Doc status:** being refreshed to match Adze 0.9.0.
 > If something here disagrees with the repo, treat the repo as truth
 > and log it in [`docs/status/FRICTION_LOG.md`](./docs/status/FRICTION_LOG.md).
 
@@ -21,16 +21,21 @@ cd my-parser
 cat >> Cargo.toml <<'EOF'
 
 [dependencies]
-adze = { version = "0.8.0-dev", default-features = false }
+adze = { version = "0.9.0", default-features = false }
 
 [build-dependencies]
-adze-tool = "0.8.0-dev"
+adze-tool = "0.9.0"
 
 [features]
 default = ["pure-rust"]
 pure-rust = ["adze/pure-rust"]
 EOF
 ```
+
+> **Release-surface boundary:** the versioned dependency block above is the
+> intended crates.io shape after the coordinated publish. Current repo proof
+> uses local/path dependencies from this checkout until the publish/install
+> receipt is recorded in `docs/status/PRODUCT_OBJECTIVE_AUDIT.md`.
 
 ---
 

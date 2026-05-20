@@ -12,9 +12,13 @@ This chapter covers common issues you may encounter when working with Adze gramm
 
 1. Ensure your `Cargo.toml` includes `adze-tool` as a build dependency:
 
+   This versioned dependency line is the intended release-surface shape after
+   the coordinated publish. Current repo proof uses local/path dependencies
+   from this checkout until crates.io receipts exist for the co-release crates.
+
    ```toml
    [build-dependencies]
-   adze-tool = "0.1"
+   adze-tool = "0.9.0"
    ```
 
 2. Ensure your `build.rs` calls `build_parsers()`:
@@ -172,7 +176,7 @@ do not imply browser runtime support.
 
    ```toml
    [dependencies]
-   adze = "0.8"
+   adze = "0.9.0"
    ```
 
 2. Avoid enabling experimental or advisory features unless the target proof
@@ -182,7 +186,7 @@ do not imply browser runtime support.
 
    ```toml
    [target.'cfg(target_arch = "wasm32")'.dependencies]
-   adze = "0.8"
+   adze = "0.9.0"
    ```
 
 4. Verify the advisory WASM demo compile path with:

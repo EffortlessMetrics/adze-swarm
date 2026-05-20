@@ -15,6 +15,10 @@ An interactive web-based environment for grammar development and testing:
 
 For now, develop and test grammars locally:
 
+The `cargo add` commands below are the intended release-surface shape after the
+coordinated publish. Current repo proof uses local/path dependencies from this
+checkout until crates.io receipts exist for the co-release crates.
+
 ```bash
 cargo add adze
 cargo add --build adze-tool

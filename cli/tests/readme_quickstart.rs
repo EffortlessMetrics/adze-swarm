@@ -378,6 +378,10 @@ fn cargo_install_adze_cli_claims_stay_release_surface_bounded() {
             include_str!("../../book/src/reference/cli-reference.md"),
         ),
         (
+            "docs/reference/PUBLISH_CHECKLIST.md",
+            include_str!("../../docs/reference/PUBLISH_CHECKLIST.md"),
+        ),
+        (
             "book/src/guide/dynamic-loading.md",
             include_str!("../../book/src/guide/dynamic-loading.md"),
         ),
@@ -415,6 +419,75 @@ fn cargo_install_adze_cli_claims_stay_release_surface_bounded() {
                 "`cargo install adze-cli` must stay explicitly bounded as a release-surface claim until a crates.io receipt exists.\nfile: {path}\nline: {}\ncontext:\n{}",
                 idx + 1,
                 surrounding_context(text, idx, 6)
+            );
+        }
+    }
+}
+
+#[test]
+fn co_release_dependency_snippets_stay_release_surface_bounded() {
+    let docs = [
+        ("README.md", include_str!("../../README.md")),
+        ("FAQ.md", include_str!("../../FAQ.md")),
+        ("QUICK_START.md", include_str!("../../QUICK_START.md")),
+        (
+            "docs/how-to/use-playground.md",
+            include_str!("../../docs/how-to/use-playground.md"),
+        ),
+        (
+            "docs/tutorials/getting-started.md",
+            include_str!("../../docs/tutorials/getting-started.md"),
+        ),
+        (
+            "docs/tutorials/json-tutorial.md",
+            include_str!("../../docs/tutorials/json-tutorial.md"),
+        ),
+        (
+            "book/src/getting-started.md",
+            include_str!("../../book/src/getting-started.md"),
+        ),
+        (
+            "book/src/getting-started/quickstart.md",
+            include_str!("../../book/src/getting-started/quickstart.md"),
+        ),
+        (
+            "book/src/getting-started/installation.md",
+            include_str!("../../book/src/getting-started/installation.md"),
+        ),
+        (
+            "book/src/getting-started/migration.md",
+            include_str!("../../book/src/getting-started/migration.md"),
+        ),
+        (
+            "book/src/appendix/faq.md",
+            include_str!("../../book/src/appendix/faq.md"),
+        ),
+        (
+            "book/src/advanced/optimizer-usage.md",
+            include_str!("../../book/src/advanced/optimizer-usage.md"),
+        ),
+        (
+            "book/src/guide/troubleshooting.md",
+            include_str!("../../book/src/guide/troubleshooting.md"),
+        ),
+        (
+            "book/src/guide/migration.md",
+            include_str!("../../book/src/guide/migration.md"),
+        ),
+    ];
+
+    for (path, text) in docs {
+        for (idx, line) in text.lines().enumerate() {
+            if !line.contains("adze-tool =") && !line.contains("cargo add --build adze-tool") {
+                continue;
+            }
+
+            let context = surrounding_context(text, idx, 14).to_ascii_lowercase();
+            assert!(
+                dependency_claim_context_is_bounded(&context),
+                "versioned or registry-shaped `adze-tool` dependency snippets must stay release-surface bounded until co-release crates have crates.io receipts.\nfile: {path}\nline: {}\ncontext:\n{}",
+                idx + 1,
+                surrounding_context(text, idx, 14)
             );
         }
     }
@@ -500,21 +573,21 @@ fn readme_stable_capability_rows(readme: &str) -> Vec<StableCapabilityRow> {
 
 fn book_downstream_manifest(readme_toml: &str, runtime_path: &str, tool_path: &str) -> String {
     assert!(
-        readme_toml.contains(r#"adze = { version = "0.8.0-dev", default-features = false }"#),
+        readme_toml.contains(r#"adze = { version = "0.9.0", default-features = false }"#),
         "Book quickstart install block should document the adze runtime dependency"
     );
     assert!(
-        readme_toml.contains(r#"adze-tool = "0.8.0-dev""#),
+        readme_toml.contains(r#"adze-tool = "0.9.0""#),
         "Book quickstart install block should document the adze-tool build dependency"
     );
 
     let dependencies = readme_toml
         .replace(
-            r#"adze = { version = "0.8.0-dev", default-features = false }"#,
+            r#"adze = { version = "0.9.0", default-features = false }"#,
             &format!(r#"adze = {{ path = "{runtime_path}", default-features = false }}"#),
         )
         .replace(
-            r#"adze-tool = "0.8.0-dev""#,
+            r#"adze-tool = "0.9.0""#,
             &format!(r#"adze-tool = {{ path = "{tool_path}" }}"#),
         );
 
@@ -619,10 +692,26 @@ fn install_claim_context_is_bounded(context: &str) -> bool {
         "until `adze-cli` is published",
         "until adze-cli is published",
         "crates.io install receipt",
+        "post-publish receipt",
+        "before publishing",
         "release-surface",
         "not prove crates.io",
         "not a crates.io install claim",
         "not a stable cli",
+    ]
+    .iter()
+    .any(|marker| context.contains(marker))
+}
+
+fn dependency_claim_context_is_bounded(context: &str) -> bool {
+    [
+        "release-surface",
+        "coordinated publish",
+        "crates.io receipts",
+        "publish/install receipt",
+        "metadata/install receipts",
+        "local/path dependencies",
+        "not, by itself, a crates.io install",
     ]
     .iter()
     .any(|marker| context.contains(marker))
