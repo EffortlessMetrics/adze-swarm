@@ -1,0 +1,22 @@
+name: Proposal
+about: Start a why-focused proposal artifact.
+title: "proposal: "
+labels: ["proposal"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user/repo problem and why now?
+    validations:
+      required: true
+  - type: input
+    id: milestone
+    attributes:
+      label: Target milestone
+  - type: textarea
+    id: success
+    attributes:
+      label: Success criteria
+    validations:
+      required: true

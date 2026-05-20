@@ -1,0 +1,23 @@
+name: Spec
+about: Define behavior contract and required evidence.
+title: "spec: "
+labels: ["spec"]
+body:
+  - type: input
+    id: proposal
+    attributes:
+      label: Linked proposal ID
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Required behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Required evidence
+    validations:
+      required: true

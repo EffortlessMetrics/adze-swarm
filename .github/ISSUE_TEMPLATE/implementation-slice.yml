@@ -1,0 +1,48 @@
+name: Implementation slice
+about: One PR-sized execution item linked to source-of-truth artifacts.
+title: "slice: "
+labels: ["implementation"]
+body:
+  - type: input
+    id: proposal
+    attributes:
+      label: Linked proposal
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Linked spec
+    validations:
+      required: true
+  - type: input
+    id: plan_item
+    attributes:
+      label: Plan item
+    validations:
+      required: true
+  - type: textarea
+    id: expected_files
+    attributes:
+      label: Expected files
+      description: Files/modules expected to change.
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+    validations:
+      required: true
+  - type: textarea
+    id: proof
+    attributes:
+      label: Proof commands
+    validations:
+      required: true
+  - type: textarea
+    id: claim_boundary
+    attributes:
+      label: Claim boundary
+    validations:
+      required: true

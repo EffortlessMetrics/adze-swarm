@@ -1,0 +1,35 @@
+name: Policy exception
+about: Request a policy ledger exception with receipt metadata.
+title: "policy exception: "
+labels: ["policy"]
+body:
+  - type: input
+    id: ledger
+    attributes:
+      label: Policy ledger file
+    validations:
+      required: true
+  - type: input
+    id: owner
+    attributes:
+      label: Owner
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Reason
+    validations:
+      required: true
+  - type: input
+    id: covered_by
+    attributes:
+      label: covered_by
+    validations:
+      required: true
+  - type: input
+    id: review_after
+    attributes:
+      label: review_after (YYYY-MM-DD)
+    validations:
+      required: true

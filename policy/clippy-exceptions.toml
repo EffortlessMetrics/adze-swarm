@@ -1,0 +1,5 @@
+schema_version = "1.0"
+
+# Record explicit clippy exception receipts here.
+# Required fields per exception entry:
+# owner, reason, covered_by, created, review_after, expires (if temporary)
