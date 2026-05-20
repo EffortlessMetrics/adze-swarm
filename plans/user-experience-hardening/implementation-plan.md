@@ -1,6 +1,6 @@
 # User Experience Hardening Plan
 
-Status: complete
+Status: active
 Owner: runtime/product
 Created: 2026-05-20
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
@@ -39,7 +39,7 @@ explicit authorization.
 
 ## Work Item: user-experience-hardening-source-of-truth
 
-Status: active
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -136,7 +136,7 @@ Revert the focused example/doc PR.
 
 ## Work Item: api-navigation-polish
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -148,9 +148,17 @@ Blocked by: user-experience-hardening-source-of-truth
 Improve "which API should I use?" navigation without changing support-tier
 claims.
 
+### Receipt
+
+Landed in PR #351.
+
 ### Production Delta
 
-To be defined by the PR that picks this item.
+- README links directly to the API-choice guide from the install and
+  documentation paths.
+- The API-choice guide names the user-experience hardening lane and current
+  `AdzeDocument` support boundary.
+- The campaign plan state matches the active goal manifest.
 
 ### Non-Goals
 
