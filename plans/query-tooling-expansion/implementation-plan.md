@@ -83,7 +83,7 @@ Revert the setup PR to restore the previous paused no-active-lane manifest.
 
 ## Work Item: query-example-cli-smoke
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0013-query-compatibility.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -95,10 +95,17 @@ Blocked by: query-tooling-source-of-truth
 Refresh runnable query examples and CLI/tooling smoke receipts for the currently
 supported query subset.
 
+### Receipt
+
+The `query_highlighting` example now emits a compact receipt and has an example
+test that asserts highlight ranges, source-aware field/predicate captures,
+positive and negative byte-range filtering, `clear_byte_range()`, and root-only
+matching.
+
 ### Production Delta
 
-Expected future PRs may touch query examples, CLI smoke tests, or docs that
-teach the supported query subset.
+Updates the existing runnable query example and compatibility reference proof
+commands.
 
 ### Non-Goals
 
@@ -115,6 +122,7 @@ teach the supported query subset.
 ### Proof Commands
 
 ```bash
+cargo test -p adze --features query --example query_highlighting -- --nocapture
 cargo test -p adze --features query --lib query -- --nocapture
 cargo run -p adze --features query --example query_highlighting
 git diff --check

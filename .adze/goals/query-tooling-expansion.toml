@@ -39,12 +39,13 @@ commands = [
 
 [[work_item]]
 id = "query-example-cli-smoke"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
 spec = "ADZE-SPEC-0013"
 adr = "ADZE-ADR-0001"
 plan = "plans/query-tooling-expansion/implementation-plan.md"
 commands = [
+  "cargo test -p adze --features query --example query_highlighting -- --nocapture",
   "cargo test -p adze --features query --lib query -- --nocapture",
   "cargo run -p adze --features query --example query_highlighting",
   "git diff --check",

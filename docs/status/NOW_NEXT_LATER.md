@@ -31,7 +31,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 ### Query/tooling expansion
 - [x] Replace the paused no-active-lane manifest with a focused query/tooling
       expansion lane in `adze-swarm`.
-- [ ] Refresh query examples and CLI/tooling smoke receipts for the supported
+- [x] Refresh query examples and CLI/tooling smoke receipts for the supported
       subset without making full query parity or stable CLI schema claims.
 - [ ] Add or refresh query gap-matrix receipts for supported behavior and
       explicit known gaps.
