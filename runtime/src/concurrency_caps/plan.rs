@@ -64,4 +64,32 @@ mod tests {
         assert_eq!(plan.chunk_size, 65);
         assert!(!plan.use_direct_parallel_iter);
     }
+
+    #[test]
+    fn plan_threshold_boundary_prefers_direct_iteration() {
+        let plan = ParallelPartitionPlan::for_item_count(8, 4);
+        assert!(plan.use_direct_parallel_iter);
+        assert_eq!(plan.chunk_size, 2);
+    }
+
+    #[test]
+    fn plan_above_threshold_uses_chunking() {
+        let plan = ParallelPartitionPlan::for_item_count(9, 4);
+        assert!(!plan.use_direct_parallel_iter);
+        assert_eq!(plan.chunk_size, 3);
+    }
+
+    #[test]
+    fn plan_handles_exact_division() {
+        let plan = ParallelPartitionPlan::for_item_count(12, 4);
+        assert_eq!(plan.chunk_size, 3);
+    }
+
+    #[test]
+    fn plan_normalizes_zero_requested_concurrency() {
+        let plan = ParallelPartitionPlan::for_item_count(10, 0);
+        assert_eq!(plan.concurrency, MIN_CONCURRENCY);
+        assert_eq!(plan.chunk_size, 10);
+        assert!(!plan.use_direct_parallel_iter);
+    }
 }
