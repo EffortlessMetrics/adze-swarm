@@ -73,6 +73,12 @@ downstream starter fixture, typed AST determinism, operator precedence, and
 core table serialization canaries. This remains advisory product proof, not a
 branch-protection change.
 
+Latest local receipt after install-receipt verifier hardening PRs #318-#322:
+`just ci-product-stable` passed on 2026-05-20 from `adze-swarm/main` at commit
+`4f3d451c`. This refreshes the bounded README-stable and CLI install-claim
+boundary canaries from the current swarm state; it is still advisory product
+proof, not a branch-protection change.
+
 Current CI-tail receipts:
 
 - PR #284 bounded `pure-rust-ci` and `pr-gate` Rust tail steps so advisory
