@@ -79,6 +79,13 @@ Latest local receipt after install-receipt verifier hardening PRs #318-#322:
 boundary canaries from the current swarm state; it is still advisory product
 proof, not a branch-protection change.
 
+Latest local receipt after release-blocker tracker PRs #324-#327: `just
+ci-product-stable` passed on 2026-05-20 from `adze-swarm/main` at commit
+`5498967c`. This reran the same advisory README-stable, clean-room quickstart,
+downstream fixture, typed AST determinism, precedence, serialization, and
+bounded CLI install-claim canaries after the release tracker links were added.
+It is still advisory product proof, not a branch-protection change.
+
 Current CI-tail receipts:
 
 - PR #284 bounded `pure-rust-ci` and `pr-gate` Rust tail steps so advisory
