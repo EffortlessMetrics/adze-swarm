@@ -164,8 +164,10 @@ links_to = [
   "ADZE-SPEC-0013",
   "ADZE-ADR-0001",
   "plans/query-tooling-expansion/implementation-plan.md",
+  "plans/query-tooling-expansion/closeout.md",
   ".adze/goals/active.toml",
   ".adze/goals/query-tooling-expansion.toml",
+  ".adze/goals/archive/2026-05-20-query-tooling-expansion.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -506,7 +508,7 @@ links_to = [
 id = "plans/query-tooling-expansion/implementation-plan.md"
 kind = "plan"
 path = "plans/query-tooling-expansion/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "runtime/tooling"
 milestone = "post-0.9"
 source_of_truth_for = ["query and tooling expansion implementation sequence"]
@@ -514,6 +516,23 @@ links_to = [
   "ADZE-PROP-0008",
   ".adze/goals/active.toml",
   ".adze/goals/query-tooling-expansion.toml",
+  "plans/query-tooling-expansion/closeout.md",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = "plans/query-tooling-expansion/closeout.md"
+kind = "plan"
+path = "plans/query-tooling-expansion/closeout.md"
+status = "complete"
+owner = "runtime/tooling"
+milestone = "post-0.9"
+source_of_truth_for = ["query and tooling expansion closeout receipts and claim boundaries"]
+links_to = [
+  "ADZE-PROP-0008",
+  "plans/query-tooling-expansion/implementation-plan.md",
+  ".adze/goals/query-tooling-expansion.toml",
+  ".adze/goals/archive/2026-05-20-query-tooling-expansion.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -602,15 +621,31 @@ links_to = [
 id = ".adze/goals/query-tooling-expansion.toml"
 kind = "goal"
 path = ".adze/goals/query-tooling-expansion.toml"
-status = "active"
+status = "complete"
 owner = "droid-factory"
 milestone = "post-0.9"
 source_of_truth_for = ["query and tooling expansion agent work queue"]
 links_to = [
   "ADZE-PROP-0008",
   "plans/query-tooling-expansion/implementation-plan.md",
+  "plans/query-tooling-expansion/closeout.md",
+  ".adze/goals/archive/2026-05-20-query-tooling-expansion.toml",
   ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/archive/2026-05-20-query-tooling-expansion.toml"
+kind = "goal"
+path = ".adze/goals/archive/2026-05-20-query-tooling-expansion.toml"
+status = "complete"
+owner = "droid-factory"
+milestone = "post-0.9"
+source_of_truth_for = ["archived query and tooling expansion complete manifest"]
+links_to = [
+  "ADZE-PROP-0008",
+  "plans/query-tooling-expansion/implementation-plan.md",
+  "plans/query-tooling-expansion/closeout.md",
 ]
 
 [[artifact]]

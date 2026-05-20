@@ -1,6 +1,6 @@
 # Query and Tooling Expansion Plan
 
-Status: active
+Status: complete
 Owner: runtime/tooling
 Created: 2026-05-20
 Linked proposal: ../../docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md
@@ -180,7 +180,7 @@ Revert the focused fixture or docs PR.
 
 ## Work Item: support-tier-boundary-refresh
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -191,6 +191,16 @@ Blocked by: n/a
 
 Refresh support-tier or product-audit wording only after new query/tooling proof
 exists.
+
+### Receipt
+
+The support-tier and product-proof map rows now include the example receipt
+test, the runnable example receipt, and the expanded `query_differential`
+matrix covering wrong-field rejection, source-aware predicate rejection, child
+quantifiers with tails, and source-aware literal-token matching. The support
+tier remains Stabilizing for the documented subset; full Tree-sitter query
+parity, directive semantics, broad imported grammar parity, and GLR-forest-wide
+matching remain future work.
 
 ### Production Delta
 
