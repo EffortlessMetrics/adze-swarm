@@ -179,7 +179,6 @@ mod tests {
         assert_eq!(type_to_string(&inner), "i64");
     }
 
-
     #[test]
     fn try_extract_inner_type_returns_original_when_target_has_no_angle_arguments() {
         let ty: Type = parse_quote!(Vec);
@@ -215,7 +214,6 @@ mod tests {
         assert_eq!(type_to_string(&out), "Result < Box < u8 > , Error >");
     }
 
-
     #[test]
     fn filter_inner_type_leaves_non_path_types_unchanged() {
         let ty: Type = parse_quote!((String, u8));
@@ -241,7 +239,6 @@ mod tests {
 
         let _ = filter_inner_type(&ty, &skip_set(&["Box"]));
     }
-
 
     #[test]
     fn wrap_leaf_type_wraps_non_skipped_type_as_leaf() {
