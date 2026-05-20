@@ -179,6 +179,17 @@ mod tests {
         assert_eq!(type_to_string(&inner), "i64");
     }
 
+
+    #[test]
+    fn try_extract_inner_type_returns_original_when_target_has_no_angle_arguments() {
+        let ty: Type = parse_quote!(Vec);
+
+        let (out, extracted) = try_extract_inner_type(&ty, "Vec", &skip_set(&[]));
+
+        assert!(!extracted);
+        assert_eq!(type_to_string(&out), "Vec");
+    }
+
     #[test]
     #[should_panic(expected = "argument in angle brackets must be a type")]
     fn try_extract_inner_type_panics_when_matching_container_first_arg_is_not_type() {
@@ -204,6 +215,16 @@ mod tests {
         assert_eq!(type_to_string(&out), "Result < Box < u8 > , Error >");
     }
 
+
+    #[test]
+    fn filter_inner_type_leaves_non_path_types_unchanged() {
+        let ty: Type = parse_quote!((String, u8));
+
+        let out = filter_inner_type(&ty, &skip_set(&["Arc", "Box"]));
+
+        assert_eq!(type_to_string(&out), "(String , u8)");
+    }
+
     #[test]
     fn filter_inner_type_handles_qualified_skipped_wrappers() {
         let ty: Type = parse_quote!(std::sync::Arc<std::boxed::Box<String>>);
@@ -219,6 +240,16 @@ mod tests {
         let ty: Type = parse_quote!(Box<'a>);
 
         let _ = filter_inner_type(&ty, &skip_set(&["Box"]));
+    }
+
+
+    #[test]
+    fn wrap_leaf_type_wraps_non_skipped_type_as_leaf() {
+        let ty: Type = parse_quote!(String);
+
+        let out = wrap_leaf_type(&ty, &skip_set(&["Vec"]));
+
+        assert_eq!(type_to_string(&out), "adze :: WithLeaf < String >");
     }
 
     #[test]
