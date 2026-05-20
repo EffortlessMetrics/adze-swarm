@@ -319,8 +319,9 @@ Blocked by: n/a
 ### Goal
 
 Keep the external-scanner product boundary honest by proving focused
-parser-v4 dispatch behavior while leaving parser-generated external-scanner
-recovery as future work until it has its own canaries.
+parser-v4 dispatch behavior and a generated external-token diagnostic-document
+canary while leaving full parser-generated external-scanner recovery as future
+work until it has broader canaries.
 
 ### Receipt
 
@@ -329,6 +330,9 @@ captures the pre-scan byte position, slices emitted token text from that range,
 and rejects scanner-emitted tokens that are not valid in the current parser
 state. PR #300 added a follow-up parser-v4 canary proving bad input in a direct
 external-scanner grammar shape returns a diagnostic document with error facts.
+PR #309 added a generated external-token grammar canary proving generated
+`parse_document()` returns a diagnostic document with bounded byte spans and
+matching point ranges for malformed input.
 
 ### Production Delta
 
@@ -338,6 +342,8 @@ external-scanner grammar shape returns a diagnostic document with error facts.
   position instead of the scanner-advanced position.
 - Direct parser-v4 `parse_document()` returns a diagnostic document for bad
   input in an external-scanner grammar shape.
+- Generated external-token grammar `parse_document()` returns a diagnostic
+  document for malformed input.
 - `SUPPORT_TIERS.md` records focused external-scanner canaries while keeping
   the surface Experimental.
 
@@ -345,7 +351,7 @@ external-scanner grammar shape returns a diagnostic document with error facts.
 
 - No support-tier promotion.
 - No stable external scanner API claim.
-- No parser-generated external-scanner recovery claim.
+- No full parser-generated external-scanner recovery claim.
 - No public promotion change.
 
 ### Proof Commands
@@ -354,6 +360,7 @@ external-scanner grammar shape returns a diagnostic document with error facts.
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_parser_with_external_scanner -- --exact --nocapture
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_rejects_token_not_in_valid_symbols -- --exact --nocapture
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_parse_document_bad_input_returns_diagnostic_document -- --exact --nocapture
+cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_returns_diagnostic_document --features pure-rust -- --exact --nocapture
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests -- --nocapture
 cargo test -p adze --features external_scanners
 git diff --check
@@ -362,9 +369,11 @@ git diff --check
 ### Rollback
 
 Revert PR #300 to remove the direct parser-v4 diagnostic-document canary and
-receipt updates. Revert PR #298 only if the scanner span behavior itself needs
-to be rolled back. Keep external scanners Experimental and keep
-parser-generated recovery coverage listed as future work.
+receipt updates. Revert PR #309 to remove the generated external-token
+diagnostic-document canary and receipt updates. Revert PR #298 only if the
+scanner span behavior itself needs to be rolled back. Keep external scanners
+Experimental and keep full parser-generated recovery coverage listed as future
+work.
 
 ## Work Item: product-objective-audit-refresh
 

@@ -152,17 +152,19 @@ than a repo proof failure.
 
 Refreshed from `adze-swarm/main` at commit `b613ebbb` after PRs #295-#301.
 
-Queue state:
+Historical queue state:
 
 - `EffortlessMetrics/adze-swarm`: no open PRs.
-- `EffortlessMetrics/adze`: public promotion PR #794 remains open.
+- `EffortlessMetrics/adze`: public promotion PR #794 was open for this
+  receipt, then later closed/unmerged and superseded by #795.
 - Local checkout: `main` was clean before the receipt branch was created.
 
-Proof results:
+Historical proof results:
 
 - `gh pr view 794 --repo EffortlessMetrics/adze --json
-  state,mergeStateStatus,reviewDecision,autoMergeRequest`: passed; #794 is open,
-  blocked by normal public review/merge controls, and has no auto-merge request.
+  state,mergeStateStatus,reviewDecision,autoMergeRequest`: passed at the time;
+  #794 was open, blocked by normal public review/merge controls, and had no
+  auto-merge request.
 - `just ci-product-stable`: passed from current `adze-swarm/main`.
 - `just check-publishable`: passed for `adze-common`, `adze-ir`,
   `adze-glr-core`, `adze-tablegen`, `adze-macro`, `adze-tool`, `adze-cli`, and
@@ -172,8 +174,7 @@ Promotion boundary:
 
 - The public #794 CI receipt at commit `2550b21f` remains historical.
 - The public promotion branch must be refreshed from current `adze-swarm/main`
-  or superseded before review/merge because it does not include residual
-  product-trust PRs #295-#301.
+  or superseded before review/merge whenever `adze-swarm/main` advances.
 
 ### Rollback
 
