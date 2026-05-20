@@ -260,6 +260,24 @@ and the supported lane formats normal crate source roots through
 **Status:** Resolved
 **Links:** `adze-swarm#157`
 
+### FR-021 - Windows Supported-Gate Test PDB Pressure
+
+**Area:** ci
+**Symptom:** Running `just ci-supported` on Windows failed while linking
+`adze-tool` test binaries.
+**Expected:** The local supported proof should complete on the same Windows
+checkout used for swarm work without requiring release or product-code changes.
+**Actual:** The test profile emitted enough debug information to hit MSVC linker
+PDB limits (`LNK1140`) and then exhausted available disk space during later
+links (`LNK1180`).
+**Repro:** `just ci-supported` from `C:\Code\Rust2\adze-swarm` on 2026-05-20.
+**Fix:** `scripts/ci-supported.sh` now defaults
+`CARGO_PROFILE_TEST_DEBUG=0`, keeping the supported test surface intact while
+avoiding Windows test-profile PDB pressure. Developers can override the
+environment variable when they explicitly need debug info.
+**Status:** Mitigated
+**Links:** `scripts/ci-supported.sh`
+
 ---
 
 ## Entry Template
