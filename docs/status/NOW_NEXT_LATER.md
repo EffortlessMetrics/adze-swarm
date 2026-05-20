@@ -87,7 +87,8 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       precedence, serialization, and bounded CLI install-claim proof from the
       current swarm state. It was refreshed again on 2026-05-20 from
       `adze-swarm/main` at commit `5498967c` after release-blocker tracker PRs
-      #324-#327.
+      #324-#327, and again at commit `99dd12b0` after the 0.9.0 workspace
+      version bump in PR #330.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
       the remaining `cargo install adze-cli`, advisory stable-product lane, and
@@ -101,6 +102,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       `adze-swarm/main` at commit `390ab76f`. `just check-publishable` was
       refreshed again on 2026-05-20 from current `adze-swarm/main` at commit
       `fc959ec1` after the stable-product receipt status update.
+      Both `just package-local adze-cli` and `just check-publishable` were
+      refreshed again from `adze-swarm/main` at commit `99dd12b0` after the
+      0.9.0 workspace version bump.
       These are package verification receipts, not crates.io install or publish
       claims.
 - [x] Latest crates.io CLI install-boundary receipt:
@@ -111,7 +115,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       lookup and `cargo install` use the explicit `crates-io` registry. The
       verifier dry-run was refreshed on 2026-05-20 from `adze-swarm/main` at
       commit `df4be63a` and again at commit `fc959ec1`, printing the fully
-      qualified command plan. The active
+      qualified command plan. The crates.io metadata check was refreshed again
+      from commit `99dd12b0` after the 0.9.0 workspace version bump and still
+      reported that `adze-cli` is not present in crates.io. The active
       goal carries a blocked `crates-io-cli-install-receipt` item so agents do
       not confuse local package verification with a registry install receipt.
 - [x] Residual product-trust lane paused with no ready routine swarm work. The

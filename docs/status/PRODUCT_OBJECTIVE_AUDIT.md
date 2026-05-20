@@ -86,6 +86,14 @@ downstream fixture, typed AST determinism, precedence, serialization, and
 bounded CLI install-claim canaries after the release tracker links were added.
 It is still advisory product proof, not a branch-protection change.
 
+Latest local receipt after the 0.9.0 workspace version bump: `just
+ci-product-stable` passed on 2026-05-20 from `adze-swarm/main` at commit
+`99dd12b0` after PR #330. This reran the same advisory README-stable,
+clean-room quickstart, downstream fixture, typed AST determinism, precedence,
+serialization, and bounded CLI install-claim canaries after the workspace
+version moved to 0.9.0. It is still advisory product proof, not a
+branch-protection change.
+
 Current CI-tail receipts:
 
 - PR #284 bounded `pure-rust-ci` and `pr-gate` Rust tail steps so advisory
@@ -144,7 +152,9 @@ PR #253, again at commit `b613ebbb` after residual product-trust PRs
 #295-#301, again on 2026-05-20 at commit `e965cba2` after PRs #309-#310, and
 again on 2026-05-20 at commit `464a32a9` after PR #311. It was refreshed again
 on 2026-05-20 from current `adze-swarm/main` at commit `fc959ec1`, after the
-stable-product receipt status update.
+stable-product receipt status update. It was refreshed again on 2026-05-20 from
+`adze-swarm/main` at commit `99dd12b0`, after PR #330 bumped the publishable
+workspace crates to 0.9.0.
 It verifies publish-order metadata and `cargo package --list` for
 the core publish surface (`adze-common`, `adze-ir`, `adze-glr-core`,
 `adze-tablegen`, `adze-macro`, `adze-tool`, `adze-cli`, and `adze`). This is
@@ -184,8 +194,10 @@ cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version 
 `just package-local adze-cli` packages and verifies the CLI crate with local
 patches for unpublished co-release crates. It passed on 2026-05-19 from
 `adze-swarm`, producing and verifying `adze-cli v0.9.0`, and passed again
-on 2026-05-20 from `adze-swarm/main` at commit `390ab76f`. This is local
-publish-readiness evidence, not a crates.io install receipt.
+on 2026-05-20 from `adze-swarm/main` at commit `390ab76f`. It was refreshed
+again from `adze-swarm/main` at commit `99dd12b0` after the workspace version
+bump. This is local publish-readiness evidence, not a crates.io install
+receipt.
 
 `cargo_install_adze_cli_claims_stay_release_surface_bounded` keeps live
 beginner/status/spec docs from presenting `cargo install adze-cli` as a ready
@@ -195,9 +207,9 @@ registry installation proof.
 Use `cargo info --registry crates-io adze-cli` when verifying registry
 publication. The explicit registry flag avoids resolving the local workspace
 package. It reported on 2026-05-20 that `adze-cli` could not be found in
-crates.io, including a current-main refresh at commit `fc959ec1`, so
-`cargo install adze-cli` remains a release-surface target rather than current
-product proof.
+crates.io, including current-main refreshes at commits `fc959ec1` and
+`99dd12b0`, so `cargo install adze-cli` remains a release-surface target rather
+than current product proof.
 
 `cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version
 X.Y.Z --locked` is the post-publish receipt hook for the missing crates.io
