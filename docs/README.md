@@ -78,6 +78,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Microcrate To SRP Plan**](../plans/0.9.0/microcrate-collapse.md) - Release-blocking transition from migration-target microcrates to SRP owner submodules.
 - [**API Foundation Plan**](../plans/0.9.0/api-foundation.md) - PR-sized sequence for `AdzeDocument` and its typed, diagnostic, GLR, compatibility, JSON, CLI, and WASM projections.
 - [**Release Promotion Readiness Plan**](../plans/release-promotion/implementation-plan.md) - Current campaign for inventorying, auditing, and planning any public `adze` promotion from `adze-swarm`.
+- [**User Experience Hardening Plan**](../plans/user-experience-hardening/implementation-plan.md) - Active non-release lane for starter, examples, navigation, local proof-loop, and walkthrough polish.
 - [**Active Goals**](../.adze/goals/README.md) - Machine-readable Droid/Codex execution state conventions.
 - [**Document Artifact Ledger**](../policy/doc-artifacts.toml) - Machine-readable registry for proposals, specs, ADRs, and implementation plans.
 - [**Correctness Push Plan**](./status/CORRECTNESS_PUSH.md) - Current merge/proof sequence for parser, GLR, tablegen ABI, CLI, and product-proof convergence.
