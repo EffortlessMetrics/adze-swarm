@@ -186,8 +186,10 @@ than current product proof.
 `cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version
 X.Y.Z --locked` is the post-publish receipt hook for the missing crates.io
 install proof. The verifier's metadata check uses the explicit `crates-io`
-registry so the receipt cannot pass by resolving the local workspace package.
-It installs from crates.io into an isolated temporary root and runs
+registry, and the install command also passes `--registry crates-io`, so the
+receipt cannot pass by resolving the local workspace package or another
+configured default registry. It installs from crates.io into an isolated
+temporary root and runs
 `adze --version`. The `--dry-run` mode is pre-publish command-shape evidence
 only; it does not contact crates.io and does not close the install-receipt gap.
 The dry-run command shape was refreshed on 2026-05-20 from `adze-swarm/main` at
