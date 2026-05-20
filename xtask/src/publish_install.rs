@@ -1,7 +1,10 @@
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result, bail};
+
+const CRATES_IO_REGISTRY: &str = "crates-io";
 
 pub fn run(
     crate_name: &str,
@@ -40,8 +43,7 @@ pub fn run(
     println!("install root: {}", install_root.path().display());
     println!();
 
-    let mut info = Command::new(&cargo);
-    info.arg("info").arg(crate_name);
+    let info = cargo_info_command(&cargo, crate_name);
     run_command(info, &cargo_home, &target_dir)
         .with_context(|| format!("checking crates.io metadata for package `{crate_name}`"))?;
 
@@ -88,7 +90,7 @@ fn print_plan(crate_name: &str, bin_name: &str, version: Option<&str>, locked: b
     println!("version: {}", version.unwrap_or("latest registry version"));
     println!("locked: {locked}");
     println!("commands:");
-    println!("  cargo info {crate_name}");
+    println!("  cargo info --registry {CRATES_IO_REGISTRY} {crate_name}");
     if let Some(version) = version {
         if locked {
             println!(
@@ -108,6 +110,15 @@ fn print_plan(crate_name: &str, bin_name: &str, version: Option<&str>, locked: b
     );
     println!();
     println!("non-claim: dry-run does not contact crates.io or prove registry installation");
+}
+
+fn cargo_info_command(cargo: &OsStr, crate_name: &str) -> Command {
+    let mut info = Command::new(cargo);
+    info.arg("info")
+        .arg("--registry")
+        .arg(CRATES_IO_REGISTRY)
+        .arg(crate_name);
+    info
 }
 
 fn run_command(
@@ -176,5 +187,16 @@ mod tests {
             root.join("bin")
                 .join(format!("adze{}", std::env::consts::EXE_SUFFIX))
         );
+    }
+
+    #[test]
+    fn verify_crates_io_install_metadata_check_uses_explicit_registry() {
+        let command = cargo_info_command(OsStr::new("cargo"), "adze-cli");
+        let args = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(args, vec!["info", "--registry", "crates-io", "adze-cli"]);
     }
 }

@@ -100,7 +100,7 @@ git tag vX.Y.Z
 
 # 6. Verify the published CLI installs from crates.io in an isolated temp root.
 #    Run this only after the crate is visible on crates.io.
-cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z
+cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked
 
 # 7. Push tags
 git push origin main --tags
@@ -108,10 +108,12 @@ git push origin main --tags
 
 The crates.io install verifier is the post-publish receipt for any user-facing
 `cargo install adze-cli` quickstart claim. Before publishing, inspect the command
-plan without touching crates.io:
+plan without touching crates.io. The verifier checks package metadata with the
+explicit `crates-io` registry before installing so the receipt cannot be
+satisfied by the local workspace package:
 
 ```bash
-cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --dry-run
+cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run
 ```
 
 Do not treat the dry run as registry proof. It only confirms the post-publish
