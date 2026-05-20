@@ -130,19 +130,19 @@ registry installation.
 
 Current public promotion PR receipt:
 
-Public `EffortlessMetrics/adze#794` was opened from the explicit public
-promotion execution decision and refreshed after source-side fixes landed in
-`adze-swarm` #290, #291, #303, and subsequent audit refreshes. Verify the exact
-public head SHA live before review or merge because each accepted
-`adze-swarm` audit refresh intentionally advances the promotion source. The
-refreshed public PR #794 check set passed on 2026-05-19, including
-`Rust Small Result`, `Supported Rust Gate`, `PR Gate Success`,
-`Source of Truth`, `CI Lane Whitelist`, `GLR Invariants`, `Coverage Lite`,
-`ci-product stable canaries`, `Test Core Crates`, `Test Runtime Crates`, and
-`Test Pure Rust Implementation`.
+Public `EffortlessMetrics/adze#795` supersedes closed/unmerged public PR #794.
+It was opened from the explicit public promotion execution decision after the
+promotion branch was refreshed to the current `adze-swarm/main` tree, including
+the source-side fixes through `adze-swarm` #306. Verify the exact public head
+SHA live before review or merge because each accepted `adze-swarm` refresh can
+advance the promotion source. The refreshed public PR #795 check set passed on
+2026-05-20, including `Rust Small Result`, `Supported Rust Gate`, `PR Gate
+Success`, `Source of Truth`, `CI Lane Whitelist`, `GLR Invariants`, `Coverage
+Lite`, `ci-product stable canaries`, `Test Core Crates`, `Test Runtime Crates`,
+and `Test Pure Rust Implementation`.
 
 This is a ready-for-review public promotion receipt, not a completed
-promotion. PR #794 remains open, mergeable, not draft, and has squash
+promotion. PR #795 remains open, mergeable, not draft, and has squash
 auto-merge enabled. The public merge state is blocked by the public `main`
 branch requirement for one approving review, not by failed CI.
 
@@ -185,8 +185,8 @@ Do not mark the product objective complete while any of these are true:
 - `cargo install adze-cli` has no crates.io install receipt.
 - `ci-product-stable` is advisory and not a required branch-protection gate.
 - Parser-generated external-scanner recovery coverage remains future work.
-- Public promotion has not happened. Public PR #794 is open, refreshed through
-  the latest source-side claim-boundary fix, green, and auto-merge-enabled, but
+- Public promotion has not happened. Public PR #795 is open, refreshed through
+  the latest source-side example-crate proof fix, green, and auto-merge-enabled, but
   it still requires one public approving review before it can merge. Public
   `EffortlessMetrics/adze` remains release/public-intake until promotion is
   accepted.
@@ -197,9 +197,9 @@ Do not mark the product objective complete while any of these are true:
 
 ## Next Concrete Actions
 
-1. Review and approve public `EffortlessMetrics/adze#794`, or leave it parked
+1. Review and approve public `EffortlessMetrics/adze#795`, or leave it parked
    as the explicit green promotion PR until review is available. If
-   `adze-swarm/main` advances before review, refresh or supersede #794 again
+   `adze-swarm/main` advances before review, refresh or supersede #795 again
    before merge. If it merges, record a promotion closeout and refresh
    public/main before any tag, publish, or release-workflow work.
 2. Run the crates.io install receipt after publish and before any doc claims
