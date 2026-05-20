@@ -98,6 +98,8 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       actions to Node 24-compatible artifact action versions.
       `Product Proof` is now also path-routed on this status file because it
       carries stable-product receipt and release-boundary wording.
+      The path list is guarded by
+      `product_proof_workflow_routes_stable_claim_surfaces`.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
       the remaining `cargo install adze-cli`, advisory stable-product lane, and
