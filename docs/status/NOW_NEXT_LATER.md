@@ -88,7 +88,11 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       current swarm state. It was refreshed again on 2026-05-20 from
       `adze-swarm/main` at commit `5498967c` after release-blocker tracker PRs
       #324-#327, and again at commit `99dd12b0` after the 0.9.0 workspace
-      version bump in PR #330.
+      version bump in PR #330. It was refreshed again at commit `45e40f16`
+      after PRs #332-#334 bounded root README, book, and live co-release
+      dependency snippets, adding
+      `co_release_dependency_snippets_stay_release_surface_bounded` to the
+      stable product lane.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
       the remaining `cargo install adze-cli`, advisory stable-product lane, and
