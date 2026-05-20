@@ -40,11 +40,12 @@ commands = [
 
 [[work_item]]
 id = "starter-example-polish"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
 plan = "plans/user-experience-hardening/implementation-plan.md"
+prs = [352]
 commands = [
   "cargo test -p adze-cli test_init -- --nocapture",
   "cargo test --manifest-path testing/downstream-starter/Cargo.toml",

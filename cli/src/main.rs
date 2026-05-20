@@ -352,18 +352,30 @@ fn main() {{
     let readme = format!(
         r#"# {}
 
-An Adze arithmetic grammar for {}.
+An Adze arithmetic grammar for {}. This starter project keeps the default
+user path small:
 
-## Typed parsing
+```text
+Rust grammar types -> generated parser -> grammar::parse(...) -> typed Expr
+```
+
+## First Run
+
+```bash
+cargo test
+cargo run --example parse -- "1 + 2 * 3"
+```
+
+## Which API Should I Use?
+
+Use the typed parser when your application wants Rust values:
 
 ```rust
 let expr = {}::grammar::parse("1 + 2 * 3")?;
 ```
 
-## Document parsing and diagnostics
-
-Use `parse_document()` when you need tooling facts, recovered documents, or
-structured diagnostics:
+Use the document parser when tooling needs diagnostics, ranges, syntax facts,
+or recoverable parse data:
 
 ```rust
 let document = {}::grammar::parse_document("1 +")?;
@@ -372,22 +384,28 @@ for diagnostic in document.diagnostics() {{
 }}
 ```
 
-Run the generated example:
+The generated tests cover both paths:
+
+```bash
+cargo test
+```
+
+The generated example prints the typed parse result and renders parse errors
+with source excerpts:
 
 ```bash
 cargo run --example parse -- "1 + 2 * 3"
+cargo run --example parse -- "1 + @"
 ```
 
-## Development
+## Project Layout
 
-Build the grammar:
-```bash
-cargo build
-```
-
-Run tests:
-```bash
-cargo test
+```text
+build.rs          build-time parser generation
+src/grammar.rs   annotated Rust grammar types
+src/lib.rs       public generated parser module export
+tests/parse.rs   typed parser and document diagnostics checks
+examples/parse.rs runnable parse example
 ```
 
 ## License
@@ -646,9 +664,7 @@ fn has_adze_grammar_attr(attrs: &[syn::Attribute]) -> bool {
 
 fn parse_runner_cargo_toml() -> Result<String> {
     let version = env!("CARGO_PKG_VERSION");
-    let adze_dependency = if version.contains("dev") {
-        let cli_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let runtime_path = cli_dir.join("../runtime").canonicalize()?;
+    let adze_dependency = if let Some((runtime_path, _)) = local_workspace_dependency_paths() {
         format!(
             "{{ path = {}, features = [\"serialization\", \"glr\"] }}",
             toml_basic_string_literal(&runtime_path.display().to_string())
@@ -656,9 +672,7 @@ fn parse_runner_cargo_toml() -> Result<String> {
     } else {
         format!("{{ version = \"{version}\", features = [\"serialization\", \"glr\"] }}")
     };
-    let tool_dependency = if version.contains("dev") {
-        let cli_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let tool_path = cli_dir.join("../tool").canonicalize()?;
+    let tool_dependency = if let Some((_, tool_path)) = local_workspace_dependency_paths() {
         format!(
             "{{ path = {} }}",
             toml_basic_string_literal(&tool_path.display().to_string())
@@ -804,11 +818,7 @@ fn parse_file_dynamic(
 }
 
 fn scaffold_dependency_block() -> Result<String> {
-    let version = env!("CARGO_PKG_VERSION");
-    if version.contains("dev") {
-        let cli_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let runtime_path = cli_dir.join("../runtime").canonicalize()?;
-        let tool_path = cli_dir.join("../tool").canonicalize()?;
+    if let Some((runtime_path, tool_path)) = local_workspace_dependency_paths() {
         let runtime_path = toml_basic_string_literal(&runtime_path.display().to_string());
         let tool_path = toml_basic_string_literal(&tool_path.display().to_string());
         Ok(format!(
@@ -820,6 +830,7 @@ adze-tool = {{ path = {} }}"#,
             runtime_path, tool_path
         ))
     } else {
+        let version = env!("CARGO_PKG_VERSION");
         Ok(format!(
             r#"[dependencies]
 adze = {{ version = "{}" }}
@@ -828,6 +839,18 @@ adze = {{ version = "{}" }}
 adze-tool = {{ version = "{}" }}"#,
             version, version
         ))
+    }
+}
+
+fn local_workspace_dependency_paths() -> Option<(PathBuf, PathBuf)> {
+    let cli_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let runtime_path = cli_dir.join("../runtime").canonicalize().ok()?;
+    let tool_path = cli_dir.join("../tool").canonicalize().ok()?;
+
+    if runtime_path.join("Cargo.toml").is_file() && tool_path.join("Cargo.toml").is_file() {
+        Some((runtime_path, tool_path))
+    } else {
+        None
     }
 }
 

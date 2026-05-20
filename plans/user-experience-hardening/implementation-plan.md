@@ -96,7 +96,7 @@ manifest.
 
 ## Work Item: starter-example-polish
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: n/a
@@ -108,9 +108,18 @@ Blocked by: user-experience-hardening-source-of-truth
 Polish starter and downstream examples only where focused tests or checked-in
 fixtures prove the behavior.
 
+### Receipt
+
+Landed in PR #352.
+
 ### Production Delta
 
-To be defined by the PR that picks this item.
+- Generated starter README teaches first-run commands, API choice, project
+  layout, and runnable success/error examples.
+- Checkout-built CLI scaffolds and parse runners use local sibling path
+  dependencies when the workspace crates are present.
+- Downstream starter README mirrors the generated starter product ladder.
+- CLI canaries assert generated README guidance remains visible.
 
 ### Non-Goals
 

@@ -624,12 +624,20 @@ fn test_init_readme_teaches_parse_and_parse_document() {
         "generated README should teach the typed parser path"
     );
     assert!(
+        readme.contains("Which API Should I Use?"),
+        "generated README should make the API choice explicit"
+    );
+    assert!(
         readme.contains("grammar::parse_document(\"1 +\")"),
         "generated README should teach the document parser path"
     );
     assert!(
         readme.contains("document.diagnostics()"),
         "generated README should point diagnostics users at document facts"
+    );
+    assert!(
+        readme.contains("renders parse errors"),
+        "generated README should explain the runnable error example"
     );
     assert!(
         readme.contains("cargo test"),
