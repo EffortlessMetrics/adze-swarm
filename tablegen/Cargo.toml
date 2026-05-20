@@ -1,6 +1,6 @@
 [package]
 name = "adze-tablegen"
-version = "0.8.0-dev"
+version = "0.9.0"
 edition = "2024"
 rust-version = "1.95.0"
 description = "Table generation and compression for pure-Rust Tree-sitter"
@@ -18,8 +18,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 features = ["strict_docs"]
 
 [dependencies]
-adze-ir = { version = "0.8.0-dev", path = "../ir" }
-adze-glr-core = { version = "0.8.0-dev", path = "../glr-core" }
+adze-ir = { version = "0.9.0", path = "../ir" }
+adze-glr-core = { version = "0.9.0", path = "../glr-core" }
 adze-bdd-governance-core = { version = "0.1.0", path = "../crates/bdd-governance-core" }
 adze-parsetable-metadata = { version = "0.1.0", path = "../crates/parsetable-metadata" }
 proc-macro2 = "1.0"
@@ -44,8 +44,8 @@ rustc-hash = "2.1"
 criterion.workspace = true
 syn = { version = "2", features = ["full", "parsing"] }
 adze-bdd-governance-core = { version = "0.1.0", path = "../crates/bdd-governance-core" }
-adze-glr-core = { version = "0.8.0-dev", path = "../glr-core" }
-adze-ir = { version = "0.8.0-dev", path = "../ir" }
+adze-glr-core = { version = "0.9.0", path = "../glr-core" }
+adze-ir = { version = "0.9.0", path = "../ir" }
 
 [[bench]]
 name = "compression"

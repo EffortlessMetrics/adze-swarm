@@ -1,6 +1,6 @@
 [package]
 name = "adze-cli"
-version = "0.8.0-dev"
+version = "0.9.0"
 edition = "2024"
 rust-version = "1.95.0"
 authors = ["Steven Zimmerman, CPA"]
@@ -24,7 +24,7 @@ dynamic = ["libloading"]
 
 [dependencies]
 clap.workspace = true
-adze-tool = { version = "0.8.0-dev", path = "../tool" }
+adze-tool = { version = "0.9.0", path = "../tool" }
 serde_json.workspace = true
 syn.workspace = true
 colored = "3.0"

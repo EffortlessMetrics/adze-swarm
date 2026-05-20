@@ -1,6 +1,6 @@
 [package]
 name = "adze-example"
-version = "0.8.0-dev"
+version = "0.9.0"
 license = "Apache-2.0 OR MIT"
 authors = ["Steven Zimmerman, CPA"]
 edition = "2024"

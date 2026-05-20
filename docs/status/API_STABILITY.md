@@ -1,7 +1,7 @@
 # API Stability Matrix
 
 **Last updated:** 2026-05-10
-**Workspace version:** 0.8.0
+**Workspace version:** 0.9.0
 
 This document catalogs the stability status of every public API surface in the adze workspace.
 It is an API-semver inventory, not the product support-tier proof map.

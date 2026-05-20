@@ -183,7 +183,7 @@ cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version 
 
 `just package-local adze-cli` packages and verifies the CLI crate with local
 patches for unpublished co-release crates. It passed on 2026-05-19 from
-`adze-swarm`, producing and verifying `adze-cli v0.8.0-dev`, and passed again
+`adze-swarm`, producing and verifying `adze-cli v0.9.0`, and passed again
 on 2026-05-20 from `adze-swarm/main` at commit `390ab76f`. This is local
 publish-readiness evidence, not a crates.io install receipt.
 

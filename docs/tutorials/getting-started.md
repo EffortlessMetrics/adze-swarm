@@ -1,6 +1,6 @@
 # Getting Started with Adze
 
-> **Doc status:** Up to date for Adze 0.8.0-dev.
+> **Doc status:** Up to date for Adze 0.9.0.
 > If something here disagrees with the repo, treat the repo as truth
 > and log it in [`docs/status/FRICTION_LOG.md`](../status/FRICTION_LOG.md).
 
@@ -47,10 +47,10 @@ Add adze to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-adze = { version = "0.8.0-dev", default-features = false }
+adze = { version = "0.9.0", default-features = false }
 
 [build-dependencies]
-adze-tool = "0.8.0-dev"
+adze-tool = "0.9.0"
 
 [features]
 default = ["pure-rust"]
