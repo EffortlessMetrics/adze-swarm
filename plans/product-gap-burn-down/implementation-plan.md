@@ -327,8 +327,8 @@ Blocked by: n/a
 
 Keep the external-scanner product boundary honest by proving focused
 parser-v4 dispatch behavior and a generated external-token diagnostic-document
-canary while leaving full parser-generated external-scanner recovery as future
-work until it has broader canaries.
+matrix while leaving broader parser-generated external-scanner recovery as
+future work until it has wider grammar coverage.
 
 ### Receipt
 
@@ -339,7 +339,10 @@ state. PR #300 added a follow-up parser-v4 canary proving bad input in a direct
 external-scanner grammar shape returns a diagnostic document with error facts.
 PR #309 added a generated external-token grammar canary proving generated
 `parse_document()` returns a diagnostic document with bounded byte spans and
-matching point ranges for malformed input.
+matching point ranges for malformed input. The follow-up generated
+external-token matrix expands that proof across malformed root, keyword,
+missing-colon, and trailing-token inputs while keeping the surface
+Experimental.
 
 ### Production Delta
 
@@ -349,8 +352,9 @@ matching point ranges for malformed input.
   position instead of the scanner-advanced position.
 - Direct parser-v4 `parse_document()` returns a diagnostic document for bad
   input in an external-scanner grammar shape.
-- Generated external-token grammar `parse_document()` returns a diagnostic
-  document for malformed input.
+- Generated external-token grammar `parse_document()` returns diagnostic
+  documents for malformed root, keyword, missing-colon, and trailing-token
+  inputs.
 - `SUPPORT_TIERS.md` records focused external-scanner canaries while keeping
   the surface Experimental.
 
@@ -367,7 +371,7 @@ matching point ranges for malformed input.
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_parser_with_external_scanner -- --exact --nocapture
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_rejects_token_not_in_valid_symbols -- --exact --nocapture
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_parse_document_bad_input_returns_diagnostic_document -- --exact --nocapture
-cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_returns_diagnostic_document --features pure-rust -- --exact --nocapture
+cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_matrix_returns_diagnostic_document --features pure-rust -- --exact --nocapture
 cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests -- --nocapture
 cargo test -p adze --features external_scanners
 git diff --check
