@@ -1,6 +1,6 @@
 # Adze Documentation
 
-> **Status:** Documentation structured according to the [Diataxis framework](https://diataxis.fr/) for Adze 0.8.0-dev.
+> **Status:** Documentation structured according to the [Diataxis framework](https://diataxis.fr/) for Adze 0.9.0.
 
 Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-native grammar toolchain for building high-performance parsers.
 

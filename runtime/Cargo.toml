@@ -1,6 +1,6 @@
 [package]
 name = "adze"
-version = "0.8.0-dev"
+version = "0.9.0"
 edition = "2024"
 rust-version = "1.95.0"
 authors = ["Steven Zimmerman, CPA"]
@@ -50,10 +50,10 @@ with-grammars = ["dep:tree_sitter_json"] # Enable tests that require ts-bridge a
 [dependencies]
 tree-sitter-runtime-c2rust = { package = "tree-sitter-c2rust", version = "0.25.2", optional = true }
 tree-sitter-runtime-standard = { package = "tree-sitter", version = "0.25.8", optional = true }
-adze-macro = { version = "0.8.0-dev", path = "../macro" }
-adze-ir = { version = "0.8.0-dev", path = "../ir" }
-adze-glr-core = { version = "0.8.0-dev", path = "../glr-core" }
-adze-tablegen = { version = "0.8.0-dev", path = "../tablegen" }
+adze-macro = { version = "0.9.0", path = "../macro" }
+adze-ir = { version = "0.9.0", path = "../ir" }
+adze-glr-core = { version = "0.9.0", path = "../glr-core" }
+adze-tablegen = { version = "0.9.0", path = "../tablegen" }
 regex = "1.11.1"
 serde = { version = "1.0.219", features = ["derive"], optional = true }
 serde_json = { version = "1.0.142", optional = true }

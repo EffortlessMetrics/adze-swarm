@@ -516,21 +516,21 @@ edition = "2024"
 
 fn tutorial_downstream_manifest(readme_toml: &str, runtime_path: &str, tool_path: &str) -> String {
     assert!(
-        readme_toml.contains(r#"adze = { version = "0.8.0-dev", default-features = false }"#),
+        readme_toml.contains(r#"adze = { version = "0.9.0", default-features = false }"#),
         "Getting Started install block should document the adze runtime dependency"
     );
     assert!(
-        readme_toml.contains(r#"adze-tool = "0.8.0-dev""#),
+        readme_toml.contains(r#"adze-tool = "0.9.0""#),
         "Getting Started install block should document the adze-tool build dependency"
     );
 
     let dependencies = readme_toml
         .replace(
-            r#"adze = { version = "0.8.0-dev", default-features = false }"#,
+            r#"adze = { version = "0.9.0", default-features = false }"#,
             &format!(r#"adze = {{ path = "{runtime_path}", default-features = false }}"#),
         )
         .replace(
-            r#"adze-tool = "0.8.0-dev""#,
+            r#"adze-tool = "0.9.0""#,
             &format!(r#"adze-tool = {{ path = "{tool_path}" }}"#),
         );
 

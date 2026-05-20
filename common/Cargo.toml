@@ -1,6 +1,6 @@
 [package]
 name = "adze-common"
-version = "0.8.0-dev"
+version = "0.9.0"
 edition = "2024"
 rust-version = "1.95.0"
 authors = ["Steven Zimmerman, CPA"]

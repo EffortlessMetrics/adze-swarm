@@ -23,10 +23,10 @@ Add Adze to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-adze = "0.8.0-dev"
+adze = "0.9.0"
 
 [build-dependencies]
-adze-tool = "0.8.0-dev"
+adze-tool = "0.9.0"
 ```
 
 Create a `build.rs` file in the root of your project:

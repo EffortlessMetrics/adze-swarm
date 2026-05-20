@@ -16,7 +16,7 @@ walkdir = "2.5.0"
 glob = "0.3.3"
 chrono = "0.4.44"
 serde.workspace = true
-adze-tool = { version = "0.8.0-dev", path = "../tool" }
+adze-tool = { version = "0.9.0", path = "../tool" }
 tempfile.workspace = true
 syn = { workspace = true, features = ["visit"] }
 proc-macro2 = { workspace = true }

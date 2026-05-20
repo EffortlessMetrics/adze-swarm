@@ -1,6 +1,6 @@
 # Developer Guide - Adze
 
-> **Doc status:** Up to date for Adze 0.8.0-dev.
+> **Doc status:** Up to date for Adze 0.9.0.
 
 ## Repository Target
 

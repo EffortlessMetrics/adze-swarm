@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "adze"
-version = "0.8.0-dev"
+version = "0.9.0"
 dependencies = [
  "adze-bdd-governance-core",
  "adze-glr-core",
@@ -29,7 +29,7 @@ version = "0.1.0"
 
 [[package]]
 name = "adze-common"
-version = "0.8.0-dev"
+version = "0.9.0"
 dependencies = [
  "adze-common-type-ops-core",
  "quote",
@@ -45,7 +45,7 @@ dependencies = [
 
 [[package]]
 name = "adze-glr-core"
-version = "0.8.0-dev"
+version = "0.9.0"
 dependencies = [
  "adze-ir",
  "fixedbitset",
@@ -59,7 +59,7 @@ dependencies = [
 
 [[package]]
 name = "adze-ir"
-version = "0.8.0-dev"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "indexmap",
@@ -74,7 +74,7 @@ version = "0.1.0"
 
 [[package]]
 name = "adze-macro"
-version = "0.8.0-dev"
+version = "0.9.0"
 dependencies = [
  "adze-common",
  "proc-macro2",
@@ -94,7 +94,7 @@ dependencies = [
 
 [[package]]
 name = "adze-tablegen"
-version = "0.8.0-dev"
+version = "0.9.0"
 dependencies = [
  "adze-bdd-governance-core",
  "adze-glr-core",
@@ -115,7 +115,7 @@ dependencies = [
 
 [[package]]
 name = "adze-tool"
-version = "0.8.0-dev"
+version = "0.9.0"
 dependencies = [
  "adze-common",
  "adze-glr-core",
