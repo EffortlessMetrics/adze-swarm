@@ -9,7 +9,11 @@ Complete reference for the adze command-line interface.
 
 ## Installation
 
-Install the CLI tool:
+The crates.io install command is a release-surface target until the release
+checklist records a crates.io install receipt for `adze-cli`. For the current
+proved path, build the CLI from this checkout.
+
+Intended published install command:
 
 ```bash
 cargo install adze-cli
@@ -457,6 +461,7 @@ brew install tree-sitter              # macOS
 cargo build --features dynamic
 
 # Or install with dynamic support
+# Release-surface command shape until the crates.io install receipt exists.
 cargo install adze-cli --features dynamic
 ```
 

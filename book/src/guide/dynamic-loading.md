@@ -13,7 +13,9 @@ feature.
 
 Before using dynamic loading, ensure you have:
 
-1. **CLI with Dynamic Support**: 
+1. **CLI with Dynamic Support**: this is a release-surface command shape until
+   `adze-cli` has a crates.io install receipt. For current repo proof, build
+   the CLI from this checkout.
    ```bash
    cargo install adze-cli --features dynamic
    ```
@@ -599,6 +601,8 @@ jobs:
     
     - name: Install adze CLI
       run: |
+        # Release-surface command shape; requires a crates.io install receipt
+        # before this guide can be treated as supported workflow proof.
         cargo install adze-cli --features dynamic
     
     - name: Install Tree-sitter grammars
