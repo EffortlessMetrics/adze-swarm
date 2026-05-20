@@ -1,107 +1,31 @@
-id = "adze-user-experience-hardening"
-title = "Adze User Experience Hardening"
-status = "active"
+id = "no-active-non-release-lane"
+title = "No Active Non-Release Lane Selected"
+status = "paused"
 owner = "droid-factory"
 created = "2026-05-20"
 
 objective = """
-Make Adze easier to adopt without changing release claims: improve starter
-project polish, examples, docs navigation, local developer ergonomics,
-diagnostics/query/Tree-sitter walkthroughs, and performance receipt guidance
-while keeping support-tier boundaries intact.
+No routine adze-swarm product-proof lane is selected after the user-experience
+hardening closeout. Keep release, publish, signing, and Cargo-token work blocked
+unless explicitly authorized. Future non-release work should first open a new
+active goal in adze-swarm.
+"""
+
+pause_reason = """
+Adze User Experience Hardening completed and is archived. Release/publish
+execution remains outside this lane and requires explicit human authorization on
+tracker #325 before any public adze tag, publish, signing, or Cargo-token work.
+"""
+
+handoff = """
+Next work should either open a fresh non-release active goal in adze-swarm or,
+with explicit release authorization, follow the public adze release/publish path.
+Public adze remains release/public-intake only.
 """
 
 end_state = [
   "adze-swarm remains the operating repo for non-release development and proof work.",
-  "public adze remains release/public-intake/publish surface unless explicitly promoted.",
+  "public adze remains release/public-intake/publish surface unless explicitly promoted or release-authorized.",
   "release/publish/signing/Cargo-token work remains blocked on issue #325 until explicitly authorized.",
-  "starter and downstream examples are easier to use and remain proof-backed.",
-  "API navigation keeps grammar::parse as the beginner path and parse_document as the tooling path.",
-  "diagnostics, query, and Tree-sitter walkthroughs name supported subsets and known gaps.",
-  "performance docs distinguish receipts from public speed claims.",
-  "local proof-loop friction is reduced or explicitly recorded when it blocks routine development.",
-]
-
-[[work_item]]
-id = "user-experience-hardening-source-of-truth"
-status = "complete"
-proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
-spec = "ADZE-SPEC-0011"
-adr = "ADZE-ADR-0001"
-plan = "plans/user-experience-hardening/implementation-plan.md"
-prs = [350]
-issues = [325]
-commands = [
-  "python -c \"import tomllib; tomllib.load(open('.adze/goals/active.toml', 'rb')); tomllib.load(open('.adze/goals/user-experience-hardening.toml', 'rb')); tomllib.load(open('policy/doc-artifacts.toml', 'rb'))\"",
-  "cargo run -q -p xtask -- check-active-goal --mode blocking",
-  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
-  "git diff --check",
-]
-
-[[work_item]]
-id = "starter-example-polish"
-status = "complete"
-proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
-spec = "ADZE-SPEC-0012"
-adr = ""
-plan = "plans/user-experience-hardening/implementation-plan.md"
-prs = [352]
-commands = [
-  "cargo test -p adze-cli test_init -- --nocapture",
-  "cargo test --manifest-path testing/downstream-starter/Cargo.toml",
-  "git diff --check",
-]
-
-[[work_item]]
-id = "api-navigation-polish"
-status = "complete"
-proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
-spec = "ADZE-SPEC-0012"
-adr = "ADZE-ADR-0001"
-plan = "plans/user-experience-hardening/implementation-plan.md"
-prs = [351]
-commands = [
-  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
-  "git diff --check",
-]
-
-[[work_item]]
-id = "diagnostics-query-ts-compat-walkthroughs"
-status = "complete"
-proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
-spec = "ADZE-SPEC-0012"
-adr = "ADZE-ADR-0001"
-plan = "plans/user-experience-hardening/implementation-plan.md"
-prs = [353]
-commands = [
-  "cargo test -p adze --features query --lib query -- --nocapture",
-  "cargo test -p adze --features \"pure-rust,ts-compat\" --test ts_compat_selected_tree -- --nocapture",
-  "git diff --check",
-]
-
-[[work_item]]
-id = "performance-receipt-guidance"
-status = "complete"
-proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
-spec = "ADZE-SPEC-0014"
-adr = ""
-plan = "plans/user-experience-hardening/implementation-plan.md"
-prs = [231]
-commands = [
-  "cargo run -q -p xtask -- perf-receipt --profile product-smoke",
-  "git diff --check",
-]
-
-[[work_item]]
-id = "local-proof-loop-friction"
-status = "complete"
-proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
-spec = "ADZE-SPEC-0011"
-adr = ""
-plan = "plans/user-experience-hardening/implementation-plan.md"
-prs = [329]
-commands = [
-  "just ci-supported",
-  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
-  "git diff --check",
+  "Adze User Experience Hardening is complete and archived.",
 ]
