@@ -187,9 +187,11 @@
 formalized in the v0.8.0 release and affects crate names, attribute paths,
 import paths, and repository URLs.</p>
 <blockquote>
-<p><strong>Looking for the runtime → runtime2 (GLR) migration?</strong>
-See <a href="../getting-started/migration.html">Getting Started › Migration</a> for the
-GLR integration guide.</p>
+<p><strong>Looking for GLR, document, or incremental guidance?</strong>
+Use <a href="parser-generation.html">Parser Generation</a> and
+<a href="incremental-parsing.html">Incremental Parsing</a>. The current product path is
+generated <code>grammar::parse()</code> and <code>grammar::parse_document()</code>, not a migration
+from one low-level runtime API to another.</p>
 </blockquote>
 <hr />
 <h2 id="why-the-rename"><a class="header" href="#why-the-rename">Why the Rename?</a></h2>
@@ -212,7 +214,6 @@ Rust wrapper around Tree-sitter.</li>
 <tr><td>—</td><td><code>adze-ir</code></td><td>Grammar intermediate representation (new)</td></tr>
 <tr><td>—</td><td><code>adze-glr-core</code></td><td>GLR parser generation (new)</td></tr>
 <tr><td>—</td><td><code>adze-tablegen</code></td><td>Table compression (new)</td></tr>
-<tr><td>—</td><td><code>adze-runtime</code></td><td>GLR-compatible runtime (new)</td></tr>
 </tbody></table>
 </div>
 <h3 id="attribute-paths"><a class="header" href="#attribute-paths">Attribute Paths</a></h3>
@@ -255,11 +256,13 @@ rust-sitter = "0.4"
 rust-sitter-tool = "0.4"
 </code></pre>
 <pre><code class="language-toml"># ── After ──────────────────────────────────────────
+# Release-surface shape after the coordinated publish; current repo proof uses
+# local/path dependencies until crates.io receipts exist for co-release crates.
 [dependencies]
-adze = "0.8"
+adze = "0.9.0"
 
 [build-dependencies]
-adze-tool = "0.8"
+adze-tool = "0.9.0"
 </code></pre>
 <h3 id="repository-url"><a class="header" href="#repository-url">Repository URL</a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Before</th><th><code>github.com/&lt;org&gt;/rust-sitter</code></th></tr></thead><tbody>
@@ -278,16 +281,16 @@ parse paths (<code>adze-glr-core</code>).</li>
 tables entirely in Rust (<code>adze-tablegen</code>).</li>
 <li><strong>Grammar IR</strong> — Inspect and optimize grammars programmatically via the
 intermediate representation (<code>adze-ir</code>).</li>
-<li><strong>Incremental Parsing</strong> — Pass a previous tree to <code>parse_utf8</code> for
-efficient re-parsing of edited documents.</li>
+<li><strong>Incremental Document Lifecycle</strong> — Experimental snapshot/reparse metadata
+with visible fallback behavior.</li>
 <li><strong>Performance Monitoring</strong> — Set <code>ADZE_LOG_PERFORMANCE=true</code> to get
 forest-to-tree conversion metrics.</li>
-<li><strong>WASM Support</strong> — The pure-Rust backend compiles to <code>wasm32-unknown-unknown</code>
-and <code>wasm32-wasi</code> without C dependencies.</li>
+<li><strong>WASM Compile Signal</strong> — WASM remains advisory until runtime/browser proof
+is promoted.</li>
 <li><strong>Golden Tests</strong> — Validate your parsers against Tree-sitter reference
 implementations with SHA256 hash verification.</li>
-<li><strong>External Scanners</strong> — Write custom lexing logic in pure Rust for things
-like Python indentation tracking.</li>
+<li><strong>External Scanners</strong> — Experimental custom lexing support for cases like
+indentation tracking.</li>
 </ol>
 <hr />
 <h2 id="before--after-code-examples"><a class="header" href="#before--after-code-examples">Before / After Code Examples</a></h2>
@@ -362,11 +365,14 @@ fn main() {
 <p>Follow these steps in order. Each step is independently committable.</p>
 <h3 id="1-update-cargotoml"><a class="header" href="#1-update-cargotoml">1. Update <code>Cargo.toml</code></a></h3>
 <p>Replace every <code>rust-sitter</code> dependency with its <code>adze</code> equivalent:</p>
+<p>The target versioned dependency names are release-surface shapes after the
+coordinated publish. Current repo proof uses local/path dependencies until
+crates.io receipts exist for the co-release crates.</p>
 <pre><code class="language-toml"># runtime crate
-rust-sitter = "0.4"   →   adze = "0.8"
+rust-sitter = "0.4"   -&gt;   adze = "0.9.0"
 
 # build tool
-rust-sitter-tool = "0.4"   →   adze-tool = "0.8"
+rust-sitter-tool = "0.4"   -&gt;   adze-tool = "0.9.0"
 </code></pre>
 <p>Run <code>cargo update</code> to pull the new crates.</p>
 <h3 id="2-update-buildrs"><a class="header" href="#2-update-buildrs">2. Update <code>build.rs</code></a></h3>
@@ -408,12 +414,9 @@ names.</li>
 <pre><code class="language-toml">[dependencies]
 adze = { version = "0.8", features = ["pure-rust"] }
 </code></pre>
-<p>Or explore the GLR runtime:</p>
-<pre><code class="language-toml">[dependencies]
-adze-runtime = { version = "0.1", features = ["glr", "incremental_glr"] }
-</code></pre>
-<p>See <a href="../getting-started/migration.html">Getting Started › Migration</a> for the
-full GLR migration guide.</p>
+<p>Use <code>grammar::parse_document()</code> when you need diagnostics, GLR ambiguity
+summaries, or compatibility projections. See <a href="parser-generation.html">Parser Generation</a>
+and <a href="incremental-parsing.html">Incremental Parsing</a> for the current product model.</p>
 <hr />
 <h2 id="common-migration-issues-and-solutions"><a class="header" href="#common-migration-issues-and-solutions">Common Migration Issues and Solutions</a></h2>
 <h3 id="cannot-find-attribute-rust_sitter-in-this-scope"><a class="header" href="#cannot-find-attribute-rust_sitter-in-this-scope">"cannot find attribute <code>rust_sitter</code> in this scope"</a></h3>
@@ -451,21 +454,22 @@ regenerate golden hashes:</p>
 mod grammar { /* … */ }</code></pre>
 <hr />
 <h2 id="msrv-note"><a class="header" href="#msrv-note">MSRV Note</a></h2>
-<p>Adze v0.8 requires <strong>Rust 1.92.0</strong> (2024 edition). If your project targets an
+<p>Adze v0.8 requires <strong>Rust 1.95.0</strong> (2024 edition). If your project targets an
 older MSRV, you will need to update your <code>rust-toolchain.toml</code> or CI
 configuration:</p>
 <pre><code class="language-toml"># rust-toolchain.toml
 [toolchain]
-channel = "1.92.0"
+channel = "1.95.0"
 components = ["rustfmt", "clippy"]
 </code></pre>
 <hr />
 <h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
 <p>The migration from <code>rust-sitter</code> to Adze is primarily a rename operation.
 The core grammar-definition model — annotated Rust types that compile into
-Tree-sitter parsers — is unchanged. After completing the rename you gain
-access to the full Adze ecosystem: GLR parsing, pure-Rust table generation,
-grammar IR, incremental parsing, and WASM support.</p>
+generated parser modules — is unchanged. After completing the rename, use
+<code>grammar::parse()</code> for typed values and <code>grammar::parse_document()</code> for tooling
+facts. GLR, Tree-sitter compatibility, incremental lifecycle, CLI, WASM, and
+grammar-package surfaces remain governed by their support-tier rows.</p>
 <p>If you run into issues not covered here, please
 <a href="https://github.com/EffortlessMetrics/adze/issues">open an issue</a> on GitHub.</p>
 

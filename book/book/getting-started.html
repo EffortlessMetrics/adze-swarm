@@ -185,11 +185,14 @@
 <p>This chapter walks you through installing Adze, defining your first grammar, building the parser, and using it to parse input.</p>
 <h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
 <p>Add the runtime and build-tool crates to your <code>Cargo.toml</code>:</p>
+<p>The versioned dependency block is the intended release-surface shape after the
+coordinated publish. Current repo proof uses local/path dependencies from this
+checkout until crates.io receipts exist for the co-release crates.</p>
 <pre><code class="language-toml">[dependencies]
-adze = "0.8"
+adze = "0.9.0"
 
 [build-dependencies]
-adze-tool = "0.8"
+adze-tool = "0.9.0"
 </code></pre>
 <p>Then create a <code>build.rs</code> in your project root:</p>
 <pre><code class="language-rust">use std::path::PathBuf;

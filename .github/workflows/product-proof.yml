@@ -18,6 +18,7 @@ on:
       - book/src/guide/troubleshooting.md
       - book/src/guide/migration.md
       - book/src/reference/cli-reference.md
+      - book/book/**
       - docs/how-to/use-playground.md
       - cli/tests/readme_quickstart.rs
       - docs/product/ACCEPTANCE_MATRIX.md

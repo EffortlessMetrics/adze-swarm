@@ -181,433 +181,138 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="glr-generalized-lr-parsing"><a class="header" href="#glr-generalized-lr-parsing">GLR (Generalized LR) Parsing</a></h1>
-<p>GLR parsing is a powerful parsing technique that extends traditional LR parsing to handle ambiguous grammars. With the GLR parser implementation in PR #56, adze can now parse languages with inherent ambiguities, multiple interpretations, and complex grammar conflicts.</p>
-<h2 id="what-is-glr-parsing"><a class="header" href="#what-is-glr-parsing">What is GLR Parsing?</a></h2>
-<p><strong>GLR (Generalized LR) parsing</strong> allows parsers to handle ambiguous grammars by exploring multiple parse paths simultaneously. Unlike traditional LR parsers that fail on conflicts, GLR parsers create <strong>parse forests</strong> containing all valid interpretations.</p>
-<h3 id="traditional-vs-glr-parsing"><a class="header" href="#traditional-vs-glr-parsing">Traditional vs GLR Parsing</a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Traditional LR</th><th>GLR Parsing</th></tr></thead><tbody>
-<tr><td><strong>Grammar Support</strong></td><td>Unambiguous only</td><td>Ambiguous grammars ✨</td></tr>
-<tr><td><strong>Conflicts</strong></td><td>Error/failure</td><td>Explored simultaneously</td></tr>
-<tr><td><strong>Output</strong></td><td>Single parse tree</td><td>Parse forest with alternatives</td></tr>
-<tr><td><strong>Use Cases</strong></td><td>Simple languages</td><td>Complex languages (C++, natural language)</td></tr>
-</tbody></table>
-</div>
-<h2 id="actioncell-architecture"><a class="header" href="#actioncell-architecture">ActionCell Architecture</a></h2>
-<p>The core innovation in PR #56 is the <strong>ActionCell architecture</strong>, where each parser state/symbol combination can hold multiple conflicting actions:</p>
-<pre><code class="language-rust">// Traditional LR: action_table[state][symbol] = Action
-// GLR: action_table[state][symbol] = Vec&lt;Action&gt;
-
-pub fn get_actions(&amp;self, state: StateId, symbol: SymbolId) -&gt; Vec&lt;Action&gt; {
-    // Returns multiple actions for conflicts
-    self.table.action_table[state_idx][symbol_idx].clone()
-}</code></pre>
-<h3 id="how-actioncells-work"><a class="header" href="#how-actioncells-work">How ActionCells Work</a></h3>
-<ol>
-<li><strong>Single Action</strong>: Normal LR parsing continues with one action</li>
-<li><strong>Multiple Actions</strong>: Parser <strong>forks</strong> into multiple parse stacks</li>
-<li><strong>Conflict Types</strong>:
+                        <h1 id="glr-parsing"><a class="header" href="#glr-parsing">GLR Parsing</a></h1>
+<p>GLR parsing lets Adze handle grammar conflicts that ordinary LR parsing cannot
+represent with one action per state. In Adze, GLR is a product feature only
+where the support-tier ledger lists proof for the grammar class and behavior.</p>
+<p>The user-facing rule is:</p>
+<pre><code class="language-text">grammar::parse(source) returns the selected typed AST.
+grammar::parse_document(source) returns the canonical document.
+GLR ambiguity summaries belong to the document.
+Tree-sitter-compatible output exposes one selected tree.
+Raw forest export is future work.
+</code></pre>
+<p>See <code>docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md</code> and
+<code>docs/specs/ADZE-SPEC-0007-glr-ambiguity-summary.md</code> for the product contract.</p>
+<h2 id="what-glr-solves"><a class="header" href="#what-glr-solves">What GLR Solves</a></h2>
+<p>An LR parse table normally has one action for each state and lookahead symbol.
+Ambiguous grammars can require multiple actions:</p>
 <ul>
-<li><strong>Shift/Reduce</strong>: Parse both ways (shift token vs reduce rule)</li>
-<li><strong>Reduce/Reduce</strong>: Multiple reductions possible</li>
-<li><strong>Fork Actions</strong>: Nested conflicts handled recursively</li>
+<li>shift/reduce conflicts;</li>
+<li>reduce/reduce conflicts;</li>
+<li>nested fork conflicts;</li>
+<li>expression grammars with multiple valid groupings;</li>
+<li>dangling-else-style selection problems.</li>
 </ul>
-</li>
-</ol>
-<pre><code class="language-rust">match action {
-    Action::Shift(next_state) =&gt; {
-        // Create new parse stack in shifted state
-        let mut new_stack = stack.clone();
-        new_stack.states.push(*next_state);
-        new_stack.nodes.push(node_id);
-        new_stacks.push(new_stack);
-    }
-    Action::Fork(fork_actions) =&gt; {
-        // Handle each conflicting action
-        for fork_action in fork_actions {
-            self.handle_terminal_action(
-                stack, fork_action, symbol, position,
-                new_stacks, forest, accepted
-            );
-        }
-    }
-    // ... other actions
-}</code></pre>
-<h2 id="parse-forest-structure"><a class="header" href="#parse-forest-structure">Parse Forest Structure</a></h2>
-<p>GLR parsers produce <strong>parse forests</strong> instead of single parse trees. A forest efficiently represents multiple parse interpretations:</p>
-<pre><code class="language-rust">pub struct ParseForest {
-    pub roots: Vec&lt;ForestNode&gt;,           // All valid complete parses
-    pub nodes: HashMap&lt;usize, ForestNode&gt;, // Shared node storage
-    pub grammar: Grammar,                  // Grammar used
-    pub source: String,                   // Original source text
-    pub next_node_id: usize,              // Node ID allocator
+<p>GLR keeps those alternatives available during parsing. Adze then exposes a
+deterministic selected tree plus ambiguity summaries for native tooling.</p>
+<h2 id="how-users-see-glr"><a class="header" href="#how-users-see-glr">How Users See GLR</a></h2>
+<p>Most users should not instantiate a low-level GLR parser. Use the generated
+grammar APIs:</p>
+<pre><code class="language-rust">let ast = grammar::parse("1 + 2 * 3")?;</code></pre>
+<p>When tooling needs parse facts, use the document API:</p>
+<pre><code class="language-rust">let report = grammar::parse_document("1 + 2 * 3");
+let document = report.document();
+let ambiguities = document.ambiguities();</code></pre>
+<p>The typed AST path should agree with the selected tree in the document:</p>
+<pre><code class="language-text">grammar::parse(source)
+  == grammar::parse_document(source).document().ast()
+</code></pre>
+<p>for the covered generated grammar path.</p>
+<h2 id="selected-tree-and-ambiguity-summary"><a class="header" href="#selected-tree-and-ambiguity-summary">Selected Tree And Ambiguity Summary</a></h2>
+<p>Tree-sitter-compatible output exposes one selected tree:</p>
+<pre><code class="language-rust">let tree = document.as_tree_sitter();
+let root = tree.root_node();</code></pre>
+<p>Native Adze tooling should inspect ambiguity summaries:</p>
+<pre><code class="language-text">ambiguity site:
+  byte range
+  selected alternative
+  retained alternative count
+  selection reason when available
+</code></pre>
+<p>This is intentionally summary-first. Raw forest export is not the stable native
+API.</p>
+<h2 id="designing-glr-grammars"><a class="header" href="#designing-glr-grammars">Designing GLR Grammars</a></h2>
+<p>Use GLR when ambiguity is intentional or hard to avoid. Keep ordinary grammar
+design conservative:</p>
+<ul>
+<li>add precedence and associativity where they express the language;</li>
+<li>keep ambiguity localized;</li>
+<li>add fixture tests for every intended conflict;</li>
+<li>document which selected tree the grammar expects;</li>
+<li>inspect ambiguity summaries before exposing the surface as stable.</li>
+</ul>
+<p>For expression grammars, prefer explicit precedence when the language has one:</p>
+<pre><code class="language-rust">#[adze::prec_left(10)]
+struct Add {
+    left: Box&lt;Expr&gt;,
+    plus: Plus,
+    right: Box&lt;Expr&gt;,
 }
 
-pub struct ForestNode {
-    pub id: usize,                        // Unique identifier
-    pub symbol: SymbolId,                 // Symbol this node represents
-    pub span: (usize, usize),            // Source text span
-    pub alternatives: Vec&lt;ForestAlternative&gt;, // Multiple derivations
-    pub error_meta: ErrorMeta,           // Error information
+#[adze::prec_left(20)]
+struct Multiply {
+    left: Box&lt;Expr&gt;,
+    star: Star,
+    right: Box&lt;Expr&gt;,
 }</code></pre>
-<h3 id="forest-vs-tree-benefits"><a class="header" href="#forest-vs-tree-benefits">Forest vs Tree Benefits</a></h3>
+<p>Leave a grammar ambiguous only when the language really permits multiple valid
+interpretations or when a later semantic phase must inspect ambiguity.</p>
+<h2 id="diagnostics-and-errors"><a class="header" href="#diagnostics-and-errors">Diagnostics And Errors</a></h2>
+<p>GLR does not remove the need for useful parse errors. Bad input should return a
+structured error or a diagnostic document rather than panic:</p>
+<pre><code class="language-rust">let report = grammar::parse_document("1 +");
+let document = report.document();
+
+assert!(!document.diagnostics().is_empty());</code></pre>
+<p>Diagnostics, error nodes, selected tree facts, and ambiguity summaries should
+all describe the same source snapshot.</p>
+<h2 id="tree-sitter-compatibility"><a class="header" href="#tree-sitter-compatibility">Tree-Sitter Compatibility</a></h2>
+<p>Tree-sitter-compatible output is an adapter over document data:</p>
+<pre><code class="language-rust">let tree = document.as_tree_sitter();</code></pre>
+<p>It should be used when a tool expects Tree-sitter-shaped traversal. It is not
+the core parse product, and it does not expose every GLR alternative.</p>
+<h2 id="performance"><a class="header" href="#performance">Performance</a></h2>
+<p>GLR cost depends on conflict shape:</p>
+<pre><code class="language-text">unambiguous regions -&gt; ordinary parser cost
+localized ambiguity -&gt; bounded extra work
+wide ambiguity -&gt; potentially expensive
+</code></pre>
+<p>Do not make performance claims without benchmark fixtures and receipts. The
+product benchmark plan measures parse, document construction, typed projection,
+Tree-sitter-compatible projection, query matching, diagnostics, JSON, ambiguity
+summaries, tablegen, and ABI decode separately.</p>
+<h2 id="testing-glr-behavior"><a class="header" href="#testing-glr-behavior">Testing GLR Behavior</a></h2>
+<p>Every GLR product claim needs a fixture-backed proof. Useful tests assert:</p>
 <ul>
-<li><strong>Memory Efficiency</strong>: Shared subtrees reduce duplication</li>
-<li><strong>Complete Information</strong>: All valid parses preserved</li>
-<li><strong>Conflict Analysis</strong>: See exactly where ambiguities occur</li>
-<li><strong>Flexible Output</strong>: Convert to single tree or analyze all alternatives</li>
+<li>conflict cells survive table generation and ABI decode;</li>
+<li>shift/reduce and reduce/reduce conflicts route through GLR;</li>
+<li>selected trees are deterministic;</li>
+<li>ambiguity summaries report retained alternatives;</li>
+<li><code>parse_document().ast()</code> matches the selected parse;</li>
+<li>bad input returns structured errors or diagnostic documents;</li>
+<li>Tree-sitter-compatible output reflects the selected tree only.</li>
 </ul>
-<h2 id="creating-glr-grammars"><a class="header" href="#creating-glr-grammars">Creating GLR Grammars</a></h2>
-<h3 id="ambiguous-expression-grammar"><a class="header" href="#ambiguous-expression-grammar">Ambiguous Expression Grammar</a></h3>
-<p>The classic ambiguous grammar that GLR can handle:</p>
-<pre><code class="language-rust">// E -&gt; E + E | E * E | num
-// This grammar is ambiguous for "1+2*3"
-
-fn create_ambiguous_grammar() -&gt; Grammar {
-    let mut grammar = Grammar::new("expr".to_string());
-    
-    // Tokens
-    grammar.tokens.insert(SYM_NUMBER, Token {
-        name: "number".to_string(),
-        pattern: TokenPattern::Regex(r"\d+".to_string()),
-        fragile: false,
-    });
-    
-    grammar.tokens.insert(SYM_PLUS, Token {
-        name: "plus".to_string(),
-        pattern: TokenPattern::String("+".to_string()),
-        fragile: false,
-    });
-    
-    grammar.tokens.insert(SYM_STAR, Token {
-        name: "mult".to_string(),
-        pattern: TokenPattern::String("*".to_string()),
-        fragile: false,
-    });
-    
-    // Rules - notice no precedence declarations!
-    let rules = vec![
-        Rule {  // E -&gt; num
-            lhs: SYM_EXPR,
-            rhs: vec![Symbol::Terminal(SYM_NUMBER)],
-            production_id: ProductionId(0),
-            precedence: None,  // No precedence = ambiguity
-            associativity: None,
-            fields: vec![],
-        },
-        Rule {  // E -&gt; E + E
-            lhs: SYM_EXPR,
-            rhs: vec![
-                Symbol::NonTerminal(SYM_EXPR),
-                Symbol::Terminal(SYM_PLUS),
-                Symbol::NonTerminal(SYM_EXPR),
-            ],
-            production_id: ProductionId(1),
-            precedence: None,  // Creates shift/reduce conflicts
-            associativity: None,
-            fields: vec![],
-        },
-        Rule {  // E -&gt; E * E  
-            lhs: SYM_EXPR,
-            rhs: vec![
-                Symbol::NonTerminal(SYM_EXPR),
-                Symbol::Terminal(SYM_STAR),
-                Symbol::NonTerminal(SYM_EXPR),
-            ],
-            production_id: ProductionId(2),
-            precedence: None,  // Creates more conflicts
-            associativity: None,
-            fields: vec![],
-        },
-    ];
-    
-    for rule in rules {
-        grammar.rules.entry(SYM_EXPR).or_default().push(rule);
-    }
-    
-    grammar
-}</code></pre>
-<h3 id="when-to-use-glr"><a class="header" href="#when-to-use-glr">When to Use GLR</a></h3>
-<p><strong>GLR is beneficial when:</strong></p>
+<p>Representative proof commands:</p>
+<pre><code class="language-bash">cargo test -p adze-glr-core conflict ambiguity -- --nocapture
+cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_e2e_ambiguous_grammar_glr -- --nocapture
+cargo test -p adze --features "pure-rust,glr,ts-compat" --test tablegen_abi_decode_roundtrip -- --nocapture
+git diff --check
+</code></pre>
+<h2 id="what-not-to-claim"><a class="header" href="#what-not-to-claim">What Not To Claim</a></h2>
+<p>Do not claim:</p>
 <ul>
-<li>Grammar has unavoidable ambiguities</li>
-<li>Multiple valid interpretations exist</li>
-<li>Precedence rules are complex or context-dependent</li>
-<li>Analyzing all possible parses is valuable</li>
+<li>full GLR forest stability;</li>
+<li>query matching over every GLR alternative;</li>
+<li>full Tree-sitter parity for ambiguous parses;</li>
+<li>stable raw forest serialization;</li>
+<li>stable selected-tree behavior for a grammar class without fixtures;</li>
+<li>performance wins without benchmark receipts.</li>
 </ul>
-<p><strong>Examples:</strong></p>
-<ul>
-<li><strong>C++ templates</strong>: <code>A&lt;B&lt;C&gt;&gt;</code> vs <code>A &lt; B &lt; C &gt; &gt;</code></li>
-<li><strong>Natural language</strong>: "I saw the man with the telescope"</li>
-<li><strong>Python decorators</strong>: Multiple decorator application orders</li>
-<li><strong>Regular expressions</strong>: Nested quantifiers</li>
-</ul>
-<h2 id="using-the-glr-parser"><a class="header" href="#using-the-glr-parser">Using the GLR Parser</a></h2>
-<h3 id="basic-glr-parsing"><a class="header" href="#basic-glr-parsing">Basic GLR Parsing</a></h3>
-<pre><code class="language-rust">use adze::glr_parser_no_error_recovery::GLRParser;
-use adze_glr_core::{build_lr1_automaton, FirstFollowSets};
-
-// Create grammar and parse table
-let grammar = create_ambiguous_grammar();
-let first_follow = FirstFollowSets::compute(&amp;grammar)?;
-let parse_table = build_lr1_automaton(&amp;grammar, &amp;first_follow)?;
-
-// Create GLR parser
-let mut parser = GLRParser::new(parse_table);
-
-// Parse ambiguous input
-let tokens = vec![SYM_NUMBER, SYM_PLUS, SYM_NUMBER, SYM_STAR, SYM_NUMBER];
-let forest = parser.parse(&amp;tokens)?;
-
-// Analyze results
-println!("Parse completed successfully!");
-println!("Number of parse alternatives: {}", forest.roots.len());
-for (i, root) in forest.roots.iter().enumerate() {
-    println!("Alternative {}: {:?}", i, root);
-}</code></pre>
-<h3 id="handling-parse-forests"><a class="header" href="#handling-parse-forests">Handling Parse Forests</a></h3>
-<pre><code class="language-rust">// Extract all parse trees from forest
-fn extract_parse_trees(forest: &amp;ParseForest) -&gt; Vec&lt;String&gt; {
-    let mut trees = Vec::new();
-    
-    for root in &amp;forest.roots {
-        let tree_repr = format_forest_node(&amp;forest.nodes, root);
-        trees.push(tree_repr);
-    }
-    
-    trees
-}
-
-// Format a forest node for display
-fn format_forest_node(
-    nodes: &amp;HashMap&lt;usize, ForestNode&gt;, 
-    node: &amp;ForestNode
-) -&gt; String {
-    let mut result = format!("{}(", node.symbol.0);
-    
-    for alternative in &amp;node.alternatives {
-        result.push('[');
-        for &amp;child_id in &amp;alternative.children {
-            if let Some(child) = nodes.get(&amp;child_id) {
-                result.push_str(&amp;format_forest_node(nodes, child));
-                result.push(' ');
-            }
-        }
-        result.push(']');
-    }
-    
-    result.push(')');
-    result
-}</code></pre>
-<h3 id="forest-analysis-tools"><a class="header" href="#forest-analysis-tools">Forest Analysis Tools</a></h3>
-<pre><code class="language-rust">// Analyze ambiguity in parse forest
-pub struct ForestAnalyzer;
-
-impl ForestAnalyzer {
-    pub fn count_ambiguities(forest: &amp;ParseForest) -&gt; usize {
-        forest.nodes.values()
-            .filter(|node| node.alternatives.len() &gt; 1)
-            .count()
-    }
-    
-    pub fn find_most_ambiguous_nodes(forest: &amp;ParseForest) -&gt; Vec&lt;&amp;ForestNode&gt; {
-        let mut nodes: Vec&lt;_&gt; = forest.nodes.values()
-            .filter(|node| node.alternatives.len() &gt; 1)
-            .collect();
-        
-        nodes.sort_by_key(|node| node.alternatives.len());
-        nodes.reverse();
-        nodes
-    }
-    
-    pub fn extract_disambiguation_points(forest: &amp;ParseForest) -&gt; Vec&lt;(SymbolId, usize, usize)&gt; {
-        forest.nodes.values()
-            .filter(|node| node.alternatives.len() &gt; 1)
-            .map(|node| (node.symbol, node.span.0, node.span.1))
-            .collect()
-    }
-}</code></pre>
-<h2 id="advanced-glr-techniques"><a class="header" href="#advanced-glr-techniques">Advanced GLR Techniques</a></h2>
-<h3 id="fork-tracking-and-management"><a class="header" href="#fork-tracking-and-management">Fork Tracking and Management</a></h3>
-<pre><code class="language-rust">// Track parse stack forking during parsing
-pub struct ForkTracker {
-    fork_count: usize,
-    max_active_stacks: usize,
-    stack_history: Vec&lt;usize&gt;,
-}
-
-impl ForkTracker {
-    pub fn record_fork(&amp;mut self, new_stack_count: usize) {
-        self.fork_count += 1;
-        self.max_active_stacks = self.max_active_stacks.max(new_stack_count);
-        self.stack_history.push(new_stack_count);
-    }
-    
-    pub fn analyze_complexity(&amp;self) -&gt; ForkComplexity {
-        ForkComplexity {
-            total_forks: self.fork_count,
-            peak_parallelism: self.max_active_stacks,
-            average_stacks: self.stack_history.iter().sum::&lt;usize&gt;() as f64 / self.stack_history.len() as f64,
-        }
-    }
-}</code></pre>
-<h3 id="custom-forest-processors"><a class="header" href="#custom-forest-processors">Custom Forest Processors</a></h3>
-<pre><code class="language-rust">// Process parse forests for specific applications
-pub trait ForestProcessor {
-    type Output;
-    
-    fn process_forest(&amp;mut self, forest: &amp;ParseForest) -&gt; Self::Output;
-    fn process_node(&amp;mut self, node: &amp;ForestNode) -&gt; Option&lt;Self::Output&gt;;
-}
-
-// Example: Extract preferred interpretation based on heuristics
-pub struct PreferenceBasedProcessor {
-    preferences: Vec&lt;SymbolId&gt;,  // Preferred symbols in conflicts
-}
-
-impl ForestProcessor for PreferenceBasedProcessor {
-    type Output = ForestNode;
-    
-    fn process_forest(&amp;mut self, forest: &amp;ParseForest) -&gt; Self::Output {
-        // Find root with highest preference score
-        forest.roots.iter()
-            .max_by_key(|root| self.score_node(&amp;forest.nodes, root))
-            .cloned()
-            .unwrap_or_else(|| forest.roots[0].clone())
-    }
-    
-    fn process_node(&amp;mut self, node: &amp;ForestNode) -&gt; Option&lt;Self::Output&gt; {
-        // Select best alternative based on preferences
-        let best_alt = node.alternatives.iter()
-            .max_by_key(|alt| self.score_alternative(alt))?;
-            
-        Some(ForestNode {
-            id: node.id,
-            symbol: node.symbol,
-            span: node.span,
-            alternatives: vec![best_alt.clone()],
-            error_meta: node.error_meta.clone(),
-        })
-    }
-}</code></pre>
-<h2 id="performance-considerations"><a class="header" href="#performance-considerations">Performance Considerations</a></h2>
-<h3 id="glr-performance-characteristics"><a class="header" href="#glr-performance-characteristics">GLR Performance Characteristics</a></h3>
-<p>GLR parsing complexity depends on grammar ambiguity:</p>
-<ul>
-<li><strong>Unambiguous sections</strong>: Linear time (like LR)</li>
-<li><strong>Local ambiguity</strong>: Polynomial time in ambiguous region size</li>
-<li><strong>Highly ambiguous</strong>: Exponential in worst case</li>
-</ul>
-<h3 id="optimization-strategies"><a class="header" href="#optimization-strategies">Optimization Strategies</a></h3>
-<pre><code class="language-rust">// Monitor GLR performance during parsing
-pub struct GLRProfiler {
-    start_time: Instant,
-    fork_events: Vec&lt;ForkEvent&gt;,
-    memory_usage: Vec&lt;usize&gt;,
-}
-
-impl GLRProfiler {
-    pub fn record_parse_start(&amp;mut self) {
-        self.start_time = Instant::now();
-    }
-    
-    pub fn record_fork(&amp;mut self, position: usize, stack_count: usize) {
-        self.fork_events.push(ForkEvent {
-            position,
-            stack_count,
-            timestamp: self.start_time.elapsed(),
-        });
-    }
-    
-    pub fn analyze_performance(&amp;self) -&gt; GLRPerformanceReport {
-        GLRPerformanceReport {
-            total_time: self.start_time.elapsed(),
-            max_parallelism: self.fork_events.iter().map(|e| e.stack_count).max().unwrap_or(1),
-            fork_frequency: self.fork_events.len() as f64 / self.start_time.elapsed().as_secs_f64(),
-            memory_peak: self.memory_usage.iter().max().copied().unwrap_or(0),
-        }
-    }
-}</code></pre>
-<h2 id="integration-with-runtime2"><a class="header" href="#integration-with-runtime2">Integration with Runtime2</a></h2>
-<p>The GLR parser integrates with the high-level runtime2 API:</p>
-<pre><code class="language-rust">// Using GLR through the main Parser API
-use adze_runtime::Parser;
-
-let mut parser = Parser::new();
-parser.set_language(glr_language)?;
-
-// Automatic GLR routing when grammar has conflicts
-let tree = parser.parse_utf8("ambiguous input", None)?;
-
-// Tree is automatically resolved from best forest interpretation
-let root = tree.root_node();
-println!("Resolved parse: {}", root.kind());</code></pre>
-<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
-<h3 id="grammar-design-for-glr"><a class="header" href="#grammar-design-for-glr">Grammar Design for GLR</a></h3>
-<ol>
-<li><strong>Identify Ambiguity Sources</strong>: Know where conflicts will occur</li>
-<li><strong>Test Incrementally</strong>: Start with simple ambiguous cases</li>
-<li><strong>Monitor Performance</strong>: Profile parsing on representative inputs</li>
-<li><strong>Provide Disambiguation</strong>: Use semantic actions or preferences when possible</li>
-</ol>
-<h3 id="debugging-glr-grammars"><a class="header" href="#debugging-glr-grammars">Debugging GLR Grammars</a></h3>
-<pre><code class="language-rust">// Debug GLR parsing with detailed forest information
-use std::env;
-
-env::set_var("ADZE_GLR_DEBUG", "true");
-
-let forest = parser.parse(&amp;tokens)?;
-
-// Analyze forest structure
-let analyzer = ForestAnalyzer;
-println!("Ambiguous nodes: {}", analyzer.count_ambiguities(&amp;forest));
-
-for node in analyzer.find_most_ambiguous_nodes(&amp;forest) {
-    println!("High ambiguity at {:?}: {} alternatives", 
-             node.span, node.alternatives.len());
-}</code></pre>
-<h3 id="testing-glr-parsers"><a class="header" href="#testing-glr-parsers">Testing GLR Parsers</a></h3>
-<pre><code class="language-rust">#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn test_glr_ambiguous_expression() {
-        let mut parser = create_glr_parser();
-        let forest = parser.parse(&amp;[SYM_NUMBER, SYM_PLUS, SYM_NUMBER, SYM_STAR, SYM_NUMBER])?;
-        
-        // Should have multiple interpretations for "1+2*3"
-        assert!(forest.roots.len() &gt;= 2, "Should have multiple parse interpretations");
-        
-        // Check that both groupings are present:
-        // ((1+2)*3) and (1+(2*3))
-        let trees = extract_parse_trees(&amp;forest);
-        assert!(trees.iter().any(|t| t.contains("(1+2)*3")));
-        assert!(trees.iter().any(|t| t.contains("1+(2*3)")));
-    }
-    
-    #[test] 
-    fn test_glr_performance() {
-        let mut profiler = GLRProfiler::new();
-        let mut parser = create_glr_parser();
-        
-        profiler.record_parse_start();
-        let _forest = parser.parse(&amp;long_ambiguous_input())?;
-        
-        let report = profiler.analyze_performance();
-        assert!(report.total_time &lt; Duration::from_secs(1), "GLR parsing too slow");
-        assert!(report.max_parallelism &lt; 100, "Too many concurrent stacks");
-    }
-}</code></pre>
-<h2 id="future-enhancements"><a class="header" href="#future-enhancements">Future Enhancements</a></h2>
-<p>The GLR implementation in PR #56 provides the foundation for advanced features:</p>
-<ul>
-<li><strong>Error Recovery</strong>: Extending GLR with sophisticated error handling</li>
-<li><strong>Incremental GLR</strong>: Updating parse forests efficiently after edits</li>
-<li><strong>Disambiguation</strong>: Automatic conflict resolution based on context</li>
-<li><strong>Streaming GLR</strong>: Processing large inputs without full materialization</li>
-</ul>
-<p>The ActionCell architecture makes these enhancements possible while maintaining the core GLR parsing capabilities demonstrated in the current implementation.</p>
+<h2 id="current-status"><a class="header" href="#current-status">Current Status</a></h2>
+<p>GLR conflict routing is Stabilizing for documented grammar classes with
+canaries. Broader product claims still need fixture matrices, selected-tree
+resolution proof, compatibility proof, and support-tier promotion.</p>
 
                     </main>
 

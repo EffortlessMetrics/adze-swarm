@@ -182,10 +182,19 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="testing"><a class="header" href="#testing">Testing</a></h1>
-<p>This page gives a practical overview of running and writing tests in the Adze workspace. For the full testing strategy see the <a href="development/testing.html">Development Testing Guide</a>.</p>
+<p>This page gives a practical overview of running and writing tests in the Adze
+workspace. For support-tiered product proof, see
+<code>docs/status/SUPPORT_TIERS.md</code>. For the full testing strategy see the
+<a href="development/testing.html">Development Testing Guide</a>.</p>
 <h2 id="running-the-test-suite"><a class="header" href="#running-the-test-suite">Running the test suite</a></h2>
-<pre><code class="language-bash"># All workspace tests (recommended: use capped concurrency)
-cargo test
+<pre><code class="language-bash"># Required local supported gate for the core parser pipeline
+just ci-supported
+
+# Core library tests for fast iteration
+just test
+
+# All workspace tests when you explicitly need broad local coverage
+cargo test --workspace
 
 # Concurrency-capped variants (more stable on CI or constrained machines)
 cargo t2                  # 2 test threads
@@ -200,36 +209,37 @@ cargo test -p adze-ir          # grammar IR
 cargo test -p adze-glr-core    # GLR analysis (use --features test-api for internal helpers)
 cargo test -p adze-tablegen    # table compression
 cargo test -p adze-tool        # build tool
-cargo test -p adze-runtime2    # GLR runtime
 </code></pre>
 <h3 id="feature-combinations"><a class="header" href="#feature-combinations">Feature combinations</a></h3>
-<p>Some crates behave differently depending on feature flags:</p>
+<p>Some product canaries exercise feature-specific runtime paths. Prefer explicit
+feature sets over broad feature aliases so the command describes the surface
+being proven:</p>
 <pre><code class="language-bash">cargo test -p adze --features glr
+cargo test -p adze --features "pure-rust,glr"
 cargo test -p adze --features incremental_glr
-cargo test -p adze --features all-features
 </code></pre>
+<p>When a feature-specific result becomes a public claim, it should have a row in
+<code>docs/status/SUPPORT_TIERS.md</code> with the exact proof command and known limits.</p>
 <h2 id="golden-tests"><a class="header" href="#golden-tests">Golden tests</a></h2>
-<p>Golden tests verify Adze parsers produce byte-for-byte identical parse trees to the official Tree-sitter parsers.</p>
+<p>Golden tests are advisory Tree-sitter parity receipts. They are useful for
+language and projection work, but they are not the default merge gate.</p>
 <pre><code class="language-bash">cd golden-tests
 
 # Generate reference S-expressions and SHA256 hashes (one-time)
 ./generate_references.sh
 
-# Run all golden tests
-cargo test --features all-grammars
-
-# Run for a single language
-cargo test --features python-grammar
-cargo test --features javascript-grammar
+# Run a focused package-level canary
+cargo test -p adze-golden-tests javascript_canary_expression_golden --features javascript-grammar -- --nocapture
 
 # Update references after intentional parser changes
 UPDATE_GOLDEN=1 cargo test --features python-grammar
 </code></pre>
 <p>See <a href="guide/golden-tests-maintenance.html">Golden Tests Maintenance</a> for the full workflow.</p>
 <h2 id="snapshot-tests-insta"><a class="header" href="#snapshot-tests-insta">Snapshot tests (insta)</a></h2>
-<p>Example grammars use <a href="https://insta.rs">insta</a> for snapshot testing:</p>
-<pre><code class="language-bash">cargo test -p example --features c-backend   # or --features pure-rust
-cargo insta review                            # interactive diff review
+<p>Example and generated-output tests may use <a href="https://insta.rs">insta</a> for
+snapshot testing:</p>
+<pre><code class="language-bash">cargo test -p adze --features "pure-rust,serialization" --test adze_document_json -- --nocapture
+cargo insta review  # interactive diff review
 </code></pre>
 <p>When grammar output changes intentionally, review and accept the new snapshots.</p>
 <h2 id="writing-a-grammar-test"><a class="header" href="#writing-a-grammar-test">Writing a grammar test</a></h2>
@@ -268,22 +278,28 @@ mod tests {
         assert!(grammar::parse("1 + + 2").is_err());
     }
 }</code></pre>
-<h2 id="bdd-framework"><a class="header" href="#bdd-framework">BDD framework</a></h2>
-<p>Adze includes a BDD (Behavior-Driven Development) framework in the <code>crates/bdd-*</code> family for tracking feature scenarios and governance:</p>
-<pre><code class="language-rust">use adze_bdd_contract::{BddScenario, BddScenarioStatus, BddPhase};
+<h2 id="governance-bdd-matrix"><a class="header" href="#governance-bdd-matrix">Governance BDD Matrix</a></h2>
+<p>The post-collapse BDD/governance support crate is
+<code>adze-bdd-governance-core</code>. It owns governance matrix primitives and parser
+feature policy receipts; it is not a separate product runtime.</p>
+<pre><code class="language-rust">use adze_bdd_governance_core::{
+    bdd_progress,
+    BddPhase,
+    GLR_CONFLICT_PRESERVATION_GRID,
+};
 
-// Scenarios are defined declaratively
-let scenario = BddScenario {
-    name: "GLR conflict preservation",
-    phase: BddPhase::Given,
-    status: BddScenarioStatus::Passing,
-    // ...
-};</code></pre>
-<p>The governance crates (<code>crates/governance-*</code>) use BDD grids to track which features pass across different runtime configurations.</p>
-<p>Run BDD-related tests:</p>
-<pre><code class="language-bash">cargo test -p adze-bdd-grammar-fixtures
-cargo test -p bdd-governance-core
-cargo test -p bdd-grid-core
+let (implemented, total) =
+    bdd_progress(BddPhase::Core, GLR_CONFLICT_PRESERVATION_GRID);
+assert!(implemented &lt;= total);</code></pre>
+<p>Run the focused governance proof when touching the BDD matrix or feature policy
+surface:</p>
+<pre><code class="language-bash">cargo test -p adze-bdd-governance-core
+cargo test -p adze-bdd-governance-core --lib grid::tests::progress_summary_reports_counts -- --exact --nocapture
+cargo test -p glr-test-support grammar_
+</code></pre>
+<p>The package boundary ledger documents the current durable support crates. If a
+test change adds, removes, or reclassifies a package, also run:</p>
+<pre><code class="language-bash">cargo run -q -p xtask -- check-package-boundary
 </code></pre>
 <h2 id="test-connectivity-safeguards"><a class="header" href="#test-connectivity-safeguards">Test connectivity safeguards</a></h2>
 <p>Several layers prevent tests from being silently disconnected:</p>

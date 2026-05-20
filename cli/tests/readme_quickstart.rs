@@ -17,6 +17,7 @@ const PRODUCT_PROOF_STABLE_SURFACES: &[&str] = &[
     "book/src/guide/troubleshooting.md",
     "book/src/guide/migration.md",
     "book/src/reference/cli-reference.md",
+    "book/book/**",
     "docs/how-to/use-playground.md",
     "docs/product/ACCEPTANCE_MATRIX.md",
     "docs/reference/PUBLISH_CHECKLIST.md",
@@ -535,6 +536,36 @@ fn co_release_dependency_snippets_stay_release_surface_bounded() {
                 "versioned or registry-shaped `adze-tool` dependency snippets must stay release-surface bounded until co-release crates have crates.io receipts.\nfile: {path}\nline: {}\ncontext:\n{}",
                 idx + 1,
                 surrounding_context(text, idx, 14)
+            );
+        }
+    }
+}
+
+#[test]
+fn generated_book_output_stays_claim_bounded() {
+    let repo_root = repo_root();
+    let generated_pages = [
+        "book/book/getting-started/migration.html",
+        "book/book/guide/incremental-parsing.html",
+        "book/book/guide/parser-generation.html",
+        "book/book/print.html",
+    ];
+    let forbidden = [
+        "Production Ready",
+        "production-ready",
+        "production ready",
+        "16x",
+        "16×",
+    ];
+
+    for path in generated_pages {
+        let text = fs::read_to_string(repo_root.join(path)).unwrap_or_else(|error| {
+            panic!("generated book page should be readable: {path}: {error}")
+        });
+        for needle in forbidden {
+            assert!(
+                !text.contains(needle),
+                "generated book output must not carry stale unproven product wording: {path}: {needle}"
             );
         }
     }

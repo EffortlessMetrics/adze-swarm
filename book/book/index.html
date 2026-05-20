@@ -186,15 +186,14 @@
 <p>Welcome to the official documentation for <strong>Adze</strong> - a Rust framework that makes it easy to create efficient parsers by leveraging the <a href="https://tree-sitter.github.io/tree-sitter/">Tree-sitter</a> parser generator.</p>
 <p>With Adze, you can define your entire grammar with annotations on idiomatic Rust code, and let macros generate the parser and type-safe bindings for you!</p>
 <h2 id="key-features"><a class="header" href="#key-features">Key Features</a></h2>
-<h3 id="-v080-dev-highlights"><a class="header" href="#-v080-dev-highlights">🚀 v0.8.0-dev Highlights</a></h3>
+<h3 id="090-highlights"><a class="header" href="#090-highlights">0.9.0 Highlights</a></h3>
 <ul>
-<li><strong>GLR Parsing</strong>: Full support for ambiguous grammars with efficient fork/merge handling</li>
-<li><strong>Pure-Rust Option</strong>: Generate static parsers at compile-time without C dependencies</li>
-<li><strong>Enhanced Error Recovery</strong>: Sophisticated error recovery strategies for robust parsing</li>
-<li><strong>Two-Phase Parser</strong>: Proper reduction-shift separation for correct GLR semantics</li>
-<li><strong>Comprehensive Testing</strong>: Golden tests, benchmarks, and validation infrastructure</li>
-<li><strong>WASM Support</strong>: Full WebAssembly compatibility with the pure-Rust backend</li>
-<li><strong>Performance Optimizations</strong>: SIMD lexing, parallel parsing, and memory pooling</li>
+<li><strong>Generated Parser Front Door</strong>: Define Rust grammar types and call generated parsers.</li>
+<li><strong>Pure-Rust Option</strong>: Generate static parsers at compile time without C dependencies.</li>
+<li><strong>Structured Diagnostics</strong>: Use supported parser errors and document diagnostics for bad input.</li>
+<li><strong>GLR Ambiguity Handling</strong>: Use documented GLR conflict-routing and ambiguity-summary surfaces.</li>
+<li><strong>Document Projections</strong>: Inspect <code>AdzeDocument</code>, typed views, Tree-sitter-shaped selected trees, and JSON according to support tiers.</li>
+<li><strong>Proof-Tracked Surfaces</strong>: Support tiers, proof commands, known gaps, and release receipts are tracked in repo docs.</li>
 </ul>
 <h2 id="quick-example"><a class="header" href="#quick-example">Quick Example</a></h2>
 <p>Here's a simple arithmetic expression parser:</p>
