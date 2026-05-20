@@ -47,18 +47,7 @@ pub fn run(
     run_command(info, &cargo_home, &target_dir)
         .with_context(|| format!("checking crates.io metadata for package `{crate_name}`"))?;
 
-    let mut install = Command::new(&cargo);
-    install
-        .arg("install")
-        .arg(crate_name)
-        .arg("--root")
-        .arg(install_root.path());
-    if let Some(version) = version {
-        install.arg("--version").arg(version);
-    }
-    if locked {
-        install.arg("--locked");
-    }
+    let install = cargo_install_command(&cargo, crate_name, install_root.path(), version, locked);
     run_command(install, &cargo_home, &target_dir).with_context(|| {
         format!("installing `{crate_name}` from crates.io into an isolated temp root")
     })?;
@@ -91,19 +80,15 @@ fn print_plan(crate_name: &str, bin_name: &str, version: Option<&str>, locked: b
     println!("locked: {locked}");
     println!("commands:");
     println!("  cargo info --registry {CRATES_IO_REGISTRY} {crate_name}");
+    let mut install =
+        format!("  cargo install --registry {CRATES_IO_REGISTRY} {crate_name} --root <temp-root>");
     if let Some(version) = version {
-        if locked {
-            println!(
-                "  cargo install {crate_name} --root <temp-root> --version {version} --locked"
-            );
-        } else {
-            println!("  cargo install {crate_name} --root <temp-root> --version {version}");
-        }
-    } else if locked {
-        println!("  cargo install {crate_name} --root <temp-root> --locked");
-    } else {
-        println!("  cargo install {crate_name} --root <temp-root>");
+        install.push_str(&format!(" --version {version}"));
     }
+    if locked {
+        install.push_str(" --locked");
+    }
+    println!("{install}");
     println!(
         "  <temp-root>/bin/{bin_name}{} --version",
         std::env::consts::EXE_SUFFIX
@@ -119,6 +104,30 @@ fn cargo_info_command(cargo: &OsStr, crate_name: &str) -> Command {
         .arg(CRATES_IO_REGISTRY)
         .arg(crate_name);
     info
+}
+
+fn cargo_install_command(
+    cargo: &OsStr,
+    crate_name: &str,
+    install_root: &Path,
+    version: Option<&str>,
+    locked: bool,
+) -> Command {
+    let mut install = Command::new(cargo);
+    install
+        .arg("install")
+        .arg("--registry")
+        .arg(CRATES_IO_REGISTRY)
+        .arg(crate_name)
+        .arg("--root")
+        .arg(install_root);
+    if let Some(version) = version {
+        install.arg("--version").arg(version);
+    }
+    if locked {
+        install.arg("--locked");
+    }
+    install
 }
 
 fn run_command(
@@ -198,5 +207,35 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(args, vec!["info", "--registry", "crates-io", "adze-cli"]);
+    }
+
+    #[test]
+    fn verify_crates_io_install_command_uses_explicit_registry_and_locked_version() {
+        let command = cargo_install_command(
+            OsStr::new("cargo"),
+            "adze-cli",
+            Path::new("<temp-root>"),
+            Some("1.2.3"),
+            true,
+        );
+        let args = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            args,
+            vec![
+                "install",
+                "--registry",
+                "crates-io",
+                "adze-cli",
+                "--root",
+                "<temp-root>",
+                "--version",
+                "1.2.3",
+                "--locked"
+            ]
+        );
     }
 }
