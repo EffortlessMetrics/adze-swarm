@@ -229,6 +229,9 @@ README/FAQ/tutorial/book dependency snippets that name `adze-tool` or
 registry-shaped `cargo add --build adze-tool` commands explicitly bounded as
 release-surface shapes until co-release crates have crates.io receipts. It is a
 claim-boundary canary, not dependency-resolution or install proof.
+The `Product Proof` workflow path filter covers these live claim-boundary docs
+so edits to the scanned docs route to the stable product canaries while the lane
+remains advisory.
 
 Hosted PR #334 also passed `Rust Small Result`, `ci-product stable canaries`,
 `Source of Truth`, `Supported Rust Gate`, `Test Pure Rust Implementation

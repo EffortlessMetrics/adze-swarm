@@ -135,6 +135,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       `cargo test -p adze-cli co_release_dependency_snippets_stay_release_surface_bounded -- --exact --nocapture`.
       The canary proves claim-boundary wording in live README/FAQ/tutorial/book
       docs; it is not crates.io dependency-resolution or install proof.
+      The `Product Proof` workflow is path-routed across the same live
+      claim-boundary docs so edits to those files wake the stable product
+      canaries without changing branch protection.
 - [x] Residual product-trust lane paused with no ready routine swarm work. The
       remaining active-manifest items are blocked on explicit release/publish
       authorization and the post-publish crates.io install receipt. Tracker:
