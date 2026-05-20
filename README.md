@@ -65,6 +65,13 @@ let expr = grammar::parse("1 + 2 * 3")?;
 
 ## Install
 
+> **Release-surface boundary:** The dependency block below documents the
+> intended crates.io dependency shape. It is not, by itself, a crates.io install
+> receipt for every co-release crate. Until
+> [`PRODUCT_OBJECTIVE_AUDIT.md`](./docs/status/PRODUCT_OBJECTIVE_AUDIT.md)
+> records the publish/install receipt, use the quickstart link below for the
+> fully proved path from this checkout.
+
 ```toml
 [dependencies]
 adze = { version = "0.8", default-features = false }

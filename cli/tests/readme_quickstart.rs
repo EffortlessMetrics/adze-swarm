@@ -20,6 +20,13 @@ fn readme_arithmetic_quickstart_builds_and_runs() {
     let grammar_snippet = fenced_block_starting_with(readme, "rust", "#[adze::grammar")
         .expect("README should include the arithmetic grammar quickstart block");
     assert!(
+        readme.contains("Release-surface boundary")
+            && readme.contains("crates.io")
+            && readme.contains("install")
+            && readme.contains("receipt"),
+        "README install block must bound the crates.io co-release claim until publish receipts exist"
+    );
+    assert!(
         grammar_snippet.contains(r#"let expr = grammar::parse("1 + 2 * 3")?;"#),
         "README grammar block should show the documented parser call"
     );
