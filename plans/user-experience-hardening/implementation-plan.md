@@ -283,7 +283,7 @@ Revert the focused docs or receipt PR.
 
 ## Work Item: local-proof-loop-friction
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: n/a
@@ -295,9 +295,17 @@ Blocked by: user-experience-hardening-source-of-truth
 Reduce local proof-loop friction when it blocks routine `adze-swarm`
 development.
 
+### Receipt
+
+Landed in PR #329.
+
 ### Production Delta
 
-To be defined by the PR that picks this item.
+- `scripts/ci-supported.sh` now defaults `CARGO_PROFILE_TEST_DEBUG=0`
+  for the supported test profile, reducing Windows MSVC linker/PDB pressure
+  without changing the supported crate/test surface.
+- `docs/status/FRICTION_LOG.md` records FR-021 with the symptom, repro,
+  mitigation, and remaining environmental boundary around disk pressure.
 
 ### Non-Goals
 
