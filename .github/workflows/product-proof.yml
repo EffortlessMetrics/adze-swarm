@@ -20,11 +20,14 @@ on:
       - book/src/reference/cli-reference.md
       - book/book/**
       - docs/how-to/use-playground.md
+      - docs/how-to/optimize-performance.md
       - cli/tests/readme_quickstart.rs
       - docs/product/ACCEPTANCE_MATRIX.md
       - docs/README.md
+      - docs/explanations/arena-allocator.md
       - docs/explanations/direct-forest-splicing.md
       - docs/explanations/glr-incremental-architecture.md
+      - docs/guides/ARENA_ALLOCATOR_GUIDE.md
       - docs/reference/PUBLISH_CHECKLIST.md
       - docs/tutorials/quickstart-10-minutes.md
       - docs/tutorials/getting-started.md

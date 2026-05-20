@@ -24,11 +24,14 @@ const PRODUCT_PROOF_STABLE_SURFACES: &[&str] = &[
     "docs/tutorials/quickstart-10-minutes.md",
     "docs/tutorials/getting-started.md",
     "docs/tutorials/json-tutorial.md",
+    "docs/how-to/optimize-performance.md",
     "docs/status/SUPPORT_TIERS.md",
     "docs/status/NOW_NEXT_LATER.md",
     "docs/README.md",
+    "docs/explanations/arena-allocator.md",
     "docs/explanations/direct-forest-splicing.md",
     "docs/explanations/glr-incremental-architecture.md",
+    "docs/guides/ARENA_ALLOCATOR_GUIDE.md",
     "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
     "docs/status/PRODUCT_PROOF_MAP.md",
     "docs/status/KNOWN_RED.md",
@@ -609,6 +612,42 @@ fn incremental_source_docs_stay_claim_bounded() {
             assert!(
                 !text.contains(needle),
                 "incremental source docs must not carry unproven product wording: {path}: {needle}"
+            );
+        }
+    }
+}
+
+#[test]
+fn arena_allocator_docs_stay_claim_bounded() {
+    let docs = [
+        (
+            "docs/explanations/arena-allocator.md",
+            include_str!("../../docs/explanations/arena-allocator.md"),
+        ),
+        (
+            "docs/guides/ARENA_ALLOCATOR_GUIDE.md",
+            include_str!("../../docs/guides/ARENA_ALLOCATOR_GUIDE.md"),
+        ),
+        (
+            "docs/how-to/optimize-performance.md",
+            include_str!("../../docs/how-to/optimize-performance.md"),
+        ),
+    ];
+    let forbidden = [
+        "3.7x",
+        "5.0x",
+        "99%+",
+        "80.7 µs",
+        "401 µs",
+        "Default in v0.9.0",
+        "benchmarks/results/arena_vs_box_summary.md",
+    ];
+
+    for (path, text) in docs {
+        for needle in forbidden {
+            assert!(
+                !text.contains(needle),
+                "arena allocator docs must not carry unreceipted product performance wording or dead benchmark links: {path}: {needle}"
             );
         }
     }

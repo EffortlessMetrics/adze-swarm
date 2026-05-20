@@ -75,7 +75,9 @@ criterion_main!(benches);
 
 ## Memory Usage
 
-Adze uses an **Arena Allocator** for parse trees to minimize allocation overhead.
+Some Adze runtime paths include arena-backed parse-tree allocation to reduce
+allocation overhead. Treat arena performance as an internal optimization detail
+unless a specific support-tier row and benchmark receipt backs the claim.
 - **Tree Size**: The `Extract` trait converts the raw arena nodes into your Rust structs. This involves allocation (unless you use `&str` references, which is advanced).
 - **Node Reuse**: Incremental parsing (experimental) attempts to reuse subtrees.
 
