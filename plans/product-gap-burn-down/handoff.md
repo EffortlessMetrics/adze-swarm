@@ -69,6 +69,10 @@ Observed results:
   diagnostic-document canary into a malformed-input matrix, and the focused
   matrix command passed locally and in the PR's `ci-product stable canaries`
   receipt.
+- A follow-up generated external-token matrix canary adds multibyte expression,
+  invalid body, and newline-boundary body inputs and proves generated `parse()`
+  errors agree with `parse_document()` diagnostics on spans and expected-token
+  names.
 - Source-of-truth checks passed.
 
 ## Resume Conditions
