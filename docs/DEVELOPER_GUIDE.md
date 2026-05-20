@@ -29,8 +29,9 @@ Optional tooling:
 
 Adze uses a "Support Lane" model to keep the core green while allowing experimental features to evolve.
 
-### 🟢 Supported Lane (Must be Green)
-These crates are the core product. CI enforces passing tests and lints on every PR.
+### 🟢 Supported Lane (Local Supported Proof)
+These crates are the core product. `just ci-supported` verifies their local
+formatting, lint, and test proof.
 - `adze` (core runtime)
 - `adze-macro`
 - `adze-tool`
@@ -47,7 +48,12 @@ These crates are useful but may break during major refactors.
 - `cli/`
 - `playground/`
 
-To run the supported gate locally:
+The required hosted merge gate for ordinary `adze-swarm` PRs is
+`Rust Small Result` from `.github/workflows/em-ci-routed-rust.yml`. The routed
+implementation jobs (`Rust Small on CX43`, `Rust Small on CX53`, and
+`Rust Small on GitHub Hosted`) are not independent required contexts.
+
+To run the supported proof locally:
 ```bash
 just ci-supported
 ```
@@ -131,14 +137,26 @@ cargo build -p adze-example
 
 ## Release Process
 
-1. **Verify State**: Ensure `just ci-supported` passes.
-2. **Update Docs**: Check [`docs/status/FRICTION_LOG.md`](./status/FRICTION_LOG.md) and [`CHANGELOG.md`](../CHANGELOG.md).
-3. **Bump Version**: Update `version` in `Cargo.toml` files (workspace members).
-4. **Tag**: `git tag v0.8.0`
-5. **Publish**: `cargo publish` (scripted in CI).
-6. **Release surface configuration**: choose `RELEASE_SURFACE_MODE` (`fixed`/`auto`) and optional `RELEASE_CRATE_FILE` override as needed.
-7. **Release surface strictness**: decide whether to run `strict_publish_surface` (fixed mode only) in the GitHub Release workflow when publishing, or `STRICT_PUBLISH_SURFACE=true` for local helper runs.
-8. Optionally set workflow dispatch inputs `release_surface_mode` and `release_crate_file` for one-off releases.
+Release, tag, publish, signing, and Cargo-token work requires explicit human
+authorization. Do not start it from swarm momentum.
+
+Normal development and product proof happen in `EffortlessMetrics/adze-swarm`.
+Actual release execution happens from public `EffortlessMetrics/adze` after the
+candidate state has been explicitly promoted.
+
+1. **Authorize**: record the human release/publish decision in the release
+   tracker before touching tag, publish, signing, or Cargo-token paths.
+2. **Promote**: move the selected `adze-swarm` release candidate into public
+   `adze` with an explicit public promotion PR.
+3. **Preflight**: run the supported, product, and publishable proof commands
+   named in [`docs/reference/PUBLISH_CHECKLIST.md`](./reference/PUBLISH_CHECKLIST.md).
+4. **Version**: update workspace versions only if the release plan requires it.
+5. **Tag and publish**: tag and publish only from public `adze`, and only after
+   authorization and preflight are complete.
+6. **Install receipt**: after publishing, run the real crates.io install
+   receipt before claiming `cargo install adze-cli` works.
+7. **Update claims**: update support tiers, README, and release notes only for
+   claims backed by proof receipts.
 
 ## Code Standards
 
