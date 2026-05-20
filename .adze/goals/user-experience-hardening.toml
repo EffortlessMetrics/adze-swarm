@@ -67,11 +67,12 @@ commands = [
 
 [[work_item]]
 id = "diagnostics-query-ts-compat-walkthroughs"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/user-experience-hardening/implementation-plan.md"
+prs = [353]
 commands = [
   "cargo test -p adze --features query --lib query -- --nocapture",
   "cargo test -p adze --features \"pure-rust,ts-compat\" --test ts_compat_selected_tree -- --nocapture",

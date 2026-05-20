@@ -24,6 +24,7 @@ on:
       - cli/tests/readme_quickstart.rs
       - docs/product/ACCEPTANCE_MATRIX.md
       - docs/README.md
+      - docs/reference/diagnostics-and-recovery.md
       - docs/explanations/arena-allocator.md
       - docs/explanations/direct-forest-splicing.md
       - docs/explanations/glr-incremental-architecture.md

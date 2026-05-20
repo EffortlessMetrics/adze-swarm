@@ -20,6 +20,7 @@ const PRODUCT_PROOF_STABLE_SURFACES: &[&str] = &[
     "book/book/**",
     "docs/how-to/use-playground.md",
     "docs/product/ACCEPTANCE_MATRIX.md",
+    "docs/reference/diagnostics-and-recovery.md",
     "docs/reference/PUBLISH_CHECKLIST.md",
     "docs/tutorials/quickstart-10-minutes.md",
     "docs/tutorials/getting-started.md",
