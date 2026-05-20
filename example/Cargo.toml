@@ -29,6 +29,7 @@ adze-tool = { path = "../tool" }
 toml = "0.8"
 
 [dev-dependencies]
+adze-glr-core = { path = "../glr-core" }
 insta = "1.39"
 wasm-bindgen-test = "0.3.0"
 
