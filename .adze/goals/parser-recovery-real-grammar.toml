@@ -35,7 +35,7 @@ commands = [
 
 [[work_item]]
 id = "generated-external-real-grammar-matrix"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0009-parser-recovery-real-grammar-coverage.md"
 spec = "ADZE-SPEC-0005"
 adr = "ADZE-ADR-0001"
@@ -67,7 +67,6 @@ spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/parser-recovery-real-grammar/implementation-plan.md"
 blocked_by = [
-  "generated-external-real-grammar-matrix",
   "parser-v4-scanner-recovery-smoke",
 ]
 commands = [
