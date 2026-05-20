@@ -8,13 +8,16 @@ use crate::arena_allocator::{ArenaMetrics, NodeHandle, TreeArena, TreeNode};
 use crate::external_scanner::ExternalScannerRuntime;
 use crate::glr_forest::{ForestNode, GLRParserState, PackedNode};
 use crate::lexer::{GrammarLexer, Token as LexerToken};
-use crate::scanner_registry::{DynExternalScanner, get_global_registry};
+use crate::scanner_registry::DynExternalScanner;
 use adze_glr_core::{Action, ParseRule, ParseTable, conflict_inspection::state_has_conflicts};
 use adze_ir::{Grammar, Rule, RuleId, StateId, SymbolId, TokenPattern};
 use anyhow::{Result, anyhow, bail};
 use std::collections::HashSet;
 use std::rc::Rc;
 use std::time::Instant;
+
+use crate::parser_v4_action_utils::action_priority as rank_action_priority;
+use crate::parser_v4_external_setup::build_external_scanner;
 
 const PARSE_WITH_CUSTOM_LEXER_UNSUPPORTED: &str = "Custom lexer functions are not yet supported by parser_v4 runtime. \
      Provide a grammar/tokenization path without a custom transform lexer.";
@@ -153,50 +156,6 @@ impl Parser {
         &self.parse_table
     }
 
-    /// Calculate priority for an action based on precedence and associativity
-    #[inline]
-    fn action_priority(&self, action: &Action) -> i32 {
-        use Action::*;
-
-        // Highest: Accept
-        if matches!(action, Accept) {
-            return 3_000_000;
-        }
-
-        // Pull dynamic precedence if this is a reduce
-        let mut prec = 0i32;
-        if let Reduce(rid) = action {
-            // Get dynamic precedence for this rule
-            if (rid.0 as usize) < self.parse_table.dynamic_prec_by_rule.len() {
-                prec = self.parse_table.dynamic_prec_by_rule[rid.0 as usize] as i32;
-            }
-
-            // Get associativity from the rule: +1 left, -1 right, 0 none
-            let assoc_bias = if (rid.0 as usize) < self.parse_table.rule_assoc_by_rule.len() {
-                self.parse_table.rule_assoc_by_rule[rid.0 as usize] as i32
-            } else {
-                0
-            };
-
-            // Combine precedence and associativity
-            prec = prec.saturating_add(assoc_bias);
-
-            // Bump reduces with positive precedence above plain shift
-            if prec > 0 {
-                return 2_000_000 + prec;
-            }
-            // Neutral reduce (slightly below shift to prefer shift in S/R conflicts)
-            return 1_500_000 + prec;
-        }
-
-        // Plain Shift (default TS policy prefers shift over no-prec reduce)
-        if matches!(action, Shift(_)) {
-            return 2_000_000;
-        }
-
-        0 // Error/other
-    }
-
     /// Internal helper to find rule without Result wrapper
     #[allow(dead_code)]
     fn find_rule_by_production_id_internal(&self, rule_id: RuleId) -> Option<&ParseRule> {
@@ -206,29 +165,8 @@ impl Parser {
     /// Create a new parser with the given grammar and parse table
     pub fn new(grammar: Grammar, parse_table: ParseTable, language: String) -> Self {
         // Check if grammar has external tokens
-        let (external_scanner, external_runtime) = if !grammar.externals.is_empty() {
-            // Get scanner from registry
-            let registry = get_global_registry();
-            let registry = registry.lock().unwrap_or_else(|err| err.into_inner());
-
-            if let Some(scanner) = registry.create_scanner(&language) {
-                let external_tokens: Vec<crate::SymbolId> = grammar
-                    .externals
-                    .iter()
-                    .map(|ext| ext.symbol_id.0)
-                    .collect();
-                let runtime = ExternalScannerRuntime::new(external_tokens);
-                (Some(scanner), Some(runtime))
-            } else {
-                // eprintln!(
-                // "Warning: Grammar has external tokens but no scanner registered for language '{}'",
-                // language
-                // );
-                (None, None)
-            }
-        } else {
-            (None, None)
-        };
+        let (external_scanner, external_runtime) =
+            build_external_scanner(&grammar, &language, !grammar.externals.is_empty());
 
         Self {
             arena: TreeArena::new(), // Default capacity (1024 nodes)
@@ -272,30 +210,8 @@ impl Parser {
         // );
 
         // Check for external scanner
-        let (external_scanner, external_runtime) = if language.external_token_count > 0 {
-            // Get scanner from registry
-            let registry = get_global_registry();
-            let registry = registry.lock().unwrap_or_else(|err| err.into_inner());
-
-            if let Some(scanner) = registry.create_scanner(&language_name) {
-                // Create external tokens list from decoded grammar externals.
-                let external_tokens: Vec<crate::SymbolId> = grammar
-                    .externals
-                    .iter()
-                    .map(|ext| ext.symbol_id.0)
-                    .collect();
-                let runtime = ExternalScannerRuntime::new(external_tokens);
-                (Some(scanner), Some(runtime))
-            } else {
-                // eprintln!(
-                // "Warning: Grammar has external tokens but no scanner registered for language '{}'",
-                // language_name
-                // );
-                (None, None)
-            }
-        } else {
-            (None, None)
-        };
+        let (external_scanner, external_runtime) =
+            build_external_scanner(&grammar, &language_name, language.external_token_count > 0);
 
         Self {
             arena: TreeArena::new(), // Default capacity (1024 nodes)
@@ -332,25 +248,8 @@ impl Parser {
         capacity: usize,
     ) -> Self {
         // Check if grammar has external tokens
-        let (external_scanner, external_runtime) = if !grammar.externals.is_empty() {
-            // Get scanner from registry
-            let registry = get_global_registry();
-            let registry = registry.lock().unwrap_or_else(|err| err.into_inner());
-
-            if let Some(scanner) = registry.create_scanner(&language) {
-                let external_tokens: Vec<crate::SymbolId> = grammar
-                    .externals
-                    .iter()
-                    .map(|ext| ext.symbol_id.0)
-                    .collect();
-                let runtime = ExternalScannerRuntime::new(external_tokens);
-                (Some(scanner), Some(runtime))
-            } else {
-                (None, None)
-            }
-        } else {
-            (None, None)
-        };
+        let (external_scanner, external_runtime) =
+            build_external_scanner(&grammar, &language, !grammar.externals.is_empty());
 
         Self {
             arena: TreeArena::with_capacity(capacity),
@@ -427,28 +326,13 @@ impl Parser {
         // );
         self.language = language_name.clone();
         // Update external scanner if needed
-        if language.external_token_count > 0 {
-            let registry = get_global_registry();
-            let registry = registry.lock().unwrap_or_else(|err| err.into_inner());
-
-            if let Some(scanner) = registry.create_scanner(&language_name) {
-                let external_tokens: Vec<crate::SymbolId> = self
-                    .grammar
-                    .externals
-                    .iter()
-                    .map(|ext| ext.symbol_id.0)
-                    .collect();
-                let runtime = ExternalScannerRuntime::new(external_tokens);
-                self.external_scanner = Some(scanner);
-                self.external_runtime = Some(runtime);
-            } else {
-                self.external_scanner = None;
-                self.external_runtime = None;
-            }
-        } else {
-            self.external_scanner = None;
-            self.external_runtime = None;
-        }
+        let (external_scanner, external_runtime) = build_external_scanner(
+            &self.grammar,
+            &language_name,
+            language.external_token_count > 0,
+        );
+        self.external_scanner = external_scanner;
+        self.external_runtime = external_runtime;
 
         Ok(())
     }
@@ -701,7 +585,7 @@ impl Parser {
             let mut actions = self.get_parse_actions(current_state, lookahead)?;
 
             // Sort actions by priority (highest first) to prefer better actions
-            actions.sort_by_key(|a| -self.action_priority(a));
+            actions.sort_by_key(|action| -rank_action_priority(&self.parse_table, action));
 
             let _col = self
                 .parse_table

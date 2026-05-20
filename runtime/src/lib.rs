@@ -185,6 +185,12 @@ pub mod parser_selection;
 /// Version 4 parser implementation (GLR).
 #[cfg(feature = "pure-rust")]
 pub mod parser_v4;
+/// Action ranking helpers for the version 4 parser.
+#[cfg(feature = "pure-rust")]
+mod parser_v4_action_utils;
+/// External-scanner setup helpers for the version 4 parser.
+#[cfg(feature = "pure-rust")]
+mod parser_v4_external_setup;
 /// Pure Rust external scanner support.
 pub mod pure_external_scanner;
 /// Pure Rust incremental parsing support.
