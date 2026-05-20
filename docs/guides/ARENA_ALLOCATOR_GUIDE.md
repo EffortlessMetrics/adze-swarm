@@ -1,16 +1,18 @@
 # Arena Allocator User Guide
 
-**Version**: v0.8.0
+**Version**: v0.9.0
 **Status**: Internal optimization surface; see support tiers for product claims
-**Target Audience**: adze library users
+**Target Audience**: maintainers and advanced contributors
 
 ## Overview
 
-The arena allocator provides efficient memory management for parse tree nodes through chunked allocation and handle-based references. It delivers **3.7x-5.0x speedup** over individual Box allocations with **99%+ fewer allocations**.
+The arena allocator provides memory management for parse tree nodes through
+chunked allocation and handle-based references.
 
-Those figures are historical arena-vs-Box microbenchmark receipts for this
-allocator path. They are not a broad parser throughput claim, release promise,
-or substitute for the product benchmark receipts tracked in
+Historical arena-vs-Box microbenchmarks existed for this allocator path, but
+this guide is not a current benchmark receipt. Do not use it as a parser
+throughput claim, release promise, or substitute for the product benchmark
+receipts tracked in
 [`docs/status/SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md) and
 [`docs/perf/baselines.md`](../perf/baselines.md).
 
@@ -47,10 +49,13 @@ let handle = arena.alloc(TreeNode::leaf(42));
 ```
 
 **Benefits:**
-- ✅ **3.7x-5.0x faster** allocation
-- ✅ **99%+ fewer allocations** (reduces malloc calls from N to log N)
-- ✅ **Better cache locality** (nodes in contiguous memory)
-- ✅ **Memory reuse** across multiple parse sessions
+- Fewer allocation calls than one-`Box`-per-node designs.
+- Better cache locality because nodes are stored in chunks.
+- Arena reset and reuse for workloads where the arena lifecycle matches the
+  parse lifecycle.
+
+Specific speedup, allocation-reduction, and parser-throughput claims require a
+fresh benchmark receipt before they can be used in public product docs.
 
 ## Quick Start
 
@@ -345,16 +350,17 @@ impl MultiParser {
 - **Arena overhead**: O(log N) for N nodes (chunk metadata)
 - **Fragmentation**: At most (chunk_size - 1) nodes wasted per chunk
 
-### Benchmark Results
+### Benchmarking
 
-From `cargo bench --bench arena_vs_box_allocation`:
+Use the arena benchmark when evaluating allocator changes:
 
-| Nodes | Arena Time | Box Time | Speedup |
-|-------|-----------|----------|---------|
-| 100 | 855 ns | 3.37 µs | 3.9x |
-| 1,000 | 8.1 µs | 29.9 µs | 3.7x |
-| 10,000 | 80.7 µs | 401 µs | 5.0x |
-| 100,000 | 841 µs | 3.90 ms | 4.6x |
+```bash
+cargo bench --bench arena_vs_box_allocation
+```
+
+Record the command, commit, hardware, and benchmark output before citing any
+arena allocation speedup or allocation-reduction numbers in product-facing
+docs.
 
 ## Safety and Lifetime Management
 
@@ -554,9 +560,7 @@ cargo bench --bench arena_vs_box_allocation
 ## Further Reading
 
 - [ADR-0001: Arena Allocator Decision](../adr/0001-arena-allocator-for-parse-trees.md)
-- [Arena Allocator Specification](../specs/ARENA_ALLOCATOR_SPEC.md)
 - [Performance Benchmarking Guide](./PERFORMANCE_BENCHMARKING.md)
-- [Benchmark Results](../../benchmarks/results/arena_vs_box_summary.md)
 
 ## Support
 

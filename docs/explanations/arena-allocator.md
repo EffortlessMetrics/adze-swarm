@@ -3,10 +3,9 @@
 > **Status:** Internal optimization surface. Use the support-tier ledger and
 > benchmark receipts for product claims.
 
-The arena allocator's historical arena-vs-Box microbenchmarks report
-**3.7x-5.0x faster** parse tree allocation with **99%+ fewer allocations**
-compared to Box-based allocation. Treat these as allocator microbenchmark
-receipts, not parser throughput guarantees.
+Historical arena-vs-Box microbenchmarks existed for this allocator path. Treat
+this page as design context, not as a current parser throughput guarantee or
+product benchmark receipt.
 
 ## Quick Example
 
@@ -27,27 +26,22 @@ assert_eq!(arena.get(child1).value(), 1);
 arena.reset();
 ```
 
-## Performance at a Glance
+## Measurement Boundary
 
-| Metric | Result | Target |
-|--------|--------|--------|
-| Speedup | **3.7x-5.0x** | ≥20% (1.2x) |
-| Allocation Reduction | **99%+** | ≥50% |
-| Memory Reuse | **Zero-cost reset** | N/A |
+Use `cargo bench --bench arena_vs_box_allocation` when evaluating allocator
+changes. Record the command, commit, hardware, and benchmark output before
+citing concrete allocation speedup or allocation-reduction numbers.
 
-### Benchmark Results (10,000 nodes)
-
-- **Arena**: 80.7 µs, ~10 allocations
-- **Box**: 401 µs, 10,000 allocations
-- **Speedup**: 5.0x
+The public product performance story remains in
+[`docs/perf/baselines.md`](../perf/baselines.md) and
+[`docs/status/SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md).
 
 ## When to Use
 
 ✅ **Use arena allocation when:**
-- Parsing files (most common case)
-- Building ASTs or parse trees
-- Need predictable performance
-- Want to reuse memory across parses
+- Building ASTs or parse trees in code that already owns the arena lifecycle
+- You want chunked allocation and handle-based references
+- You want to evaluate reuse across repeated parse-like workloads
 
 ❌ **Consider alternatives when:**
 - Nodes need individual lifetimes
@@ -114,8 +108,7 @@ node.is_named();      // Node flags
 
 - **Full Guide**: [docs/guides/ARENA_ALLOCATOR_GUIDE.md](guides/ARENA_ALLOCATOR_GUIDE.md)
 - **Design Rationale**: [docs/adr/0001-arena-allocator-for-parse-trees.md](adr/0001-arena-allocator-for-parse-trees.md)
-- **Specification**: [docs/specs/ARENA_ALLOCATOR_SPEC.md](specs/ARENA_ALLOCATOR_SPEC.md)
-- **Benchmark Results**: [benchmarks/results/arena_vs_box_summary.md](../benchmarks/results/arena_vs_box_summary.md)
+- **Benchmark Policy**: [docs/perf/baselines.md](../perf/baselines.md)
 
 ## Testing
 
@@ -132,7 +125,7 @@ cargo bench --bench arena_vs_box_allocation
 
 ## Status
 
-- ✅ **Phase 1**: Core implementation (v0.8.0)
-- 🚧 **Phase 2**: Parser integration (in progress)
-- ⏳ **Phase 3**: Default in v0.9.0
-- ⏳ **Phase 4**: Stabilize in v1.0.0
+- ✅ **Phase 1**: Core implementation
+- 🚧 **Phase 2**: Parser integration and receipts
+- ⏳ **Phase 3**: Product-facing performance claim review
+- ⏳ **Phase 4**: Support-tier promotion if proof warrants it
