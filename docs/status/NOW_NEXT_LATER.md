@@ -1,7 +1,7 @@
 # Now / Next / Later
 
 **Last updated:** 2026-05-20
-**Status:** **Query/tooling expansion complete; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The latest completed non-release lane is closed out in [`../../plans/query-tooling-expansion/closeout.md`](../../plans/query-tooling-expansion/closeout.md). Future routine non-release work should open a fresh active goal in `adze-swarm`.
+**Status:** **Parser recovery real-grammar coverage active; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The current non-release lane is tracked in [`../../plans/parser-recovery-real-grammar/implementation-plan.md`](../../plans/parser-recovery-real-grammar/implementation-plan.md) and narrows the remaining real-grammar parser-generated external-scanner recovery coverage gap without promoting external scanners.
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -27,6 +27,16 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 ---
 
 ## Now
+
+### Parser recovery real-grammar coverage
+- [x] Replace the paused query/tooling closeout manifest with a focused
+      real-grammar parser recovery lane in `adze-swarm`.
+- [ ] Broaden generated external-scanner malformed-input recovery coverage
+      with focused parse/document diagnostic receipts.
+- [ ] Add or refresh parser-v4 scanner recovery smoke so malformed input stays
+      source-bounded and no-panic.
+- [ ] Refresh support-tier or product-audit wording only after new proof
+      commands exist.
 
 ### Query/tooling expansion
 - [x] Replace the paused no-active-lane manifest with a focused query/tooling

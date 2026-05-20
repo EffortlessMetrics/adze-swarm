@@ -172,6 +172,25 @@ links_to = [
 ]
 
 [[artifact]]
+id = "ADZE-PROP-0009"
+kind = "proposal"
+path = "docs/proposals/ADZE-PROP-0009-parser-recovery-real-grammar-coverage.md"
+status = "accepted"
+owner = "runtime/diagnostics"
+milestone = "post-0.9"
+source_of_truth_for = ["parser recovery real-grammar coverage rationale", "real-grammar external-scanner recovery proof campaign"]
+links_to = [
+  "ADZE-SPEC-0005",
+  "ADZE-SPEC-0011",
+  "ADZE-ADR-0001",
+  "plans/parser-recovery-real-grammar/implementation-plan.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/parser-recovery-real-grammar.toml",
+  "docs/status/SUPPORT_TIERS.md",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
 id = "ADZE-SPEC-0001"
 kind = "spec"
 path = "docs/specs/ADZE-SPEC-0001-package-surface-boundary.md"
@@ -537,6 +556,22 @@ links_to = [
 ]
 
 [[artifact]]
+id = "plans/parser-recovery-real-grammar/implementation-plan.md"
+kind = "plan"
+path = "plans/parser-recovery-real-grammar/implementation-plan.md"
+status = "active"
+owner = "runtime/diagnostics"
+milestone = "post-0.9"
+source_of_truth_for = ["parser recovery real-grammar implementation sequence"]
+links_to = [
+  "ADZE-PROP-0009",
+  ".adze/goals/active.toml",
+  ".adze/goals/parser-recovery-real-grammar.toml",
+  "docs/status/SUPPORT_TIERS.md",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
 id = ".adze/goals/glr-toolkit-productization.toml"
 kind = "goal"
 path = ".adze/goals/glr-toolkit-productization.toml"
@@ -632,6 +667,22 @@ links_to = [
   ".adze/goals/archive/2026-05-20-query-tooling-expansion.toml",
   ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/parser-recovery-real-grammar.toml"
+kind = "goal"
+path = ".adze/goals/parser-recovery-real-grammar.toml"
+status = "active"
+owner = "droid-factory"
+milestone = "post-0.9"
+source_of_truth_for = ["parser recovery real-grammar agent work queue"]
+links_to = [
+  "ADZE-PROP-0009",
+  "plans/parser-recovery-real-grammar/implementation-plan.md",
+  ".adze/goals/active.toml",
+  "docs/status/SUPPORT_TIERS.md",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
 ]
 
 [[artifact]]
