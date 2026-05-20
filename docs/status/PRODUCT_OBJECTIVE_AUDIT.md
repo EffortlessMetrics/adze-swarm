@@ -162,7 +162,7 @@ cargo test -p adze-cli test_init -- --nocapture
 cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture
 cargo test -p adze-cli cargo_install_adze_cli_claims_stay_release_surface_bounded -- --exact --nocapture
 just package-local adze-cli
-cargo info adze-cli
+cargo info --registry crates-io adze-cli
 cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z
 ```
 
@@ -177,11 +177,11 @@ beginner/status/spec docs from presenting `cargo install adze-cli` as a ready
 quickstart until a crates.io receipt exists. It is a claim-boundary canary, not
 registry installation proof.
 
-The `cargo info adze-cli` command must be run outside the workspace when it is
-used to verify registry publication. It reported on 2026-05-19 and again on
-2026-05-20 that `adze-cli` could not be found in crates.io, so
-`cargo install adze-cli` remains a release-surface target rather than current
-product proof.
+Use `cargo info --registry crates-io adze-cli` when verifying registry
+publication. The explicit registry flag avoids resolving the local workspace
+package. It reported on 2026-05-20 that `adze-cli` could not be found in
+crates.io, so `cargo install adze-cli` remains a release-surface target rather
+than current product proof.
 
 `cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version
 X.Y.Z` is the post-publish receipt hook for the missing crates.io install proof.

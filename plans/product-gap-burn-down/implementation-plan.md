@@ -447,7 +447,8 @@ claim-boundary failure.
 
 On 2026-05-20 from `adze-swarm/main` at commit `390ab76f`:
 
-- `cargo info adze-cli` reported that `adze-cli` is not present in crates.io.
+- `cargo info --registry crates-io adze-cli` reported that `adze-cli` is not
+  present in crates.io.
 - `just package-local adze-cli` packaged and verified `adze-cli v0.8.0-dev`
   with local co-release patches.
 - `cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze
@@ -470,7 +471,7 @@ receipt.
 ### Proof Commands
 
 ```bash
-cargo info adze-cli
+cargo info --registry crates-io adze-cli
 just package-local adze-cli
 cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run
 just check-publishable
@@ -526,7 +527,7 @@ claim-boundary checks.
 
 ### Current Receipt
 
-On 2026-05-20, `cargo info adze-cli` was run outside the workspace and reported:
+On 2026-05-20, `cargo info --registry crates-io adze-cli` reported:
 
 ```text
 error: could not find `adze-cli` in registry `https://github.com/rust-lang/crates.io-index`
@@ -552,7 +553,7 @@ Source-of-truth status only until an explicit release/publish workflow runs.
 Pre-publish boundary:
 
 ```bash
-cargo info adze-cli
+cargo info --registry crates-io adze-cli
 just package-local adze-cli
 cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run
 ```
