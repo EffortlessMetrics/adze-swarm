@@ -53,7 +53,7 @@ commands = [
 
 [[work_item]]
 id = "query-gap-matrix-receipts"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
 spec = "ADZE-SPEC-0013"
 adr = "ADZE-ADR-0001"
@@ -66,12 +66,11 @@ commands = [
 
 [[work_item]]
 id = "support-tier-boundary-refresh"
-status = "blocked"
+status = "ready"
 proposal = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/query-tooling-expansion/implementation-plan.md"
-blocked_by = ["query-example-cli-smoke", "query-gap-matrix-receipts"]
 commands = [
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",

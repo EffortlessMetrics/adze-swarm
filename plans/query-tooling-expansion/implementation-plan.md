@@ -134,7 +134,7 @@ Revert the focused example or CLI smoke PR.
 
 ## Work Item: query-gap-matrix-receipts
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0013-query-compatibility.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -145,10 +145,16 @@ Blocked by: query-tooling-source-of-truth
 
 Make supported query behavior and known gaps easier to verify from fixtures.
 
+### Receipt
+
+The `query_differential` matrix now covers wrong-field rejection,
+source-aware predicate rejection, `+` and `*` child quantifiers with tail
+patterns, and source-aware literal-token matching in addition to the prior
+named-node, field, anchor, and source-aware predicate fixtures.
+
 ### Production Delta
 
-Expected future PRs may add focused query fixtures, differential receipts for
-the supported subset, or known-gap documentation.
+Adds focused differential fixture cases for the documented query subset.
 
 ### Non-Goals
 
@@ -174,14 +180,12 @@ Revert the focused fixture or docs PR.
 
 ## Work Item: support-tier-boundary-refresh
 
-Status: blocked
+Status: ready
 Linked proposal: ../../docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 Blocks: n/a
-Blocked by:
-- query-example-cli-smoke
-- query-gap-matrix-receipts
+Blocked by: n/a
 
 ### Goal
 

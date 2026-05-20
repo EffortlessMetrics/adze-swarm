@@ -150,6 +150,13 @@ fn fixtures() -> Vec<QueryFixture> {
             expected_capture_starts: vec![vec![2]],
         },
         QueryFixture {
+            id: "field-constraint-negative",
+            query: "(root left: (identifier @id))",
+            source: "foo",
+            tree: root(vec![field_node(1, 0, 3, "right")], 3),
+            expected_capture_starts: Vec::new(),
+        },
+        QueryFixture {
             id: "first-child-anchor-negative",
             query: "(root . (identifier @id))",
             source: "1 foo",
@@ -171,11 +178,39 @@ fn fixtures() -> Vec<QueryFixture> {
             expected_capture_starts: vec![vec![0, 1]],
         },
         QueryFixture {
+            id: "plus-quantifier-with-tail",
+            query: "(root (identifier)+ (number @num))",
+            source: "foo bar 1",
+            tree: root(vec![node(1, 0, 3), node(1, 4, 7), node(2, 8, 9)], 9),
+            expected_capture_starts: vec![vec![8]],
+        },
+        QueryFixture {
+            id: "star-quantifier-zero-with-tail",
+            query: "(root (identifier)* (number @num))",
+            source: "1",
+            tree: root(vec![node(2, 0, 1)], 1),
+            expected_capture_starts: vec![vec![0]],
+        },
+        QueryFixture {
+            id: "literal-token-source-aware",
+            query: "(root \"+\" (number @num))",
+            source: "+1",
+            tree: root(vec![node(3, 0, 1), node(2, 1, 2)], 2),
+            expected_capture_starts: vec![vec![1]],
+        },
+        QueryFixture {
             id: "source-aware-predicate",
             query: "(root (identifier @id))\n(#match? @id \"^[a-z]+$\")",
             source: "foo 1",
             tree: root(vec![node(1, 0, 3), node(2, 4, 5)], 5),
             expected_capture_starts: vec![vec![0]],
+        },
+        QueryFixture {
+            id: "source-aware-predicate-negative",
+            query: "(root (identifier @id))\n(#match? @id \"^[0-9]+$\")",
+            source: "foo",
+            tree: root(vec![node(1, 0, 3)], 3),
+            expected_capture_starts: Vec::new(),
         },
     ]
 }

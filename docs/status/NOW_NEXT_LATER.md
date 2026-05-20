@@ -33,7 +33,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       expansion lane in `adze-swarm`.
 - [x] Refresh query examples and CLI/tooling smoke receipts for the supported
       subset without making full query parity or stable CLI schema claims.
-- [ ] Add or refresh query gap-matrix receipts for supported behavior and
+- [x] Add or refresh query gap-matrix receipts for supported behavior and
       explicit known gaps.
 - [ ] Refresh support-tier or product-audit wording only after new proof
       commands exist.
