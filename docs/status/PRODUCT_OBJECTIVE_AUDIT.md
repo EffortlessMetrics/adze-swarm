@@ -132,10 +132,10 @@ Current public promotion PR receipt:
 
 Public `EffortlessMetrics/adze#795` supersedes closed/unmerged public PR #794.
 It was opened from the explicit public promotion execution decision after the
-promotion branch was refreshed to the current `adze-swarm/main` tree, including
-the source-side fixes through `adze-swarm` #306. Verify the exact public head
-SHA live before review or merge because each accepted `adze-swarm` refresh can
-advance the promotion source. The refreshed public PR #795 check set passed on
+promotion branch was refreshed to the current `adze-swarm/main` tree. Verify
+the exact public head SHA live before review or merge because each accepted
+`adze-swarm` refresh can advance the promotion source. The refreshed public
+PR #795 check set passed on
 2026-05-20, including `Rust Small Result`, `Supported Rust Gate`, `PR Gate
 Success`, `Source of Truth`, `CI Lane Whitelist`, `GLR Invariants`, `Coverage
 Lite`, `ci-product stable canaries`, `Test Core Crates`, `Test Runtime Crates`,
