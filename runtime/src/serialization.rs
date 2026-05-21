@@ -26,6 +26,20 @@ fn to_usize_pos(value: u32) -> usize {
     usize::try_from(value).unwrap_or(usize::MAX)
 }
 
+fn truncate_with_ellipsis(text: &str, max_len: Option<usize>) -> String {
+    let Some(max_len) = max_len else {
+        return text.to_string();
+    };
+    if text.len() <= max_len {
+        return text.to_string();
+    }
+
+    match text.char_indices().nth(max_len) {
+        Some((boundary, _)) => format!("{}...", &text[..boundary]),
+        None => format!("{text}..."),
+    }
+}
+
 /// Serializable representation of a parse tree node
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SerializedNode {
@@ -189,16 +203,12 @@ impl<'a> TreeSerializer<'a> {
 
         // Add text for leaf nodes
         if node.children.is_empty() {
-            let text = String::from_utf8_lossy(&self.source[node.start_byte..node.end_byte]);
-            let text = if let Some(max_len) = self.max_text_length {
-                if text.len() > max_len {
-                    format!("{}...", &text[..max_len])
-                } else {
-                    text.to_string()
-                }
-            } else {
-                text.to_string()
-            };
+            let text = self
+                .source
+                .get(node.start_byte..node.end_byte)
+                .map(String::from_utf8_lossy)
+                .map(|text| truncate_with_ellipsis(text.as_ref(), self.max_text_length))
+                .unwrap_or_default();
             serialized.text = Some(text);
         }
 
@@ -245,15 +255,7 @@ impl<'a> TreeSerializer<'a> {
         // Add text for leaf nodes
         if node.child_count() == 0 {
             if let Ok(text) = node.utf8_text(self.source) {
-                let text = if let Some(max_len) = self.max_text_length {
-                    if text.len() > max_len {
-                        format!("{}...", &text[..max_len])
-                    } else {
-                        text.to_string()
-                    }
-                } else {
-                    text.to_string()
-                };
+                let text = truncate_with_ellipsis(text, self.max_text_length);
                 serialized.text = Some(text);
             }
         }
@@ -925,17 +927,24 @@ mod tests {
     #[test]
     fn test_max_text_length_truncation() {
         let long_text = "This is a very long text that should be truncated";
-        let max_len = 20;
-
-        let truncated = if long_text.len() > max_len {
-            format!("{}...", &long_text[..max_len])
-        } else {
-            long_text.to_string()
-        };
+        let truncated = truncate_with_ellipsis(long_text, Some(20));
 
         assert_eq!(truncated, "This is a very long ...");
         assert!(truncated.ends_with("..."));
-        assert_eq!(truncated.len(), max_len + 3); // 20 chars + "..."
+        assert_eq!(truncated.len(), 23); // 20 chars + "..."
+    }
+
+    #[test]
+    fn test_max_text_length_truncation_respects_utf8_boundaries() {
+        let unicode_text = "ééééé";
+        let truncated = truncate_with_ellipsis(unicode_text, Some(3));
+        assert_eq!(truncated, "é...");
+    }
+
+    #[test]
+    fn test_max_text_length_truncation_without_limit() {
+        let text = "unchanged";
+        assert_eq!(truncate_with_ellipsis(text, None), text);
     }
 
     #[test]
