@@ -21,24 +21,35 @@ use tree_sitter_runtime_c2rust::TreeCursor;
 #[cfg(feature = "serialization")]
 use serde_json::{Value, json};
 
-#[cfg(feature = "pure-rust")]
-fn to_usize_pos(value: u32) -> usize {
-    usize::try_from(value).unwrap_or(usize::MAX)
+mod position {
+    pub(super) fn to_usize_pos(value: u32) -> usize {
+        usize::try_from(value).unwrap_or(usize::MAX)
+    }
 }
 
-fn truncate_with_ellipsis(text: &str, max_len: Option<usize>) -> String {
-    let Some(max_len) = max_len else {
-        return text.to_string();
-    };
-    if text.len() <= max_len {
-        return text.to_string();
+mod text {
+    pub(super) fn leaf_text(source: &[u8], start_byte: usize, end_byte: usize) -> String {
+        source
+            .get(start_byte..end_byte)
+            .map(String::from_utf8_lossy)
+            .map(|text| text.into_owned())
+            .unwrap_or_default()
     }
 
-    let mut boundary = max_len.min(text.len());
-    while boundary > 0 && !text.is_char_boundary(boundary) {
-        boundary -= 1;
+    pub(super) fn truncate(input: &str, max_text_length: Option<usize>) -> String {
+        let Some(max_len) = max_text_length else {
+            return input.to_string();
+        };
+        if input.len() <= max_len {
+            return input.to_string();
+        }
+
+        let mut boundary = max_len.min(input.len());
+        while boundary > 0 && !input.is_char_boundary(boundary) {
+            boundary -= 1;
+        }
+        format!("{}...", &input[..boundary])
     }
-    format!("{}...", &text[..boundary])
 }
 
 /// Serializable representation of a parse tree node
@@ -187,12 +198,12 @@ impl<'a> TreeSerializer<'a> {
             is_named: node.is_named,
             field_name: node.field_id.map(|id| format!("field_{}", id)), // Convert field_id to placeholder name
             start_position: (
-                to_usize_pos(node.start_point.row),
-                to_usize_pos(node.start_point.column),
+                position::to_usize_pos(node.start_point.row),
+                position::to_usize_pos(node.start_point.column),
             ),
             end_position: (
-                to_usize_pos(node.end_point.row),
-                to_usize_pos(node.end_point.column),
+                position::to_usize_pos(node.end_point.row),
+                position::to_usize_pos(node.end_point.column),
             ),
             start_byte: node.start_byte,
             end_byte: node.end_byte,
@@ -204,13 +215,8 @@ impl<'a> TreeSerializer<'a> {
 
         // Add text for leaf nodes
         if node.children.is_empty() {
-            let text = self
-                .source
-                .get(node.start_byte..node.end_byte)
-                .map(String::from_utf8_lossy)
-                .map(|text| truncate_with_ellipsis(text.as_ref(), self.max_text_length))
-                .unwrap_or_default();
-            serialized.text = Some(text);
+            let text = text::leaf_text(self.source, node.start_byte, node.end_byte);
+            serialized.text = Some(text::truncate(&text, self.max_text_length));
         }
 
         // Serialize children
@@ -223,27 +229,17 @@ impl<'a> TreeSerializer<'a> {
 
     #[cfg(not(feature = "pure-rust"))]
     pub fn serialize_node(&self, node: Node) -> SerializedNode {
-        #[cfg(feature = "pure-rust")]
-        fn to_usize_coord(value: u32) -> usize {
-            usize::try_from(value).unwrap_or(usize::MAX)
-        }
-
-        #[cfg(not(feature = "pure-rust"))]
-        fn to_usize_coord(value: u32) -> usize {
-            usize::try_from(value).unwrap_or(usize::MAX)
-        }
-
         let mut serialized = SerializedNode {
             kind: node.kind().to_string(),
             is_named: node.is_named(),
             field_name: node.field_name().map(|s| s.to_string()),
             start_position: (
-                to_usize_coord(node.start_position().row),
-                to_usize_coord(node.start_position().column),
+                position::to_usize_pos(node.start_position().row),
+                position::to_usize_pos(node.start_position().column),
             ),
             end_position: (
-                to_usize_coord(node.end_position().row),
-                to_usize_coord(node.end_position().column),
+                position::to_usize_pos(node.end_position().row),
+                position::to_usize_pos(node.end_position().column),
             ),
             start_byte: node.start_byte(),
             end_byte: node.end_byte(),
@@ -256,7 +252,7 @@ impl<'a> TreeSerializer<'a> {
         // Add text for leaf nodes
         if node.child_count() == 0 {
             if let Ok(text) = node.utf8_text(self.source) {
-                let text = truncate_with_ellipsis(text, self.max_text_length);
+                let text = text::truncate(text, self.max_text_length);
                 serialized.text = Some(text);
             }
         }
@@ -928,7 +924,7 @@ mod tests {
     #[test]
     fn test_max_text_length_truncation() {
         let long_text = "This is a very long text that should be truncated";
-        let truncated = truncate_with_ellipsis(long_text, Some(20));
+        let truncated = text::truncate(long_text, Some(20));
 
         assert_eq!(truncated, "This is a very long ...");
         assert!(truncated.ends_with("..."));
@@ -938,14 +934,14 @@ mod tests {
     #[test]
     fn test_max_text_length_truncation_respects_utf8_boundaries() {
         let unicode_text = "ééééé";
-        let truncated = truncate_with_ellipsis(unicode_text, Some(3));
+        let truncated = text::truncate(unicode_text, Some(3));
         assert_eq!(truncated, "é...");
     }
 
     #[test]
     fn test_max_text_length_truncation_without_limit() {
         let text = "unchanged";
-        assert_eq!(truncate_with_ellipsis(text, None), text);
+        assert_eq!(text::truncate(text, None), text);
     }
 
     #[test]
