@@ -156,6 +156,9 @@ impl<'a> LanguageValidator<'a> {
         // Validate symbol metadata
         self.validate_symbol_metadata(&mut errors);
 
+        // Validate symbol name entries
+        self.validate_symbol_names(&mut errors);
+
         // Validate field names ordering
         self.validate_field_names(&mut errors);
 
@@ -190,6 +193,10 @@ impl<'a> LanguageValidator<'a> {
                 tables: table_state_count as u32,
             });
         }
+    }
+
+    fn symbol_count_matches_tables(&self) -> bool {
+        self.language.symbol_count == self.tables.symbol_count() as u32
     }
 
     fn validate_pointers(&self, errors: &mut Vec<ValidationError>) {
@@ -243,6 +250,10 @@ impl<'a> LanguageValidator<'a> {
             return;
         }
 
+        if !self.symbol_count_matches_tables() {
+            return;
+        }
+
         // SAFETY: `symbol_metadata` was verified non-null above. The ABI contract
         // guarantees it points to `symbol_count` contiguous `SymbolMetadata` entries.
         // TODO(safety): We trust that `symbol_count` matches the actual allocation
@@ -259,6 +270,31 @@ impl<'a> LanguageValidator<'a> {
                     symbol: 0,
                     reason: "EOF symbol must be invisible and unnamed".to_string(),
                 });
+            }
+        }
+    }
+
+    fn validate_symbol_names(&self, errors: &mut Vec<ValidationError>) {
+        if self.language.symbol_count == 0 || self.language.symbol_names.is_null() {
+            return;
+        }
+
+        if !self.symbol_count_matches_tables() {
+            return;
+        }
+
+        // SAFETY: `symbol_names` was verified non-null above. The ABI builder
+        // emits exactly `symbol_count` contiguous `*const c_char` pointers.
+        // This function only checks pointer validity and deliberately does not
+        // decode C strings from potentially corrupt foreign data.
+        unsafe {
+            let symbol_names = std::slice::from_raw_parts(
+                self.language.symbol_names,
+                self.language.symbol_count as usize,
+            );
+
+            if symbol_names.iter().any(|symbol_name| symbol_name.is_null()) {
+                errors.push(ValidationError::NullPointer("symbol_names entry"));
             }
         }
     }
@@ -462,7 +498,8 @@ mod tests {
         let parse_table = [0u16];
         let field_name_value = b"value\0";
         let field_names = [field_name_value.as_ptr().cast::<std::os::raw::c_char>()];
-        let symbol_names = [std::ptr::null::<std::os::raw::c_char>()];
+        let symbol_name_eof = b"EOF\0";
+        let symbol_names = [symbol_name_eof.as_ptr().cast::<std::os::raw::c_char>()];
         let symbol_metadata = [TSSymbolMetadata {
             visible: false,
             named: false,
@@ -489,7 +526,8 @@ mod tests {
     fn test_null_field_name_entry_is_rejected_before_cstr_decode() {
         let parse_table = [0u16];
         let field_names = [std::ptr::null::<std::os::raw::c_char>()];
-        let symbol_names = [std::ptr::null::<std::os::raw::c_char>()];
+        let symbol_name_eof = b"EOF\0";
+        let symbol_names = [symbol_name_eof.as_ptr().cast::<std::os::raw::c_char>()];
         let symbol_metadata = [TSSymbolMetadata {
             visible: false,
             named: false,
@@ -521,7 +559,8 @@ mod tests {
             field_name_zebra.as_ptr().cast::<std::os::raw::c_char>(),
             field_name_apple.as_ptr().cast::<std::os::raw::c_char>(),
         ];
-        let symbol_names = [std::ptr::null::<std::os::raw::c_char>()];
+        let symbol_name_eof = b"EOF\0";
+        let symbol_names = [symbol_name_eof.as_ptr().cast::<std::os::raw::c_char>()];
         let symbol_metadata = [TSSymbolMetadata {
             visible: false,
             named: false,
@@ -542,6 +581,29 @@ mod tests {
         let errors = validator.validate().unwrap_err();
 
         assert!(errors.contains(&ValidationError::FieldNamesNotSorted));
+    }
+
+    #[test]
+    fn test_null_symbol_name_entry_is_rejected() {
+        let parse_table = [0u16];
+        let symbol_names = [std::ptr::null::<std::os::raw::c_char>()];
+        let symbol_metadata = [TSSymbolMetadata {
+            visible: false,
+            named: false,
+        }];
+
+        let mut language = create_test_language();
+        language.symbol_count = 1;
+        language.state_count = 1;
+        language.parse_table = parse_table.as_ptr();
+        language.symbol_names = symbol_names.as_ptr();
+        language.symbol_metadata = symbol_metadata.as_ptr();
+
+        let tables = CompressedParseTable::new_for_testing(1, 1);
+        let validator = LanguageValidator::new(&language, &tables);
+        let errors = validator.validate().unwrap_err();
+
+        assert!(errors.contains(&ValidationError::NullPointer("symbol_names entry")));
     }
 
     #[test]
@@ -570,7 +632,8 @@ mod tests {
     #[test]
     fn test_invalid_field_map_field_id_rejected() {
         let parse_table = [0u16];
-        let symbol_names = [std::ptr::null::<std::os::raw::c_char>()];
+        let symbol_name_eof = b"EOF\0";
+        let symbol_names = [symbol_name_eof.as_ptr().cast::<std::os::raw::c_char>()];
         let symbol_metadata = [TSSymbolMetadata {
             visible: false,
             named: false,

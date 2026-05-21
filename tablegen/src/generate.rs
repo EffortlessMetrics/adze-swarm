@@ -3,7 +3,7 @@
 use crate::compress::CompressedParseTable;
 use crate::validation::TSLanguage;
 use adze_glr_core::ParseTable;
-use adze_ir::Grammar;
+use adze_ir::{Grammar, SymbolId};
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::collections::HashSet;
@@ -132,29 +132,65 @@ impl LanguageBuilder {
     }
 
     fn build_symbol_names(&self) -> Result<Vec<*const c_char>, String> {
-        let mut names = Vec::new();
+        self.validate_symbol_name_inputs()?;
 
-        // Add terminal symbols
-        for (_, token) in &self.grammar.tokens {
-            names.push(Self::leak_c_string("token symbol", token.name.clone())?);
-        }
+        let mut names = Vec::with_capacity(self.parse_table.symbol_count);
 
-        // Add non-terminal symbols
-        for (symbol_id, _) in &self.grammar.rules {
-            let name = std::ffi::CString::new(format!("rule_{}", symbol_id.0))
-                .expect("rule name must not contain NUL bytes");
-            names.push(Box::leak(Box::new(name)).as_ptr());
-        }
-
-        // Add external symbols
-        for external in &self.grammar.externals {
-            names.push(Self::leak_c_string(
-                "external symbol",
-                external.name.clone(),
-            )?);
+        for index in 0..self.parse_table.symbol_count {
+            let symbol_id = self
+                .parse_table
+                .index_to_symbol
+                .get(index)
+                .copied()
+                .unwrap_or(SymbolId(index as u16));
+            let (name, kind) = self.symbol_name_for_index(index, symbol_id);
+            names.push(Self::leak_c_string(kind, name)?);
         }
 
         Ok(names)
+    }
+
+    fn validate_symbol_name_inputs(&self) -> Result<(), String> {
+        for token in self.grammar.tokens.values() {
+            Self::check_c_string("token symbol", &token.name)?;
+        }
+
+        for external in &self.grammar.externals {
+            Self::check_c_string("external symbol", &external.name)?;
+        }
+
+        for rule_name in self.grammar.rule_names.values() {
+            Self::check_c_string("rule symbol", rule_name)?;
+        }
+
+        Ok(())
+    }
+
+    fn symbol_name_for_index(&self, index: usize, symbol_id: SymbolId) -> (String, &'static str) {
+        if index == 0 {
+            return ("end".to_string(), "symbol");
+        }
+
+        if let Some(token) = self.grammar.tokens.get(&symbol_id) {
+            return (token.name.clone(), "token symbol");
+        }
+
+        if let Some(external) = self
+            .grammar
+            .externals
+            .iter()
+            .find(|external| external.symbol_id == symbol_id)
+        {
+            return (external.name.clone(), "external symbol");
+        }
+
+        let name = self
+            .grammar
+            .rule_names
+            .get(&symbol_id)
+            .cloned()
+            .unwrap_or_else(|| format!("rule_{}", symbol_id.0));
+        (name, "rule symbol")
     }
 
     /// Calculate alias-related ABI counters from grammar alias sequences.
@@ -239,10 +275,6 @@ impl LanguageBuilder {
     fn build_field_names(&self) -> Result<Vec<*const c_char>, String> {
         let mut names = Vec::new();
 
-        // First entry is always empty string
-        let empty = std::ffi::CString::new("").expect("empty string cannot contain NUL bytes");
-        names.push(Box::leak(Box::new(empty)).as_ptr());
-
         // Add field names in lexicographic order
         let mut field_names: Vec<_> = self.grammar.fields.values().collect();
         field_names.sort_unstable_by_key(|name| name.as_str());
@@ -264,41 +296,71 @@ impl LanguageBuilder {
             })
     }
 
+    fn check_c_string(kind: &str, name: &str) -> Result<(), String> {
+        std::ffi::CString::new(name).map(|_| ()).map_err(|err| {
+            format!(
+                "{kind} name contains interior NUL at byte {}",
+                err.nul_position()
+            )
+        })
+    }
+
     fn build_symbol_metadata(&self) -> Vec<crate::validation::TSSymbolMetadata> {
-        let mut metadata = Vec::new();
+        (0..self.parse_table.symbol_count)
+            .map(|index| {
+                let symbol_id = self
+                    .parse_table
+                    .index_to_symbol
+                    .get(index)
+                    .copied()
+                    .unwrap_or(SymbolId(index as u16));
+                self.symbol_metadata_for_index(index, symbol_id)
+            })
+            .collect()
+    }
 
-        // First symbol is always EOF (invisible, unnamed)
-        metadata.push(crate::validation::TSSymbolMetadata {
-            visible: false,
-            named: false,
-        });
+    fn symbol_metadata_for_index(
+        &self,
+        index: usize,
+        symbol_id: SymbolId,
+    ) -> crate::validation::TSSymbolMetadata {
+        if index == 0 {
+            return crate::validation::TSSymbolMetadata {
+                visible: false,
+                named: false,
+            };
+        }
 
-        // Add metadata for terminals
-        for (_, token) in &self.grammar.tokens {
+        if let Some(token) = self.grammar.tokens.get(&symbol_id) {
             let visible = !token.name.starts_with('_');
             let named = matches!(&token.pattern, adze_ir::TokenPattern::Regex(_)) && visible;
-
-            metadata.push(crate::validation::TSSymbolMetadata { visible, named });
+            return crate::validation::TSSymbolMetadata { visible, named };
         }
 
-        // Add metadata for non-terminals
-        for (symbol_id, _) in &self.grammar.rules {
-            let rule_name = format!("rule_{}", symbol_id.0);
-            let visible = !rule_name.starts_with('_');
-            let named = visible;
-
-            metadata.push(crate::validation::TSSymbolMetadata { visible, named });
-        }
-
-        // Add metadata for externals
-        for external in &self.grammar.externals {
+        if let Some(external) = self
+            .grammar
+            .externals
+            .iter()
+            .find(|external| external.symbol_id == symbol_id)
+        {
             let visible = !external.name.starts_with('_');
-            let named = visible;
-
-            metadata.push(crate::validation::TSSymbolMetadata { visible, named });
+            return crate::validation::TSSymbolMetadata {
+                visible,
+                named: visible,
+            };
         }
 
-        metadata
+        let rule_name = self
+            .grammar
+            .rule_names
+            .get(&symbol_id)
+            .cloned()
+            .unwrap_or_else(|| format!("rule_{}", symbol_id.0));
+        let visible = !rule_name.starts_with('_');
+        crate::validation::TSSymbolMetadata {
+            visible,
+            named: visible,
+        }
     }
 
     /// Build a minimal small parse table for testing
@@ -407,7 +469,12 @@ mod tests {
         let builder = LanguageBuilder::new(grammar, parse_table);
 
         let names = builder.build_symbol_names().expect("symbol names");
-        assert!(!names.is_empty());
+        assert_eq!(names.len(), builder.parse_table.symbol_count);
+        assert_eq!(
+            // SAFETY: `names[0]` is a leaked CString pointer from `build_symbol_names`.
+            unsafe { std::ffi::CStr::from_ptr(names[0]).to_str().unwrap() },
+            "end"
+        );
         // Should have at least the token name
         assert!(
             // SAFETY: `name` points to a string literal leaked by `build_symbol_names`,
@@ -425,18 +492,10 @@ mod tests {
         let builder = LanguageBuilder::new(grammar, parse_table);
 
         let names = builder.build_field_names().expect("field names");
-        // GLR adds an extra null field at index 0
-        assert_eq!(names.len(), 2);
-        // First field should be null (empty string)
+        assert_eq!(names.len(), builder.grammar.fields.len());
         assert_eq!(
             // SAFETY: `names[0]` is a leaked CString pointer from `build_field_names`.
             unsafe { std::ffi::CStr::from_ptr(names[0]).to_str().unwrap() },
-            ""
-        );
-        // Second field should be "value"
-        assert_eq!(
-            // SAFETY: `names[1]` is a leaked CString pointer from `build_field_names`.
-            unsafe { std::ffi::CStr::from_ptr(names[1]).to_str().unwrap() },
             "value"
         );
     }
@@ -503,7 +562,9 @@ mod tests {
         let builder = LanguageBuilder::new(grammar, parse_table);
 
         let metadata = builder.build_symbol_metadata();
-        assert!(!metadata.is_empty());
+        assert_eq!(metadata.len(), builder.parse_table.symbol_count);
+        assert!(!metadata[0].visible);
+        assert!(!metadata[0].named);
     }
 
     #[test]
@@ -573,7 +634,6 @@ mod tests {
 
         let fields: Vec<&str> = names
             .iter()
-            .skip(1)
             .map(|&ptr| {
                 // SAFETY: `ptr` values are leaked `CString` pointers produced by
                 // `build_field_names`, so they are valid and nul-terminated.
