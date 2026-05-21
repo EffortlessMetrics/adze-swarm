@@ -1956,53 +1956,128 @@ mod tests {
 
     #[test]
     fn test_external_scanner_parse_document_bad_input_returns_diagnostic_document() {
-        let mut parser = external_newline_parser(
-            "test_external_scanner_parse_document_bad_input_returns_diagnostic_document",
-        );
-        let source = "x";
+        struct Case {
+            label: &'static str,
+            source: &'static str,
+        }
 
-        let document = parser
-            .parse_document(source)
-            .expect("external-scanner parser should return a diagnostic document for bad input");
-        let diagnostic = document
-            .diagnostics()
-            .first()
-            .expect("bad external-scanner input should produce a diagnostic");
+        let cases = [
+            Case {
+                label: "invalid root token",
+                source: "x",
+            },
+            Case {
+                label: "multibyte invalid root token",
+                source: "\u{03bb}",
+            },
+            Case {
+                label: "invalid token after accepted external newline",
+                source: "\n@",
+            },
+            Case {
+                label: "extra external newline after accepted root",
+                source: "\n\n",
+            },
+            Case {
+                label: "crlf starts with unsupported scanner byte",
+                source: "\r\n",
+            },
+        ];
 
-        assert!(document.metadata().error_count > 0);
-        assert!(document.tree().has_errors());
-        assert!(diagnostic.start_byte <= diagnostic.end_byte);
-        assert!(diagnostic.end_byte <= source.len());
-        assert_eq!(
-            diagnostic.point_range,
-            crate::document::PointRange::from_byte_range(source, diagnostic.byte_span())
-        );
-        assert!(
-            diagnostic
-                .expected
-                .iter()
-                .all(|token| !token.contains("SymbolId") && !token.contains("symbol ")),
-            "expected-token names should be public: {:?}",
-            diagnostic.expected
-        );
-        assert!(
-            !diagnostic.message.trim().is_empty(),
-            "bad external-scanner input should include a diagnostic message",
-        );
+        for (idx, case) in cases.iter().enumerate() {
+            let language_name = format!("test_external_scanner_parse_document_bad_input_{idx}");
+            let parse_error_count = {
+                let mut parser = external_newline_parser(&language_name);
+                parser
+                    .parse(case.source)
+                    .unwrap_or_else(|err| {
+                        panic!(
+                            "{} parse() should return an error tree, not fail: {err:?}",
+                            case.label
+                        )
+                    })
+                    .error_count()
+            };
 
-        let rendered = diagnostic.display_with_source(source).to_string();
-        assert!(
-            rendered.contains(&diagnostic.message),
-            "source-rendered diagnostic should include the diagnostic message",
-        );
-        assert!(
-            rendered.contains(source),
-            "source-rendered diagnostic should include the offending source line",
-        );
-        assert!(
-            rendered.contains('^'),
-            "source-rendered diagnostic should include a caret marker",
-        );
+            let mut parser = external_newline_parser(&language_name);
+            let document = parser.parse_document(case.source).unwrap_or_else(|err| {
+                panic!(
+                    "{} parse_document() should return a diagnostic document: {err:?}",
+                    case.label
+                )
+            });
+            let diagnostic = document.diagnostics().first().unwrap_or_else(|| {
+                panic!(
+                    "{} bad external-scanner input should produce a diagnostic",
+                    case.label
+                )
+            });
+
+            assert!(
+                parse_error_count > 0,
+                "{} parse() should record parser recovery",
+                case.label
+            );
+            assert_eq!(
+                document.metadata().error_count,
+                parse_error_count,
+                "{} parse_document() metadata should agree with parse() error count",
+                case.label
+            );
+            assert!(
+                document.tree().has_errors(),
+                "{} should retain error facts on the selected document tree",
+                case.label
+            );
+            assert!(
+                diagnostic.start_byte <= diagnostic.end_byte,
+                "{} diagnostic byte span should be ordered",
+                case.label
+            );
+            assert!(
+                diagnostic.end_byte <= case.source.len(),
+                "{} diagnostic byte span should stay within the source",
+                case.label
+            );
+            assert_eq!(
+                diagnostic.point_range,
+                crate::document::PointRange::from_byte_range(case.source, diagnostic.byte_span()),
+                "{} diagnostic point range should agree with its byte span",
+                case.label
+            );
+            assert!(
+                diagnostic
+                    .expected
+                    .iter()
+                    .all(|token| !token.contains("SymbolId") && !token.contains("symbol ")),
+                "{} expected-token names should be public: {:?}",
+                case.label,
+                diagnostic.expected
+            );
+            assert!(
+                !diagnostic.message.contains("SymbolId") && !diagnostic.message.contains("symbol "),
+                "{} diagnostic message should not expose raw symbol internals: {}",
+                case.label,
+                diagnostic.message
+            );
+            assert!(
+                !diagnostic.message.trim().is_empty(),
+                "{} bad external-scanner input should include a diagnostic message",
+                case.label,
+            );
+
+            let rendered = diagnostic.display_with_source(case.source).to_string();
+            assert!(
+                rendered.contains(&diagnostic.message),
+                "{} source-rendered diagnostic should include the diagnostic message",
+                case.label,
+            );
+            assert!(
+                rendered.contains('^'),
+                "{} source-rendered diagnostic should include a caret marker",
+                case.label,
+            );
+        }
     }
 
     #[test]

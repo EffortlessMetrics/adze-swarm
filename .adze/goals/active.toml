@@ -48,7 +48,7 @@ commands = [
 
 [[work_item]]
 id = "parser-v4-scanner-recovery-smoke"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0009-parser-recovery-real-grammar-coverage.md"
 spec = "ADZE-SPEC-0005"
 adr = "ADZE-ADR-0001"
@@ -61,14 +61,11 @@ commands = [
 
 [[work_item]]
 id = "support-tier-boundary-refresh"
-status = "blocked"
+status = "ready"
 proposal = "docs/proposals/ADZE-PROP-0009-parser-recovery-real-grammar-coverage.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/parser-recovery-real-grammar/implementation-plan.md"
-blocked_by = [
-  "parser-v4-scanner-recovery-smoke",
-]
 commands = [
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
