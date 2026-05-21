@@ -3,14 +3,15 @@
 //! Covers `StaticLanguageGenerator`, `LanguageBuilder`, `LanguageValidator`,
 //! code generation, validation errors, and edge cases.
 
-use adze_glr_core::ParseTable;
+use adze_glr_core::{LexMode, ParseTable};
 use adze_ir::builder::GrammarBuilder;
-use adze_ir::{FieldId, Grammar};
+use adze_ir::{FieldId, Grammar, StateId, SymbolId};
 use adze_tablegen::generate::LanguageBuilder;
 use adze_tablegen::validation::{
     LanguageValidator, TSExternalScannerData, TSLanguage, TSSymbolMetadata, ValidationError,
 };
 use adze_tablegen::{CompressedParseTable, StaticLanguageGenerator};
+use std::collections::BTreeMap;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -23,8 +24,34 @@ fn minimal_grammar_and_table() -> (Grammar, ParseTable) {
         .rule("expr", vec!["number"])
         .start("expr")
         .build();
-    let table = ParseTable::default();
+    let table = minimal_table_with_symbols(3);
     (grammar, table)
+}
+
+fn minimal_table_with_symbols(symbol_count: usize) -> ParseTable {
+    let symbol_to_index: BTreeMap<_, _> = (0..symbol_count)
+        .map(|index| (SymbolId(index as u16), index))
+        .collect();
+    let index_to_symbol = (0..symbol_count)
+        .map(|index| SymbolId(index as u16))
+        .collect();
+
+    ParseTable {
+        action_table: vec![vec![vec![]; symbol_count]],
+        goto_table: vec![vec![StateId(u16::MAX); symbol_count]],
+        state_count: 1,
+        symbol_count,
+        symbol_to_index,
+        index_to_symbol,
+        eof_symbol: SymbolId(0),
+        start_symbol: SymbolId(symbol_count.saturating_sub(1) as u16),
+        token_count: symbol_count.saturating_sub(1),
+        lex_modes: vec![LexMode {
+            lex_state: 0,
+            external_lex_state: 0,
+        }],
+        ..ParseTable::default()
+    }
 }
 
 /// Build a grammar with multiple tokens and rules.
@@ -427,7 +454,8 @@ fn validator_accepts_null_field_names_when_no_fields() {
     // Provide non-null pointers for required fields
     let dummy_table: Vec<u16> = vec![0xFFFE; 10];
     lang.small_parse_table = dummy_table.as_ptr();
-    let dummy_names: Vec<*const i8> = vec![std::ptr::null(); 10];
+    let dummy_name = b"dummy\0";
+    let dummy_names: Vec<*const i8> = vec![dummy_name.as_ptr().cast(); 10];
     lang.symbol_names = dummy_names.as_ptr();
     let dummy_meta: Vec<TSSymbolMetadata> = (0..10)
         .map(|_| TSSymbolMetadata {
