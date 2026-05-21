@@ -1,6 +1,6 @@
 # CLI Parse Surface Hardening Plan
 
-Status: active
+Status: complete
 Owner: cli/product
 Created: 2026-05-21
 Linked proposal: ../../docs/proposals/ADZE-PROP-0013-cli-parse-surface-hardening.md
@@ -127,7 +127,8 @@ must remain unchanged.
 ```bash
 cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
 cargo test -p adze-cli parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture
-cargo test -p adze-cli <new-static-tree-test> -- --exact --nocapture
+cargo test -p adze-cli test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture
+cargo test -p adze-cli test_parse_static_non_document_modes_are_explicitly_unimplemented -- --exact --nocapture
 git diff --check
 ```
 
@@ -139,7 +140,7 @@ available.
 
 ## Work Item: cli-parse-surface-closeout
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0013-cli-parse-surface-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -169,6 +170,8 @@ exist.
   behavior and known limitations.
 - The closeout records PRs, proof commands, and remaining unsupported modes.
 - Release-only work remains tracked on #325.
+- Closeout recorded in [`closeout.md`](./closeout.md).
+- Completed by #459.
 
 ### Proof Commands
 

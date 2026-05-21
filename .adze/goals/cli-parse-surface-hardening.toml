@@ -1,8 +1,9 @@
 id = "adze-cli-parse-surface-hardening"
 title = "Adze CLI Parse Surface Hardening"
-status = "active"
+status = "complete"
 owner = "cli/product"
 created = "2026-05-21"
+archived = "2026-05-21"
 
 objective = """
 Make the checked-out `adze parse` command more useful without changing release
@@ -62,13 +63,14 @@ commands = [
 
 [[work_item]]
 id = "cli-parse-surface-closeout"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0013-cli-parse-surface-hardening.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/cli-parse-surface/implementation-plan.md"
 blocked_by = ["static-cli-selected-tree-output"]
 issues = [325]
+prs = [459]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
