@@ -88,12 +88,15 @@ pub fn validate_shields_badge(
         );
     }
 
-    if badge.message.trim().is_empty() {
-        anyhow::bail!("badge `{}` has empty message", badge.label);
-    }
+    validate_non_empty_field(&badge.label, "message", &badge.message)?;
+    validate_non_empty_field(&badge.label, "color", &badge.color)?;
 
-    if badge.color.trim().is_empty() {
-        anyhow::bail!("badge `{}` has empty color", badge.label);
+    Ok(())
+}
+
+fn validate_non_empty_field(label: &str, field_name: &str, field_value: &str) -> Result<()> {
+    if field_value.trim().is_empty() {
+        anyhow::bail!("badge `{label}` has empty {field_name}");
     }
 
     Ok(())
@@ -139,7 +142,7 @@ mod tests {
             color: "brightgreen".to_string(),
         };
 
-        validate_shields_badge(&badge, Some("ripr+")).unwrap();
+        assert!(validate_shields_badge(&badge, Some("ripr+")).is_ok());
     }
 
     #[test]
@@ -148,6 +151,42 @@ mod tests {
             schema_version: 1,
             label: "ripr+".to_string(),
             message: " ".to_string(),
+            color: "brightgreen".to_string(),
+        };
+
+        assert!(validate_shields_badge(&badge, Some("ripr+")).is_err());
+    }
+
+    #[test]
+    fn rejects_empty_badge_color() {
+        let badge = ShieldsEndpointBadge {
+            schema_version: 1,
+            label: "ripr+".to_string(),
+            message: "ok".to_string(),
+            color: " ".to_string(),
+        };
+
+        assert!(validate_shields_badge(&badge, Some("ripr+")).is_err());
+    }
+
+    #[test]
+    fn rejects_unsupported_schema_version() {
+        let badge = ShieldsEndpointBadge {
+            schema_version: 2,
+            label: "ripr+".to_string(),
+            message: "ok".to_string(),
+            color: "brightgreen".to_string(),
+        };
+
+        assert!(validate_shields_badge(&badge, Some("ripr+")).is_err());
+    }
+
+    #[test]
+    fn rejects_label_drift() {
+        let badge = ShieldsEndpointBadge {
+            schema_version: 1,
+            label: "ripr".to_string(),
+            message: "ok".to_string(),
             color: "brightgreen".to_string(),
         };
 
