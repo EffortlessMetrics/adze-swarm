@@ -235,6 +235,14 @@ impl<'a> LanguageValidator<'a> {
             return;
         }
 
+        if self.language.symbol_count == 0 {
+            errors.push(ValidationError::InvalidSymbolMetadata {
+                symbol: 0,
+                reason: "symbol metadata must include EOF symbol".to_string(),
+            });
+            return;
+        }
+
         // SAFETY: `symbol_metadata` was verified non-null above. The ABI contract
         // guarantees it points to `symbol_count` contiguous `SymbolMetadata` entries.
         // TODO(safety): We trust that `symbol_count` matches the actual allocation
@@ -510,6 +518,29 @@ mod tests {
         let errors = validator.validate().unwrap_err();
 
         assert!(errors.contains(&ValidationError::NullPointer("field_names entry")));
+    }
+
+    #[test]
+    fn test_zero_symbol_count_rejects_missing_eof_metadata() {
+        let parse_table = [0u16];
+        let symbol_names: [*const std::os::raw::c_char; 0] = [];
+        let symbol_metadata: [TSSymbolMetadata; 0] = [];
+
+        let mut language = create_test_language();
+        language.symbol_count = 0;
+        language.state_count = 1;
+        language.parse_table = parse_table.as_ptr();
+        language.symbol_names = symbol_names.as_ptr();
+        language.symbol_metadata = symbol_metadata.as_ptr();
+
+        let tables = CompressedParseTable::new_for_testing(0, 1);
+        let validator = LanguageValidator::new(&language, &tables);
+        let errors = validator.validate().unwrap_err();
+
+        assert!(errors.contains(&ValidationError::InvalidSymbolMetadata {
+            symbol: 0,
+            reason: "symbol metadata must include EOF symbol".to_string(),
+        }));
     }
 
     #[test]
