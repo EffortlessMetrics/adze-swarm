@@ -35,6 +35,12 @@ enum TokenMatcher {
     Regex(Regex),
 }
 
+enum TokenAttempt {
+    Matched(TokenWithPosition),
+    NoMatch,
+    RetryAfterAdvance,
+}
+
 impl TokenMatcher {
     fn matches_at(&self, input: &str, pos: usize) -> Option<usize> {
         // Safety: ensure we're at a valid UTF-8 boundary
@@ -125,47 +131,58 @@ impl GLRLexer {
     /// Get the next token from input
     pub fn next_token(&mut self) -> Option<TokenWithPosition> {
         'tokenize: loop {
-            // Skip whitespace
-            self.skip_whitespace();
-
-            if self.position >= self.input.len() {
+            if self.at_end_after_whitespace() {
                 return None;
             }
 
             let start_pos = self.position;
-
-            // Try each token pattern
-            for (symbol_id, matcher) in &self.token_patterns {
-                if let Some(len) = matcher.matches_at(&self.input, self.position) {
-                    if len == 0 {
-                        // Defensive no-progress guard for any future matcher regressions.
-                        self.position = self.advance_one_char(self.position);
-                        continue 'tokenize;
-                    }
-                    // Ensure we're not splitting a UTF-8 sequence
-                    let end_pos = self.position + len;
-                    if !self.input.is_char_boundary(end_pos) {
-                        continue;
-                    }
-
-                    let text = self.input[self.position..end_pos].to_string();
-                    self.position = end_pos;
-
-                    return Some(TokenWithPosition {
-                        symbol_id: *symbol_id,
-                        text,
-                        byte_offset: start_pos,
-                        byte_length: len,
-                    });
-                }
+            match self.try_match_token(start_pos) {
+                TokenAttempt::Matched(token) => return Some(token),
+                TokenAttempt::RetryAfterAdvance => continue 'tokenize,
+                TokenAttempt::NoMatch => {}
             }
 
-            // No token matched - report the first invalid character span and stop lexing.
-            let end_pos = self.advance_one_char(self.position);
-            self.invalid_span.get_or_insert((start_pos, end_pos));
-            self.position = end_pos;
+            self.mark_invalid_and_advance(start_pos);
             return None;
         }
+    }
+
+    fn at_end_after_whitespace(&mut self) -> bool {
+        self.skip_whitespace();
+        self.position >= self.input.len()
+    }
+
+    fn try_match_token(&mut self, start_pos: usize) -> TokenAttempt {
+        for (symbol_id, matcher) in &self.token_patterns {
+            let Some(len) = matcher.matches_at(&self.input, self.position) else {
+                continue;
+            };
+            if len == 0 {
+                self.position = self.advance_one_char(self.position);
+                return TokenAttempt::RetryAfterAdvance;
+            }
+            let end_pos = self.position + len;
+            if !self.input.is_char_boundary(end_pos) {
+                continue;
+            }
+
+            let text = self.input[self.position..end_pos].to_string();
+            self.position = end_pos;
+
+            return TokenAttempt::Matched(TokenWithPosition {
+                symbol_id: *symbol_id,
+                text,
+                byte_offset: start_pos,
+                byte_length: len,
+            });
+        }
+        TokenAttempt::NoMatch
+    }
+
+    fn mark_invalid_and_advance(&mut self, start_pos: usize) {
+        let end_pos = self.advance_one_char(self.position);
+        self.invalid_span.get_or_insert((start_pos, end_pos));
+        self.position = end_pos;
     }
 
     /// Skip whitespace characters
