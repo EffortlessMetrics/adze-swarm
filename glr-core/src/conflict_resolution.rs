@@ -4,6 +4,69 @@ use crate::{Action, FirstFollowSets, Grammar, ParseTable, ProductionId, StateId,
 use fixedbitset::FixedBitSet;
 use rustc_hash::FxHashMap;
 
+mod resolver_submodules {
+    use super::*;
+
+    pub(super) fn statement_starter_capacity(grammar: &Grammar) -> usize {
+        grammar
+            .rules
+            .keys()
+            .chain(grammar.tokens.keys())
+            .map(|id| id.0)
+            .max()
+            .unwrap_or(0) as usize
+            + 1
+    }
+
+    pub(super) fn union_first_set_by_rule_name(
+        grammar: &Grammar,
+        first_follow: &FirstFollowSets,
+        statement_starters: &mut FixedBitSet,
+        rule_name: &str,
+    ) {
+        if let Some(symbol_id) = grammar.find_symbol_by_name(rule_name)
+            && let Some(first_set) = first_follow.first(symbol_id)
+        {
+            statement_starters.union_with(first_set);
+        }
+    }
+
+    pub(super) fn find_vec_wrapper_empty_reduce(
+        actions: &[Action],
+        grammar: &Grammar,
+    ) -> Option<ProductionId> {
+        for action in actions {
+            match action {
+                Action::Reduce(rule_id)
+                    if is_vec_wrapper_empty_rule(ProductionId(rule_id.0), grammar) =>
+                {
+                    return Some(ProductionId(rule_id.0));
+                }
+                Action::Fork(fork_actions) => {
+                    if let Some(production_id) =
+                        find_vec_wrapper_empty_reduce(fork_actions, grammar)
+                    {
+                        return Some(production_id);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        None
+    }
+
+    fn is_vec_wrapper_empty_rule(rule_id: ProductionId, grammar: &Grammar) -> bool {
+        grammar
+            .all_rules()
+            .find(|rule| rule.production_id.0 == rule_id.0)
+            .and_then(|rule| grammar.rule_names.get(&rule.lhs).map(|name| (name, rule)))
+            .is_some_and(|(rule_name, rule)| {
+                rule_name.ends_with("_vec_contents") && rule.rhs.is_empty()
+            })
+    }
+}
+
 /// Trait for resolving conflicts at runtime
 pub trait RuntimeConflictResolver {
     /// Resolve a conflict between multiple actions
@@ -20,24 +83,15 @@ pub struct VecWrapperResolver {
 impl VecWrapperResolver {
     /// Creates a new resolver by analyzing the grammar for vec-wrapper patterns.
     pub fn new(grammar: &Grammar, first_follow: &FirstFollowSets) -> Self {
-        // Get the maximum symbol ID to size our bitset properly
-        let max_symbol_id = grammar
-            .rules
-            .keys()
-            .chain(grammar.tokens.keys())
-            .map(|id| id.0)
-            .max()
-            .unwrap_or(0) as usize
-            + 1;
+        let capacity = resolver_submodules::statement_starter_capacity(grammar);
+        let mut statement_starters = FixedBitSet::with_capacity(capacity);
 
-        let mut statement_starters = FixedBitSet::with_capacity(max_symbol_id);
-
-        // Find FIRST(Statement) - you already compute this
-        if let Some(stmt_id) = grammar.find_symbol_by_name("Statement")
-            && let Some(first_set) = first_follow.first(stmt_id)
-        {
-            statement_starters.union_with(first_set);
-        }
+        resolver_submodules::union_first_set_by_rule_name(
+            grammar,
+            first_follow,
+            &mut statement_starters,
+            "Statement",
+        );
 
         // Also check for other common statement starters
         for name in &[
@@ -46,11 +100,12 @@ impl VecWrapperResolver {
             "Primary",
             "Number",
         ] {
-            if let Some(id) = grammar.find_symbol_by_name(name)
-                && let Some(first_set) = first_follow.first(id)
-            {
-                statement_starters.union_with(first_set);
-            }
+            resolver_submodules::union_first_set_by_rule_name(
+                grammar,
+                first_follow,
+                &mut statement_starters,
+                name,
+            );
         }
 
         Self {
@@ -71,53 +126,14 @@ impl VecWrapperResolver {
             return cached;
         }
 
-        // Find vec wrapper empty production in this state
-        let mut result = None;
-
-        // Look through the action table for reduce actions in this state
-        if let Some(state_actions) = table.action_table.get(state.0 as usize) {
-            for action_cell in state_actions.iter() {
-                // Each cell now contains a Vec<Action>
-                for action in action_cell {
-                    match action {
-                        Action::Reduce(rule_id) => {
-                            // Find the corresponding rule in the grammar
-                            if let Some(rule) =
-                                grammar.all_rules().find(|r| r.production_id.0 == rule_id.0)
-                            {
-                                // Check if this is a vec wrapper empty rule
-                                if let Some(rule_name) = grammar.rule_names.get(&rule.lhs)
-                                    && rule_name.ends_with("_vec_contents")
-                                    && rule.rhs.is_empty()
-                                {
-                                    result = Some(ProductionId(rule_id.0));
-                                    break;
-                                }
-                            }
-                        }
-                        Action::Fork(actions) => {
-                            // Check fork actions too
-                            for fork_action in actions {
-                                if let Action::Reduce(rule_id) = fork_action
-                                    && let Some(rule) =
-                                        grammar.all_rules().find(|r| r.production_id.0 == rule_id.0)
-                                    && let Some(rule_name) = grammar.rule_names.get(&rule.lhs)
-                                    && rule_name.ends_with("_vec_contents")
-                                    && rule.rhs.is_empty()
-                                {
-                                    result = Some(ProductionId(rule_id.0));
-                                    break;
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                if result.is_some() {
-                    break;
-                }
-            }
-        }
+        let result = table
+            .action_table
+            .get(state.0 as usize)
+            .and_then(|state_actions| {
+                state_actions.iter().find_map(|action_cell| {
+                    resolver_submodules::find_vec_wrapper_empty_reduce(action_cell, grammar)
+                })
+            });
 
         self.wrapper_states.insert(state, result);
         result
