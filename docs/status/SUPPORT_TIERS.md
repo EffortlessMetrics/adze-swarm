@@ -1,6 +1,6 @@
 # Support Tiers and Proof Surface
 
-**Last updated:** 2026-05-20
+**Last updated:** 2026-05-21
 **Source of truth for:** README feature claims, `docs/status/KNOWN_RED.md`, and CI expectations.
 
 For a release-readable summary of the most common product claims, see
@@ -21,7 +21,9 @@ This document maps major Adze surfaces to five tiers:
 Stable rows below and are guarded by
 `cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exact --nocapture`.
 The bounded stable-product lane is `just ci-product-stable`; it remains
-advisory until branch protection explicitly promotes it.
+path-selected implementation proof. Branch protection requires the aggregate
+`Product Proof Result` context, which selects or skips the stable canaries and
+fails when selected Stable-claim proof fails.
 
 Current native-document and typed-CST alpha notes: generated typed CST handles
 can now call the default `SyntaxNode::ast(...)` helper, which delegates to
