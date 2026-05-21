@@ -1,0 +1,12 @@
+schema_version = "1.0"
+
+id = "<policy-reference-id>"
+owner = "<owner>"
+reason = "<why this reference exists>"
+covered_by = "<ledger-or-policy-id>"
+created = "YYYY-MM-DD"
+review_after = "YYYY-MM-DD"
+expires = ""
+reference_paths = [
+  "policy/<existing-ledger>.toml",
+]
