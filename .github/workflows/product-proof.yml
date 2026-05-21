@@ -3,47 +3,6 @@ name: Product Proof
 on:
   pull_request:
     branches: [main]
-    paths:
-      - README.md
-      - FAQ.md
-      - QUICK_START.md
-      - cli/README.md
-      - book/src/getting-started/quickstart.md
-      - book/src/getting-started.md
-      - book/src/getting-started/installation.md
-      - book/src/getting-started/migration.md
-      - book/src/appendix/faq.md
-      - book/src/advanced/optimizer-usage.md
-      - book/src/guide/dynamic-loading.md
-      - book/src/guide/troubleshooting.md
-      - book/src/guide/migration.md
-      - book/src/reference/cli-reference.md
-      - book/book/**
-      - docs/how-to/use-playground.md
-      - docs/how-to/optimize-performance.md
-      - cli/tests/readme_quickstart.rs
-      - docs/product/ACCEPTANCE_MATRIX.md
-      - docs/README.md
-      - docs/reference/diagnostics-and-recovery.md
-      - docs/explanations/arena-allocator.md
-      - docs/explanations/direct-forest-splicing.md
-      - docs/explanations/glr-incremental-architecture.md
-      - docs/guides/ARENA_ALLOCATOR_GUIDE.md
-      - docs/reference/PUBLISH_CHECKLIST.md
-      - docs/tutorials/quickstart-10-minutes.md
-      - docs/tutorials/getting-started.md
-      - docs/tutorials/json-tutorial.md
-      - docs/status/SUPPORT_TIERS.md
-      - docs/status/NOW_NEXT_LATER.md
-      - docs/status/PRODUCT_OBJECTIVE_AUDIT.md
-      - docs/status/PRODUCT_PROOF_MAP.md
-      - docs/status/KNOWN_RED.md
-      - docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
-      - docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
-      - samples/downstream-demo/**
-      - scripts/ci-product.sh
-      - scripts/ci-product-stable.sh
-      - .github/workflows/product-proof.yml
   workflow_dispatch:
     inputs:
       lane:
@@ -60,13 +19,104 @@ on:
 permissions:
   contents: read
 
+env:
+  STABLE_PRODUCT_PATHS: |
+    README.md
+    FAQ.md
+    QUICK_START.md
+    cli/README.md
+    book/src/getting-started/quickstart.md
+    book/src/getting-started.md
+    book/src/getting-started/installation.md
+    book/src/getting-started/migration.md
+    book/src/appendix/faq.md
+    book/src/advanced/optimizer-usage.md
+    book/src/guide/dynamic-loading.md
+    book/src/guide/troubleshooting.md
+    book/src/guide/migration.md
+    book/src/reference/cli-reference.md
+    book/book/**
+    docs/how-to/use-playground.md
+    docs/how-to/optimize-performance.md
+    cli/tests/readme_quickstart.rs
+    docs/product/ACCEPTANCE_MATRIX.md
+    docs/README.md
+    docs/reference/diagnostics-and-recovery.md
+    docs/explanations/arena-allocator.md
+    docs/explanations/direct-forest-splicing.md
+    docs/explanations/glr-incremental-architecture.md
+    docs/guides/ARENA_ALLOCATOR_GUIDE.md
+    docs/reference/PUBLISH_CHECKLIST.md
+    docs/tutorials/quickstart-10-minutes.md
+    docs/tutorials/getting-started.md
+    docs/tutorials/json-tutorial.md
+    docs/status/SUPPORT_TIERS.md
+    docs/status/NOW_NEXT_LATER.md
+    docs/status/PRODUCT_OBJECTIVE_AUDIT.md
+    docs/status/PRODUCT_PROOF_MAP.md
+    docs/status/KNOWN_RED.md
+    docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
+    docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
+    samples/downstream-demo/**
+    scripts/ci-product.sh
+    scripts/ci-product-stable.sh
+    .github/workflows/product-proof.yml
+
 concurrency:
   group: product-proof-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
 
 jobs:
+  detect-stable-product-paths:
+    name: Detect Product Proof Paths
+    runs-on: ubuntu-latest
+    outputs:
+      run_stable: ${{ steps.detect.outputs.run_stable }}
+      reason: ${{ steps.detect.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - id: detect
+        name: Detect Stable product surfaces
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "run_stable=true" >> "$GITHUB_OUTPUT"
+            echo "reason=event:${{ github.event_name }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          git fetch --no-tags --depth=1 origin "$base_sha" "$head_sha"
+
+          changed_paths="$(git diff --name-only "$base_sha" "$head_sha")"
+          echo "Changed paths:"
+          printf '%s\n' "$changed_paths"
+
+          while IFS= read -r changed_path; do
+            [[ -z "$changed_path" ]] && continue
+
+            while IFS= read -r pattern; do
+              [[ -z "$pattern" ]] && continue
+
+              if [[ "$changed_path" == $pattern ]]; then
+                echo "run_stable=true" >> "$GITHUB_OUTPUT"
+                echo "reason=stable_surface:$changed_path" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            done <<< "$STABLE_PRODUCT_PATHS"
+          done <<< "$changed_paths"
+
+          echo "run_stable=false" >> "$GITHUB_OUTPUT"
+          echo "reason=no_stable_product_surface_changed" >> "$GITHUB_OUTPUT"
+
   ci-product-stable:
     name: ci-product stable canaries
+    needs: detect-stable-product-paths
+    if: needs.detect-stable-product-paths.outputs.run_stable == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -83,6 +133,42 @@ jobs:
 
       - name: Run stable product lane
         run: scripts/ci-product-stable.sh
+
+  product-proof-result:
+    name: Product Proof Result
+    needs: [detect-stable-product-paths, ci-product-stable]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate Product Proof result
+        shell: bash
+        run: |
+          detect_result="${{ needs.detect-stable-product-paths.result }}"
+          run_stable="${{ needs.detect-stable-product-paths.outputs.run_stable }}"
+          reason="${{ needs.detect-stable-product-paths.outputs.reason }}"
+          stable_result="${{ needs.ci-product-stable.result }}"
+
+          echo "detect_result=$detect_result"
+          echo "run_stable=$run_stable"
+          echo "reason=$reason"
+          echo "stable_result=$stable_result"
+
+          if [[ "$detect_result" != "success" ]]; then
+            echo "::error::Product Proof path detection failed."
+            exit 1
+          fi
+
+          if [[ "$run_stable" != "true" ]]; then
+            echo "::notice::Stable Product Proof canaries skipped: $reason"
+            exit 0
+          fi
+
+          if [[ "$stable_result" == "success" ]]; then
+            exit 0
+          fi
+
+          echo "::error::Stable Product Proof canaries were selected but did not pass."
+          exit 1
 
   ci-product:
     name: ci-product advisory canaries

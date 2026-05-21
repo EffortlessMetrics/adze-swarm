@@ -22,10 +22,11 @@ end_state = [
 
 [[work_item]]
 id = "product-proof-result-source-of-truth"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0010-product-proof-result-readiness.md"
 spec = "ADZE-SPEC-0011"
 plan = "plans/product-proof-result-readiness/implementation-plan.md"
+prs = [382]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
@@ -34,7 +35,7 @@ commands = [
 
 [[work_item]]
 id = "product-proof-result-workflow"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0010-product-proof-result-readiness.md"
 spec = "ADZE-SPEC-0011"
 plan = "plans/product-proof-result-readiness/implementation-plan.md"

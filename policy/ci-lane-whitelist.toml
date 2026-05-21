@@ -637,6 +637,28 @@ expires = "2026-11-07"
 # ---------------------------------------------------------------------------
 
 [[lane]]
+id = "product-proof-path-detect"
+workflow = ".github/workflows/product-proof.yml"
+job = "detect-stable-product-paths"
+display_name = "Detect Product Proof Paths"
+kind = "product-proof"
+tier = "product"
+default_pr = true
+blocking = false
+runner = "ubuntu_latest"
+base_lem = 1
+owner = "core/product"
+intent = "Detect whether Stable README/support-tier or claim-boundary surfaces changed before running Stable product canaries."
+failure_mode = "Product Proof cannot safely decide whether Stable canaries are required for the PR."
+proof_obligation = "Emit run_stable and reason outputs from the checked Stable product surface path list."
+evidence = ["job logs"]
+allowed_triggers = ["pull_request", "schedule", "workflow_dispatch"]
+routing_note = "Runs cheaply on every Product Proof event; selects Stable canaries for relevant paths and all non-PR events."
+duplicate_of = []
+review_after = "2026-06-21"
+expires = "2026-11-21"
+
+[[lane]]
 id = "product-proof-stable"
 workflow = ".github/workflows/product-proof.yml"
 job = "ci-product-stable"
@@ -653,10 +675,32 @@ failure_mode = "README Stable claims drift from the support-tier proof map or fr
 proof_obligation = "Run scripts/ci-product-stable.sh and fail on missing Stable-claim proof."
 evidence = ["job logs"]
 allowed_triggers = ["pull_request", "schedule", "workflow_dispatch"]
-routing_note = "Path-routed to README/FAQ/quickstart/book claim-boundary docs, support-tier/product-proof/status docs, quickstart tests, downstream demo, the stable canary script, and this workflow. Manual dispatch defaults to stable-only."
+routing_note = "Selected by Product Proof path detection for README/FAQ/quickstart/book claim-boundary docs, support-tier/product-proof/status docs, quickstart tests, downstream demo, the stable canary script, and this workflow. Manual dispatch defaults to stable-only."
 duplicate_of = ["ci-supported"]
 review_after = "2026-06-15"
 expires = "2026-11-15"
+
+[[lane]]
+id = "product-proof-result"
+workflow = ".github/workflows/product-proof.yml"
+job = "product-proof-result"
+display_name = "Product Proof Result"
+kind = "product-proof"
+tier = "product"
+default_pr = true
+blocking = false
+runner = "ubuntu_latest"
+base_lem = 1
+owner = "core/product"
+intent = "Expose an always-present aggregate Product Proof result check that can be promoted later without missing-check hazards."
+failure_mode = "Stable product canaries were selected and failed, or path detection failed."
+proof_obligation = "Pass when no Stable product surface changed, and fail when selected Stable canaries fail."
+evidence = ["job logs"]
+allowed_triggers = ["pull_request", "schedule", "workflow_dispatch"]
+routing_note = "Not branch-protection required yet; exists so a later explicit policy PR can promote a stable always-present context instead of a path-filtered job."
+duplicate_of = ["product-proof-stable"]
+review_after = "2026-06-21"
+expires = "2026-11-21"
 
 [[lane]]
 id = "product-proof-advisory"

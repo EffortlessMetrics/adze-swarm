@@ -85,7 +85,9 @@ In `adze-swarm`, the legacy `ci.yml` jobs run on schedule or via `workflow_dispa
 | `coverage.yml` | `Detect Coverage Paths` | PR + dispatch | Advisory | Cheap path/label detector for coverage-lite/full routing |
 | `coverage.yml` | `Coverage Lite` | Path/labeled PR + dispatch | Advisory | Core-package LCOV artifact; Codecov upload non-blocking |
 | `coverage.yml` | `Coverage Full` | `full-ci` PR + dispatch | Advisory | Broader workspace/features LCOV artifact; Codecov upload non-blocking |
-| `product-proof.yml` | `ci-product stable canaries` | Path-routed PR + scheduled + dispatch | PR-only/manual | Bounded Stable README/support-tier and claim-boundary docs proof lane; manual dispatch defaults to this lane; not required unless branch protection promotes it |
+| `product-proof.yml` | `Detect Product Proof Paths` | PR + scheduled + dispatch | PR-only/manual | Cheap detector that decides whether Stable product canaries are selected |
+| `product-proof.yml` | `ci-product stable canaries` | Selected PR + scheduled + dispatch | PR-only/manual | Bounded Stable README/support-tier and claim-boundary docs proof lane; manual dispatch defaults to this lane |
+| `product-proof.yml` | `Product Proof Result` | PR + scheduled + dispatch | PR-only/manual | Always-present aggregate result; not required unless branch protection promotes it later |
 | `core-tests.yml` | `core` | Scheduled (nightly) + dispatch | Scheduled | Full nightly canary: clippy, doc, all-features |
 | `microcrate-ci.yml` | `Formatting` through `Strict Docs` | Path-routed PR + dispatch | PR-only/manual | Receipt jobs and crate-group tests route by affected Rust/package surface |
 | `golden-tests.yml` | `Golden Tests` | Path-routed PR + dispatch | PR-only/manual | Tree-sitter parity validation |

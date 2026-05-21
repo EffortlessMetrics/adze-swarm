@@ -403,10 +403,24 @@ fn readme_stable_claims_are_in_stable_product_lane() {
 fn product_proof_workflow_routes_stable_claim_surfaces() {
     let workflow = include_str!("../../.github/workflows/product-proof.yml");
 
+    assert!(
+        workflow.contains("name: Detect Product Proof Paths"),
+        "Product Proof workflow must have an always-on path detector"
+    );
+    assert!(
+        workflow.contains("name: Product Proof Result"),
+        "Product Proof workflow must expose an aggregate result check"
+    );
+    assert!(
+        workflow.contains("run_stable=false")
+            && workflow.contains("no_stable_product_surface_changed"),
+        "Product Proof result must be able to pass cheaply when Stable product surfaces did not change"
+    );
+
     for path in PRODUCT_PROOF_STABLE_SURFACES {
         assert!(
             workflow_path_filter_contains(workflow, path),
-            "Product Proof workflow must run stable product canaries when `{path}` changes"
+            "Product Proof workflow must select stable product canaries when `{path}` changes"
         );
     }
 }
@@ -689,7 +703,10 @@ fn stable_surface_lookup_key(surface: &str) -> String {
 
 fn workflow_path_filter_contains(workflow: &str, path: &str) -> bool {
     let expected = format!("- {path}");
-    workflow.lines().any(|line| line.trim() == expected)
+    workflow.lines().any(|line| {
+        let trimmed = line.trim().trim_matches('"').trim_matches('\'');
+        trimmed == path || trimmed == expected
+    })
 }
 
 fn readme_stable_capability_rows(readme: &str) -> Vec<StableCapabilityRow> {
