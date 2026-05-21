@@ -15,6 +15,8 @@ use adze_ir::Grammar;
 use std::num::NonZeroU16;
 use std::sync::Arc;
 
+mod tree_cursor_nav;
+
 /// An owned tree representation for ts_compat layer.
 /// This provides the interface expected by ts_compat::Tree without lifetime constraints.
 #[derive(Clone, Debug)]
@@ -838,8 +840,8 @@ impl<'a> Node<'a> {
 
 #[derive(Debug, Clone)]
 struct CursorFrame<'a> {
-    node: &'a ParseNode,
-    child_index: usize,
+    pub(super) node: &'a ParseNode,
+    pub(super) child_index: usize,
 }
 
 /// A cursor for walking a syntax tree without allocating child vectors.
@@ -1025,35 +1027,12 @@ impl<'a> TreeCursor<'a> {
 
     /// Move to the next sibling of the current node.
     pub fn goto_next_sibling(&mut self) -> bool {
-        let Some(parent) = self.parents.last_mut() else {
-            return false;
-        };
-
-        let next_index = parent.child_index + 1;
-        let Some(next) = parent.node.children.get(next_index) else {
-            return false;
-        };
-
-        parent.child_index = next_index;
-        self.current = next;
-        true
+        tree_cursor_nav::goto_next_sibling(&mut self.parents, &mut self.current)
     }
 
     /// Move to the previous sibling of the current node.
     pub fn goto_previous_sibling(&mut self) -> bool {
-        let Some(parent) = self.parents.last_mut() else {
-            return false;
-        };
-        let Some(previous_index) = parent.child_index.checked_sub(1) else {
-            return false;
-        };
-        let Some(previous) = parent.node.children.get(previous_index) else {
-            return false;
-        };
-
-        parent.child_index = previous_index;
-        self.current = previous;
-        true
+        tree_cursor_nav::goto_previous_sibling(&mut self.parents, &mut self.current)
     }
 
     /// Move to the parent of the current node.
