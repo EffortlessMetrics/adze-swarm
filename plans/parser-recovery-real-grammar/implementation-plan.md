@@ -123,7 +123,7 @@ Revert the focused test PR.
 
 ## Work Item: parser-v4-scanner-recovery-smoke
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0009-parser-recovery-real-grammar-coverage.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0005-diagnostics-and-recovery.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -163,13 +163,12 @@ Revert the focused parser-v4 test PR.
 
 ## Work Item: support-tier-boundary-refresh
 
-Status: blocked
+Status: ready
 Linked proposal: ../../docs/proposals/ADZE-PROP-0009-parser-recovery-real-grammar-coverage.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 Blocks: n/a
-Blocked by:
-- parser-v4-scanner-recovery-smoke
+Blocked by: n/a
 
 ### Goal
 

@@ -33,7 +33,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       real-grammar parser recovery lane in `adze-swarm`.
 - [x] Broaden generated external-scanner malformed-input recovery coverage
       with focused parse/document diagnostic receipts.
-- [ ] Add or refresh parser-v4 scanner recovery smoke so malformed input stays
+- [x] Add or refresh parser-v4 scanner recovery smoke so malformed input stays
       source-bounded and no-panic.
 - [ ] Refresh support-tier or product-audit wording only after new proof
       commands exist.
