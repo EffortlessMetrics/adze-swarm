@@ -2,36 +2,41 @@
 
 ## Today
 
-`adze-swarm` branch protection requires exactly one GitHub status check:
+`adze-swarm` branch protection requires two aggregate GitHub status checks:
 
 ```text
 Rust Small Result
+Product Proof Result
 ```
 
-This check is emitted by `.github/workflows/em-ci-routed-rust.yml` after the
-routed Rust Small lane runs on CX43 or GitHub-hosted fallback.
+`Rust Small Result` is emitted by `.github/workflows/em-ci-routed-rust.yml`
+after the routed Rust Small lane runs on CX43, CX53, or GitHub-hosted fallback.
+
+`Product Proof Result` is emitted by `.github/workflows/product-proof.yml`.
+It is always present on Product Proof PR events, passes when no Stable product
+surface changed, and fails when Stable product canaries are selected but do not
+pass.
 
 `just ci-supported` remains the local supported/product proof command. It is
 not the required GitHub branch-protection context in `adze-swarm`.
 
-`Product Proof Result` is branch-protection-ready as an always-present
-aggregate context, but it is not required yet. It remains in burn-in until the
-criteria below are met and a separate policy PR updates `.github/settings.yml`,
+`Product Proof Result` was promoted only after the burn-in criteria below were
+met by merged PR receipts and this policy update changed `.github/settings.yml`,
 this file, and [CI_LANES.md](../../.github/CI_LANES.md) together.
 
 Conversation resolution is intentionally disabled in `adze-swarm`. Review bots
 can still leave useful comments, but unresolved advisory threads must not block
-the single-operator swarm merge path after the required gate is green.
+the single-operator swarm merge path after the required gates are green.
 
-## Future
+## Promotion History And Future Changes
 
 ### Product Proof Result promotion
 
-`Product Proof Result` is the candidate required context for Stable README
-claim proof. It should be added alongside `Rust Small Result`, not replace the
-Rust base gate.
+`Product Proof Result` is now the required context for Stable README claim
+proof. It was added alongside `Rust Small Result`; it did not replace the Rust
+base gate.
 
-Promotion is gated on:
+Promotion was gated on:
 
 | Criterion | Target |
 | --- | --- |
@@ -41,13 +46,13 @@ Promotion is gated on:
 | Unexplained `Product Proof Result` flakes | 0 open |
 | Product-audit wording updated from advisory to required | same PR as settings change |
 
-When all gates clear, the promotion PR only:
+The promotion PR only:
 
-1. adds `Product Proof Result` to `.github/settings.yml` required contexts;
-2. updates [CI_LANES.md](../../.github/CI_LANES.md),
+1. added `Product Proof Result` to `.github/settings.yml` required contexts;
+2. updated [CI_LANES.md](../../.github/CI_LANES.md),
    [KNOWN_RED.md](../status/KNOWN_RED.md), and
    [PRODUCT_OBJECTIVE_AUDIT.md](../status/PRODUCT_OBJECTIVE_AUDIT.md); and
-3. records rollback to `Rust Small Result` only.
+3. recorded rollback to `Rust Small Result` only.
 
 ### PR Gate Success promotion
 
@@ -86,6 +91,7 @@ When all five gates clear, the promotion PR itself only:
 ## Rollback
 
 If a future required-check promotion causes problems, the rollback is to
-restore `.github/settings.yml` to require only `Rust Small Result` and update
-the branch-protection docs plus [CI_LANES.md](../../.github/CI_LANES.md) to
-match.
+remove `Product Proof Result` from `.github/settings.yml`, restore branch
+protection to require only `Rust Small Result`, and update this file plus
+[CI_LANES.md](../../.github/CI_LANES.md), [KNOWN_RED.md](../status/KNOWN_RED.md),
+and [PRODUCT_OBJECTIVE_AUDIT.md](../status/PRODUCT_OBJECTIVE_AUDIT.md) to match.

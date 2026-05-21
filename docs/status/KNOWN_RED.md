@@ -4,7 +4,7 @@
 
 This file tracks intentional exclusions from the supported lane:
 
-- Required `adze-swarm` PR gate: `Rust Small Result` in GitHub checks
+- Required `adze-swarm` PR gates: `Rust Small Result` and `Product Proof Result` in GitHub checks
 - Supported local/product proof: `just ci-supported`
 - Lane classification: [CI_LANES.md](../../.github/CI_LANES.md)
 
@@ -40,7 +40,12 @@ Support tiers and proof commands for major surfaces are tracked in [`docs/status
 
 This lane is intentionally bounded so it stays reliable and fast enough for day-to-day work.
 
-**Current required status:** GREEN when `Rust Small Result` passes in `adze-swarm`. `just ci-supported` remains the local supported/product proof. Broader feature matrices, audit, WASM, and product-proof checks are useful optional signal, but they are not part of the swarm merge gate unless explicitly promoted here, in [CI_LANES.md](../../.github/CI_LANES.md), and in [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
+**Current required status:** GREEN when both `Rust Small Result` and
+`Product Proof Result` pass in `adze-swarm`. `just ci-supported` remains the
+local supported/product proof. Broader feature matrices, audit, WASM, and broad
+advisory product-proof checks remain optional signal unless explicitly promoted
+here, in [CI_LANES.md](../../.github/CI_LANES.md), and in
+[`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
 ---
 
@@ -84,18 +89,29 @@ These may run as optional signal (nightly/manual/canary), but are not required f
 ---
 
 
-## Advisory product proof lane (non-blocking)
+## Product proof lanes
 
 A broad-surface advisory lane now exists as `.github/workflows/product-proof.yml` and runs `scripts/ci-product.sh` on schedule or manual dispatch with `lane=all`.
 
-This lane is **not** part of required merge gates. It provides bounded canary proof across product surfaces that are outside `ci-supported`. A narrower `ci-product stable canaries` job runs `just ci-product-stable` on selected stable-claim and claim-boundary PR surfaces, schedule, and stable-only manual dispatch. `Product Proof Result` is now emitted on every Product Proof PR event so a later branch-protection change can require an always-present context, but it is still advisory while the burn-in lane collects selected/skipped receipts and until branch protection explicitly promotes it.
+The broad `ci-product advisory canaries` lane is **not** part of required merge
+gates. It provides bounded canary proof across product surfaces that are outside
+`ci-supported`.
+
+`Product Proof Result` is now a required merge gate. It is an always-present
+aggregate context: a narrower `ci-product stable canaries` implementation job
+runs `just ci-product-stable` on selected stable-claim and claim-boundary PR
+surfaces, schedule, and stable-only manual dispatch. For unrelated PRs,
+`Product Proof Result` passes after path detection records the explicit skip
+reason. When Stable canaries are selected, the aggregate result fails if they do
+not pass.
 
 Latest stable-product receipt: GitHub workflow dispatch
 [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
 passed on 2026-05-19 from `adze-swarm/main` after PR #281. The
 `ci-product stable canaries` job passed in 3m02s and `ci-product advisory
-canaries` skipped under the stable-only default. This remains advisory and is
-not part of required branch protection.
+canaries` skipped under the stable-only default. This remains useful
+stable-product evidence; branch protection now requires the aggregate
+`Product Proof Result` context rather than the path-selected implementation job.
 
 Current canaries:
 
@@ -175,8 +191,13 @@ Current canaries:
 Notes:
 - This lane intentionally does not provide full product proof; it is bounded canary signal only.
 - Compile-only canaries remain only where the current truthful claim is compile/no-run signal, notably benchmarks and WASM.
-- The next promotion step is making `ci-product-stable` required for README-stable claims only, after the advisory canaries are consistently green.
-- If one canary is red, the advisory job can fail while remaining non-blocking due to workflow `continue-on-error: true`.
+- `Product Proof Result` is the required README-stable claim gate; do not
+  require the path-selected `ci-product stable canaries` implementation job
+  directly.
+- If a selected stable canary is red, `Product Proof Result` fails and blocks
+  merge. If a broad `ci-product advisory canaries` check is red on schedule or
+  manual dispatch, it remains non-blocking due to workflow `continue-on-error:
+  true`.
 
 ## Known warnings (non-blocking)
 

@@ -47,12 +47,14 @@ cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exac
 The canary must fail when a README Stable proof command is missing from
 `SUPPORT_TIERS.md` or from the stable-product lane.
 
-### B4. Stable-product canaries do not replace the required gate
+### B4. Stable-product canaries use an aggregate required gate
 
-`just ci-supported` / `CI / ci-supported` remains the required supported gate.
-The stable-product lane is advisory until branch protection explicitly promotes
-it. It should still run on PRs that touch README Stable-claim surfaces, support
-tier proof mapping, quickstart canaries, or the stable-product canary script.
+`just ci-supported` remains the local supported proof command, and
+`Rust Small Result` remains the required Rust base gate. Branch protection may
+also require the always-present `Product Proof Result` aggregate context after a
+separate policy PR promotes it. The path-selected `ci-product stable canaries`
+implementation job must not be required directly because it can legitimately
+skip on unrelated PRs.
 
 ### B5. Tier promotion is evidence-based
 
@@ -136,10 +138,10 @@ cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exac
 
 The 0.9 product-proof release blocker is complete when README Stable claims are
 covered by `SUPPORT_TIERS.md`, `readme_stable_claims_are_in_stable_product_lane`
-passes, `just ci-product-stable` passes, and `CI / ci-supported` remains green
-on the closeout PR.
+passes, `just ci-product-stable` passes, and the required Rust base gate remains
+green on the closeout PR.
 
-Future promotion of Product Proof from advisory to required must require the
+Any promotion of Product Proof from advisory to required must require the
 always-present `Product Proof Result` context, not the path-selected
 `ci-product stable canaries` implementation job. That promotion needs a
 separate CI policy change and branch-protection update.

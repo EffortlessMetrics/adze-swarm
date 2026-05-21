@@ -13,13 +13,15 @@ whether a red mark means "must fix before merge" or "inspect at your leisure."
 | **Push / scheduled** | Runs on schedules or manual dispatch for legacy/deep lanes. Not PR-blocking. | Inspect trend; fix in a follow-up. |
 | **Advisory** | Uses nightly / unstable toolchains, `continue-on-error`, or non-blocking labels. May be red due to toolchain drift. | Inspect if curious. Not actionable for most PRs. |
 
-Branch protection in `adze-swarm` requires exactly one check:
-**`Rust Small Result`** from `em-ci-routed-rust.yml`.
+Branch protection in `adze-swarm` requires two aggregate checks:
 
-`Product Proof Result` is in required-gate burn-in. It must remain advisory
-until the receipt thresholds in
-[`docs/ci/branch-protection.md`](../docs/ci/branch-protection.md) are met and a
-separate policy PR updates `.github/settings.yml` and this lane map together.
+- **`Rust Small Result`** from `em-ci-routed-rust.yml`.
+- **`Product Proof Result`** from `product-proof.yml`.
+
+`Product Proof Result` is the required Stable-claim proof gate. It remains an
+aggregate context: Stable product canaries run only when path detection selects
+Stable product surfaces, schedule, or manual dispatch, and the result passes
+when no Stable product surface changed.
 
 Runner capacity classes are defined in
 [`docs/ci/runner-classes.md`](../docs/ci/runner-classes.md).
@@ -33,8 +35,9 @@ Runner capacity classes are defined in
 | Workflow | Job name | Trigger | Meaning |
 |----------|----------|---------|---------|
 | `em-ci-routed-rust.yml` | `Rust Small Result` | PR + merge_group | Aggregate check for the selected routed Rust small lane |
+| `product-proof.yml` | `Product Proof Result` | PR + scheduled + dispatch | Aggregate Stable-claim proof gate for Product Proof path detection and selected stable canaries |
 
-Required branch protection context: `Rust Small Result`.
+Required branch protection contexts: `Rust Small Result`, `Product Proof Result`.
 
 ### PR-only signal (non-blocking)
 
@@ -92,7 +95,6 @@ In `adze-swarm`, the legacy `ci.yml` jobs run on schedule or via `workflow_dispa
 | `coverage.yml` | `Coverage Full` | `full-ci` PR + dispatch | Advisory | Broader workspace/features LCOV artifact; Codecov upload non-blocking |
 | `product-proof.yml` | `Detect Product Proof Paths` | PR + scheduled + dispatch | PR-only/manual | Cheap detector that decides whether Stable product canaries are selected |
 | `product-proof.yml` | `ci-product stable canaries` | Selected PR + scheduled + dispatch | PR-only/manual | Bounded Stable README/support-tier and claim-boundary docs proof lane; manual dispatch defaults to this lane |
-| `product-proof.yml` | `Product Proof Result` | PR + scheduled + dispatch | PR-only/manual | Always-present aggregate result; not required unless branch protection promotes it later |
 | `core-tests.yml` | `core` | Scheduled (nightly) + dispatch | Scheduled | Full nightly canary: clippy, doc, all-features |
 | `microcrate-ci.yml` | `Formatting` through `Strict Docs` | Path-routed PR + dispatch | PR-only/manual | Receipt jobs and crate-group tests route by affected Rust/package surface |
 | `golden-tests.yml` | `Golden Tests` | Path-routed PR + dispatch | PR-only/manual | Tree-sitter parity validation |
@@ -149,21 +151,27 @@ Current required status check (via `.github/settings.yml`):
 required_status_checks:
 contexts:
     - "Rust Small Result"
+    - "Product Proof Result"
 ```
 
-This is correct and intentionally single-gated. All other checks are optional
-signal.
+This is correct and intentionally aggregate-gated: `Rust Small Result` proves
+the selected routed Rust base lane, and `Product Proof Result` proves Stable
+claim path detection plus selected Stable product canaries. All implementation
+jobs and broader advisory lanes remain optional signal unless explicitly
+promoted later.
 
 ---
 
 ## How to read the GitHub Checks panel
 
 1. **`Rust Small Result` red?** — Stop. Fix before merge.
-2. **`PR Gate / PR Gate Success` red?** — Inspect, but do not block the swarm
+2. **`Product Proof Result` red?** — Stop. Fix the Stable product surface or
+   Product Proof routing failure before merge.
+3. **`PR Gate / PR Gate Success` red?** — Inspect, but do not block the swarm
    base lane on it unless it is explicitly promoted again.
-3. **Any `Advisory / *` red?** — Inspect when convenient. May be nightly drift.
-4. **Scheduled/manual jobs red?** — Create a follow-up issue. Not a PR blocker.
-5. **PR-only signal red?** — Worth reviewing, but not a merge blocker.
+4. **Any `Advisory / *` red?** — Inspect when convenient. May be nightly drift.
+5. **Scheduled/manual jobs red?** — Create a follow-up issue. Not a PR blocker.
+6. **PR-only signal red?** — Worth reviewing, but not a merge blocker.
 
 ---
 
