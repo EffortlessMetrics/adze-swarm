@@ -731,6 +731,24 @@ links_to = [
 ]
 
 [[artifact]]
+id = "plans/parser-runtime-maintainability/supported-surface-audit.md"
+kind = "plan"
+path = "plans/parser-runtime-maintainability/supported-surface-audit.md"
+status = "complete"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["supported parser/runtime maintainability audit"]
+links_to = [
+  "ADZE-PROP-0012",
+  "ADZE-SPEC-0011",
+  "ADZE-SPEC-0012",
+  "plans/parser-runtime-maintainability/implementation-plan.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/parser-runtime-maintainability-hardening.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = ".adze/goals/glr-toolkit-productization.toml"
 kind = "goal"
 path = ".adze/goals/glr-toolkit-productization.toml"
