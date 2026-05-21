@@ -1,9 +1,10 @@
 //! Single-responsibility bootstrap for concurrency caps initialization.
 
-use super::rayon::init_rayon_global_once;
 use crate::concurrency_caps::env::current_caps;
 
+mod logging;
 pub mod policy;
+mod rayon_init;
 
 pub use crate::concurrency_caps::env::{
     ConcurrencyCaps, DEFAULT_RAYON_NUM_THREADS, DEFAULT_TOKIO_WORKER_THREADS,
@@ -20,14 +21,8 @@ pub fn init_concurrency_caps() {
 pub fn init_concurrency_caps_with_caps(caps: ConcurrencyCaps) {
     let caps = bootstrap_caps(caps);
 
-    if let Err(message) = init_rayon_global_once(caps.rayon_threads) {
-        panic!("failed to initialize rayon global thread pool: {message}");
-    }
-
-    eprintln!(
-        "Concurrency caps initialized: {RAYON_NUM_THREADS_ENV}={}, {TOKIO_WORKER_THREADS_ENV}={}",
-        caps.rayon_threads, caps.tokio_worker_threads
-    );
+    rayon_init::init_or_panic(caps.rayon_threads);
+    logging::emit_caps_initialized(caps);
 }
 
 #[cfg(test)]
