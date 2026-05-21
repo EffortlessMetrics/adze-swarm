@@ -69,6 +69,21 @@ fn gss_mark_completed() {
 }
 
 #[test]
+fn gss_try_fork_head_invalid_index_returns_none() {
+    let mut gss = GraphStructuredStack::new(StateId(0));
+    assert_eq!(gss.try_fork_head(3), None);
+    assert_eq!(gss.active_heads.len(), 1);
+}
+
+#[test]
+fn gss_try_mark_completed_invalid_index_returns_false() {
+    let mut gss = GraphStructuredStack::new(StateId(0));
+    assert!(!gss.try_mark_completed(3));
+    assert_eq!(gss.active_heads.len(), 1);
+    assert!(gss.completed_heads.is_empty());
+}
+
+#[test]
 fn gss_stats_initial() {
     let gss = GraphStructuredStack::new(StateId(0));
     let stats = gss.get_stats();
