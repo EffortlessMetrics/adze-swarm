@@ -192,14 +192,25 @@ impl ForestConverter {
         roots: &[ForestNodeId],
         _forest: &ParseForest,
     ) -> Result<ForestNodeId, ConversionError> {
+        self.select_disambiguated_node(roots, "root")
+    }
+
+    fn select_disambiguated_node(
+        &self,
+        nodes: &[ForestNodeId],
+        node_kind: &str,
+    ) -> Result<ForestNodeId, ConversionError> {
+        let Some(first_node) = nodes.first().copied() else {
+            return Err(ConversionError::InvalidForest {
+                reason: format!("{node_kind} set is empty"),
+            });
+        };
+
         match self.strategy {
-            DisambiguationStrategy::First => Ok(roots[0]),
-            DisambiguationStrategy::RejectAmbiguity => {
-                Err(ConversionError::AmbiguousForest { count: roots.len() })
+            DisambiguationStrategy::RejectAmbiguity if nodes.len() > 1 => {
+                Err(ConversionError::AmbiguousForest { count: nodes.len() })
             }
-            // For PreferShift/PreferReduce, we'd need metadata about which
-            // root came from shift vs reduce. For now, default to first.
-            _ => Ok(roots[0]),
+            _ => Ok(first_node),
         }
     }
 
@@ -264,30 +275,9 @@ impl ForestConverter {
             });
         }
 
-        match self.strategy {
-            DisambiguationStrategy::First => Ok(alternatives[0]),
-
-            DisambiguationStrategy::PreferShift => {
-                // For MVP, we don't have metadata about shift vs reduce
-                // Default to first for now (Phase 3.3 will add metadata)
-                Ok(alternatives[0])
-            }
-
-            DisambiguationStrategy::PreferReduce => {
-                // For MVP, we don't have metadata about shift vs reduce
-                // Default to first for now (Phase 3.3 will add metadata)
-                Ok(alternatives[0])
-            }
-
-            DisambiguationStrategy::Precedence => {
-                // Precedence requires metadata (Phase 3.3)
-                Ok(alternatives[0])
-            }
-
-            DisambiguationStrategy::RejectAmbiguity => Err(ConversionError::AmbiguousForest {
-                count: alternatives.len(),
-            }),
-        }
+        // For MVP, we don't have metadata about shift/reduce or precedence;
+        // these strategies currently fall back to deterministic first-choice.
+        self.select_disambiguated_node(alternatives, "alternative")
     }
 }
 
@@ -461,5 +451,40 @@ mod tests {
         // When / Then
         assert_eq!(converter.detect_ambiguity(&ambiguous), Some(2));
         assert_eq!(converter.detect_ambiguity(&unambiguous), None);
+    }
+    #[test]
+    fn given_empty_alternatives_when_disambiguating_then_returns_invalid_forest() {
+        let converter = ForestConverter::new(DisambiguationStrategy::First);
+
+        let err = converter
+            .disambiguate_alternatives(
+                &[],
+                &ParseForest {
+                    nodes: vec![],
+                    roots: vec![],
+                },
+            )
+            .expect_err("empty alternatives should fail");
+
+        assert!(matches!(err, ConversionError::InvalidForest { .. }));
+    }
+
+    #[test]
+    fn given_ambiguous_alternatives_and_reject_strategy_when_disambiguating_then_returns_ambiguity_error()
+     {
+        let converter = ForestConverter::new(DisambiguationStrategy::RejectAmbiguity);
+        let alternatives = [ForestNodeId(0), ForestNodeId(1)];
+
+        let err = converter
+            .disambiguate_alternatives(
+                &alternatives,
+                &ParseForest {
+                    nodes: vec![],
+                    roots: vec![],
+                },
+            )
+            .expect_err("reject strategy should fail for ambiguous alternatives");
+
+        assert!(matches!(err, ConversionError::AmbiguousForest { count: 2 }));
     }
 }
