@@ -10,6 +10,8 @@ use adze_ir::Grammar;
 use proc_macro2::TokenStream;
 use quote::quote;
 
+mod compression;
+
 #[cfg(not(debug_assertions))]
 macro_rules! debug_trace {
     ($($arg:tt)*) => {};
@@ -279,47 +281,23 @@ impl<'a> LanguageGenerator<'a> {
 
         let large_state_count = self.determine_large_state_count();
         let mut compressed_table = Vec::new();
-        let mut small_table_map = Vec::new();
 
-        // For large states, generate the full 2D table (if any)
-        for state in 0..large_state_count {
-            for symbol in 0..self.parse_table.symbol_count {
-                let action = self.get_action(state, symbol);
-                compressed_table.push(self.encode_action(action));
-            }
-        }
+        compression::append_large_state_actions(
+            &mut compressed_table,
+            self.parse_table,
+            large_state_count,
+            |action| self.encode_action(action),
+            |state, symbol| self.get_action(state, symbol),
+        );
 
-        // For small states, use compact representation
-        let mut small_table_data = Vec::new();
-        for state in large_state_count..self.parse_table.state_count {
-            // Store offset into small_table_data for this state
-            small_table_map.push(small_table_data.len() as u32);
+        let (small_table_data, small_table_map) = compression::build_small_state_data(
+            self.parse_table,
+            large_state_count,
+            |action| self.encode_action(action),
+            |state, symbol| self.get_action(state, symbol),
+            |action| self.is_error_action(action),
+        );
 
-            // Count non-error actions for this state
-            let mut non_error_actions = Vec::new();
-            for symbol in 0..self.parse_table.symbol_count {
-                let action = self.get_action(state, symbol);
-                if !self.is_error_action(action) {
-                    non_error_actions.push((symbol, action));
-                }
-            }
-
-            // Field count prefix (number of symbol/action pairs)
-            small_table_data.push(non_error_actions.len() as u16);
-
-            // Pairs of (symbol, encoded_action)
-            for (symbol, action) in non_error_actions {
-                small_table_data.push(symbol as u16);
-                small_table_data.push(self.encode_action(action));
-            }
-        }
-
-        // If no small states, add a dummy entry
-        if small_table_map.is_empty() {
-            small_table_map.push(0);
-        }
-
-        // Combine compressed_table and small_table_data
         compressed_table.extend(small_table_data);
 
         (compressed_table, small_table_map)
