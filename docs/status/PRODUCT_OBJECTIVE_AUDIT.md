@@ -59,12 +59,17 @@ cargo test --manifest-path testing/downstream-starter/Cargo.toml
 cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse
 ```
 
+Receipt-era note: the older `ci-product-stable` receipts below predate the
+later `Product Proof Result` required-gate promotion. Current branch protection
+requires `Product Proof Result`; the path-selected `ci-product stable canaries`
+implementation job remains selected by path, schedule, or manual dispatch.
+
 GitHub workflow dispatch
 [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
 passed on 2026-05-19 from current `adze-swarm/main` after PR #281, commit
 `0b79a36a`. The `ci-product stable canaries` job passed in 3m02s and the broad
 advisory canaries skipped under the stable-only default. This is evidence for
-the README Stable claim lane; it is not a branch-protection change.
+the README Stable claim lane from the pre-promotion receipt era.
 
 Local receipt after residual product-trust PRs #295-#311: `just
 ci-product-stable` passed on 2026-05-20 from `adze-swarm/main` at commit
@@ -73,29 +78,28 @@ ci-product-stable` passed on 2026-05-20 from `adze-swarm/main` at commit
 alignment, bounded published CLI install-claim wording, clean-room README/
 Getting Started/book quickstarts, checked-in downstream demo, standalone
 downstream starter fixture, typed AST determinism, operator precedence, and
-core table serialization canaries. This remains advisory product proof, not a
-branch-protection change.
+core table serialization canaries. This receipt predates the later aggregate
+required-gate promotion.
 
 Latest local receipt after install-receipt verifier hardening PRs #318-#322:
 `just ci-product-stable` passed on 2026-05-20 from `adze-swarm/main` at commit
 `4f3d451c`. This refreshes the bounded README-stable and CLI install-claim
-boundary canaries from the current swarm state; it is still advisory product
-proof, not a branch-protection change.
+boundary canaries from the pre-promotion swarm state.
 
 Latest local receipt after release-blocker tracker PRs #324-#327: `just
 ci-product-stable` passed on 2026-05-20 from `adze-swarm/main` at commit
 `5498967c`. This reran the same advisory README-stable, clean-room quickstart,
 downstream fixture, typed AST determinism, precedence, serialization, and
 bounded CLI install-claim canaries after the release tracker links were added.
-It is still advisory product proof, not a branch-protection change.
+This receipt predates the later aggregate required-gate promotion.
 
 Latest local receipt after the 0.9.0 workspace version bump: `just
 ci-product-stable` passed on 2026-05-20 from `adze-swarm/main` at commit
 `99dd12b0` after PR #330. This reran the same advisory README-stable,
 clean-room quickstart, downstream fixture, typed AST determinism, precedence,
 serialization, and bounded CLI install-claim canaries after the workspace
-version moved to 0.9.0. It is still advisory product proof, not a
-branch-protection change.
+version moved to 0.9.0. This receipt predates the later aggregate
+required-gate promotion.
 
 Latest local receipt after release-surface claim-boundary PRs #332-#334:
 `just ci-product-stable` passed on 2026-05-20 from `adze-swarm/main` at commit
@@ -103,8 +107,7 @@ Latest local receipt after release-surface claim-boundary PRs #332-#334:
 `cargo install adze-cli` wording, the co-release dependency snippet boundary
 canary, clean-room README/Getting Started/book quickstarts, checked-in and
 standalone downstream fixtures, typed AST determinism, precedence, and core
-table serialization from the current swarm state. It is still advisory product
-proof, not a branch-protection change.
+table serialization from the pre-promotion swarm state.
 
 Latest local receipt after product-proof routing, Node 24 artifact-action
 maintenance, and routing-canary PRs #336-#341: `just ci-product-stable` passed
@@ -112,7 +115,7 @@ on 2026-05-20 from `adze-swarm/main` at commit `8d4cc1cd`. This reran the same
 advisory README-stable, install/dependency claim-boundary, stable-surface
 routing, clean-room quickstart, downstream fixture, typed AST determinism,
 precedence, and serialization canaries from the current swarm state. It is
-still advisory product proof, not a branch-protection change.
+the final local pre-promotion stable-product receipt in this sequence.
 
 Latest user-experience hardening closeout: PRs #350-#356 completed the
 non-release adoption polish lane and archived it in
