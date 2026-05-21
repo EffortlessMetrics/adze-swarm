@@ -1,10 +1,13 @@
-use crate::compress::CompressedGotoEntry;
+use crate::{
+    compress::CompressedGotoEntry,
+    error::{Result, TableGenError},
+};
 
 pub(crate) struct GotoRunCodec {
     data: Vec<CompressedGotoEntry>,
     row_offsets: Vec<u16>,
     last_state: Option<u16>,
-    run_length: u16,
+    run_length: usize,
 }
 
 impl GotoRunCodec {
@@ -17,35 +20,39 @@ impl GotoRunCodec {
         }
     }
 
-    pub(crate) fn begin_row(&mut self) {
-        self.row_offsets.push(self.data.len() as u16);
+    pub(crate) fn begin_row(&mut self) -> Result<()> {
+        self.row_offsets
+            .push(checked_u16(self.data.len(), "goto row offset")?);
         self.last_state = None;
         self.run_length = 0;
+        Ok(())
     }
 
-    pub(crate) fn push_state(&mut self, state: u16) {
+    pub(crate) fn push_state(&mut self, state: u16) -> Result<()> {
         if self.last_state == Some(state) {
             self.run_length += 1;
-            return;
+            return Ok(());
         }
 
-        self.emit_pending_run();
+        self.emit_pending_run()?;
         self.last_state = Some(state);
         self.run_length = 1;
+        Ok(())
     }
 
-    pub(crate) fn end_row(&mut self) {
-        self.emit_pending_run();
+    pub(crate) fn end_row(&mut self) -> Result<()> {
+        self.emit_pending_run()
     }
 
-    pub(crate) fn finish(mut self) -> (Vec<CompressedGotoEntry>, Vec<u16>) {
-        self.row_offsets.push(self.data.len() as u16);
-        (self.data, self.row_offsets)
+    pub(crate) fn finish(mut self) -> Result<(Vec<CompressedGotoEntry>, Vec<u16>)> {
+        self.row_offsets
+            .push(checked_u16(self.data.len(), "goto row offset")?);
+        Ok((self.data, self.row_offsets))
     }
 
-    fn emit_pending_run(&mut self) {
+    fn emit_pending_run(&mut self) -> Result<()> {
         if self.run_length == 0 {
-            return;
+            return Ok(());
         }
 
         let state = self
@@ -55,7 +62,7 @@ impl GotoRunCodec {
         if self.run_length > 2 {
             self.data.push(CompressedGotoEntry::RunLength {
                 state,
-                count: self.run_length,
+                count: checked_u16(self.run_length, "goto run length")?,
             });
         } else {
             for _ in 0..self.run_length {
@@ -65,5 +72,15 @@ impl GotoRunCodec {
 
         self.last_state = None;
         self.run_length = 0;
+        Ok(())
     }
+}
+
+fn checked_u16(value: usize, context: &'static str) -> Result<u16> {
+    u16::try_from(value).map_err(|_| {
+        TableGenError::Compression(format!(
+            "{context} overflow: {value} exceeds u16::MAX ({})",
+            u16::MAX
+        ))
+    })
 }

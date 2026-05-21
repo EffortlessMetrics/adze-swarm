@@ -781,19 +781,65 @@ impl TableCompressor {
         // Tree-sitter uses simple array compression for goto table
         // Each row is stored contiguously with row offsets
 
-        let mut codec = goto_run_codec::GotoRunCodec::new();
+        let mut data = Vec::new();
+        let mut row_offsets = Vec::new();
 
         for row in goto_table {
-            codec.begin_row();
-            for state in row {
-                codec.push_state(state.0);
+            row_offsets.push(data.len() as u16);
+
+            // For goto table, we can use run-length encoding for sparse rows
+            // Tree-sitter uses a simpler approach: just store state IDs
+            let mut last_state = None;
+            let mut run_length = 0;
+
+            for &state in row {
+                if Some(state) == last_state {
+                    run_length += 1;
+                } else {
+                    if run_length > 0 {
+                        // SAFETY: run_length > 0 implies last_state was set
+                        let prev = last_state.expect("run_length > 0 implies last_state is set");
+                        // Emit previous run
+                        if run_length > 2 {
+                            data.push(CompressedGotoEntry::RunLength {
+                                state: prev.0,
+                                count: run_length,
+                            });
+                        } else {
+                            // For short runs, individual entries are more efficient
+                            for _ in 0..run_length {
+                                data.push(CompressedGotoEntry::Single(prev.0));
+                            }
+                        }
+                    }
+                    last_state = Some(state);
+                    run_length = 1;
+                }
             }
-            codec.end_row();
+
+            // Emit final run
+            if run_length > 0 {
+                let prev = last_state.expect("run_length > 0 implies last_state is set");
+                if run_length > 2 {
+                    data.push(CompressedGotoEntry::RunLength {
+                        state: prev.0,
+                        count: run_length,
+                    });
+                } else {
+                    for _ in 0..run_length {
+                        data.push(CompressedGotoEntry::Single(prev.0));
+                    }
+                }
+            }
         }
 
-        let (data, row_offsets) = codec.finish();
+        // Add sentinel
+        row_offsets.push(data.len() as u16);
 
-        Ok(CompressedGotoTable { data, row_offsets })
+        Ok(CompressedGotoTable {
+            data,
+            row_offsets,
+        })
     }
 
     /// Compress goto table using large table format
