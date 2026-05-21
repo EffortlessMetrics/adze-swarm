@@ -11,6 +11,7 @@
 #![cfg_attr(feature = "strict_docs", deny(missing_docs))]
 #![cfg_attr(not(feature = "strict_docs"), allow(missing_docs))]
 
+mod action_entries;
 mod goto_run_codec;
 mod test_helpers;
 mod util;
@@ -439,128 +440,7 @@ impl StaticLanguageGenerator {
 
     #[allow(dead_code)]
     fn generate_action_table_entries(&self) -> Vec<TokenStream> {
-        let mut entries = Vec::new();
-
-        for state_actions in &self.parse_table.action_table {
-            let actions: Vec<TokenStream> = state_actions
-                .iter()
-                .flat_map(|action_cell| {
-                    // For each action cell, generate entries for all actions
-                    action_cell.iter().map(|action| {
-                        match action {
-                            Action::Shift(state) => {
-                                let state_id = state.0;
-                                quote! {
-                                    adze::ffi::TSParseActionEntry {
-                                        type_: adze::ffi::TSParseActionType::Shift,
-                                        state: #state_id,
-                                        symbol: 0,
-                                        child_count: 0,
-                                        dynamic_precedence: 0,
-                                        fragile: false,
-                                    }
-                                }
-                            }
-                            Action::Reduce(rule) => {
-                                let rule_id = rule.0;
-                                quote! {
-                                    adze::ffi::TSParseActionEntry {
-                                        type_: adze::ffi::TSParseActionType::Reduce,
-                                        state: 0,
-                                        symbol: #rule_id,
-                                        child_count: 0, // Will be filled with actual child count
-                                        dynamic_precedence: 0,
-                                        fragile: false,
-                                    }
-                                }
-                            }
-                            Action::Accept => {
-                                quote! {
-                                    adze::ffi::TSParseActionEntry {
-                                        type_: adze::ffi::TSParseActionType::Accept,
-                                        state: 0,
-                                        symbol: 0,
-                                        child_count: 0,
-                                        dynamic_precedence: 0,
-                                        fragile: false,
-                                    }
-                                }
-                            }
-                            Action::Error => {
-                                quote! {
-                                    adze::ffi::TSParseActionEntry {
-                                        type_: adze::ffi::TSParseActionType::Error,
-                                        state: 0,
-                                        symbol: 0,
-                                        child_count: 0,
-                                        dynamic_precedence: 0,
-                                        fragile: false,
-                                    }
-                                }
-                            }
-                            Action::Recover => {
-                                // Treat Recover as Error for FFI compatibility
-                                quote! {
-                                    adze::ffi::TSParseActionEntry {
-                                        type_: adze::ffi::TSParseActionType::Error,
-                                        state: 0,
-                                        symbol: 0,
-                                        child_count: 0,
-                                        dynamic_precedence: 0,
-                                        fragile: false,
-                                    }
-                                }
-                            }
-                            Action::Fork(actions) => {
-                                // For GLR fork points, we'll need to handle multiple actions
-                                // For now, just take the first action
-                                if let Some(Action::Shift(state)) = actions.first() {
-                                    let state_id = state.0;
-                                    quote! {
-                                        adze::ffi::TSParseActionEntry {
-                                            type_: adze::ffi::TSParseActionType::Shift,
-                                            state: #state_id,
-                                            symbol: 0,
-                                            child_count: 0,
-                                            dynamic_precedence: 0,
-                                            fragile: false,
-                                        }
-                                    }
-                                } else {
-                                    quote! {
-                                        adze::ffi::TSParseActionEntry {
-                                            type_: adze::ffi::TSParseActionType::Error,
-                                            state: 0,
-                                            symbol: 0,
-                                            child_count: 0,
-                                            dynamic_precedence: 0,
-                                            fragile: false,
-                                        }
-                                    }
-                                }
-                            }
-                            _ => {
-                                // Unknown action type // Expected: V for Recover
-                                quote! {
-                                    adze::ffi::TSParseActionEntry {
-                                        type_: adze::ffi::TSParseActionType::Error,
-                                        state: 0,
-                                        symbol: 0,
-                                        child_count: 0,
-                                        dynamic_precedence: 0,
-                                        fragile: false,
-                                    }
-                                }
-                            }
-                        }
-                    })
-                })
-                .collect();
-
-            entries.push(quote! { &[#(#actions),*] });
-        }
-
-        entries
+        action_entries::generate_action_table_entries(&self.parse_table.action_table)
     }
 
     #[allow(dead_code)]
