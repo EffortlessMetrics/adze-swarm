@@ -1,6 +1,6 @@
 # CLI Static JSON And DOT Output Plan
 
-Status: active
+Status: complete
 Owner: cli/product
 Created: 2026-05-21
 Linked proposal: ../../docs/proposals/ADZE-PROP-0015-cli-static-json-dot-output.md
@@ -12,7 +12,8 @@ Linked ADRs:
 - ../../docs/adr/ADZE-ADR-0004-schema-versioned-projections.md
 Active goal: ../../.adze/goals/active.toml
 Named goal: ../../.adze/goals/cli-static-json-dot-output.toml
-Support-tier impact: no promotion by campaign setup
+Closeout: ./closeout.md
+Support-tier impact: static JSON and DOT receipts recorded as Stabilizing, not Stable
 Policy impact: no release, publish, signing, Cargo-token, branch-protection, or public-promotion change
 
 ## Goal

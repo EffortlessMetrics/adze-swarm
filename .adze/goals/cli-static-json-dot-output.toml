@@ -1,6 +1,6 @@
 id = "adze-cli-static-json-dot-output"
 title = "Adze CLI Static JSON And DOT Output"
-status = "active"
+status = "complete"
 owner = "cli/product"
 created = "2026-05-21"
 
@@ -65,13 +65,14 @@ commands = [
 
 [[work_item]]
 id = "cli-static-json-dot-closeout"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0015-cli-static-json-dot-output.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/cli-static-json-dot/implementation-plan.md"
 blocked_by = ["static-cli-json-dot-output"]
 issues = [325]
+prs = [466]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",

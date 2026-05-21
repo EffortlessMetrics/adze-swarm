@@ -291,7 +291,7 @@ links_to = [
 id = "ADZE-PROP-0015"
 kind = "proposal"
 path = "docs/proposals/ADZE-PROP-0015-cli-static-json-dot-output.md"
-status = "accepted"
+status = "implemented"
 owner = "cli/product"
 milestone = "post-0.9"
 source_of_truth_for = ["CLI static JSON and DOT output rationale", "non-release CLI JSON and DOT output campaign"]
@@ -301,8 +301,10 @@ links_to = [
   "ADZE-ADR-0001",
   "ADZE-ADR-0004",
   "plans/cli-static-json-dot/implementation-plan.md",
+  "plans/cli-static-json-dot/closeout.md",
   ".adze/goals/active.toml",
   ".adze/goals/cli-static-json-dot-output.toml",
+  ".adze/goals/archive/2026-05-21-cli-static-json-dot-output.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -903,7 +905,7 @@ links_to = [
 id = "plans/cli-static-json-dot/implementation-plan.md"
 kind = "plan"
 path = "plans/cli-static-json-dot/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "cli/product"
 milestone = "post-0.9"
 source_of_truth_for = ["CLI static JSON and DOT output implementation sequence"]
@@ -913,6 +915,24 @@ links_to = [
   "ADZE-SPEC-0011",
   ".adze/goals/active.toml",
   ".adze/goals/cli-static-json-dot-output.toml",
+  ".adze/goals/archive/2026-05-21-cli-static-json-dot-output.toml",
+  "plans/cli-static-json-dot/closeout.md",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = "plans/cli-static-json-dot/closeout.md"
+kind = "plan"
+path = "plans/cli-static-json-dot/closeout.md"
+status = "complete"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["CLI static JSON and DOT output closeout receipts and claim boundaries"]
+links_to = [
+  "ADZE-PROP-0015",
+  "plans/cli-static-json-dot/implementation-plan.md",
+  ".adze/goals/cli-static-json-dot-output.toml",
+  ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -1192,15 +1212,30 @@ links_to = [
 id = ".adze/goals/cli-static-json-dot-output.toml"
 kind = "goal"
 path = ".adze/goals/cli-static-json-dot-output.toml"
-status = "active"
+status = "complete"
 owner = "cli/product"
 milestone = "post-0.9"
 source_of_truth_for = ["CLI static JSON and DOT output agent work queue"]
 links_to = [
   "ADZE-PROP-0015",
   "plans/cli-static-json-dot/implementation-plan.md",
+  "plans/cli-static-json-dot/closeout.md",
   ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/archive/2026-05-21-cli-static-json-dot-output.toml"
+kind = "goal"
+path = ".adze/goals/archive/2026-05-21-cli-static-json-dot-output.toml"
+status = "complete"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["archived CLI static JSON and DOT output complete manifest"]
+links_to = [
+  "ADZE-PROP-0015",
+  "plans/cli-static-json-dot/implementation-plan.md",
+  "plans/cli-static-json-dot/closeout.md",
 ]
 
 [[artifact]]
