@@ -49,6 +49,24 @@ the complete release surface.
 
 ## Pre-publish verification
 
+Publishing happens from public `EffortlessMetrics/adze`, not from
+`EffortlessMetrics/adze-swarm`. Before any tag or publish command, first
+confirm that public `adze/main` has received the selected `adze-swarm` release
+candidate through an explicit public promotion PR. If the trees differ, stop
+and run the public promotion plan before continuing. Run this comparison from
+the `adze-swarm` preflight checkout with `origin` pointing at
+`EffortlessMetrics/adze-swarm` and `public` pointing at
+`EffortlessMetrics/adze`:
+
+```bash
+git fetch origin --prune
+git fetch public --prune
+git diff --quiet public/main..origin/main
+```
+
+Treat a non-empty diff as a release blocker, not as a reason to publish from
+`adze-swarm` or to move release secrets there.
+
 ```bash
 # Run the automated check (metadata + cargo package --list)
 just check-publishable
@@ -79,21 +97,24 @@ For each crate, before running `cargo publish`:
 ## Publishing a release
 
 ```bash
-# 1. Ensure clean working tree
+# 1. Work from public EffortlessMetrics/adze after the selected adze-swarm
+#    release candidate has been promoted into public main.
+
+# 2. Ensure clean working tree
 git status  # should be clean
 
-# 2. Update versions for the release you are cutting
+# 3. Update versions for the release you are cutting
 #    For example: 0.8.0 -> 0.9.0, including Cargo.toml files and cross-references.
 
-# 3. Run the publish and release-surface checks
+# 4. Run the publish and release-surface checks
 ./scripts/check-publish.sh
 PACKAGE_BOUNDARY_RELEASE_GATE=1 ./scripts/validate-release-surface.sh
 
-# 4. Commit the version bump
+# 5. Commit the version bump
 git commit -am "release: vX.Y.Z"
 git tag vX.Y.Z
 
-# 5. Publish in scripts/release-crates.txt order.
+# 6. Publish in scripts/release-crates.txt order.
 #    Prefer the release helper; otherwise publish each listed crate manually and
 #    wait for each to appear on crates.io before publishing dependents.
 ./scripts/release.sh
@@ -103,11 +124,11 @@ git tag vX.Y.Z
 #   cargo publish -p "$crate"
 # done < scripts/release-crates.txt
 
-# 6. Verify the published CLI installs from crates.io in an isolated temp root.
+# 7. Verify the published CLI installs from crates.io in an isolated temp root.
 #    Run this only after the crate is visible on crates.io.
 cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked
 
-# 7. Push tags
+# 8. Push tags
 git push origin main --tags
 ```
 
