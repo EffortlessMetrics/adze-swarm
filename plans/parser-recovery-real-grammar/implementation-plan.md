@@ -1,6 +1,6 @@
 # Parser Recovery Real-Grammar Coverage Plan
 
-Status: active
+Status: complete
 Owner: runtime/diagnostics
 Created: 2026-05-20
 Linked proposal: ../../docs/proposals/ADZE-PROP-0009-parser-recovery-real-grammar-coverage.md
@@ -176,8 +176,9 @@ Refresh support-tier and audit wording only after new proof commands exist.
 
 ### Production Delta
 
-Expected future PRs may update `docs/status/SUPPORT_TIERS.md` and
-`docs/status/PRODUCT_OBJECTIVE_AUDIT.md`.
+Updated `docs/status/SUPPORT_TIERS.md` and
+`docs/status/PRODUCT_OBJECTIVE_AUDIT.md`, recorded the closeout, and archived
+the completed goal.
 
 ### Non-Goals
 
@@ -187,7 +188,8 @@ Expected future PRs may update `docs/status/SUPPORT_TIERS.md` and
 ### Acceptance
 
 - New proof commands are named in the relevant support/audit rows.
-- Remaining real-grammar recovery limits are explicit.
+- Remaining external-scanner recovery limits are explicit.
+- No external-scanner promotion or release/publish authorization is implied.
 
 ### Proof Commands
 

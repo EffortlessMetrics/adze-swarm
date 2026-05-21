@@ -184,8 +184,10 @@ links_to = [
   "ADZE-SPEC-0011",
   "ADZE-ADR-0001",
   "plans/parser-recovery-real-grammar/implementation-plan.md",
+  "plans/parser-recovery-real-grammar/closeout.md",
   ".adze/goals/active.toml",
   ".adze/goals/parser-recovery-real-grammar.toml",
+  ".adze/goals/archive/2026-05-20-parser-recovery-real-grammar.toml",
   "docs/status/SUPPORT_TIERS.md",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
 ]
@@ -559,7 +561,7 @@ links_to = [
 id = "plans/parser-recovery-real-grammar/implementation-plan.md"
 kind = "plan"
 path = "plans/parser-recovery-real-grammar/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "runtime/diagnostics"
 milestone = "post-0.9"
 source_of_truth_for = ["parser recovery real-grammar implementation sequence"]
@@ -567,6 +569,25 @@ links_to = [
   "ADZE-PROP-0009",
   ".adze/goals/active.toml",
   ".adze/goals/parser-recovery-real-grammar.toml",
+  ".adze/goals/archive/2026-05-20-parser-recovery-real-grammar.toml",
+  "plans/parser-recovery-real-grammar/closeout.md",
+  "docs/status/SUPPORT_TIERS.md",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
+id = "plans/parser-recovery-real-grammar/closeout.md"
+kind = "plan"
+path = "plans/parser-recovery-real-grammar/closeout.md"
+status = "complete"
+owner = "runtime/diagnostics"
+milestone = "post-0.9"
+source_of_truth_for = ["parser recovery real-grammar closeout receipts and claim boundaries"]
+links_to = [
+  "ADZE-PROP-0009",
+  "plans/parser-recovery-real-grammar/implementation-plan.md",
+  ".adze/goals/parser-recovery-real-grammar.toml",
+  ".adze/goals/archive/2026-05-20-parser-recovery-real-grammar.toml",
   "docs/status/SUPPORT_TIERS.md",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
 ]
@@ -673,16 +694,32 @@ links_to = [
 id = ".adze/goals/parser-recovery-real-grammar.toml"
 kind = "goal"
 path = ".adze/goals/parser-recovery-real-grammar.toml"
-status = "active"
+status = "complete"
 owner = "droid-factory"
 milestone = "post-0.9"
 source_of_truth_for = ["parser recovery real-grammar agent work queue"]
 links_to = [
   "ADZE-PROP-0009",
   "plans/parser-recovery-real-grammar/implementation-plan.md",
+  "plans/parser-recovery-real-grammar/closeout.md",
+  ".adze/goals/archive/2026-05-20-parser-recovery-real-grammar.toml",
   ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
+id = ".adze/goals/archive/2026-05-20-parser-recovery-real-grammar.toml"
+kind = "goal"
+path = ".adze/goals/archive/2026-05-20-parser-recovery-real-grammar.toml"
+status = "complete"
+owner = "droid-factory"
+milestone = "post-0.9"
+source_of_truth_for = ["archived parser recovery real-grammar complete manifest"]
+links_to = [
+  "ADZE-PROP-0009",
+  "plans/parser-recovery-real-grammar/implementation-plan.md",
+  "plans/parser-recovery-real-grammar/closeout.md",
 ]
 
 [[artifact]]
