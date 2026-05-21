@@ -3,6 +3,7 @@ title = "Adze CLI Static JSON And DOT Output"
 status = "complete"
 owner = "cli/product"
 created = "2026-05-21"
+archived = "2026-05-21"
 
 objective = """
 Make static `adze parse --output json` and `adze parse --output dot` useful
@@ -13,9 +14,8 @@ preserve crates.io install boundaries.
 
 handoff = """
 Release and crates.io install work remains blocked on explicit human
-authorization tracked by EffortlessMetrics/adze-swarm#325. This active goal is
-the non-release continuation lane for static CLI JSON and DOT output in
-adze-swarm.
+authorization tracked by EffortlessMetrics/adze-swarm#325. This completed
+non-release lane proves static CLI JSON and DOT output in adze-swarm.
 """
 
 end_state = [

@@ -1,6 +1,6 @@
 # ADZE-PROP-0015: CLI Static JSON And DOT Output
 
-Status: accepted
+Status: implemented
 Owner: cli/product
 Created: 2026-05-21
 Target milestone: post-0.9 / non-release CLI hardening
@@ -12,11 +12,13 @@ Linked ADRs:
 - ADZE-ADR-0004-schema-versioned-projections
 Linked plan:
 - ../../plans/cli-static-json-dot/implementation-plan.md
+- ../../plans/cli-static-json-dot/closeout.md
 Linked issues:
 - EffortlessMetrics/adze-swarm#325
 Linked PRs:
 - EffortlessMetrics/adze-swarm#464
 - EffortlessMetrics/adze-swarm#465
+- EffortlessMetrics/adze-swarm#466
 Support-tier impact:
 - Records static `json` and `dot` CLI output receipts as Stabilizing, not
   Stable.
