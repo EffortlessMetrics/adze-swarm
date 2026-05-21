@@ -40,8 +40,11 @@ For the stricter objective-level completion audit, see
   repeatable proof command.
 - `ci-product stable canaries` is the bounded Stable-claim canary lane. It runs
   on stable-claim PR surfaces, schedule, and stable-only manual dispatch, but
-  remains advisory until branch protection explicitly promotes it. Manual
-  dispatch runs the broad advisory product lane only when `lane=all` is
+  remains advisory until branch protection explicitly promotes Product Proof.
+  `Product Proof Result` is emitted on every Product Proof PR event and
+  aggregates the detector plus selected Stable canaries, so a later policy PR
+  can require an always-present context without requiring path-filtered jobs.
+  Manual dispatch runs the broad advisory product lane only when `lane=all` is
   selected.
 - Latest hosted receipt: GitHub workflow dispatch
   [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)

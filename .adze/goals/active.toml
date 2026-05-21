@@ -35,11 +35,12 @@ commands = [
 
 [[work_item]]
 id = "product-proof-result-workflow"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0010-product-proof-result-readiness.md"
 spec = "ADZE-SPEC-0011"
 plan = "plans/product-proof-result-readiness/implementation-plan.md"
 blocked_by = ["product-proof-result-source-of-truth"]
+prs = [383]
 commands = [
   "cargo test -p adze-cli product_proof_workflow_routes_stable_claim_surfaces -- --exact --nocapture",
   "just ci-product-stable",
@@ -50,7 +51,7 @@ commands = [
 
 [[work_item]]
 id = "product-proof-result-policy-receipt"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0010-product-proof-result-readiness.md"
 spec = "ADZE-SPEC-0011"
 plan = "plans/product-proof-result-readiness/implementation-plan.md"

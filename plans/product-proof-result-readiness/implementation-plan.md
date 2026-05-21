@@ -59,7 +59,7 @@ manifest and remove the Product Proof result readiness artifacts.
 
 ## Work Item: product-proof-result-workflow
 
-Status: active
+Status: complete
 Linked proposal: `ADZE-PROP-0010`
 Linked spec: `ADZE-SPEC-0011`
 Linked ADR: n/a
@@ -94,6 +94,7 @@ surfaces.
 - Unrelated PRs create Product Proof result without running Stable canaries.
 - Manual stable dispatch still runs Stable canaries.
 - Scheduled/advisory behavior remains explicit.
+- Merged as `adze-swarm` PR #383.
 
 ### Proof Commands
 
@@ -112,7 +113,7 @@ workflow.
 
 ## Work Item: product-proof-result-policy-receipt
 
-Status: ready
+Status: active
 Linked proposal: `ADZE-PROP-0010`
 Linked spec: `ADZE-SPEC-0011`
 Linked ADR: n/a
