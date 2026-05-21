@@ -214,7 +214,7 @@ links_to = [
 id = "ADZE-PROP-0011"
 kind = "proposal"
 path = "docs/proposals/ADZE-PROP-0011-product-proof-required-gate-burn-in.md"
-status = "accepted"
+status = "implemented"
 owner = "release/product"
 milestone = "post-0.9"
 source_of_truth_for = ["Product Proof required-gate burn-in rationale", "stable product proof required-check promotion criteria"]
@@ -664,7 +664,7 @@ links_to = [
 id = "plans/product-proof-required-gate/implementation-plan.md"
 kind = "plan"
 path = "plans/product-proof-required-gate/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "release/product"
 milestone = "post-0.9"
 source_of_truth_for = ["Product Proof required-gate burn-in implementation sequence"]
@@ -675,6 +675,24 @@ links_to = [
   ".adze/goals/product-proof-required-gate-burn-in.toml",
   "docs/ci/branch-protection.md",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
+id = "plans/ci-lane-policy-hygiene/implementation-plan.md"
+kind = "plan"
+path = "plans/ci-lane-policy-hygiene/implementation-plan.md"
+status = "complete"
+owner = "release/ci"
+milestone = "post-0.9"
+source_of_truth_for = ["CI lane policy hygiene implementation sequence"]
+links_to = [
+  "ADZE-PROP-0001",
+  "ADZE-SPEC-0002",
+  ".adze/goals/active.toml",
+  ".adze/goals/ci-lane-policy-hygiene.toml",
+  ".github/CI_LANES.md",
+  "docs/ci/runner-classes.md",
+  "policy/ci-lane-whitelist.toml",
 ]
 
 [[artifact]]
@@ -828,7 +846,7 @@ links_to = [
 id = ".adze/goals/product-proof-required-gate-burn-in.toml"
 kind = "goal"
 path = ".adze/goals/product-proof-required-gate-burn-in.toml"
-status = "active"
+status = "complete"
 owner = "droid-factory"
 milestone = "post-0.9"
 source_of_truth_for = ["Product Proof required-gate burn-in agent work queue"]
@@ -838,6 +856,23 @@ links_to = [
   ".adze/goals/active.toml",
   "docs/ci/branch-protection.md",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
+id = ".adze/goals/ci-lane-policy-hygiene.toml"
+kind = "goal"
+path = ".adze/goals/ci-lane-policy-hygiene.toml"
+status = "complete"
+owner = "release/ci"
+milestone = "post-0.9"
+source_of_truth_for = ["CI lane policy hygiene agent work queue"]
+links_to = [
+  "ADZE-PROP-0001",
+  "ADZE-SPEC-0002",
+  "plans/ci-lane-policy-hygiene/implementation-plan.md",
+  ".adze/goals/active.toml",
+  ".github/CI_LANES.md",
+  "policy/ci-lane-whitelist.toml",
 ]
 
 [[artifact]]
