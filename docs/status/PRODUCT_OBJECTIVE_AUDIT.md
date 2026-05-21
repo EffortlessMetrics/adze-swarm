@@ -143,6 +143,12 @@ the detector passed, the Stable canaries passed, and `Product Proof Result`
 passed. This proves the result context exists and can aggregate the selected
 Stable canary lane, but it is still not a required branch-protection check.
 
+Latest Product Proof required-gate burn-in receipt: `adze-swarm` PR #386 opened
+the burn-in lane without changing branch protection. The PR check rollup showed
+`Rust Small Result`, `ci-product stable canaries`, and `Product Proof Result`
+green. This counts as a selected Stable-canary burn-in receipt; skipped-canary
+receipts still need to be collected before any required-check promotion.
+
 Current CI-tail receipts:
 
 - PR #284 bounded `pure-rust-ci` and `pr-gate` Rust tail steps so advisory

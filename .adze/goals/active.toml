@@ -20,10 +20,11 @@ end_state = [
 
 [[work_item]]
 id = "burn-in-source-of-truth"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0011-product-proof-required-gate-burn-in.md"
 spec = "ADZE-SPEC-0011"
 plan = "plans/product-proof-required-gate/implementation-plan.md"
+prs = [386]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
@@ -32,11 +33,14 @@ commands = [
 
 [[work_item]]
 id = "collect-product-proof-result-receipts"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0011-product-proof-required-gate-burn-in.md"
 spec = "ADZE-SPEC-0011"
 plan = "plans/product-proof-required-gate/implementation-plan.md"
 blocked_by = ["burn-in-source-of-truth"]
+receipts = [
+  "adze-swarm#386: Product Proof Result success; ci-product stable canaries selected and success; Rust Small Result success",
+]
 commands = [
   "gh pr view <number> --repo EffortlessMetrics/adze-swarm --json statusCheckRollup",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
