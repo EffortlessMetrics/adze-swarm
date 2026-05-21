@@ -64,10 +64,10 @@ impl LanguageBuilder {
         let production_id_count = self.calculate_alias_production_count() as u32;
 
         // Build symbol names array
-        let symbol_names = self.build_symbol_names();
+        let symbol_names = self.build_symbol_names()?;
 
         // Build field names array
-        let field_names = self.build_field_names();
+        let field_names = self.build_field_names()?;
 
         // Build symbol metadata
         let symbol_metadata = self.build_symbol_metadata();
@@ -131,14 +131,12 @@ impl LanguageBuilder {
         })
     }
 
-    fn build_symbol_names(&self) -> Vec<*const c_char> {
+    fn build_symbol_names(&self) -> Result<Vec<*const c_char>, String> {
         let mut names = Vec::new();
 
         // Add terminal symbols
         for (_, token) in &self.grammar.tokens {
-            let name = std::ffi::CString::new(token.name.clone())
-                .expect("symbol name must not contain NUL bytes");
-            names.push(Box::leak(Box::new(name)).as_ptr());
+            names.push(Self::leak_c_string("token symbol", token.name.clone())?);
         }
 
         // Add non-terminal symbols
@@ -150,12 +148,13 @@ impl LanguageBuilder {
 
         // Add external symbols
         for external in &self.grammar.externals {
-            let name = std::ffi::CString::new(external.name.clone())
-                .expect("external name must not contain NUL bytes");
-            names.push(Box::leak(Box::new(name)).as_ptr());
+            names.push(Self::leak_c_string(
+                "external symbol",
+                external.name.clone(),
+            )?);
         }
 
-        names
+        Ok(names)
     }
 
     /// Calculate alias-related ABI counters from grammar alias sequences.
@@ -237,7 +236,7 @@ impl LanguageBuilder {
             .or(Some(symbol_id.0))
     }
 
-    fn build_field_names(&self) -> Vec<*const c_char> {
+    fn build_field_names(&self) -> Result<Vec<*const c_char>, String> {
         let mut names = Vec::new();
 
         // First entry is always empty string
@@ -248,12 +247,21 @@ impl LanguageBuilder {
         let mut field_names: Vec<_> = self.grammar.fields.values().collect();
         field_names.sort_unstable_by_key(|name| name.as_str());
         for field_name in field_names {
-            let name = std::ffi::CString::new(field_name.clone())
-                .expect("field name must not contain NUL bytes");
-            names.push(Box::leak(Box::new(name)).as_ptr());
+            names.push(Self::leak_c_string("field", field_name.clone())?);
         }
 
-        names
+        Ok(names)
+    }
+
+    fn leak_c_string(kind: &str, name: String) -> Result<*const c_char, String> {
+        std::ffi::CString::new(name)
+            .map(|name| Box::leak(Box::new(name)).as_ptr())
+            .map_err(|err| {
+                format!(
+                    "{kind} name contains interior NUL at byte {}",
+                    err.nul_position()
+                )
+            })
     }
 
     fn build_symbol_metadata(&self) -> Vec<crate::validation::TSSymbolMetadata> {
@@ -398,7 +406,7 @@ mod tests {
         let parse_table = create_test_parse_table();
         let builder = LanguageBuilder::new(grammar, parse_table);
 
-        let names = builder.build_symbol_names();
+        let names = builder.build_symbol_names().expect("symbol names");
         assert!(!names.is_empty());
         // Should have at least the token name
         assert!(
@@ -416,7 +424,7 @@ mod tests {
         let parse_table = create_test_parse_table();
         let builder = LanguageBuilder::new(grammar, parse_table);
 
-        let names = builder.build_field_names();
+        let names = builder.build_field_names().expect("field names");
         // GLR adds an extra null field at index 0
         assert_eq!(names.len(), 2);
         // First field should be null (empty string)
@@ -431,6 +439,61 @@ mod tests {
             unsafe { std::ffi::CStr::from_ptr(names[1]).to_str().unwrap() },
             "value"
         );
+    }
+
+    #[test]
+    fn test_generate_language_rejects_token_name_with_nul() {
+        let mut grammar = create_test_grammar();
+        grammar
+            .tokens
+            .get_mut(&SymbolId(1))
+            .expect("test token")
+            .name = "num\0ber".to_string();
+        let parse_table = create_test_parse_table();
+        let builder = LanguageBuilder::new(grammar, parse_table);
+
+        let err = match builder.generate_language() {
+            Ok(_) => panic!("interior NUL token name should be rejected"),
+            Err(err) => err,
+        };
+        assert!(
+            err.contains("token symbol name contains interior NUL"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn test_generate_language_rejects_external_name_with_nul() {
+        let mut grammar = create_test_grammar();
+        grammar.externals.push(ExternalToken {
+            name: "external\0token".to_string(),
+            symbol_id: SymbolId(2),
+        });
+        let parse_table = create_test_parse_table();
+        let builder = LanguageBuilder::new(grammar, parse_table);
+
+        let err = match builder.generate_language() {
+            Ok(_) => panic!("interior NUL external name should be rejected"),
+            Err(err) => err,
+        };
+        assert!(
+            err.contains("external symbol name contains interior NUL"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn test_generate_language_rejects_field_name_with_nul() {
+        let mut grammar = create_test_grammar();
+        grammar.fields.insert(FieldId(1), "bad\0field".to_string());
+        let parse_table = create_test_parse_table();
+        let builder = LanguageBuilder::new(grammar, parse_table);
+
+        let err = match builder.generate_language() {
+            Ok(_) => panic!("interior NUL field name should be rejected"),
+            Err(err) => err,
+        };
+        assert!(err.contains("field name contains interior NUL"), "{err}");
     }
 
     #[test]
@@ -506,7 +569,7 @@ mod tests {
 
         let parse_table = create_test_parse_table();
         let builder = LanguageBuilder::new(grammar, parse_table);
-        let names = builder.build_field_names();
+        let names = builder.build_field_names().expect("field names");
 
         let fields: Vec<&str> = names
             .iter()
