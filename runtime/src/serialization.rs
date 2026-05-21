@@ -34,10 +34,11 @@ fn truncate_with_ellipsis(text: &str, max_len: Option<usize>) -> String {
         return text.to_string();
     }
 
-    match text.char_indices().nth(max_len) {
-        Some((boundary, _)) => format!("{}...", &text[..boundary]),
-        None => format!("{text}..."),
+    let mut boundary = max_len.min(text.len());
+    while boundary > 0 && !text.is_char_boundary(boundary) {
+        boundary -= 1;
     }
+    format!("{}...", &text[..boundary])
 }
 
 /// Serializable representation of a parse tree node
