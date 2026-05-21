@@ -105,11 +105,13 @@ impl ParallelParser {
 
         while start < input.len() {
             let mut end = (start + chunk_size).min(input.len());
+            end = align_to_char_boundary(input, end);
 
             // Try to find a clean boundary (newline)
             if end < input.len() {
                 let search_start = end.saturating_sub(1000);
-                let search_bytes = input[search_start..end].as_bytes();
+                let search_start = align_to_char_boundary(input, search_start);
+                let search_bytes = &input.as_bytes()[search_start..end];
 
                 // Look for last newline
                 if let Some(pos) = search_bytes.iter().rposition(|&b| b == b'\n') {
@@ -121,7 +123,7 @@ impl ParallelParser {
                 id,
                 start,
                 end,
-                content: input[start..end].to_string(),
+                content: input[start..end].to_owned(),
             });
 
             start = end;
@@ -168,6 +170,13 @@ impl ParallelParser {
         let mut parser = Parser::new((*self.grammar).clone(), (*self.parse_table).clone());
         parser.parse(input)
     }
+}
+
+fn align_to_char_boundary(input: &str, mut idx: usize) -> usize {
+    while idx > 0 && !input.is_char_boundary(idx) {
+        idx -= 1;
+    }
+    idx
 }
 
 /// Parallel parsing statistics
@@ -257,6 +266,26 @@ mod tests {
         let input = "small input";
         // Should use single-threaded parser for small inputs
         let _ = parser.parse(input);
+    }
+
+    #[test]
+    fn test_chunk_splitting_handles_unicode_boundaries_without_panicking() {
+        let (grammar, table) = create_test_grammar();
+        let config = ParallelConfig {
+            min_file_size: 1,
+            chunk_size: 5,
+            ..Default::default()
+        };
+        let parser = ParallelParser::new(grammar, table, config);
+
+        let input = "éééé\néééé\n";
+        let chunks = parser.split_into_chunks(input);
+        assert!(!chunks.is_empty());
+        for chunk in &chunks {
+            assert!(input.is_char_boundary(chunk.start));
+            assert!(input.is_char_boundary(chunk.end));
+            assert_eq!(&input[chunk.start..chunk.end], chunk.content);
+        }
     }
 }
 
