@@ -26,6 +26,7 @@
 use adze_bdd_governance_core::{BddPhase, GLR_CONFLICT_PRESERVATION_GRID};
 use adze_glr_core::ParseTable;
 use adze_ir::Grammar;
+use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -35,6 +36,14 @@ pub use adze_parsetable_metadata::{
     METADATA_SCHEMA_VERSION, ParserFeatureProfileSnapshot, ParsetableError, ParsetableMetadata,
     TableStatistics,
 };
+
+fn checked_u32_len(len: usize, section: &str) -> Result<u32, ParsetableError> {
+    u32::try_from(len).map_err(|_| {
+        ParsetableError::Serialization(format!(
+            "{section} length ({len}) exceeds u32::MAX; cannot encode .parsetable payload"
+        ))
+    })
+}
 
 /// Writer for .parsetable binary files
 pub struct ParsetableWriter<'a> {
@@ -170,7 +179,7 @@ impl<'a> ParsetableWriter<'a> {
             ParsetableError::Serialization(format!("Metadata JSON serialization failed: {}", e))
         })?;
         let metadata_bytes = metadata_json.as_bytes();
-        let metadata_len = metadata_bytes.len() as u32;
+        let metadata_len = checked_u32_len(metadata_bytes.len(), "Metadata JSON")?;
         file.write_all(&metadata_len.to_le_bytes())?;
         file.write_all(metadata_bytes)?;
 
@@ -180,7 +189,7 @@ impl<'a> ParsetableWriter<'a> {
             let table_bytes = self.parse_table.to_bytes().map_err(|e| {
                 ParsetableError::Serialization(format!("ParseTable serialization failed: {}", e))
             })?;
-            let table_len = table_bytes.len() as u32;
+            let table_len = checked_u32_len(table_bytes.len(), "ParseTable binary")?;
             file.write_all(&table_len.to_le_bytes())?;
             file.write_all(&table_bytes)?;
         }
@@ -219,5 +228,24 @@ mod tests {
     #[test]
     fn test_metadata_schema_version() {
         assert_eq!(METADATA_SCHEMA_VERSION, "1.0");
+    }
+
+    #[test]
+    fn test_checked_u32_len_accepts_max_u32() {
+        let len = usize::try_from(u32::MAX).unwrap_or(usize::MAX);
+        assert_eq!(checked_u32_len(len, "metadata").ok(), Some(u32::MAX));
+    }
+
+    #[test]
+    fn test_checked_u32_len_rejects_oversized_payload() {
+        let too_large = usize::try_from(u32::MAX)
+            .ok()
+            .and_then(|max| max.checked_add(1))
+            .unwrap_or(usize::MAX);
+
+        let err = checked_u32_len(too_large, "metadata").err();
+        assert!(
+            matches!(err, Some(ParsetableError::Serialization(message)) if message.contains("exceeds u32::MAX"))
+        );
     }
 }
