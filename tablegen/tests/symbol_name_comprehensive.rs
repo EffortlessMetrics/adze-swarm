@@ -183,6 +183,69 @@ fn make_lb_table(states: usize, symbol_count: usize) -> ParseTable {
     }
 }
 
+fn make_lb_table_for_grammar(grammar: &Grammar, states: usize) -> ParseTable {
+    let mut symbols = vec![SymbolId(0)];
+    for symbol_id in grammar.tokens.keys() {
+        push_symbol(&mut symbols, *symbol_id);
+    }
+    for symbol_id in grammar.rule_names.keys() {
+        push_symbol(&mut symbols, *symbol_id);
+    }
+    for rule in grammar.all_rules() {
+        push_symbol(&mut symbols, rule.lhs);
+    }
+    for external in &grammar.externals {
+        push_symbol(&mut symbols, external.symbol_id);
+    }
+
+    let symbol_count = symbols.len();
+    let symbol_to_index = symbols
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, symbol_id)| (symbol_id, index))
+        .collect();
+
+    ParseTable {
+        action_table: vec![vec![vec![Action::Error]; symbol_count]; states],
+        goto_table: vec![vec![StateId(u16::MAX); symbol_count]; states],
+        rules: vec![],
+        state_count: states,
+        symbol_count,
+        symbol_to_index,
+        index_to_symbol: symbols,
+        nonterminal_to_index: BTreeMap::new(),
+        symbol_metadata: vec![],
+        token_count: grammar.tokens.len() + 1,
+        external_token_count: grammar.externals.len(),
+        eof_symbol: SymbolId(0),
+        start_symbol: grammar.start_symbol().unwrap_or(SymbolId(0)),
+        initial_state: StateId(0),
+        lex_modes: vec![
+            LexMode {
+                lex_state: 0,
+                external_lex_state: 0
+            };
+            states
+        ],
+        extras: vec![],
+        external_scanner_states: vec![],
+        dynamic_prec_by_rule: vec![],
+        rule_assoc_by_rule: vec![],
+        alias_sequences: vec![],
+        field_names: vec![],
+        field_map: BTreeMap::new(),
+        grammar: Grammar::default(),
+        goto_indexing: GotoIndexing::NonterminalMap,
+    }
+}
+
+fn push_symbol(symbols: &mut Vec<SymbolId>, symbol_id: SymbolId) {
+    if !symbols.contains(&symbol_id) {
+        symbols.push(symbol_id);
+    }
+}
+
 /// Shorthand: AbiLanguageBuilder generate output as String.
 fn abi_output(grammar: &Grammar, s2i: BTreeMap<SymbolId, usize>, eof: SymbolId) -> String {
     let pt = make_abi_table(grammar, s2i, eof);
@@ -218,13 +281,12 @@ unsafe fn read_symbol_names(ptr: *const *const i8, count: usize) -> Vec<String> 
 
 /// Read symbol names via LanguageBuilder::generate_language().
 fn lb_symbol_names(grammar: Grammar, pt: ParseTable) -> Vec<String> {
-    let name_count = grammar.tokens.len() + grammar.rules.len() + grammar.externals.len();
     let builder = LanguageBuilder::new(grammar, pt);
     let lang = builder
         .generate_language()
         .expect("generation should succeed");
     assert!(!lang.symbol_names.is_null());
-    unsafe { read_symbol_names(lang.symbol_names, name_count) }
+    unsafe { read_symbol_names(lang.symbol_names, lang.symbol_count as usize) }
 }
 
 // ===========================================================================
@@ -596,7 +658,7 @@ fn lb_includes_token() {
     grammar
         .tokens
         .insert(SymbolId(1), regex_token("number", r"\d+"));
-    let pt = make_lb_table(3, 2);
+    let pt = make_lb_table_for_grammar(&grammar, 3);
     let names = lb_symbol_names(grammar, pt);
     assert!(names.contains(&"number".to_string()));
 }
@@ -605,14 +667,14 @@ fn lb_includes_token() {
 fn lb_includes_rule() {
     let mut grammar = Grammar::new("test".to_string());
     grammar.add_rule(Rule {
-        lhs: SymbolId(0),
+        lhs: SymbolId(2),
         rhs: vec![],
         precedence: None,
         associativity: None,
         fields: vec![],
         production_id: ProductionId(0),
     });
-    let pt = make_lb_table(3, 2);
+    let pt = make_lb_table_for_grammar(&grammar, 3);
     let names = lb_symbol_names(grammar, pt);
     assert!(names.iter().any(|n| n.starts_with("rule_")));
 }
@@ -624,7 +686,7 @@ fn lb_includes_external() {
         name: "heredoc".to_string(),
         symbol_id: SymbolId(10),
     });
-    let pt = make_lb_table(3, 2);
+    let pt = make_lb_table_for_grammar(&grammar, 3);
     let names = lb_symbol_names(grammar, pt);
     assert!(names.contains(&"heredoc".to_string()));
 }
@@ -634,7 +696,7 @@ fn lb_order_terminals_rules_externals() {
     let mut grammar = Grammar::new("test".to_string());
     grammar.tokens.insert(SymbolId(1), string_token("tok", "t"));
     grammar.add_rule(Rule {
-        lhs: SymbolId(0),
+        lhs: SymbolId(2),
         rhs: vec![],
         precedence: None,
         associativity: None,
@@ -645,11 +707,12 @@ fn lb_order_terminals_rules_externals() {
         name: "ext".to_string(),
         symbol_id: SymbolId(10),
     });
-    let pt = make_lb_table(3, 2);
+    let pt = make_lb_table_for_grammar(&grammar, 3);
     let names = lb_symbol_names(grammar, pt);
-    assert_eq!(names[0], "tok");
-    assert!(names[1].starts_with("rule_"));
-    assert_eq!(names[2], "ext");
+    assert_eq!(names[0], "end");
+    assert_eq!(names[1], "tok");
+    assert!(names[2].starts_with("rule_"));
+    assert_eq!(names[3], "ext");
 }
 
 #[test]
@@ -661,9 +724,9 @@ fn lb_name_count() {
         name: "c".to_string(),
         symbol_id: SymbolId(10),
     });
-    let pt = make_lb_table(3, 3);
+    let pt = make_lb_table_for_grammar(&grammar, 3);
     let names = lb_symbol_names(grammar, pt);
-    assert_eq!(names.len(), 3);
+    assert_eq!(names.len(), 4);
 }
 
 #[test]
@@ -681,7 +744,7 @@ fn lb_multiple_externals() {
         name: "newline".to_string(),
         symbol_id: SymbolId(12),
     });
-    let pt = make_lb_table(3, 2);
+    let pt = make_lb_table_for_grammar(&grammar, 3);
     let names = lb_symbol_names(grammar, pt);
     assert!(names.contains(&"indent".to_string()));
     assert!(names.contains(&"dedent".to_string()));

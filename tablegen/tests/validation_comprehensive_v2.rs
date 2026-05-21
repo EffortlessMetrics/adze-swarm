@@ -510,9 +510,8 @@ fn v2_field_names_null_with_zero_fields_ok() {
 
 #[test]
 fn v2_field_names_nonnull_with_fields_passes() {
-    let empty = b"\0";
     let alpha = b"alpha\0";
-    let ptrs: Vec<*const i8> = vec![empty.as_ptr().cast(), alpha.as_ptr().cast()];
+    let ptrs: Vec<*const i8> = vec![alpha.as_ptr().cast()];
     let mut lang = bare_language(10, 20);
     lang.field_count = 1;
     lang.field_names = ptrs.as_ptr();
@@ -661,12 +660,10 @@ fn v2_metadata_with_many_symbols_only_checks_eof() {
 
 #[test]
 fn v2_sorted_field_names_pass() {
-    let empty = b"\0";
     let alpha = b"alpha\0";
     let beta = b"beta\0";
     let gamma = b"gamma\0";
     let ptrs: Vec<*const i8> = vec![
-        empty.as_ptr().cast(),
         alpha.as_ptr().cast(),
         beta.as_ptr().cast(),
         gamma.as_ptr().cast(),
@@ -684,14 +681,9 @@ fn v2_sorted_field_names_pass() {
 
 #[test]
 fn v2_unsorted_field_names_fail() {
-    let empty = b"\0";
     let beta = b"beta\0";
     let alpha = b"alpha\0";
-    let ptrs: Vec<*const i8> = vec![
-        empty.as_ptr().cast(),
-        beta.as_ptr().cast(),
-        alpha.as_ptr().cast(),
-    ];
+    let ptrs: Vec<*const i8> = vec![beta.as_ptr().cast(), alpha.as_ptr().cast()];
     let mut lang = bare_language(10, 20);
     lang.field_count = 2;
     lang.field_names = ptrs.as_ptr();
@@ -705,14 +697,9 @@ fn v2_unsorted_field_names_fail() {
 
 #[test]
 fn v2_duplicate_field_names_fail() {
-    let empty = b"\0";
     let alpha1 = b"alpha\0";
     let alpha2 = b"alpha\0";
-    let ptrs: Vec<*const i8> = vec![
-        empty.as_ptr().cast(),
-        alpha1.as_ptr().cast(),
-        alpha2.as_ptr().cast(),
-    ];
+    let ptrs: Vec<*const i8> = vec![alpha1.as_ptr().cast(), alpha2.as_ptr().cast()];
     let mut lang = bare_language(10, 20);
     lang.field_count = 2;
     lang.field_names = ptrs.as_ptr();
@@ -726,9 +713,8 @@ fn v2_duplicate_field_names_fail() {
 
 #[test]
 fn v2_single_field_name_always_sorted() {
-    let empty = b"\0";
     let only = b"only\0";
-    let ptrs: Vec<*const i8> = vec![empty.as_ptr().cast(), only.as_ptr().cast()];
+    let ptrs: Vec<*const i8> = vec![only.as_ptr().cast()];
     let mut lang = bare_language(10, 20);
     lang.field_count = 1;
     lang.field_names = ptrs.as_ptr();
@@ -1128,14 +1114,9 @@ fn v2_bad_eof_metadata_combined_with_unsorted_fields() {
             named: true,
         },
     ];
-    let empty = b"\0";
     let beta = b"beta\0";
     let alpha = b"alpha\0";
-    let ptrs: Vec<*const i8> = vec![
-        empty.as_ptr().cast(),
-        beta.as_ptr().cast(),
-        alpha.as_ptr().cast(),
-    ];
+    let ptrs: Vec<*const i8> = vec![beta.as_ptr().cast(), alpha.as_ptr().cast()];
 
     let spt: Vec<u16> = vec![0];
     let name_data = b"s0\0";
@@ -1180,9 +1161,8 @@ fn v2_valid_metadata_with_valid_fields_no_errors_from_either() {
             named: true,
         },
     ];
-    let empty = b"\0";
     let alpha = b"alpha\0";
-    let ptrs: Vec<*const i8> = vec![empty.as_ptr().cast(), alpha.as_ptr().cast()];
+    let ptrs: Vec<*const i8> = vec![alpha.as_ptr().cast()];
 
     let spt: Vec<u16> = vec![0];
     let name_data = b"s0\0";

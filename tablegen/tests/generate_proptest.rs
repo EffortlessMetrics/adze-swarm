@@ -7,22 +7,23 @@
 //!  4.  external_token_count == grammar.externals.len()
 //!  5.  field_count == grammar.fields.len()
 //!  6.  field_names null iff field_count == 0
-//!  7.  field_names first entry is always empty string when fields exist
+//!  7.  field_names first entry is the first real sorted field name when fields exist
 //!  8.  symbol_names is never null
 //!  9.  symbol_metadata starts with invisible unnamed EOF
 //! 10.  hidden tokens (_prefix) have visible == false
 //! 11.  generate_language_code output is deterministic
 //! 12.  generate_language_code always contains "language" and "TSLanguage"
-//! 13.  symbol_metadata length >= 1 (at least EOF)
+//! 13.  symbol_metadata length follows the parse-table symbol count
 //! 14.  small_parse_table is non-null after generation
 //! 15.  set_start_can_be_empty does not affect generated ABI version
 //! 16.  multiple externals are all counted
 
-use adze_glr_core::ParseTable;
+use adze_glr_core::{LexMode, ParseTable};
 use adze_ir::builder::GrammarBuilder;
-use adze_ir::{ExternalToken, FieldId, Grammar, SymbolId, Token, TokenPattern};
+use adze_ir::{ExternalToken, FieldId, Grammar, StateId, SymbolId, Token, TokenPattern};
 use adze_tablegen::generate::LanguageBuilder;
 use proptest::prelude::*;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::CStr;
 
 // ---------------------------------------------------------------------------
@@ -110,6 +111,57 @@ fn grammar_with_hidden_tokens(visible: usize, hidden_names: Vec<String>) -> Gram
 /// `ptr` must be valid and null-terminated (from leaked CString).
 unsafe fn cstr_from_ptr(ptr: *const i8) -> &'static str {
     unsafe { CStr::from_ptr(ptr).to_str().expect("valid UTF-8") }
+}
+
+fn parse_table_for_grammar(grammar: &Grammar) -> ParseTable {
+    let mut seen = BTreeSet::new();
+    let mut symbols = Vec::new();
+    push_symbol(&mut symbols, &mut seen, SymbolId(0));
+
+    for symbol_id in grammar.tokens.keys() {
+        push_symbol(&mut symbols, &mut seen, *symbol_id);
+    }
+    for external in &grammar.externals {
+        push_symbol(&mut symbols, &mut seen, external.symbol_id);
+    }
+    for symbol_id in grammar.rule_names.keys() {
+        push_symbol(&mut symbols, &mut seen, *symbol_id);
+    }
+
+    let symbol_count = symbols.len();
+    let symbol_to_index: BTreeMap<_, _> = symbols
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, symbol_id)| (symbol_id, index))
+        .collect();
+    let start_symbol = grammar
+        .start_symbol()
+        .unwrap_or_else(|| symbols.last().copied().unwrap_or(SymbolId(0)));
+
+    ParseTable {
+        action_table: vec![vec![vec![]; symbol_count]],
+        goto_table: vec![vec![StateId(u16::MAX); symbol_count]],
+        state_count: 1,
+        symbol_count,
+        symbol_to_index,
+        index_to_symbol: symbols,
+        eof_symbol: SymbolId(0),
+        start_symbol,
+        token_count: grammar.tokens.len() + 1,
+        external_token_count: grammar.externals.len(),
+        lex_modes: vec![LexMode {
+            lex_state: 0,
+            external_lex_state: 0,
+        }],
+        ..ParseTable::default()
+    }
+}
+
+fn push_symbol(symbols: &mut Vec<SymbolId>, seen: &mut BTreeSet<SymbolId>, symbol_id: SymbolId) {
+    if seen.insert(symbol_id) {
+        symbols.push(symbol_id);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -205,11 +257,13 @@ proptest! {
         }
     }
 
-    // 7. field_names first entry is always empty string when fields exist
+    // 7. field_names first entry is the first real sorted field name when fields exist
     #[test]
     fn field_names_first_entry_empty(
         field_names in prop::collection::vec(field_name_strategy(), 1..5),
     ) {
+        let mut expected = field_names.clone();
+        expected.sort();
         let grammar = grammar_with_tokens_and_fields(1, field_names);
         let table = ParseTable::default();
         let builder = LanguageBuilder::new(grammar, table);
@@ -217,7 +271,7 @@ proptest! {
 
         prop_assert!(!lang.field_names.is_null());
         let first = unsafe { cstr_from_ptr(*lang.field_names) };
-        prop_assert_eq!(first, "", "first field name entry must be empty string");
+        prop_assert_eq!(first, expected[0].as_str(), "first field name entry must be the first sorted field");
     }
 
     // 8. symbol_names is never null
@@ -234,7 +288,7 @@ proptest! {
     #[test]
     fn metadata_starts_with_eof(token_count in 1usize..6) {
         let grammar = grammar_with_tokens(token_count);
-        let table = ParseTable::default();
+        let table = parse_table_for_grammar(&grammar);
         let builder = LanguageBuilder::new(grammar, table);
         let lang = builder.generate_language().unwrap();
 
@@ -251,13 +305,12 @@ proptest! {
     ) {
         let hidden_count = hidden_names.len();
         let grammar = grammar_with_hidden_tokens(1, hidden_names);
-        let table = ParseTable::default();
+        let table = parse_table_for_grammar(&grammar);
         let builder = LanguageBuilder::new(grammar.clone(), table);
         let lang = builder.generate_language().unwrap();
 
-        // Walk metadata: first is EOF, then terminals (including hidden ones)
-        // Hidden tokens should have visible == false
-        let total_meta = 1 + grammar.tokens.len() + grammar.rules.len() + grammar.externals.len();
+        // Walk metadata: first is EOF, then the grammar symbols from the parse table.
+        let total_meta = lang.symbol_count as usize;
         let mut hidden_invisible_count = 0;
         for i in 0..total_meta {
             let meta = unsafe { &*lang.symbol_metadata.add(i) };
@@ -305,14 +358,15 @@ proptest! {
     #[test]
     fn metadata_has_at_least_eof(token_count in 0usize..6) {
         let grammar = grammar_with_tokens(token_count);
-        let table = ParseTable::default();
+        let table = parse_table_for_grammar(&grammar);
         let builder = LanguageBuilder::new(grammar.clone(), table);
         let lang = builder.generate_language().unwrap();
 
         prop_assert!(!lang.symbol_metadata.is_null());
-        // The metadata array has 1 (EOF) + tokens + rules + externals entries
+        prop_assert!(lang.symbol_count >= 1, "metadata must have at least EOF entry");
+        // The grammar-level expectation has 1 (EOF) + tokens + rules + externals entries.
         let expected_len = 1 + grammar.tokens.len() + grammar.rules.len() + grammar.externals.len();
-        prop_assert!(expected_len >= 1, "metadata must have at least EOF entry");
+        prop_assert_eq!(lang.symbol_count as usize, expected_len);
     }
 
     // 14. small_parse_table is non-null after generation
@@ -356,29 +410,27 @@ proptest! {
         prop_assert_eq!(lang.external_token_count, ext_count as u32);
     }
 
-    // 17. field_names array has exactly field_count + 1 entries (empty + fields)
+    // 17. field_names array has exactly field_count real field entries
     #[test]
     fn field_names_array_length(
         field_names in prop::collection::vec(field_name_strategy(), 1..5),
     ) {
         let field_count = field_names.len();
+        let mut expected = field_names.clone();
+        expected.sort();
         let grammar = grammar_with_tokens_and_fields(1, field_names);
         let table = ParseTable::default();
         let builder = LanguageBuilder::new(grammar, table);
         let lang = builder.generate_language().unwrap();
 
         prop_assert!(!lang.field_names.is_null());
-        // Verify each entry is a valid CStr
-        for i in 0..=field_count {
+        let mut fields = Vec::with_capacity(field_count);
+        for i in 0..field_count {
             let ptr = unsafe { *lang.field_names.add(i) };
             prop_assert!(!ptr.is_null(), "field_names[{}] must not be null", i);
-            let s = unsafe { cstr_from_ptr(ptr) };
-            if i == 0 {
-                prop_assert_eq!(s, "", "first entry must be empty");
-            } else {
-                prop_assert!(!s.is_empty(), "field name at index {} must not be empty", i);
-            }
+            fields.push(unsafe { cstr_from_ptr(ptr) });
         }
+        prop_assert_eq!(fields, expected);
     }
 
     // 18. token names with different patterns produce valid symbol_names

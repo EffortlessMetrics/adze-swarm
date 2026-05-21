@@ -210,24 +210,18 @@ fn test_field_map_with_data() {
     // Simulate a language with 2 fields.
     let field_name_a = b"name\0";
     let field_name_b = b"value\0";
-    let field_name_ptrs: [*const u8; 3] = [
-        ptr::null(), // field 0 is always null (fields are 1-indexed)
-        field_name_a.as_ptr(),
-        field_name_b.as_ptr(),
-    ];
+    let field_name_ptrs: [*const u8; 2] = [field_name_a.as_ptr(), field_name_b.as_ptr()];
 
     let mut lang = minimal_language();
     lang.field_count = 2;
     lang.field_names = field_name_ptrs.as_ptr();
 
     unsafe {
-        // field 0 → null sentinel
-        assert!((*lang.field_names).is_null());
-        // field 1 → "name"
-        let name_ptr = *lang.field_names.add(1);
+        // field 0 -> "name"
+        let name_ptr = *lang.field_names;
         assert_eq!(*name_ptr, b'n');
-        // field 2 → "value"
-        let val_ptr = *lang.field_names.add(2);
+        // field 1 -> "value"
+        let val_ptr = *lang.field_names.add(1);
         assert_eq!(*val_ptr, b'v');
     }
 }
