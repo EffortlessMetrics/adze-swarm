@@ -12,12 +12,13 @@ Policy impact: `.github/settings.yml`, `.github/CI_LANES.md`, `docs/ci/branch-pr
 
 ## Work Item: burn-in-source-of-truth
 
-Status: active
+Status: complete
 Linked proposal: `ADZE-PROP-0011`
 Linked spec: `ADZE-SPEC-0011`
 Linked ADR: n/a
 Blocks: `collect-product-proof-result-receipts`
 Blocked by: n/a
+PR: `adze-swarm#386`
 
 ### Goal
 
@@ -58,7 +59,7 @@ branch-protection wording changes. Branch protection itself is unchanged.
 
 ## Work Item: collect-product-proof-result-receipts
 
-Status: ready
+Status: active
 Linked proposal: `ADZE-PROP-0011`
 Linked spec: `ADZE-SPEC-0011`
 Linked ADR: n/a
@@ -86,6 +87,12 @@ branch-protection change is required.
 - At least two receipts selected `ci-product stable canaries`.
 - At least two receipts skipped Stable canaries with a clear skip reason.
 - No unexplained `Product Proof Result` flake remains open.
+
+Current receipts:
+
+| PR | Product Proof Result | Stable canaries | Rust Small Result |
+| --- | --- | --- | --- |
+| `adze-swarm#386` | success | selected, success | success |
 
 ### Proof Commands
 
