@@ -59,12 +59,13 @@ branch-protection wording changes. Branch protection itself is unchanged.
 
 ## Work Item: collect-product-proof-result-receipts
 
-Status: active
+Status: complete
 Linked proposal: `ADZE-PROP-0011`
 Linked spec: `ADZE-SPEC-0011`
 Linked ADR: n/a
 Blocks: `promote-product-proof-result-policy`
 Blocked by: `burn-in-source-of-truth`
+PRs: `adze-swarm#387`, `adze-swarm#388`, `adze-swarm#389`, `adze-swarm#390`
 
 ### Goal
 
@@ -96,6 +97,7 @@ Current receipts:
 | `adze-swarm#387` | success | selected, success | success |
 | `adze-swarm#388` | success | skipped, no Stable product surface changed | success |
 | `adze-swarm#389` | success | skipped, no Stable product surface changed | success |
+| `adze-swarm#390` | success | skipped, no Stable product surface changed | success |
 
 ### Proof Commands
 
@@ -111,7 +113,7 @@ Revert the receipt update if the evidence is later found to be stale or wrong.
 
 ## Work Item: promote-product-proof-result-policy
 
-Status: blocked
+Status: ready
 Linked proposal: `ADZE-PROP-0011`
 Linked spec: `ADZE-SPEC-0011`
 Linked ADR: n/a
