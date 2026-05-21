@@ -1,7 +1,7 @@
 #![cfg_attr(feature = "strict_docs", allow(missing_docs))]
 //! Parse table compression using Tree-sitter's encoding scheme.
 
-use crate::{Result, TableGenError};
+use crate::{Result, TableGenError, goto_run_codec::GotoRunCodec};
 use adze_glr_core::{Action, ParseTable};
 use adze_ir::{StateId, SymbolId};
 use std::collections::{BTreeMap, HashMap};
@@ -632,61 +632,21 @@ impl TableCompressor {
         &self,
         goto_table: &[Vec<StateId>],
     ) -> Result<CompressedGotoTable> {
-        let mut entries = Vec::new();
-        let mut row_offsets = Vec::new();
+        let mut codec = GotoRunCodec::new();
 
         for row in goto_table {
-            row_offsets.push(Self::checked_u16(entries.len(), "goto row offset")?);
-
-            let mut last_state = None;
-            let mut run_length: usize = 0;
+            codec.begin_row()?;
 
             for &state_id in row {
-                if last_state == Some(state_id.0) {
-                    run_length += 1;
-                } else {
-                    if run_length > 0 {
-                        // SAFETY: run_length > 0 implies last_state was set
-                        let state = last_state.expect("run_length > 0 implies last_state is set");
-                        // Emit previous run
-                        if run_length > 2 {
-                            entries.push(CompressedGotoEntry::RunLength {
-                                state,
-                                count: Self::checked_u16(run_length, "goto run length")?,
-                            });
-                        } else {
-                            // For short runs, individual entries are more efficient
-                            for _ in 0..run_length {
-                                entries.push(CompressedGotoEntry::Single(state));
-                            }
-                        }
-                    }
-                    last_state = Some(state_id.0);
-                    run_length = 1;
-                }
+                codec.push_state(state_id.0)?;
             }
 
-            if run_length > 0 {
-                let state = last_state.expect("run_length > 0 implies last_state is set");
-                if run_length > 2 {
-                    entries.push(CompressedGotoEntry::RunLength {
-                        state,
-                        count: Self::checked_u16(run_length, "goto run length")?,
-                    });
-                } else {
-                    for _ in 0..run_length {
-                        entries.push(CompressedGotoEntry::Single(state));
-                    }
-                }
-            }
+            codec.end_row()?;
         }
 
-        row_offsets.push(Self::checked_u16(entries.len(), "goto row offset")?);
+        let (data, row_offsets) = codec.finish()?;
 
-        Ok(CompressedGotoTable {
-            data: entries,
-            row_offsets,
-        })
+        Ok(CompressedGotoTable { data, row_offsets })
     }
 
     // Removed in 0.8.0 - use compress(parse_table, token_indices, start_can_be_empty)

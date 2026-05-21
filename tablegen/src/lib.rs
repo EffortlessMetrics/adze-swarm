@@ -11,6 +11,7 @@
 #![cfg_attr(feature = "strict_docs", deny(missing_docs))]
 #![cfg_attr(not(feature = "strict_docs"), allow(missing_docs))]
 
+mod goto_run_codec;
 mod test_helpers;
 mod util;
 
