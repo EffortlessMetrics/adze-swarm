@@ -67,6 +67,8 @@
 pub mod __private;
 /// Concurrency caps for thread pools and parallel operations
 pub mod concurrency_caps;
+/// Formatting helpers for parser diagnostics.
+pub(crate) mod diagnostic_format;
 /// External scanner interface for custom tokenization.
 pub mod external_scanner;
 /// FFI bindings for external scanners.
