@@ -1,8 +1,9 @@
 id = "product-proof-result-readiness"
 title = "Product Proof Result Readiness"
-status = "active"
+status = "complete"
 owner = "droid-factory"
 created = "2026-05-21"
+archived = "2026-05-21"
 
 objective = """
 Prepare the Stable product proof lane for a future deliberate branch-protection
@@ -51,11 +52,12 @@ commands = [
 
 [[work_item]]
 id = "product-proof-result-policy-receipt"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0010-product-proof-result-readiness.md"
 spec = "ADZE-SPEC-0011"
 plan = "plans/product-proof-result-readiness/implementation-plan.md"
 blocked_by = ["product-proof-result-workflow"]
+prs = [384]
 commands = [
   "cargo test -p adze-cli product_proof_workflow_routes_stable_claim_surfaces -- --exact --nocapture",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",

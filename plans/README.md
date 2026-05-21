@@ -47,7 +47,7 @@ Existing lanes include:
 - [`product-gap-burn-down/`](./product-gap-burn-down/implementation-plan.md) for the completed product-objective blocker burn-down lane.
 - [`user-experience-hardening/`](./user-experience-hardening/closeout.md) for the completed non-release adoption polish lane.
 - [`external-scanner-recovery/`](./external-scanner-recovery/closeout.md) for the completed non-release parser-generated external-token recovery proof lane.
-- [`product-proof-result-readiness/`](./product-proof-result-readiness/implementation-plan.md) for the active Product Proof result-readiness lane.
+- [`product-proof-result-readiness/`](./product-proof-result-readiness/closeout.md) for the completed Product Proof result-readiness lane.
 
 ## Plan header
 

@@ -1,6 +1,6 @@
 # Product Proof Result Readiness Plan
 
-Status: active
+Status: complete
 Owner: release/product
 Created: 2026-05-21
 Linked proposal: `docs/proposals/ADZE-PROP-0010-product-proof-result-readiness.md`
@@ -113,7 +113,7 @@ workflow.
 
 ## Work Item: product-proof-result-policy-receipt
 
-Status: active
+Status: complete
 Linked proposal: `ADZE-PROP-0010`
 Linked spec: `ADZE-SPEC-0011`
 Linked ADR: n/a
@@ -141,6 +141,7 @@ Record the new result-check behavior without making it required.
   "branch protection requires it".
 - Issue `adze-swarm#325` remains the release/publish authorization tracker,
   not a Product Proof promotion authorization.
+- Merged as `adze-swarm` PR #384.
 
 ### Proof Commands
 

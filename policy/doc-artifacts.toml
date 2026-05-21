@@ -196,13 +196,15 @@ links_to = [
 id = "ADZE-PROP-0010"
 kind = "proposal"
 path = "docs/proposals/ADZE-PROP-0010-product-proof-result-readiness.md"
-status = "accepted"
+status = "implemented"
 owner = "release/product"
 milestone = "post-0.9"
 source_of_truth_for = ["Product Proof result readiness rationale", "branch-protection-safe stable product proof preparation"]
 links_to = [
   "ADZE-SPEC-0011",
   "plans/product-proof-result-readiness/implementation-plan.md",
+  "plans/product-proof-result-readiness/closeout.md",
+  ".adze/goals/archive/2026-05-21-product-proof-result-readiness.toml",
   ".adze/goals/active.toml",
   ".adze/goals/product-proof-result-readiness.toml",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
@@ -612,15 +614,32 @@ links_to = [
 id = "plans/product-proof-result-readiness/implementation-plan.md"
 kind = "plan"
 path = "plans/product-proof-result-readiness/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "release/product"
 milestone = "post-0.9"
 source_of_truth_for = ["Product Proof result readiness implementation sequence"]
 links_to = [
   "ADZE-PROP-0010",
   "ADZE-SPEC-0011",
+  "plans/product-proof-result-readiness/closeout.md",
   ".adze/goals/active.toml",
   ".adze/goals/product-proof-result-readiness.toml",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
+id = "plans/product-proof-result-readiness/closeout.md"
+kind = "plan"
+path = "plans/product-proof-result-readiness/closeout.md"
+status = "complete"
+owner = "release/product"
+milestone = "post-0.9"
+source_of_truth_for = ["Product Proof result readiness closeout receipts and claim boundaries"]
+links_to = [
+  "ADZE-PROP-0010",
+  "plans/product-proof-result-readiness/implementation-plan.md",
+  ".adze/goals/product-proof-result-readiness.toml",
+  ".adze/goals/active.toml",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
 ]
 
@@ -744,15 +763,31 @@ links_to = [
 id = ".adze/goals/product-proof-result-readiness.toml"
 kind = "goal"
 path = ".adze/goals/product-proof-result-readiness.toml"
-status = "active"
+status = "complete"
 owner = "droid-factory"
 milestone = "post-0.9"
 source_of_truth_for = ["Product Proof result readiness agent work queue"]
 links_to = [
   "ADZE-PROP-0010",
   "plans/product-proof-result-readiness/implementation-plan.md",
+  "plans/product-proof-result-readiness/closeout.md",
+  ".adze/goals/archive/2026-05-21-product-proof-result-readiness.toml",
   ".adze/goals/active.toml",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
+id = ".adze/goals/archive/2026-05-21-product-proof-result-readiness.toml"
+kind = "goal"
+path = ".adze/goals/archive/2026-05-21-product-proof-result-readiness.toml"
+status = "complete"
+owner = "droid-factory"
+milestone = "post-0.9"
+source_of_truth_for = ["archived Product Proof result readiness complete manifest"]
+links_to = [
+  "ADZE-PROP-0010",
+  "plans/product-proof-result-readiness/implementation-plan.md",
+  "plans/product-proof-result-readiness/closeout.md",
 ]
 
 [[artifact]]
