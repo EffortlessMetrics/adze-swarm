@@ -72,10 +72,12 @@ fn number_add_grammar() -> Grammar {
     g
 }
 
-fn build_parser(grammar: &Grammar) -> GLRParser {
-    let ff = FirstFollowSets::compute(grammar).expect("FIRST/FOLLOW");
-    let table = build_lr1_automaton(grammar, &ff).expect("LR(1) automaton");
-    GLRParser::new(table, grammar.clone())
+fn build_parser(grammar: &Grammar) -> Result<GLRParser, String> {
+    let ff = FirstFollowSets::compute(grammar)
+        .map_err(|error| format!("failed to compute FIRST/FOLLOW sets: {error}"))?;
+    let table = build_lr1_automaton(grammar, &ff)
+        .map_err(|error| format!("failed to build LR(1) automaton: {error}"))?;
+    Ok(GLRParser::new(table, grammar.clone()))
 }
 
 fn parse_input(parser: &mut GLRParser, grammar: &Grammar, input: &str) -> Result<(), String> {
@@ -96,7 +98,18 @@ fn parse_input(parser: &mut GLRParser, grammar: &Grammar, input: &str) -> Result
 #[test]
 fn stress_parse_1000_inputs() {
     let g = number_add_grammar();
-    let mut parser = build_parser(&g);
+    let parser_result = build_parser(&g);
+    assert!(
+        parser_result.is_ok(),
+        "test grammar should build parser: {}",
+        parser_result
+            .as_ref()
+            .err()
+            .map_or("<none>", String::as_str)
+    );
+    let Ok(mut parser) = parser_result else {
+        return;
+    };
 
     for i in 0..1000 {
         let input = format!("{}+{}", i, i + 1);
@@ -109,7 +122,18 @@ fn stress_parse_1000_inputs() {
 #[ignore = "slow: parses 1000 growing expressions"]
 fn stress_parse_1000_growing_expressions() {
     let g = number_add_grammar();
-    let mut parser = build_parser(&g);
+    let parser_result = build_parser(&g);
+    assert!(
+        parser_result.is_ok(),
+        "test grammar should build parser: {}",
+        parser_result
+            .as_ref()
+            .err()
+            .map_or("<none>", String::as_str)
+    );
+    let Ok(mut parser) = parser_result else {
+        return;
+    };
 
     for size in 1..=1000 {
         let mut input = String::from("1");
@@ -189,8 +213,25 @@ fn stress_different_grammars_same_input() {
     });
     gb.rule_names.insert(eb, "expr".into());
 
-    let mut pa = build_parser(&ga);
-    let mut pb = build_parser(&gb);
+    let parser_a = build_parser(&ga);
+    assert!(
+        parser_a.is_ok(),
+        "grammar A should build parser: {}",
+        parser_a.as_ref().err().map_or("<none>", String::as_str)
+    );
+    let Ok(mut pa) = parser_a else {
+        return;
+    };
+
+    let parser_b = build_parser(&gb);
+    assert!(
+        parser_b.is_ok(),
+        "grammar B should build parser: {}",
+        parser_b.as_ref().err().map_or("<none>", String::as_str)
+    );
+    let Ok(mut pb) = parser_b else {
+        return;
+    };
 
     // "42" should parse on both grammars
     assert!(parse_input(&mut pa, &ga, "42").is_ok());
@@ -205,7 +246,18 @@ fn stress_different_grammars_same_input() {
 fn stress_rebuild_parser_repeatedly() {
     let g = number_add_grammar();
     for _ in 0..50 {
-        let mut parser = build_parser(&g);
+        let parser_result = build_parser(&g);
+        assert!(
+            parser_result.is_ok(),
+            "test grammar should build parser: {}",
+            parser_result
+                .as_ref()
+                .err()
+                .map_or("<none>", String::as_str)
+        );
+        let Ok(mut parser) = parser_result else {
+            return;
+        };
         let result = parse_input(&mut parser, &g, "1+2+3");
         assert!(result.is_ok());
     }
@@ -259,7 +311,18 @@ fn stress_threads_independent_grammars() {
             thread::spawn(|| {
                 // Each thread builds its own grammar and parser from scratch.
                 let g = number_add_grammar();
-                let mut parser = build_parser(&g);
+                let parser_result = build_parser(&g);
+                assert!(
+                    parser_result.is_ok(),
+                    "test grammar should build parser: {}",
+                    parser_result
+                        .as_ref()
+                        .err()
+                        .map_or("<none>", String::as_str)
+                );
+                let Ok(mut parser) = parser_result else {
+                    return;
+                };
                 for i in 0..50 {
                     let input = format!("{i}+{}", i + 1);
                     let result = parse_input(&mut parser, &g, &input);
