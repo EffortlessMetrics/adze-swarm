@@ -4,10 +4,11 @@
 //! field names, external tokens, symbol metadata, code generation, and
 //! the `set_start_can_be_empty` flag.
 
-use adze_glr_core::ParseTable;
+use adze_glr_core::{LexMode, ParseTable};
 use adze_ir::builder::GrammarBuilder;
-use adze_ir::{ExternalToken, FieldId, Grammar, SymbolId, Token, TokenPattern};
+use adze_ir::{ExternalToken, FieldId, Grammar, StateId, SymbolId, Token, TokenPattern};
 use adze_tablegen::generate::LanguageBuilder;
+use std::collections::BTreeMap;
 use std::ffi::CStr;
 
 // ---------------------------------------------------------------------------
@@ -22,8 +23,34 @@ fn minimal_grammar_and_table() -> (Grammar, ParseTable) {
         .start("expr")
         .build();
 
-    let table = ParseTable::default();
+    let table = minimal_table_with_symbols(3);
     (grammar, table)
+}
+
+fn minimal_table_with_symbols(symbol_count: usize) -> ParseTable {
+    let symbol_to_index: BTreeMap<_, _> = (0..symbol_count)
+        .map(|index| (SymbolId(index as u16), index))
+        .collect();
+    let index_to_symbol = (0..symbol_count)
+        .map(|index| SymbolId(index as u16))
+        .collect();
+
+    ParseTable {
+        action_table: vec![vec![vec![]; symbol_count]],
+        goto_table: vec![vec![StateId(u16::MAX); symbol_count]],
+        state_count: 1,
+        symbol_count,
+        symbol_to_index,
+        index_to_symbol,
+        eof_symbol: SymbolId(0),
+        start_symbol: SymbolId(symbol_count.saturating_sub(1) as u16),
+        token_count: symbol_count.saturating_sub(1),
+        lex_modes: vec![LexMode {
+            lex_state: 0,
+            external_lex_state: 0,
+        }],
+        ..ParseTable::default()
+    }
 }
 
 /// Read a C-string pointer into a Rust &str.
@@ -60,7 +87,7 @@ fn test_generate_language_counts() {
         .start("start")
         .build();
 
-    let table = ParseTable::default();
+    let table = minimal_table_with_symbols(3);
     let builder = LanguageBuilder::new(grammar, table);
     let lang = builder
         .generate_language()
@@ -80,22 +107,19 @@ fn test_symbol_names_include_tokens() {
         .start("root")
         .build();
 
-    let table = ParseTable::default();
+    let table = minimal_table_with_symbols(3);
     let builder = LanguageBuilder::new(grammar, table);
     let lang = builder
         .generate_language()
         .expect("generate_language failed");
 
     // symbol_names should be non-null and contain "identifier".
-    // The names array length = tokens + rules + externals (built by build_symbol_names).
+    // The names array length follows the parse-table symbol count.
     assert!(
         !lang.symbol_names.is_null(),
         "symbol_names must not be null"
     );
-    let num_tokens = 1; // "identifier"
-    let num_rules = 1; // "root"
-    let total_names = num_tokens + num_rules;
-    let names: Vec<&str> = (0..total_names)
+    let names: Vec<&str> = (0..lang.symbol_count as usize)
         .filter_map(|i| {
             // SAFETY: pointers come from build_symbol_names, which leaks CStrings.
             let ptr = unsafe { *lang.symbol_names.add(i) };
@@ -137,22 +161,11 @@ fn test_field_names_with_fields() {
         "field_names must not be null when fields exist"
     );
 
-    // First entry is always empty string; then the user fields.
-    let first = unsafe { cstr_from_ptr(*lang.field_names.add(0)) };
-    assert_eq!(first, "", "first field name entry must be empty string");
-
-    // Remaining entries should include "left" and "right".
-    let field1 = unsafe { cstr_from_ptr(*lang.field_names.add(1)) };
-    let field2 = unsafe { cstr_from_ptr(*lang.field_names.add(2)) };
-    let field_set: Vec<&str> = vec![field1, field2];
-    assert!(
-        field_set.contains(&"left"),
-        "expected 'left' in fields, got: {field_set:?}"
-    );
-    assert!(
-        field_set.contains(&"right"),
-        "expected 'right' in fields, got: {field_set:?}"
-    );
+    // Field names are emitted as exactly `field_count` real entries.
+    let fields: Vec<&str> = (0..lang.field_count as usize)
+        .map(|i| unsafe { cstr_from_ptr(*lang.field_names.add(i)) })
+        .collect();
+    assert_eq!(fields, vec!["left", "right"]);
 }
 
 #[test]
