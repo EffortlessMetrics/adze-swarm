@@ -14,6 +14,7 @@ end_state = [
   "public adze remains release/public-intake/publish surface unless explicitly promoted or release-authorized.",
   "release/publish/signing/Cargo-token work remains blocked on issue #325 until explicitly authorized.",
   "Rust Small on CX53 is registered as a routed Rust Small implementation lane.",
+  "Absent public/release/fuzz/performance/Droid workflow lanes are not registered as current adze-swarm lanes.",
   "Rust Small Result and Product Proof Result remain the only required branch-protection contexts.",
   "No broad matrix, release, or public-fork self-hosting behavior changes.",
 ]
@@ -25,6 +26,20 @@ proposal = "ADZE-PROP-0001"
 spec = "ADZE-SPEC-0002"
 plan = "plans/ci-lane-policy-hygiene/implementation-plan.md"
 prs = [393]
+commands = [
+  "cargo run -q -p xtask -- check-ci-lane-whitelist --mode blocking-strict",
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
+  "git diff --check",
+]
+
+[[work_item]]
+id = "prune-absent-swarm-workflow-lanes"
+status = "complete"
+proposal = "ADZE-PROP-0001"
+spec = "ADZE-SPEC-0002"
+plan = "plans/ci-lane-policy-hygiene/implementation-plan.md"
+prs = [394]
 commands = [
   "cargo run -q -p xtask -- check-ci-lane-whitelist --mode blocking-strict",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",

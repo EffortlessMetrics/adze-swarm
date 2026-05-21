@@ -105,7 +105,7 @@ Coverage evidence is recorded in:
 - **ci-supported** (`just ci-supported`) — local supported/product proof covering core parser/runtime/tooling surface; `adze-swarm` branch protection requires `Rust Small Result`
 - **pure-rust-os-matrix** — OS and toolchain compatibility (Linux/macOS/Windows, stable/beta/nightly)
 - **test-policy** — policy/docs-routed test hygiene, disabled-test prevention, and static inventory; runtime-cap proof on manual dispatch
-- **fuzz-build-smoke** — fuzz harness freshness (compile-only)
+- **fuzz harness proof** — staged for deliberate restoration when the fuzz workflow and trigger policy are reintroduced
 - **Miri** — undefined behavior detection (separate nightly-only lane)
 - **Sanitizers** — ASAN/UBSAN proof (separate lane)
 

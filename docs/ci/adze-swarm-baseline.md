@@ -14,8 +14,8 @@ This lane routes to the CX43 self-hosted runner when idle and falls back to GitH
 Runner-class policy is defined in [`runner-classes.md`](./runner-classes.md).
 The short version is: CX43 owns the current `rust-small` base gate,
 GitHub-hosted is scoped fallback plus Windows/macOS/public-fork/release
-surface, and CX53 is the planned `rust-large` capacity tier once it is
-registered and burned in.
+surface, and CX53 is registered as the current Rust Small overflow lane. A
+future `rust-large` lane still needs separate wiring and burn-in.
 
 The inherited public `ci.yml` full-CI workflow is retained for scheduled and
 manual verification only. It does not run on ordinary swarm PRs or every merge
@@ -75,7 +75,9 @@ The following are real CI lanes, but are staged pending routing or policy decisi
 - performance
 - fuzz
 
-They should be restored deliberately once their runner class, trigger policy, and cost profile are clear.
+They are not registered in the current `adze-swarm` lane whitelist because the
+corresponding workflow files are absent here. Restore them deliberately once
+their workflow file, runner class, trigger policy, and cost profile are clear.
 
 ## Operating rule
 
