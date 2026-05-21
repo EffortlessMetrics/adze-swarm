@@ -42,6 +42,7 @@ receipts = [
   "adze-swarm#386: Product Proof Result success; ci-product stable canaries selected and success; Rust Small Result success",
   "adze-swarm#387: Product Proof Result success; ci-product stable canaries selected and success; Rust Small Result success",
   "adze-swarm#388: Product Proof Result success; ci-product stable canaries skipped with no Stable product surface changed; Rust Small Result success",
+  "adze-swarm#389: Product Proof Result success; ci-product stable canaries skipped with no Stable product surface changed; Rust Small Result success",
 ]
 commands = [
   "gh pr view <number> --repo EffortlessMetrics/adze-swarm --json statusCheckRollup",

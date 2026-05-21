@@ -95,6 +95,7 @@ Current receipts:
 | `adze-swarm#386` | success | selected, success | success |
 | `adze-swarm#387` | success | selected, success | success |
 | `adze-swarm#388` | success | skipped, no Stable product surface changed | success |
+| `adze-swarm#389` | success | skipped, no Stable product surface changed | success |
 
 ### Proof Commands
 
