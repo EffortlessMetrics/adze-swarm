@@ -10,6 +10,13 @@ pub use crate::status::{
 };
 use crate::{BddPhase, BddScenario, ParserFeatureProfile, bdd_progress, bdd_progress_report};
 
+mod profile_sections;
+
+use profile_sections::{
+    conflict_backend_line, feature_profile_line, governance_progress_line,
+    non_conflict_backend_line,
+};
+
 /// Compose BDD progress with parser profile diagnostics in one report.
 pub fn bdd_progress_report_with_profile(
     phase: BddPhase,
@@ -21,21 +28,10 @@ pub fn bdd_progress_report_with_profile(
     let (implemented, total) = bdd_progress(phase, scenarios);
 
     let _ = writeln!(&mut out);
-    let _ = writeln!(&mut out, "Feature profile: {profile}");
-    let _ = writeln!(
-        &mut out,
-        "Non-conflict backend: {}",
-        profile.resolve_backend(false).name()
-    );
-    let _ = writeln!(
-        &mut out,
-        "Conflict grammars: {}",
-        describe_backend_for_conflicts(profile)
-    );
-    let _ = writeln!(
-        &mut out,
-        "Governance progress: {implemented}/{total} scenarios implemented"
-    );
+    let _ = writeln!(&mut out, "{}", feature_profile_line(profile));
+    let _ = writeln!(&mut out, "{}", non_conflict_backend_line(profile));
+    let _ = writeln!(&mut out, "{}", conflict_backend_line(profile));
+    let _ = writeln!(&mut out, "{}", governance_progress_line(implemented, total));
 
     out
 }
