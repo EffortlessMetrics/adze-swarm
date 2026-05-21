@@ -22,7 +22,7 @@ cargo install adze-cli
 Or build from source:
 
 ```bash
-git clone https://github.com/hydro-project/adze
+git clone https://github.com/EffortlessMetrics/adze
 cd adze
 cargo build --release -p adze-cli
 ```
@@ -458,10 +458,10 @@ brew install tree-sitter              # macOS
 **"Dynamic loading not enabled"**
 ```bash
 # Rebuild with dynamic feature
-cargo build --features dynamic
+cargo build --release -p adze-cli --features dynamic
 
-# Or install with dynamic support
-# Release-surface command shape until the crates.io install receipt exists.
+# Intended post-publish install shape; not current repo proof until the
+# crates.io install receipt exists.
 cargo install adze-cli --features dynamic
 ```
 
