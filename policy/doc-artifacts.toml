@@ -240,6 +240,7 @@ links_to = [
   "ADZE-SPEC-0012",
   "ADZE-ADR-0001",
   "plans/parser-runtime-maintainability/implementation-plan.md",
+  "plans/parser-runtime-maintainability/closeout.md",
   ".adze/goals/active.toml",
   ".adze/goals/parser-runtime-maintainability-hardening.toml",
   "docs/status/SUPPORT_TIERS.md",
@@ -717,7 +718,7 @@ links_to = [
 id = "plans/parser-runtime-maintainability/implementation-plan.md"
 kind = "plan"
 path = "plans/parser-runtime-maintainability/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "runtime/product"
 milestone = "post-0.9"
 source_of_truth_for = ["parser runtime maintainability implementation sequence"]
@@ -725,6 +726,7 @@ links_to = [
   "ADZE-PROP-0012",
   "ADZE-SPEC-0011",
   "ADZE-SPEC-0012",
+  "plans/parser-runtime-maintainability/closeout.md",
   ".adze/goals/active.toml",
   ".adze/goals/parser-runtime-maintainability-hardening.toml",
   "docs/status/SUPPORT_TIERS.md",
@@ -743,6 +745,26 @@ links_to = [
   "ADZE-SPEC-0011",
   "ADZE-SPEC-0012",
   "plans/parser-runtime-maintainability/implementation-plan.md",
+  "plans/parser-runtime-maintainability/closeout.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/parser-runtime-maintainability-hardening.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = "plans/parser-runtime-maintainability/closeout.md"
+kind = "plan"
+path = "plans/parser-runtime-maintainability/closeout.md"
+status = "complete"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["parser runtime maintainability closeout receipts and claim boundaries"]
+links_to = [
+  "ADZE-PROP-0012",
+  "ADZE-SPEC-0011",
+  "ADZE-SPEC-0012",
+  "plans/parser-runtime-maintainability/implementation-plan.md",
+  "plans/parser-runtime-maintainability/supported-surface-audit.md",
   ".adze/goals/active.toml",
   ".adze/goals/parser-runtime-maintainability-hardening.toml",
   "docs/status/SUPPORT_TIERS.md",
@@ -932,7 +954,7 @@ links_to = [
 id = ".adze/goals/parser-runtime-maintainability-hardening.toml"
 kind = "goal"
 path = ".adze/goals/parser-runtime-maintainability-hardening.toml"
-status = "active"
+status = "complete"
 owner = "runtime/product"
 milestone = "post-0.9"
 source_of_truth_for = ["parser runtime maintainability agent work queue"]
@@ -941,6 +963,7 @@ links_to = [
   "ADZE-SPEC-0011",
   "ADZE-SPEC-0012",
   "plans/parser-runtime-maintainability/implementation-plan.md",
+  "plans/parser-runtime-maintainability/closeout.md",
   ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]

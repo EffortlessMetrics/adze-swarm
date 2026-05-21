@@ -21,6 +21,11 @@ Linked PRs:
 - EffortlessMetrics/adze-swarm#447
 - EffortlessMetrics/adze-swarm#448
 - EffortlessMetrics/adze-swarm#449
+- EffortlessMetrics/adze-swarm#450
+- EffortlessMetrics/adze-swarm#451
+- EffortlessMetrics/adze-swarm#452
+- EffortlessMetrics/adze-swarm#453
+- EffortlessMetrics/adze-swarm#454
 Support-tier impact:
 - No support-tier promotion by campaign setup.
 Policy impact:
@@ -164,3 +169,8 @@ This campaign is complete when the near-term parser/runtime maintainability
 queue is empty or superseded, focused hardening PRs have receipts for the
 surfaces they touched, and release-only work remains explicitly blocked on #325
 rather than mixed into normal swarm development.
+
+## Closeout
+
+Closeout is recorded in
+[`plans/parser-runtime-maintainability/closeout.md`](../../plans/parser-runtime-maintainability/closeout.md).
