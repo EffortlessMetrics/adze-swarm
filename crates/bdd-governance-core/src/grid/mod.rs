@@ -11,12 +11,14 @@
 #![cfg_attr(feature = "strict_docs", deny(missing_docs))]
 #![cfg_attr(not(feature = "strict_docs"), allow(missing_docs))]
 
-use core::fmt::Write;
-
+mod report;
 /// Owner module for BDD scenario status and ledger-row contracts.
 pub mod scenario;
+mod validation;
 
+pub use report::bdd_progress_report;
 pub use scenario::{BddPhase, BddScenario, BddScenarioStatus};
+pub use validation::bdd_grid_issues;
 
 /// Validation issue discovered while checking a BDD scenario grid.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -155,121 +157,6 @@ pub fn bdd_progress(phase: BddPhase, scenarios: &[BddScenario]) -> (usize, usize
         }
     }
     (implemented, scenarios.len())
-}
-
-/// Validate structural integrity of a scenario grid.
-///
-/// This helps governance reporting fail loudly when malformed rows are introduced.
-pub fn bdd_grid_issues(scenarios: &[BddScenario]) -> Vec<BddGridIssue> {
-    let mut issues = Vec::new();
-    let mut seen = [false; 256];
-
-    for scenario in scenarios {
-        let idx = usize::from(scenario.id);
-        if seen[idx] {
-            issues.push(BddGridIssue::DuplicateScenarioId { id: scenario.id });
-        } else {
-            seen[idx] = true;
-        }
-
-        if scenario.title.trim().is_empty() {
-            issues.push(BddGridIssue::EmptyTitle { id: scenario.id });
-        }
-
-        if scenario.reference.trim().is_empty() {
-            issues.push(BddGridIssue::EmptyReference { id: scenario.id });
-        }
-
-        for phase in [BddPhase::Core, BddPhase::Runtime] {
-            let status = scenario.status(phase);
-            if let BddScenarioStatus::Deferred { reason } = status
-                && reason.trim().is_empty()
-            {
-                issues.push(BddGridIssue::EmptyDeferredReason {
-                    id: scenario.id,
-                    phase,
-                });
-            }
-        }
-    }
-
-    issues
-}
-
-/// Shared formatting for BDD progress summaries.
-///
-/// # Examples
-///
-/// ```
-/// use adze_bdd_governance_core::*;
-///
-/// let report = bdd_progress_report(
-///     BddPhase::Runtime,
-///     GLR_CONFLICT_PRESERVATION_GRID,
-///     "Runtime",
-/// );
-/// assert!(report.contains("Runtime"));
-/// assert!(report.contains("Scenario 1"));
-/// ```
-pub fn bdd_progress_report(
-    phase: BddPhase,
-    scenarios: &[BddScenario],
-    phase_title: &str,
-) -> String {
-    let mut out = String::new();
-
-    let (implemented, total) = bdd_progress(phase, scenarios);
-    out.push_str("=== BDD Scenario Progress Summary ===\n");
-    out.push_str(phase_title);
-    out.push('\n');
-    out.push('\n');
-
-    for scenario in scenarios {
-        let status = scenario.status(phase);
-        let _ = write!(
-            out,
-            "{} Scenario {}: {} - {}",
-            status.icon(),
-            scenario.id,
-            scenario.title,
-            status.label()
-        );
-        let detail = status.detail();
-        if !detail.is_empty() {
-            out.push_str(" (");
-            out.push_str(detail);
-            out.push(')');
-        }
-        out.push('\n');
-    }
-
-    out.push('\n');
-    let _ = write!(
-        out,
-        "{}: {}/{} scenarios complete",
-        phase_title, implemented, total
-    );
-    if let Some(reference) = scenarios.first().map(|scenario| scenario.reference) {
-        let _ = write!(out, "\nReference: {reference}");
-    }
-    if implemented < total {
-        out.push_str("\nNext: Implement remaining deferred scenarios.");
-    }
-
-    let issues = bdd_grid_issues(scenarios);
-    if !issues.is_empty() {
-        let _ = write!(
-            out,
-            "\n\n⚠ Grid validation found {} issue(s):",
-            issues.len()
-        );
-        for issue in issues {
-            out.push_str("\n- ");
-            out.push_str(&issue.describe());
-        }
-    }
-
-    out
 }
 
 #[cfg(test)]
