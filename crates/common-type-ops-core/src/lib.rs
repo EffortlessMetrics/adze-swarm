@@ -7,6 +7,43 @@ use std::collections::HashSet;
 
 use syn::{GenericArgument, PathArguments, Type, parse_quote};
 
+mod type_path {
+    use syn::{GenericArgument, PathArguments, Type, TypePath};
+
+    pub fn path_type(ty: &Type) -> Option<&TypePath> {
+        match ty {
+            Type::Path(path) => Some(path),
+            _ => None,
+        }
+    }
+
+    pub fn path_type_mut(ty: &mut Type) -> Option<&mut TypePath> {
+        match ty {
+            Type::Path(path) => Some(path),
+            _ => None,
+        }
+    }
+
+    pub fn last_segment_ident(ty: &Type) -> Option<String> {
+        path_type(ty)
+            .and_then(|path| path.path.segments.last())
+            .map(|segment| segment.ident.to_string())
+    }
+
+    pub fn first_type_argument(arguments: &PathArguments) -> Option<Type> {
+        if let PathArguments::AngleBracketed(arguments) = arguments {
+            if let Some(argument) = arguments.args.first().cloned() {
+                return match argument {
+                    GenericArgument::Type(inner) => Some(inner),
+                    _ => panic!("argument in angle brackets must be a type"),
+                };
+            }
+        }
+
+        None
+    }
+}
+
 /// Extract the first generic argument from `inner_of`, optionally unwrapping
 /// containers named in `skip_over` while searching.
 ///
@@ -23,40 +60,23 @@ pub fn try_extract_inner_type(
     inner_of: &str,
     skip_over: &HashSet<&str>,
 ) -> (Type, bool) {
-    if let Type::Path(path) = ty {
-        let Some(type_segment) = path.path.segments.last() else {
-            return (ty.clone(), false);
-        };
+    if let Some(path) = type_path::path_type(ty)
+        && let Some(type_segment) = path.path.segments.last()
+    {
         if type_segment.ident == inner_of {
-            return match &type_segment.arguments {
-                PathArguments::AngleBracketed(arguments) => {
-                    if let Some(GenericArgument::Type(inner)) = arguments.args.first().cloned() {
-                        (inner, true)
-                    } else {
-                        panic!("argument in angle brackets must be a type")
-                    }
-                }
-                _ => (ty.clone(), false),
-            };
+            return type_path::first_type_argument(&type_segment.arguments)
+                .map_or_else(|| (ty.clone(), false), |inner| (inner, true));
         }
 
         if skip_over.contains(type_segment.ident.to_string().as_str()) {
-            return match &type_segment.arguments {
-                PathArguments::AngleBracketed(arguments) => {
-                    if let Some(GenericArgument::Type(inner)) = arguments.args.first().cloned() {
-                        let (inner, extracted) =
-                            try_extract_inner_type(&inner, inner_of, skip_over);
-                        if extracted {
-                            (inner, true)
-                        } else {
-                            (ty.clone(), false)
-                        }
-                    } else {
-                        panic!("argument in angle brackets must be a type")
-                    }
-                }
-                _ => (ty.clone(), false),
-            };
+            return type_path::first_type_argument(&type_segment.arguments)
+                .map_or_else(
+                    || (ty.clone(), false),
+                    |inner| match try_extract_inner_type(&inner, inner_of, skip_over) {
+                        (extracted, true) => (extracted, true),
+                        _ => (ty.clone(), false),
+                    },
+                );
         }
     }
 
@@ -73,22 +93,12 @@ pub fn try_extract_inner_type(
 /// Panics when a skipped angle-bracketed type has a first generic argument that
 /// is not a type.
 pub fn filter_inner_type(ty: &Type, skip_over: &HashSet<&str>) -> Type {
-    if let Type::Path(path) = ty {
-        let Some(type_segment) = path.path.segments.last() else {
-            return ty.clone();
-        };
-        if skip_over.contains(type_segment.ident.to_string().as_str()) {
-            return match &type_segment.arguments {
-                PathArguments::AngleBracketed(arguments) => {
-                    if let Some(GenericArgument::Type(inner)) = arguments.args.first().cloned() {
-                        filter_inner_type(&inner, skip_over)
-                    } else {
-                        panic!("argument in angle brackets must be a type")
-                    }
-                }
-                _ => ty.clone(),
-            };
-        }
+    if let Some(path) = type_path::path_type(ty)
+        && let Some(type_segment) = path.path.segments.last()
+        && skip_over.contains(type_segment.ident.to_string().as_str())
+    {
+        return type_path::first_type_argument(&type_segment.arguments)
+            .map_or_else(|| ty.clone(), |inner| filter_inner_type(&inner, skip_over));
     }
 
     ty.clone()
@@ -100,23 +110,22 @@ pub fn filter_inner_type(ty: &Type, skip_over: &HashSet<&str>) -> Type {
 /// type arguments instead.
 pub fn wrap_leaf_type(ty: &Type, skip_over: &HashSet<&str>) -> Type {
     let mut ty = ty.clone();
-    if let Type::Path(path) = &mut ty {
-        let Some(type_segment) = path.path.segments.last_mut() else {
-            return parse_quote!(adze::WithLeaf<#ty>);
-        };
-        if skip_over.contains(type_segment.ident.to_string().as_str()) {
-            return match &mut type_segment.arguments {
-                PathArguments::AngleBracketed(arguments) => {
-                    for argument in arguments.args.iter_mut() {
-                        if let GenericArgument::Type(inner) = argument {
-                            *inner = wrap_leaf_type(inner, skip_over);
-                        }
+    if let Some(segment_ident) = type_path::last_segment_ident(&ty)
+        && skip_over.contains(segment_ident.as_str())
+        && let Some(path) = type_path::path_type_mut(&mut ty)
+        && let Some(type_segment) = path.path.segments.last_mut()
+    {
+        return match &mut type_segment.arguments {
+            PathArguments::AngleBracketed(arguments) => {
+                for argument in arguments.args.iter_mut() {
+                    if let GenericArgument::Type(inner) = argument {
+                        *inner = wrap_leaf_type(inner, skip_over);
                     }
-                    ty
                 }
-                _ => ty,
-            };
-        }
+                ty
+            }
+            _ => ty,
+        };
     }
 
     parse_quote!(adze::WithLeaf<#ty>)
