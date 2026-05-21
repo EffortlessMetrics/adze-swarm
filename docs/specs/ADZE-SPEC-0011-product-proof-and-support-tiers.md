@@ -139,5 +139,7 @@ covered by `SUPPORT_TIERS.md`, `readme_stable_claims_are_in_stable_product_lane`
 passes, `just ci-product-stable` passes, and `CI / ci-supported` remains green
 on the closeout PR.
 
-Future promotion of `ci-product stable canaries` from advisory to required needs
-a separate CI policy change and branch-protection update.
+Future promotion of Product Proof from advisory to required must require the
+always-present `Product Proof Result` context, not the path-selected
+`ci-product stable canaries` implementation job. That promotion needs a
+separate CI policy change and branch-protection update.

@@ -35,12 +35,12 @@ Adze should be release-readable as a Rust parser generator where:
 | --- | --- | --- | --- |
 | Rust types define grammar and generated parsers return typed ASTs. | README core example; `SUPPORT_TIERS.md` Stable `Typed extraction` row; `PRODUCT_PROOF_MAP.md` Stable typed extraction claim. | Covered for the supported generated-parser contract. | Keep Stable claim limited to proof rows; do not broaden to every grammar shape. |
 | Quickstart works in a clean downstream crate. | `testing/downstream-starter/`; `docs/product/ACCEPTANCE_MATRIX.md`; `SUPPORT_TIERS.md` Pure-Rust parser row; user-experience hardening closeout. | Covered for path-dependency downstream wiring, generated starter shape, local `adze-cli` package verification, and the post-closeout starter README/local dependency polish from PR #352. | Published `cargo install adze-cli` is not proven until `adze-cli` is published and an install receipt exists. |
-| Core pure-Rust pipeline is green, bounded, and boring. | `just ci-supported`; `Rust Small Result`; `KNOWN_RED.md` supported-lane description; `adze-swarm` PRs #284, #285, #329, and #354. | Covered as the required swarm gate plus local supported proof. PR #284 bounds the broad Rust tail, PR #285 scopes the default pure-rust PR test step to supported crates while keeping full workspace tests explicit through manual/full-ci, and PRs #329/#354 record the Windows supported-gate PDB-pressure mitigation. | `ci-product-stable` remains advisory until branch protection explicitly promotes it. |
+| Core pure-Rust pipeline is green, bounded, and boring. | `just ci-supported`; `Rust Small Result`; `KNOWN_RED.md` supported-lane description; `adze-swarm` PRs #284, #285, #329, #354, #381, and #383. | Covered as the required swarm gate plus local supported proof. PR #284 bounds the broad Rust tail, PR #285 scopes the default pure-rust PR test step to supported crates while keeping full workspace tests explicit through manual/full-ci, PRs #329/#354/#381 reduce Windows supported-gate friction, and PR #383 adds a branch-protection-ready Product Proof result context without requiring it. | `Product Proof Result` remains advisory until branch protection explicitly promotes it. |
 | Tablegen emits valid tables. | `SUPPORT_TIERS.md` Tablegen `TSLanguage` ABI row; `PRODUCT_PROOF_MAP.md` tablegen ABI claim. | Stabilizing with compressed decode, field metadata, aliases, externals, lex modes, and conflict-cell proof. | Broader generated-language roundtrip and full Tree-sitter parity remain future work. |
 | GLR handles real conflicts honestly. | `SUPPORT_TIERS.md` GLR conflict routing row; `docs/product/ACCEPTANCE_MATRIX.md` GLR ambiguity row. | Stabilizing with generated shift/reduce conflict preservation, generated reduce/reduce preservation and selected typed-AST extraction, dangling-else nearest-else selected typed AST proof, retained alternatives, deterministic selected output, ambiguity summaries, and no-panic bad-input guardrails. | Broader conflict-class coverage and any Stable GLR promotion still require support-tier proof review. |
 | Typed extraction is deterministic. | `typed_ast_contract_left_associative_addition`; `typed_ast_contract_repeated_parse_is_deterministic`; `readme_arithmetic_quickstart_builds_and_runs`. | Covered for Stable typed extraction rows. | Keep determinism claims scoped to supported generated-parser shapes. |
 | Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors and External scanners rows; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof; `docs/reference/diagnostics-and-recovery.md`. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, generated-parser matrix canaries, object-like `parse_document()`/JSON recovery proof, and user-facing diagnostics/recovery guidance from PR #353. External-scanner dispatch now has focused parser-v4 proof for emitted-token byte spans/text, rejection of scanner tokens that are invalid in the parser state without advancing input position, direct parser-v4 `parse_document()` diagnostic-document behavior for bad input in an external-scanner grammar shape with rendered source context, and generated external-token grammar diagnostic-document matrix behavior for malformed root, empty/whitespace input, keyword/missing-condition, missing-colon, trailing-token, multibyte expression, multibyte body-token, invalid body, newline/CRLF boundary, and nested invalid-expression inputs. The generated matrix also compares `parse()` errors with `parse_document()` diagnostics for span and expected-token agreement. | Corpus-wide external-scanner recovery parity remains future work; any Stable promotion still needs support-tier review. |
-| Every Stable README claim maps to proof. | README capability table; `SUPPORT_TIERS.md`; `readme_stable_claims_are_in_stable_product_lane`; `scripts/ci-product-stable.sh`. | Covered by current proof map and stable-product canaries. | The stable-product lane is still advisory, not branch-protection required. |
+| Every Stable README claim maps to proof. | README capability table; `SUPPORT_TIERS.md`; `readme_stable_claims_are_in_stable_product_lane`; `scripts/ci-product-stable.sh`; `Product Proof Result`. | Covered by current proof map and stable-product canaries. PR #383 proves the Product Proof workflow now emits an always-present aggregate result while selecting Stable canaries only for relevant product surfaces, schedule, or manual dispatch. | The result context is branch-protection-ready but still advisory until a later explicit policy PR requires it. |
 | Experimental/developing surfaces are clearly labeled. | README capability table; `SUPPORT_TIERS.md`; `KNOWN_RED.md`; `PRODUCT_PROOF_MAP.md`; query/tooling closeout. | Covered for runtime2, broader grammars, WASM, Tree-sitter interop, CLI, benchmarks, typed CST, incremental, JSON, and the documented query subset. Query remains Stabilizing for the documented subset, not full Tree-sitter query parity. | Re-check after any README, support-tier, or release-facing wording change. |
 | Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI document JSON recovery diagnostics; public promotion PR #795; user-experience hardening closeout; query/tooling closeout. | Covered for local/downstream fixtures, CLI recovery smoke, public repository promotion, starter README polish, diagnostics/recovery guidance, performance receipt boundaries, query example/differential receipts, and local proof-loop friction mitigation. | Published CLI install and any future crates.io release surface need fresh receipts. |
 
@@ -134,6 +134,14 @@ documented subset rather than full Tree-sitter query parity. GitHub receipts
 included `Rust Small Result`, Source of Truth, CI Lane Whitelist, GLR
 Invariants, and `ci-product stable canaries` where relevant. The post-closeout
 `active.toml` state is paused with no selected non-release lane.
+
+Latest Product Proof result-readiness receipt: `adze-swarm` PR #383 made
+`.github/workflows/product-proof.yml` emit `Detect Product Proof Paths`,
+`ci-product stable canaries`, and `Product Proof Result`. In GitHub run
+[`26201525347`](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26201525347),
+the detector passed, the Stable canaries passed, and `Product Proof Result`
+passed. This proves the result context exists and can aggregate the selected
+Stable canary lane, but it is still not a required branch-protection check.
 
 Current CI-tail receipts:
 
@@ -326,7 +334,7 @@ Do not mark the product objective complete while any of these are true:
 - `cargo install adze-cli` has no crates.io install receipt.
 - The root README dependency block is release-surface-bounded because
   `adze-tool` does not yet have a crates.io metadata receipt.
-- `ci-product-stable` is advisory and not a required branch-protection gate.
+- `Product Proof Result` is advisory and not a required branch-protection gate.
 - Corpus-wide external-scanner recovery parity remains future work and is not
   a Stable claim.
 - GLR conflict routing, structured parse errors, Tree-sitter compatibility,
@@ -353,7 +361,7 @@ separate and tracked in
    `cargo install adze-cli` as the supported quickstart.
 2. If no release/publish authorization exists, do not tag, publish, mutate
    signing/Cargo-token workflows, or claim `cargo install adze-cli`.
-3. Consider promoting `ci-product-stable` only after advisory receipts are
+3. Consider promoting `Product Proof Result` only after advisory receipts are
    consistently green and branch-protection policy is updated deliberately.
 4. For future non-release work, open a fresh active goal in `adze-swarm`; do
    not promote external scanners or query compatibility beyond their proven
