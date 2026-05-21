@@ -2,7 +2,7 @@
 
 **Status:** release-readable companion to `SUPPORT_TIERS.md`
 **Source of truth:** `SUPPORT_TIERS.md`
-**Last updated:** 2026-05-20
+**Last updated:** 2026-05-21
 
 This map answers one question quickly: which product claims have proof, and
 where is that proof owned?
@@ -38,20 +38,19 @@ For the stricter objective-level completion audit, see
 
 - A README Stable claim must have a matching `SUPPORT_TIERS.md` row and a
   repeatable proof command.
-- `ci-product stable canaries` is the bounded Stable-claim canary lane. It runs
-  on stable-claim PR surfaces, schedule, and stable-only manual dispatch, but
-  remains advisory until branch protection explicitly promotes Product Proof.
-  `Product Proof Result` is emitted on every Product Proof PR event and
-  aggregates the detector plus selected Stable canaries, so a later policy PR
-  can require an always-present context without requiring path-filtered jobs.
-  Manual dispatch runs the broad advisory product lane only when `lane=all` is
-  selected.
+- `Product Proof Result` is the required aggregate Stable-claim proof gate in
+  `adze-swarm` branch protection. The path-selected `ci-product stable
+  canaries` implementation job runs on stable-claim PR surfaces, schedule, and
+  stable-only manual dispatch. For unrelated PRs, the aggregate result passes
+  after path detection records the explicit skip reason. Manual dispatch runs
+  the broad advisory product lane only when `lane=all` is selected.
 - Latest hosted receipt: GitHub workflow dispatch
   [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
   passed on 2026-05-19 from current `adze-swarm/main` after PR #281. The
   `ci-product stable canaries` job passed in 3m02s and the broad advisory
-  canaries skipped under the stable-only default. Treat this as current proof
-  evidence, not a required-gate promotion.
+  canaries skipped under the stable-only default. Treat this as stable-product
+  proof evidence; current branch protection requires the aggregate
+  `Product Proof Result` context, not the path-selected implementation job.
 - Experimental, Stabilizing, and Advisory rows here are not marketing claims.
   They are current evidence snapshots.
 - Do not promote any Stabilizing or Advisory surface to Stable from this
