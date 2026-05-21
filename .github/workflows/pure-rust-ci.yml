@@ -132,6 +132,16 @@ jobs:
         !contains(github.event.pull_request.labels.*.name, 'full-ci')
       timeout-minutes: 25
       run: |
+        set -euo pipefail
+        (
+          while true; do
+            sleep 60
+            echo "::notice::supported crate tests still running"
+          done
+        ) &
+        heartbeat_pid=$!
+        trap 'kill "$heartbeat_pid" 2>/dev/null || true' EXIT
+
         cargo test \
           -p adze \
           -p adze-macro \
