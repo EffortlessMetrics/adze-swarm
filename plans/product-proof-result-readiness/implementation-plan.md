@@ -12,7 +12,7 @@ Policy impact: prepares a branch-protection-safe result context without changing
 
 ## Work Item: product-proof-result-source-of-truth
 
-Status: active
+Status: complete
 Linked proposal: `ADZE-PROP-0010`
 Linked spec: `ADZE-SPEC-0011`
 Linked ADR: n/a
@@ -42,6 +42,7 @@ future branch-protection promotion.
 - Source-of-truth checks pass.
 - The active manifest names `adze-swarm` as the operating repo.
 - Work items keep the implementation and policy promotion separate.
+- Merged as `adze-swarm` PR #382.
 
 ### Proof Commands
 
@@ -58,7 +59,7 @@ manifest and remove the Product Proof result readiness artifacts.
 
 ## Work Item: product-proof-result-workflow
 
-Status: ready
+Status: active
 Linked proposal: `ADZE-PROP-0010`
 Linked spec: `ADZE-SPEC-0011`
 Linked ADR: n/a
