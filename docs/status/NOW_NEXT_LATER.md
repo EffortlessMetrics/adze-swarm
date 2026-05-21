@@ -1,7 +1,7 @@
 # Now / Next / Later
 
 **Last updated:** 2026-05-20
-**Status:** **Product Proof result readiness complete; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The latest non-release lane is closed out in [`../../plans/product-proof-result-readiness/closeout.md`](../../plans/product-proof-result-readiness/closeout.md) and makes Product Proof branch-protection-ready without changing the required gate.
+**Status:** **Product Proof required-gate burn-in active; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The latest completed non-release lane is closed out in [`../../plans/product-proof-result-readiness/closeout.md`](../../plans/product-proof-result-readiness/closeout.md); the active follow-up lane is [`../../plans/product-proof-required-gate/implementation-plan.md`](../../plans/product-proof-required-gate/implementation-plan.md).
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -204,7 +204,8 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 ### Behavior-proof product lane
 - [x] Add an advisory stable product lane for README-stable claims.
 - [x] Add an always-present `Product Proof Result` context so the stable-product lane can be promoted later without missing-check hazards.
-- [ ] Promote `Product Proof Result` to required only after advisory behavior smokes pass consistently and branch-protection policy is updated deliberately.
+- [ ] Burn in `Product Proof Result` with distinct green selected/skipped receipts before any required-check promotion.
+- [ ] Promote `Product Proof Result` to required only after burn-in receipts pass and branch-protection policy is updated deliberately.
 - [ ] Keep broad workspace, fuzzing, Miri, sanitizers, browser WASM, grammar corpus, runtime2, and benchmarks scheduled/manual unless explicitly promoted.
 
 ---

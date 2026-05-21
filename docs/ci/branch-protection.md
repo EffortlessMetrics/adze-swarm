@@ -14,11 +14,42 @@ routed Rust Small lane runs on CX43 or GitHub-hosted fallback.
 `just ci-supported` remains the local supported/product proof command. It is
 not the required GitHub branch-protection context in `adze-swarm`.
 
+`Product Proof Result` is branch-protection-ready as an always-present
+aggregate context, but it is not required yet. It remains in burn-in until the
+criteria below are met and a separate policy PR updates `.github/settings.yml`,
+this file, and [CI_LANES.md](../../.github/CI_LANES.md) together.
+
 Conversation resolution is intentionally disabled in `adze-swarm`. Review bots
 can still leave useful comments, but unresolved advisory threads must not block
 the single-operator swarm merge path after the required gate is green.
 
 ## Future
+
+### Product Proof Result promotion
+
+`Product Proof Result` is the candidate required context for Stable README
+claim proof. It should be added alongside `Rust Small Result`, not replace the
+Rust base gate.
+
+Promotion is gated on:
+
+| Criterion | Target |
+| --- | --- |
+| Distinct merged PRs with `Product Proof Result` present and green | >= 5 |
+| Receipts where `ci-product stable canaries` were selected and green | >= 2 |
+| Receipts where Stable canaries skipped with an explicit reason | >= 2 |
+| Unexplained `Product Proof Result` flakes | 0 open |
+| Product-audit wording updated from advisory to required | same PR as settings change |
+
+When all gates clear, the promotion PR only:
+
+1. adds `Product Proof Result` to `.github/settings.yml` required contexts;
+2. updates [CI_LANES.md](../../.github/CI_LANES.md),
+   [KNOWN_RED.md](../status/KNOWN_RED.md), and
+   [PRODUCT_OBJECTIVE_AUDIT.md](../status/PRODUCT_OBJECTIVE_AUDIT.md); and
+3. records rollback to `Rust Small Result` only.
+
+### PR Gate Success promotion
 
 The public-era rollout also defines an aggregated check called
 **PR Gate Success** (see `.github/workflows/pr-gate.yml`). It depends on:
@@ -55,5 +86,6 @@ When all five gates clear, the promotion PR itself only:
 ## Rollback
 
 If a future required-check promotion causes problems, the rollback is to
-restore `.github/settings.yml` to require `Rust Small Result` and update
-[CI_LANES.md](../../.github/CI_LANES.md) to match.
+restore `.github/settings.yml` to require only `Rust Small Result` and update
+the branch-protection docs plus [CI_LANES.md](../../.github/CI_LANES.md) to
+match.

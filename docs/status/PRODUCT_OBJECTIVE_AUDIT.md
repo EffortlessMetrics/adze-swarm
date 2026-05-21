@@ -363,6 +363,8 @@ separate and tracked in
    signing/Cargo-token workflows, or claim `cargo install adze-cli`.
 3. Consider promoting `Product Proof Result` only after advisory receipts are
    consistently green and branch-protection policy is updated deliberately.
-4. For future non-release work, open a fresh active goal in `adze-swarm`; do
+4. Burn in `Product Proof Result` with recent selected/skipped PR receipts
+   before any policy PR makes it a required branch-protection context.
+5. For future non-release work, open a fresh active goal in `adze-swarm`; do
    not promote external scanners or query compatibility beyond their proven
    support-tier slices.

@@ -16,6 +16,11 @@ whether a red mark means "must fix before merge" or "inspect at your leisure."
 Branch protection in `adze-swarm` requires exactly one check:
 **`Rust Small Result`** from `em-ci-routed-rust.yml`.
 
+`Product Proof Result` is in required-gate burn-in. It must remain advisory
+until the receipt thresholds in
+[`docs/ci/branch-protection.md`](../docs/ci/branch-protection.md) are met and a
+separate policy PR updates `.github/settings.yml` and this lane map together.
+
 Runner capacity classes are defined in
 [`docs/ci/runner-classes.md`](../docs/ci/runner-classes.md).
 
