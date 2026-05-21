@@ -1,0 +1,16 @@
+schema_version = "1.0"
+
+repo = "adze"
+namespace = ".adze-spec"
+
+[conventions]
+proposal_prefix = "ADZE-PROP"
+spec_prefix = "ADZE-SPEC"
+adr_prefix = "ADZE-ADR"
+lane_prefix = "ADZE-LANE"
+
+[external_namespaces]
+codex = ".codex"
+speckit = ".spec"
+claude = ".claude"
+jules = ".jules"
