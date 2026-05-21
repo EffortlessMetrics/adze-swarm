@@ -35,7 +35,7 @@ on explicit authorization.
 
 ## Work Item: parser-runtime-maintainability-source-of-truth
 
-Status: active
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -70,6 +70,7 @@ Docs and source-of-truth metadata only.
 - `policy/doc-artifacts.toml` registers the proposal, plan, and named goal.
 - Release blocker tracker #325 remains the release/publish authorization
   checkpoint.
+- Completed by #443.
 
 ### Proof Commands
 
@@ -86,7 +87,7 @@ manifest.
 
 ## Work Item: supported-surface-maintainability-audit
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -118,6 +119,8 @@ a follow-up PR is deliberately split out.
 - Each candidate names the edited surface, reason, expected diff shape, and
   proof command.
 - Release/publish tasks remain out of scope.
+- Audit recorded in
+  [`supported-surface-audit.md`](./supported-surface-audit.md).
 
 ### Proof Commands
 
@@ -134,7 +137,7 @@ irrelevant.
 
 ## Work Item: focused-runtime-hardening-prs
 
-Status: ready
+Status: active
 Linked proposal: ../../docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -163,6 +166,7 @@ supported parser/runtime surface or make an existing proof more reliable.
 - Each PR has one reason and one edited surface family.
 - Each PR includes focused proof for the touched surface.
 - Aggregate gates remain `Rust Small Result` and `Product Proof Result`.
+- Initial focused tablegen hardening landed in #444, #445, and #446.
 
 ### Proof Commands
 

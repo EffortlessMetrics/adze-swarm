@@ -24,7 +24,7 @@ end_state = [
 
 [[work_item]]
 id = "parser-runtime-maintainability-source-of-truth"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
@@ -38,7 +38,7 @@ commands = [
 
 [[work_item]]
 id = "supported-surface-maintainability-audit"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
@@ -51,7 +51,7 @@ commands = [
 
 [[work_item]]
 id = "focused-runtime-hardening-prs"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
