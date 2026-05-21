@@ -32,7 +32,7 @@ See `adze-rollout-status.md` for status of each item.
 | `microcrate-ci.yml` | Risk-pack-routed crate groups plus path-routed receipt jobs | Active |
 | `coverage.yml` | Path/label-routed coverage-lite/full; LCOV artifacts are proof and Codecov upload is non-blocking | Active advisory |
 | `criterion-smoke.yml` | Scheduled/manual benchmark compile smoke | Active advisory |
-| `product-proof.yml` | Stable/advisory product proof lanes for support-tier and README claim boundaries | Active advisory |
+| `product-proof.yml` | Required `Product Proof Result` aggregate gate plus selected Stable canaries and broad advisory product proof lanes | Active required aggregate; broad lane advisory |
 | `core-tests.yml` | Scheduled/manual core all-features canary | Active scheduled/manual |
 | `test-policy.yml` | Static policy checks on PRs plus manual runtime caps | Active advisory |
 | `clippy-quarantine-report.yml` | Weekly/manual quarantine report | Active advisory |

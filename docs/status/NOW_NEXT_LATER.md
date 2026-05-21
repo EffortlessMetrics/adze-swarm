@@ -138,7 +138,8 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       `product_proof_workflow_routes_stable_claim_surfaces`.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
-      the remaining `cargo install adze-cli`, advisory stable-product lane, and
+      the remaining `cargo install adze-cli`, required aggregate
+      `Product Proof Result` gate, path-selected stable-product canaries, and
       support-tier limitation gaps.
 - [x] Latest release-surface package receipts: `just package-local adze-cli`
       and `just check-publishable` passed on 2026-05-19 from `adze-swarm`;

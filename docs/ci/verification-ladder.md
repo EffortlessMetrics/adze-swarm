@@ -7,8 +7,9 @@ ladder as its risk pack justifies — no further.
 
 | Lane | Source | Why |
 | --- | --- | --- |
-| `ci-supported` | `just ci-supported` | Portable workspace format proof, clippy, tests on the supported crate set |
-| PR Gate Success | summary check | One required target for branch protection |
+| `Rust Small Result` | routed GitHub check | Required aggregate base gate for the selected small Rust lane |
+| `Product Proof Result` | product-proof GitHub check | Required aggregate Stable-claim proof gate; selects or skips stable canaries by path |
+| `ci-supported` | `just ci-supported` | Portable local supported proof: workspace format, clippy, and tests on the supported crate set |
 
 ## Tier 1 – Frontdoor advisory (every PR, non-blocking)
 
@@ -44,7 +45,7 @@ ladder as its risk pack justifies — no further.
 | sanitizers | nightly, `full-ci` |
 | feature matrix | nightly, `full-ci` |
 | full benchmarks | `main`, `ci:perf`, `full-ci` |
-| product proof advisory | weekly, `workflow_dispatch` |
+| broad product proof advisory | weekly, `workflow_dispatch`, `lane=all` |
 
 ## Tier 4 – Release (tag / manual / weekly)
 
