@@ -147,6 +147,27 @@ review_after = "2026-06-15"
 expires = "2026-11-15"
 
 [[lane]]
+id = "em-rust-small-cx53"
+workflow = ".github/workflows/em-ci-routed-rust.yml"
+job = "rust-small-cx53"
+display_name = "Rust Small on CX53"
+kind = "rust"
+tier = "frontdoor"
+default_pr = true
+blocking = false
+runner = "mixed"
+base_lem = 10
+owner = "core/build"
+intent = "Run the swarm base Rust check on the CX53 self-hosted trusted runner when CX43 is unavailable and CX53 is idle."
+failure_mode = "Same-repo swarm PRs cannot use the trusted CX53 overflow runner for the Rust Small base gate."
+proof_obligation = "Run cargo fetch and cargo check --workspace --locked in the routed Rust container."
+evidence = ["job logs", "sccache stats"]
+allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
+duplicate_of = ["ci-supported"]
+review_after = "2026-06-21"
+expires = "2026-11-21"
+
+[[lane]]
 id = "em-rust-small-github"
 workflow = ".github/workflows/em-ci-routed-rust.yml"
 job = "rust-small-github"
@@ -184,7 +205,7 @@ failure_mode = "Branch protection cannot distinguish the selected routed lane fr
 proof_obligation = "Pass only when the selected Rust Small implementation lane succeeds."
 evidence = ["job summary", "selected lane result"]
 allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
-duplicate_of = ["em-rust-small-cx43", "em-rust-small-github"]
+duplicate_of = ["em-rust-small-cx43", "em-rust-small-cx53", "em-rust-small-github"]
 review_after = "2026-06-15"
 expires = "2026-11-15"
 

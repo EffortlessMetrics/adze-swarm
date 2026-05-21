@@ -18,28 +18,26 @@ layer, not the default Linux build farm.
 
 ```text
 Rust Small Result
+Product Proof Result
 ```
 
-The result job is the branch-protection contract. Conditional implementation
-jobs such as `Rust Small on CX43` and `Rust Small on GitHub Hosted` are not
-required directly because one is expected to skip.
+The result jobs are the branch-protection contracts. Conditional implementation
+jobs such as `Rust Small on CX43`, `Rust Small on CX53`, and
+`Rust Small on GitHub Hosted` are not required directly because only one routed
+Rust Small implementation lane is expected to run.
 
 Current route:
 
 ```text
 Rust Small Result
   -> CX43 when idle
-  -> GitHub-hosted fallback when CX43 is unavailable
+  -> CX53 when CX43 is unavailable and CX53 is idle
+  -> GitHub-hosted fallback when no trusted runner is idle
 ```
 
-Future route once `cx53` is online:
+Planned optional `rust-large` route:
 
 ```text
-rust-small:
-  CX43 first
-  CX53 second if explicitly allowed
-  GitHub-hosted fallback
-
 rust-large:
   CX53 first
   GitHub-hosted fallback
@@ -74,7 +72,7 @@ Fallback rules:
 ```text
 rust-small:
   CX43 first
-  CX53 overflow only when explicitly allowed
+  CX53 overflow
   GitHub-hosted fallback
 
 rust-large:
@@ -92,7 +90,9 @@ Burn-in before any branch-protection change:
 - [ ] GitHub-hosted fallback succeeds for the same scoped lane.
 - [ ] Router logs distinguish `cx53_idle`, `no_idle_runner`, and fallback.
 - [ ] At least three clean PRs prove the optional result lane.
-- [ ] Branch protection still requires only `Rust Small Result`.
+- [ ] Branch protection does not require `rust-large` directly; required
+      contexts remain the aggregate `Rust Small Result` and
+      `Product Proof Result`.
 
 ## Lane policy
 
@@ -160,7 +160,7 @@ Use this checklist before moving another high-volume repo to the routed model:
 - [ ] Runner labels are precise; workflows do not target generic `self-hosted`.
 - [ ] Router token is scoped to runner read-only use.
 - [ ] Same-repo PR guard excludes public forks from self-hosted runners.
-- [ ] Required result job exists and is the only branch-protection context.
+- [ ] Required result jobs are aggregate contexts, not implementation jobs.
 - [ ] Manual dispatch is green.
 - [ ] Same-repo PR smoke is green.
 - [ ] GitHub-hosted fallback path is green for the scoped lane.
