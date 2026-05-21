@@ -574,7 +574,10 @@ fn parse_with_pure_parser<T: Extract<T>>(
                 let expected = expected_symbol_names_for_diagnostic(lang, &e.expected);
                 crate::errors::ParseError {
                     reason: crate::errors::ParseErrorReason::UnexpectedToken(
-                        unexpected_token_message(symbol_name, expected.clone()),
+                        crate::diagnostic_format::unexpected_token_message(
+                            symbol_name,
+                            expected.clone(),
+                        ),
                     ),
                     start: e.position,
                     end: diagnostic_end_for_byte(input.as_bytes(), e.position),
@@ -1213,7 +1216,7 @@ fn document_diagnostics_for_parse_errors(
                 found: Some(found.clone()),
                 expected: expected.clone(),
                 related_nodes: Vec::new(),
-                message: unexpected_token_message(found, expected),
+                message: crate::diagnostic_format::unexpected_token_message(found, expected),
             }
         })
         .collect()
@@ -1355,16 +1358,7 @@ fn symbol_name_for_diagnostic(
         let raw_name = CStr::from_ptr(symbol_ptr as *const c_char)
             .to_string_lossy()
             .to_string();
-        diagnostic_symbol_name(raw_name)
-    }
-}
-
-#[cfg(feature = "pure-rust")]
-fn diagnostic_symbol_name(raw_name: String) -> String {
-    if raw_name.starts_with("_/") && raw_name.ends_with('/') {
-        raw_name[1..].to_string()
-    } else {
-        raw_name
+        crate::diagnostic_format::diagnostic_symbol_name(raw_name)
     }
 }
 
@@ -1399,14 +1393,6 @@ fn is_extra_symbol_for_diagnostic(
 }
 
 #[cfg(feature = "pure-rust")]
-fn unexpected_token_message(found: String, expected: Vec<String>) -> String {
-    if expected.is_empty() {
-        found
-    } else {
-        format!("{found}; expected one of: {}", expected.join(", "))
-    }
-}
-
 /// Parse using the GLR parser (stub for when feature is not enabled)
 #[cfg(all(feature = "pure-rust", not(feature = "glr")))]
 fn parse_with_glr<T: Extract<T>>(
@@ -1774,7 +1760,7 @@ mod tests {
         let expected = expected_symbol_names_for_diagnostic(&language, &[3, 2, 1, 3]);
         assert_eq!(expected, vec!["number".to_string(), "plus".to_string()]);
         assert_eq!(
-            unexpected_token_message("ERROR".to_string(), expected),
+            crate::diagnostic_format::unexpected_token_message("ERROR".to_string(), expected),
             "ERROR; expected one of: number, plus"
         );
     }
