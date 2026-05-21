@@ -48,7 +48,9 @@ Existing lanes include:
 - [`user-experience-hardening/`](./user-experience-hardening/closeout.md) for the completed non-release adoption polish lane.
 - [`external-scanner-recovery/`](./external-scanner-recovery/closeout.md) for the completed non-release parser-generated external-token recovery proof lane.
 - [`product-proof-result-readiness/`](./product-proof-result-readiness/closeout.md) for the completed Product Proof result-readiness lane.
-- [`product-proof-required-gate/`](./product-proof-required-gate/implementation-plan.md) for the active Product Proof required-gate burn-in lane.
+- [`product-proof-required-gate/`](./product-proof-required-gate/implementation-plan.md) for the completed Product Proof required-gate burn-in and promotion lane.
+- [`ci-lane-policy-hygiene/`](./ci-lane-policy-hygiene/implementation-plan.md) for the completed routed CI lane map cleanup.
+- [`product-gap-burn-down/`](./product-gap-burn-down/implementation-plan.md) also carries the current paused release boundary: routine swarm proof is complete, while release/publish and crates.io install receipt work remain blocked on explicit authorization.
 
 ## Plan header
 

@@ -1,31 +1,160 @@
-id = "ci-lane-policy-hygiene"
-title = "CI Lane Policy Hygiene"
-status = "complete"
-owner = "release/ci"
-created = "2026-05-21"
+id = "adze-residual-product-trust-hardening"
+title = "Adze Residual Product Trust Hardening"
+status = "paused"
+owner = "runtime/product"
+created = "2026-05-19"
+resumed = "2026-05-21"
 
 objective = """
-Keep the routed CI lane map and whitelist aligned with the workflow jobs that
-actually run in adze-swarm.
+Burn down the remaining product-trust gaps that surfaced after the public
+promotion execution closeout. Keep work in adze-swarm, keep public adze as the
+release/public-intake surface, and either prove or explicitly bound every
+remaining product claim before public promotion.
+"""
+
+pause_reason = """
+All routine swarm product-proof work in this lane is complete. The remaining
+items require explicit human release/publish authorization before any tag,
+crate publish, Cargo-token, signing, or crates.io install-receipt work can
+proceed.
+"""
+
+handoff = """
+Release/publish authorization remains tracked on EffortlessMetrics/adze-swarm#325.
+The active manifest has returned to this paused release-boundary state after
+the completed CI lane policy hygiene PRs so agents see the real remaining
+blocker instead of a completed CI cleanup goal.
 """
 
 end_state = [
-  "adze-swarm remains the operating repo for non-release CI policy work.",
-  "public adze remains release/public-intake/publish surface unless explicitly promoted or release-authorized.",
-  "release/publish/signing/Cargo-token work remains blocked on issue #325 until explicitly authorized.",
-  "Rust Small on CX53 is registered as a routed Rust Small implementation lane.",
-  "Absent public/release/fuzz/performance/Droid workflow lanes are not registered as current adze-swarm lanes.",
-  "Rust Small Result and Product Proof Result remain the only required branch-protection contexts.",
-  "No broad matrix, release, or public-fork self-hosting behavior changes.",
+  "adze-swarm remains the operating repo for swarm implementation and product-proof work.",
+  "public adze receives no new swarm work outside an explicit public promotion or release PR.",
+  "Current release-facing docs no longer use unbacked production-ready wording for experimental or internal surfaces.",
+  "External-scanner recovery coverage is either backed by focused proof commands or remains explicitly listed as future work.",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md reflects the latest proof receipts and remaining non-completion reasons.",
+  "No crates.io cargo-install claim is made until a real install receipt exists.",
+  "Product Proof Result and Rust Small Result remain the required branch-protection contexts.",
+  "Public promotion remains complete; release/publish remains blocked until explicit authorization.",
 ]
 
 [[work_item]]
-id = "register-cx53-rust-small-lane"
+id = "release-facing-claim-boundary-sweep"
+status = "complete"
+proposal = "ADZE-PROP-0004-toolkit-excellence"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/product-gap-burn-down/implementation-plan.md"
+prs = [295, 296]
+commands = [
+  "rg -n \"Production Ready|production-ready|production ready\" docs README.md AGENTS.md CLAUDE.md -g \"!docs/archive/**\"",
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "git diff --check",
+]
+
+[[work_item]]
+id = "external-scanner-recovery-proof"
+status = "complete"
+proposal = "ADZE-PROP-0004-toolkit-excellence"
+spec = "ADZE-SPEC-0005"
+adr = "ADZE-ADR-0001"
+plan = "plans/product-gap-burn-down/implementation-plan.md"
+prs = [298, 300, 309, 316, 343, 345, 359, 360, 377, 379]
+commands = [
+  "cargo test -p adze --features external_scanners",
+  "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests::test_parser_with_external_scanner -- --exact --nocapture",
+  "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests::test_external_scanner_rejects_token_not_in_valid_symbols -- --exact --nocapture",
+  "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests::test_external_scanner_parse_document_bad_input_returns_diagnostic_document -- --exact --nocapture",
+  "cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_matrix_returns_diagnostic_document --features pure-rust -- --exact --nocapture",
+  "cargo test -p adze --features \"pure-rust,glr,serialization,ts-compat\" --test recovery_matrix -- --nocapture",
+  "git diff --check",
+]
+
+[[work_item]]
+id = "product-objective-audit-refresh"
+status = "complete"
+proposal = "ADZE-PROP-0005-release-promotion-readiness"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/product-gap-burn-down/implementation-plan.md"
+prs = [375, 380]
+commands = [
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "git diff --check",
+]
+
+[[work_item]]
+id = "public-promotion-blocker-watch"
+status = "complete"
+proposal = "ADZE-PROP-0005-release-promotion-readiness"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/release-promotion/public-promotion-pr-plan.md"
+prs = [795]
+commands = [
+  "gh pr view 795 --repo EffortlessMetrics/adze --json state,mergeable,headRefOid,reviewDecision,autoMergeRequest",
+  "gh pr checks 795 --repo EffortlessMetrics/adze",
+  "gh workflow run ci.yml --repo EffortlessMetrics/adze --ref public/promote-swarm-2026-05-19 -f run_full_ci=false -f run_ci_supported_examples=false",
+  "just ci-product-stable",
+  "just check-publishable",
+]
+
+[[work_item]]
+id = "release-publish-decision-preflight"
+status = "complete"
+proposal = "ADZE-PROP-0005-release-promotion-readiness"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/product-gap-burn-down/implementation-plan.md"
+prs = [318, 319, 320, 322, 324, 325, 326, 327, 330, 332, 333, 334]
+commands = [
+  "cargo info --registry crates-io adze-cli",
+  "just package-local adze-cli",
+  "cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run",
+  "just check-publishable",
+]
+
+[[work_item]]
+id = "release-boundary-active-state-refresh"
+status = "complete"
+proposal = "ADZE-PROP-0005-release-promotion-readiness"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/product-gap-burn-down/implementation-plan.md"
+prs = [395]
+commands = [
+  "cargo info --registry crates-io adze-cli",
+  "cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run",
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
+  "git diff --check",
+]
+
+[[work_item]]
+id = "product-proof-required-gate-promotion"
+status = "complete"
+proposal = "ADZE-PROP-0005-release-promotion-readiness"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/product-proof-required-gate/implementation-plan.md"
+prs = [386, 387, 388, 389, 390, 391, 392]
+commands = [
+  "cargo test -p adze-cli product_proof_workflow_routes_stable_claim_surfaces -- --exact --nocapture",
+  "cargo run -q -p xtask -- check-ci-lane-whitelist --mode blocking-strict",
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
+  "git diff --check",
+]
+
+[[work_item]]
+id = "ci-lane-policy-hygiene"
 status = "complete"
 proposal = "ADZE-PROP-0001"
 spec = "ADZE-SPEC-0002"
+adr = ""
 plan = "plans/ci-lane-policy-hygiene/implementation-plan.md"
-prs = [393]
+prs = [393, 394]
 commands = [
   "cargo run -q -p xtask -- check-ci-lane-whitelist --mode blocking-strict",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
@@ -34,15 +163,24 @@ commands = [
 ]
 
 [[work_item]]
-id = "prune-absent-swarm-workflow-lanes"
-status = "complete"
-proposal = "ADZE-PROP-0001"
-spec = "ADZE-SPEC-0002"
-plan = "plans/ci-lane-policy-hygiene/implementation-plan.md"
-prs = [394]
+id = "explicit-release-publish-workflow"
+status = "blocked"
+blocked_by = ["release-publish-decision-preflight"]
+issues = [325]
+proposal = "ADZE-PROP-0005-release-promotion-readiness"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/product-gap-burn-down/implementation-plan.md"
+
+[[work_item]]
+id = "crates-io-cli-install-receipt"
+status = "blocked"
+blocked_by = ["explicit-release-publish-workflow"]
+issues = [325]
+proposal = "ADZE-PROP-0005-release-promotion-readiness"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/product-gap-burn-down/implementation-plan.md"
 commands = [
-  "cargo run -q -p xtask -- check-ci-lane-whitelist --mode blocking-strict",
-  "cargo run -q -p xtask -- check-active-goal --mode blocking",
-  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
-  "git diff --check",
+  "cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked",
 ]

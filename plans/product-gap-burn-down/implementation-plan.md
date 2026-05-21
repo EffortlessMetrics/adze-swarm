@@ -43,6 +43,64 @@ the post-publish crates.io install receipt.
 - Do not promote GLR, Tree-sitter, query, CLI, or document API surfaces without
   support-tier rows and proof commands.
 
+## Work Item: release-boundary-active-state-refresh
+
+Status: complete
+Linked proposal: ../../docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md
+Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
+Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
+Blocks: n/a
+Blocked by: n/a
+PR: `adze-swarm#395`
+
+### Goal
+
+Restore the active manifest to the paused release-boundary state after the
+completed CI lane policy hygiene work. Agents should see the true current
+state: routine non-release product proof is complete, release/publish remains
+unauthorized, and the crates.io install receipt cannot close until after an
+authorized publish.
+
+### Production Delta
+
+- Replace the completed CI hygiene active manifest with the paused residual
+  product-trust manifest.
+- Carry completed Product Proof required-gate and CI lane hygiene work forward
+  as completed work items.
+- Keep the blocked release/publish and crates.io install receipt work items
+  visible in `.adze/goals/active.toml`.
+- Refresh plan index wording so completed lanes are not described as active.
+
+### Non-Goals
+
+- No release, tag, publish, signing, Cargo-token, or crates.io install work.
+- No public `adze` work.
+- No branch-protection or workflow change.
+- No support-tier promotion.
+
+### Acceptance
+
+- `active.toml` is paused and includes blocked release/publish and
+  crates.io-install receipt items.
+- Issue #325 remains the authorization tracker and is not treated as
+  authorization.
+- Source-of-truth checks pass.
+
+### Proof Commands
+
+```bash
+cargo info --registry crates-io adze-cli
+cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run
+cargo run -q -p xtask -- check-active-goal --mode blocking
+cargo run -q -p xtask -- check-doc-artifacts --mode blocking
+git diff --check
+```
+
+### Rollback
+
+Restore the prior completed CI Lane Policy Hygiene active manifest. Do not
+change release or publish workflows as rollback for this source-of-truth PR.
+
 ## Work Item: product-gap-burn-down-source-of-truth
 
 Status: complete
