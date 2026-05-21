@@ -53,6 +53,7 @@ Existing lanes include:
 - [`parser-runtime-maintainability/`](./parser-runtime-maintainability/implementation-plan.md) for the completed non-release parser/runtime maintainability lane.
 - [`cli-parse-surface/`](./cli-parse-surface/closeout.md) for the completed non-release CLI parse-surface hardening lane.
 - [`cli-static-sexp/`](./cli-static-sexp/closeout.md) for the completed non-release CLI static S-expression output lane.
+- [`cli-static-json-dot/`](./cli-static-json-dot/implementation-plan.md) for the active non-release CLI static JSON and DOT output lane.
 - [`product-gap-burn-down/`](./product-gap-burn-down/implementation-plan.md) also carries the current paused release boundary: routine swarm proof is complete, while release/publish and crates.io install receipt work remain blocked on explicit authorization.
 
 ## Plan header
