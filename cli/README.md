@@ -27,15 +27,17 @@ adze stats src/grammar.rs
 adze build .
 ```
 
-Static `adze parse` output is still advisory. The document projection modes
-compile a temporary single-grammar runner, call the generated
-`parse_document()` helper, and serialize schema-tagged JSON projections. Use
-generated Rust parsers and the `parse()` / `parse_document()` APIs for stable
-product parsing contracts until the CLI parse surface is promoted with proof.
+Static `adze parse` output is still advisory. The default `tree` output and
+the document projection modes compile a temporary single-grammar runner, call
+the generated `parse_document()` helper, and project the selected document
+tree. Use generated Rust parsers and the `parse()` / `parse_document()` APIs
+for stable product parsing contracts until the CLI parse surface is promoted
+with proof.
 
 The parse command exposes the ADZE-SPEC-0008 projection names:
 
 ```bash
+adze parse src/grammar.rs input.txt
 adze parse src/grammar.rs input.txt --output document-json
 adze parse src/grammar.rs input.txt --output tree-json
 adze parse src/grammar.rs input.txt --output diagnostics-json
