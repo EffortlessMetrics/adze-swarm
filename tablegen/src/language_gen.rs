@@ -10,6 +10,60 @@ use adze_ir::Grammar;
 use proc_macro2::TokenStream;
 use quote::quote;
 
+mod compressed_tables {
+    pub(super) fn append_large_state_rows<FEncode, FAction>(
+        compressed_table: &mut Vec<u16>,
+        large_state_count: usize,
+        symbol_count: usize,
+        mut get_action: FAction,
+        mut encode_action: FEncode,
+    ) where
+        FEncode: FnMut(u16) -> u16,
+        FAction: FnMut(usize, usize) -> u16,
+    {
+        for state in 0..large_state_count {
+            for symbol in 0..symbol_count {
+                let action = get_action(state, symbol);
+                compressed_table.push(encode_action(action));
+            }
+        }
+    }
+
+    pub(super) fn collect_non_error_actions<FAction, FIsError>(
+        state: usize,
+        symbol_count: usize,
+        mut get_action: FAction,
+        mut is_error_action: FIsError,
+    ) -> Vec<(usize, u16)>
+    where
+        FAction: FnMut(usize, usize) -> u16,
+        FIsError: FnMut(u16) -> bool,
+    {
+        let mut non_error_actions = Vec::new();
+        for symbol in 0..symbol_count {
+            let action = get_action(state, symbol);
+            if !is_error_action(action) {
+                non_error_actions.push((symbol, action));
+            }
+        }
+        non_error_actions
+    }
+
+    pub(super) fn append_small_state_data<FEncode>(
+        small_table_data: &mut Vec<u16>,
+        non_error_actions: Vec<(usize, u16)>,
+        mut encode_action: FEncode,
+    ) where
+        FEncode: FnMut(u16) -> u16,
+    {
+        small_table_data.push(non_error_actions.len() as u16);
+        for (symbol, action) in non_error_actions {
+            small_table_data.push(symbol as u16);
+            small_table_data.push(encode_action(action));
+        }
+    }
+}
+
 #[cfg(not(debug_assertions))]
 macro_rules! debug_trace {
     ($($arg:tt)*) => {};
@@ -281,13 +335,13 @@ impl<'a> LanguageGenerator<'a> {
         let mut compressed_table = Vec::new();
         let mut small_table_map = Vec::new();
 
-        // For large states, generate the full 2D table (if any)
-        for state in 0..large_state_count {
-            for symbol in 0..self.parse_table.symbol_count {
-                let action = self.get_action(state, symbol);
-                compressed_table.push(self.encode_action(action));
-            }
-        }
+        compressed_tables::append_large_state_rows(
+            &mut compressed_table,
+            large_state_count,
+            self.parse_table.symbol_count,
+            |state, symbol| self.get_action(state, symbol),
+            |action| self.encode_action(action),
+        );
 
         // For small states, use compact representation
         let mut small_table_data = Vec::new();
@@ -295,23 +349,17 @@ impl<'a> LanguageGenerator<'a> {
             // Store offset into small_table_data for this state
             small_table_map.push(small_table_data.len() as u32);
 
-            // Count non-error actions for this state
-            let mut non_error_actions = Vec::new();
-            for symbol in 0..self.parse_table.symbol_count {
-                let action = self.get_action(state, symbol);
-                if !self.is_error_action(action) {
-                    non_error_actions.push((symbol, action));
-                }
-            }
-
-            // Field count prefix (number of symbol/action pairs)
-            small_table_data.push(non_error_actions.len() as u16);
-
-            // Pairs of (symbol, encoded_action)
-            for (symbol, action) in non_error_actions {
-                small_table_data.push(symbol as u16);
-                small_table_data.push(self.encode_action(action));
-            }
+            let non_error_actions = compressed_tables::collect_non_error_actions(
+                state,
+                self.parse_table.symbol_count,
+                |state, symbol| self.get_action(state, symbol),
+                |action| self.is_error_action(action),
+            );
+            compressed_tables::append_small_state_data(
+                &mut small_table_data,
+                non_error_actions,
+                |action| self.encode_action(action),
+            );
         }
 
         // If no small states, add a dummy entry
