@@ -769,52 +769,74 @@ fn parse_file_dynamic(
 ) -> Result<()> {
     use libloading::Library;
 
+    log_dynamic_grammar_load(grammar);
+    let input_content = read_dynamic_input(input)?;
+
+    unsafe {
+        ensure_dynamic_grammar_exists(grammar)?;
+
+        let lib = Library::new(grammar)?;
+        let sym_name = symbol_name_with_null_terminator(symbol);
+        let get_language: libloading::Symbol<unsafe extern "C" fn() -> *const u8> =
+            lib.get(&sym_name)?;
+        let _lang_ptr = get_language();
+
+        log_dynamic_parse_mode_status(grammar, input_content.len(), format);
+    }
+
+    anyhow::bail!("dynamic parse mode is currently unimplemented")
+}
+
+#[cfg(feature = "dynamic")]
+fn log_dynamic_grammar_load(grammar: &Path) {
     println!(
         "{} Loading dynamic grammar: {}",
         "🔧".blue(),
         grammar.display()
     );
-    let input_content = fs::read_to_string(input)?;
+}
 
-    unsafe {
-        // Check if file exists
-        if !grammar.exists() {
-            anyhow::bail!("dynamic grammar not found: {}", grammar.display());
-        }
+#[cfg(feature = "dynamic")]
+fn read_dynamic_input(input: &Path) -> Result<String> {
+    Ok(fs::read_to_string(input)?)
+}
 
-        let lib = Library::new(grammar)?;
-        // Build symbol name with null terminator
-        let sym_name = {
-            let mut s = symbol.as_bytes().to_vec();
-            if !s.ends_with(b"\0") {
-                s.push(0);
-            }
-            s
-        };
-        let get_language: libloading::Symbol<unsafe extern "C" fn() -> *const u8> =
-            lib.get(&sym_name)?;
-        let _lang_ptr = get_language();
+#[cfg(feature = "dynamic")]
+fn ensure_dynamic_grammar_exists(grammar: &Path) -> Result<()> {
+    if !grammar.exists() {
+        anyhow::bail!("dynamic grammar not found: {}", grammar.display());
+    }
+    Ok(())
+}
 
+#[cfg(feature = "dynamic")]
+fn symbol_name_with_null_terminator(symbol: &str) -> Vec<u8> {
+    let mut bytes = symbol.as_bytes().to_vec();
+    if !bytes.ends_with(b"\0") {
+        bytes.push(0);
+    }
+    bytes
+}
+
+#[cfg(feature = "dynamic")]
+fn log_dynamic_parse_mode_status(grammar: &Path, input_len: usize, format: OutputFormat) {
+    println!(
+        "{} Loaded language symbol from: {}",
+        "✓".green(),
+        grammar.display()
+    );
+    println!("Input size: {input_len} bytes");
+    println!("Requested output: {}", format.cli_name());
+    if format.is_document_projection() {
         println!(
-            "{} Loaded language symbol from: {}",
-            "✓".green(),
-            grammar.display()
-        );
-        println!("Input size: {} bytes", input_content.len());
-        println!("Requested output: {}", format.cli_name());
-        if format.is_document_projection() {
-            println!(
-                "{} Document projection output is reserved but not implemented for dynamic parse mode yet.",
-                "⚠️ ".yellow()
-            );
-        }
-        println!(
-            "{} Dynamic parse mode is experimental: loading works, but AST/output parsing is not implemented yet.",
+            "{} Document projection output is reserved but not implemented for dynamic parse mode yet.",
             "⚠️ ".yellow()
         );
     }
-
-    anyhow::bail!("dynamic parse mode is currently unimplemented")
+    println!(
+        "{} Dynamic parse mode is experimental: loading works, but AST/output parsing is not implemented yet.",
+        "⚠️ ".yellow()
+    );
 }
 
 fn scaffold_dependency_block() -> Result<String> {
