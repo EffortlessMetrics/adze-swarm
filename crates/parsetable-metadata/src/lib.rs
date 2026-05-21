@@ -15,6 +15,8 @@ pub mod governance;
 pub use governance::{GovernanceMetadata, ParserFeatureProfileSnapshot};
 use serde::{Deserialize, Serialize};
 
+mod parse;
+
 /// Magic number identifying .parsetable files: "RSPT".
 pub const MAGIC_NUMBER: [u8; 4] = [0x52, 0x53, 0x50, 0x54];
 
@@ -113,13 +115,13 @@ impl ParsetableMetadata {
     /// ```
     #[must_use = "parsing may fail; the Result should be checked"]
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, serde_json::Error> {
-        serde_json::from_slice(bytes)
+        parse::parse_metadata_bytes(bytes)
     }
 
     /// Parse metadata from a UTF-8 JSON string.
     #[must_use = "parsing may fail; the Result should be checked"]
     pub fn parse_json(payload: &str) -> Result<Self, serde_json::Error> {
-        serde_json::from_str(payload)
+        parse::parse_metadata_json(payload)
     }
 }
 
