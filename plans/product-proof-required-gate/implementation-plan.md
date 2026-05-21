@@ -1,6 +1,6 @@
 # Product Proof required-gate burn-in plan
 
-Status: active
+Status: complete
 Owner: release/product
 Created: 2026-05-21
 Linked proposal: `docs/proposals/ADZE-PROP-0011-product-proof-required-gate-burn-in.md`
@@ -113,12 +113,13 @@ Revert the receipt update if the evidence is later found to be stale or wrong.
 
 ## Work Item: promote-product-proof-result-policy
 
-Status: ready
+Status: complete
 Linked proposal: `ADZE-PROP-0011`
 Linked spec: `ADZE-SPEC-0011`
 Linked ADR: n/a
 Blocks: n/a
 Blocked by: `collect-product-proof-result-receipts`
+PR: `adze-swarm#392`
 
 ### Goal
 
@@ -141,7 +142,7 @@ burn-in receipts prove the context is stable enough to become a merge gate.
 ### Acceptance
 
 - `Rust Small Result` remains required.
-- `Product Proof Result` becomes required only in the same PR that updates the
+- `Product Proof Result` became required only in the same PR that updated the
   policy docs.
 - The PR body includes rollback to `Rust Small Result` only.
 

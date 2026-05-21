@@ -1,21 +1,21 @@
 id = "product-proof-required-gate-burn-in"
 title = "Product Proof Required-Gate Burn-In"
-status = "active"
+status = "complete"
 owner = "droid-factory"
 created = "2026-05-21"
 
 objective = """
-Burn in the always-present Product Proof Result context before any deliberate
-branch-protection promotion requires it.
+Burn in and deliberately promote the always-present Product Proof Result
+context before branch protection requires it.
 """
 
 end_state = [
   "adze-swarm remains the operating repo for non-release product proof work.",
   "public adze remains release/public-intake/publish surface unless explicitly promoted or release-authorized.",
   "release/publish/signing/Cargo-token work remains blocked on issue #325 until explicitly authorized.",
-  "Product Proof Result has documented burn-in criteria before required-check promotion.",
-  "Product Proof Result remains advisory until a later explicit policy PR changes branch protection.",
-  "Rust Small Result remains the required merge gate during burn-in.",
+  "Product Proof Result burn-in criteria were met before required-check promotion.",
+  "Product Proof Result is required only through an explicit policy PR that updates branch protection and policy docs together.",
+  "Rust Small Result remains a required merge gate alongside Product Proof Result.",
 ]
 
 [[work_item]]
@@ -54,11 +54,12 @@ commands = [
 
 [[work_item]]
 id = "promote-product-proof-result-policy"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0011-product-proof-required-gate-burn-in.md"
 spec = "ADZE-SPEC-0011"
 plan = "plans/product-proof-required-gate/implementation-plan.md"
 blocked_by = ["collect-product-proof-result-receipts"]
+prs = [392]
 commands = [
   "cargo test -p adze-cli product_proof_workflow_routes_stable_claim_surfaces -- --exact --nocapture",
   "cargo run -q -p xtask -- check-ci-lane-whitelist --mode blocking-strict",

@@ -1,9 +1,10 @@
 # Product Objective Audit
 
-**Last updated:** 2026-05-20
+**Last updated:** 2026-05-21
 **Status:** incomplete; use this as an audit checklist, not as a support-tier
-promotion. The query/tooling expansion lane is closed out, and no routine
-non-release execution lane is selected in
+promotion. The query/tooling expansion lane is closed out, and the Product
+Proof required-gate burn-in lane has promoted the aggregate
+`Product Proof Result` context into branch protection in
 [`../../.adze/goals/active.toml`](../../.adze/goals/active.toml).
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
@@ -35,12 +36,12 @@ Adze should be release-readable as a Rust parser generator where:
 | --- | --- | --- | --- |
 | Rust types define grammar and generated parsers return typed ASTs. | README core example; `SUPPORT_TIERS.md` Stable `Typed extraction` row; `PRODUCT_PROOF_MAP.md` Stable typed extraction claim. | Covered for the supported generated-parser contract. | Keep Stable claim limited to proof rows; do not broaden to every grammar shape. |
 | Quickstart works in a clean downstream crate. | `testing/downstream-starter/`; `docs/product/ACCEPTANCE_MATRIX.md`; `SUPPORT_TIERS.md` Pure-Rust parser row; user-experience hardening closeout. | Covered for path-dependency downstream wiring, generated starter shape, local `adze-cli` package verification, and the post-closeout starter README/local dependency polish from PR #352. | Published `cargo install adze-cli` is not proven until `adze-cli` is published and an install receipt exists. |
-| Core pure-Rust pipeline is green, bounded, and boring. | `just ci-supported`; `Rust Small Result`; `KNOWN_RED.md` supported-lane description; `adze-swarm` PRs #284, #285, #329, #354, #381, and #383. | Covered as the required swarm gate plus local supported proof. PR #284 bounds the broad Rust tail, PR #285 scopes the default pure-rust PR test step to supported crates while keeping full workspace tests explicit through manual/full-ci, PRs #329/#354/#381 reduce Windows supported-gate friction, and PR #383 adds a branch-protection-ready Product Proof result context without requiring it. | `Product Proof Result` remains advisory until branch protection explicitly promotes it. |
+| Core pure-Rust pipeline is green, bounded, and boring. | `just ci-supported`; `Rust Small Result`; `Product Proof Result`; `KNOWN_RED.md` supported-lane description; `adze-swarm` PRs #284, #285, #329, #354, #381, #383, and Product Proof required-gate burn-in receipts #386-#391. | Covered as the required swarm gate plus local supported proof. PR #284 bounds the broad Rust tail, PR #285 scopes the default pure-rust PR test step to supported crates while keeping full workspace tests explicit through manual/full-ci, PRs #329/#354/#381 reduce Windows supported-gate friction, PR #383 adds the always-present Product Proof result context, and the burn-in receipts prove selected and skipped Stable-canary paths before required-gate promotion. | Keep broad feature matrices and advisory product canaries outside branch protection unless separately promoted. |
 | Tablegen emits valid tables. | `SUPPORT_TIERS.md` Tablegen `TSLanguage` ABI row; `PRODUCT_PROOF_MAP.md` tablegen ABI claim. | Stabilizing with compressed decode, field metadata, aliases, externals, lex modes, and conflict-cell proof. | Broader generated-language roundtrip and full Tree-sitter parity remain future work. |
 | GLR handles real conflicts honestly. | `SUPPORT_TIERS.md` GLR conflict routing row; `docs/product/ACCEPTANCE_MATRIX.md` GLR ambiguity row. | Stabilizing with generated shift/reduce conflict preservation, generated reduce/reduce preservation and selected typed-AST extraction, dangling-else nearest-else selected typed AST proof, retained alternatives, deterministic selected output, ambiguity summaries, and no-panic bad-input guardrails. | Broader conflict-class coverage and any Stable GLR promotion still require support-tier proof review. |
 | Typed extraction is deterministic. | `typed_ast_contract_left_associative_addition`; `typed_ast_contract_repeated_parse_is_deterministic`; `readme_arithmetic_quickstart_builds_and_runs`. | Covered for Stable typed extraction rows. | Keep determinism claims scoped to supported generated-parser shapes. |
 | Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors and External scanners rows; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof; `docs/reference/diagnostics-and-recovery.md`. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, generated-parser matrix canaries, object-like `parse_document()`/JSON recovery proof, and user-facing diagnostics/recovery guidance from PR #353. External-scanner dispatch now has focused parser-v4 proof for emitted-token byte spans/text, rejection of scanner tokens that are invalid in the parser state without advancing input position, direct parser-v4 `parse_document()` diagnostic-document behavior for bad input in an external-scanner grammar shape with rendered source context, and generated external-token grammar diagnostic-document matrix behavior for malformed root, empty/whitespace input, keyword/missing-condition, missing-colon, trailing-token, multibyte expression, multibyte body-token, invalid body, newline/CRLF boundary, and nested invalid-expression inputs. The generated matrix also compares `parse()` errors with `parse_document()` diagnostics for span and expected-token agreement. | Corpus-wide external-scanner recovery parity remains future work; any Stable promotion still needs support-tier review. |
-| Every Stable README claim maps to proof. | README capability table; `SUPPORT_TIERS.md`; `readme_stable_claims_are_in_stable_product_lane`; `scripts/ci-product-stable.sh`; `Product Proof Result`. | Covered by current proof map and stable-product canaries. PR #383 proves the Product Proof workflow now emits an always-present aggregate result while selecting Stable canaries only for relevant product surfaces, schedule, or manual dispatch. | The result context is branch-protection-ready but still advisory until a later explicit policy PR requires it. |
+| Every Stable README claim maps to proof. | README capability table; `SUPPORT_TIERS.md`; `readme_stable_claims_are_in_stable_product_lane`; `scripts/ci-product-stable.sh`; `Product Proof Result`. | Covered by current proof map and stable-product canaries. PR #383 proves the Product Proof workflow emits an always-present aggregate result while selecting Stable canaries only for relevant product surfaces, schedule, or manual dispatch. Product Proof required-gate burn-in receipts #386-#391 proved enough selected/skipped paths for the deliberate required-gate policy update. | `Product Proof Result` is now required; keep the path-selected `ci-product stable canaries` implementation job out of branch protection. |
 | Experimental/developing surfaces are clearly labeled. | README capability table; `SUPPORT_TIERS.md`; `KNOWN_RED.md`; `PRODUCT_PROOF_MAP.md`; query/tooling closeout. | Covered for runtime2, broader grammars, WASM, Tree-sitter interop, CLI, benchmarks, typed CST, incremental, JSON, and the documented query subset. Query remains Stabilizing for the documented subset, not full Tree-sitter query parity. | Re-check after any README, support-tier, or release-facing wording change. |
 | Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI document JSON recovery diagnostics; public promotion PR #795; user-experience hardening closeout; query/tooling closeout. | Covered for local/downstream fixtures, CLI recovery smoke, public repository promotion, starter README polish, diagnostics/recovery guidance, performance receipt boundaries, query example/differential receipts, and local proof-loop friction mitigation. | Published CLI install and any future crates.io release surface need fresh receipts. |
 
@@ -140,10 +141,10 @@ Latest Product Proof result-readiness receipt: `adze-swarm` PR #383 made
 `ci-product stable canaries`, and `Product Proof Result`. In GitHub run
 [`26201525347`](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26201525347),
 the detector passed, the Stable canaries passed, and `Product Proof Result`
-passed. This proves the result context exists and can aggregate the selected
-Stable canary lane, but it is still not a required branch-protection check.
+passed. This proved the result context existed and could aggregate the selected
+Stable canary lane before the later required-gate promotion.
 
-Latest Product Proof required-gate burn-in receipt: `adze-swarm` PR #386 opened
+Latest Product Proof required-gate burn-in receipts: `adze-swarm` PR #386 opened
 the burn-in lane without changing branch protection. The PR check rollup showed
 `Rust Small Result`, `ci-product stable canaries`, and `Product Proof Result`
 green. This counts as a selected Stable-canary burn-in receipt; skipped-canary
@@ -151,8 +152,10 @@ receipts still need to be collected before any required-check promotion.
 Follow-up PRs #387 through #390 completed the receipt mix: #387 added another
 selected Stable-canary receipt, while #388 through #390 exercised the
 skipped-canary path with `Product Proof Result` and `Rust Small Result` green.
-The future promotion remains a separate policy PR; branch protection still
-requires only `Rust Small Result`.
+PR #391 recorded the complete receipt set and moved the policy promotion item
+to ready after another selected Stable-canary Product Proof run passed. PR #392
+is the promotion policy PR that adds `Product Proof Result` to branch
+protection while keeping `Rust Small Result` required.
 
 Current CI-tail receipts:
 
@@ -345,7 +348,6 @@ Do not mark the product objective complete while any of these are true:
 - `cargo install adze-cli` has no crates.io install receipt.
 - The root README dependency block is release-surface-bounded because
   `adze-tool` does not yet have a crates.io metadata receipt.
-- `Product Proof Result` is advisory and not a required branch-protection gate.
 - Corpus-wide external-scanner recovery parity remains future work and is not
   a Stable claim.
 - GLR conflict routing, structured parse errors, Tree-sitter compatibility,
@@ -372,11 +374,9 @@ separate and tracked in
    `cargo install adze-cli` as the supported quickstart.
 2. If no release/publish authorization exists, do not tag, publish, mutate
    signing/Cargo-token workflows, or claim `cargo install adze-cli`.
-3. Consider promoting `Product Proof Result` only after advisory receipts are
-   consistently green and branch-protection policy is updated deliberately.
-4. If Product Proof is promoted, make it a deliberate policy PR that updates
-   `.github/settings.yml`, `.github/CI_LANES.md`, `KNOWN_RED.md`, and this
-   audit together with rollback to `Rust Small Result` only.
-5. For future non-release work, open a fresh active goal in `adze-swarm`; do
+3. If Product Proof required-gate behavior flakes, roll back by removing
+   `Product Proof Result` from `.github/settings.yml` and restoring the
+   advisory wording in `.github/CI_LANES.md`, `KNOWN_RED.md`, and this audit.
+4. For future non-release work, open a fresh active goal in `adze-swarm`; do
    not promote external scanners or query compatibility beyond their proven
    support-tier slices.
