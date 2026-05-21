@@ -116,7 +116,7 @@ blocking = false
 runner = "ubuntu_latest"
 base_lem = 1
 owner = "release/ci"
-intent = "Select the CX43 self-hosted Rust small runner when idle, otherwise fall back to GitHub-hosted."
+intent = "Select CPX42 first for medium Rust work, then CX43/CX53, with GitHub-hosted fallback."
 failure_mode = "The swarm base gate cannot choose a trusted execution lane."
 proof_obligation = "Query runner availability and emit the selected rust-small target."
 evidence = ["job logs", "GitHub job outputs"]
@@ -124,6 +124,27 @@ allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
 duplicate_of = []
 review_after = "2026-06-15"
 expires = "2026-11-15"
+
+[[lane]]
+id = "em-rust-small-cpx42"
+workflow = ".github/workflows/em-ci-routed-rust.yml"
+job = "rust-small-cpx42"
+display_name = "Rust Small on CPX42"
+kind = "rust"
+tier = "frontdoor"
+default_pr = true
+blocking = false
+runner = "mixed"
+base_lem = 10
+owner = "core/build"
+intent = "Run the routed medium Rust lane on CPX42 using direct Rust 1.95 host toolchain setup."
+failure_mode = "Same-repo swarm PRs miss the preferred medium-capacity trusted runner."
+proof_obligation = "Prepare CPX42 scratch before toolchain setup, then run cargo fetch/check on host."
+evidence = ["job logs", "disk and toolchain preflight output"]
+allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
+duplicate_of = ["ci-supported"]
+review_after = "2026-06-21"
+expires = "2026-11-21"
 
 [[lane]]
 id = "em-rust-small-cx43"
@@ -205,7 +226,7 @@ failure_mode = "Branch protection cannot distinguish the selected routed lane fr
 proof_obligation = "Pass only when the selected Rust Small implementation lane succeeds."
 evidence = ["job summary", "selected lane result"]
 allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
-duplicate_of = ["em-rust-small-cx43", "em-rust-small-cx53", "em-rust-small-github"]
+duplicate_of = ["em-rust-small-cpx42", "em-rust-small-cx43", "em-rust-small-cx53", "em-rust-small-github"]
 review_after = "2026-06-15"
 expires = "2026-11-15"
 
