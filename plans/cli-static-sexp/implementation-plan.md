@@ -82,7 +82,7 @@ manifest.
 
 ## Work Item: static-cli-sexpression-output
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0014-cli-static-sexpression-output.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0008-json-cli-wasm-projections.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -118,6 +118,7 @@ CLI behavior, focused tests, and support-tier/docs wording only.
   still pass their schema-envelope and recovery-diagnostics receipts.
 - `json` and `dot` remain explicit unsupported static modes.
 - CLI support-tier wording records S-expression as Stabilizing, not Stable.
+- Completed by #462.
 
 ### Proof Commands
 
@@ -139,7 +140,7 @@ projection modes while returning to the explicit unsupported boundary for
 
 ## Work Item: cli-static-sexp-closeout
 
-Status: blocked
+Status: ready
 Linked proposal: ../../docs/proposals/ADZE-PROP-0014-cli-static-sexpression-output.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md

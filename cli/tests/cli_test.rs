@@ -257,17 +257,15 @@ fn test_parse_static_non_document_modes_are_explicitly_unimplemented() {
         .arg(&grammar)
         .arg(&input)
         .arg("--output")
-        .arg("sexp")
+        .arg("dot")
         .assert()
         .failure()
         .stderr(predicate::str::contains("unimplemented"))
         .stderr(predicate::str::contains("tree"))
-        .stderr(predicate::str::contains("sexp"))
+        .stderr(predicate::str::contains("dot"))
         .stdout(predicate::str::contains("adze build"))
         .stdout(predicate::str::contains("cargo test"))
-        .stdout(predicate::str::contains(
-            "Static parse output format `sexp`",
-        ));
+        .stdout(predicate::str::contains("Static parse output format `dot`"));
 }
 
 #[test]
@@ -297,6 +295,38 @@ fn test_parse_static_tree_mode_emits_document_backed_tree() {
         .stdout(predicate::str::contains("Expr"))
         .stdout(predicate::str::contains(r"/\d+/"))
         .stdout(predicate::str::contains("[0..3]"))
+        .stdout(predicate::str::contains("Static parse mode").not());
+}
+
+#[test]
+fn test_parse_static_sexp_mode_emits_document_backed_sexp() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let project_name = "parsesexp";
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg(project_name)
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    let project_dir = temp.path().join(project_name);
+    let grammar = project_dir.join("src/grammar.rs");
+    let input = temp.path().join("input.txt");
+    std::fs::write(&input, "123").expect("write input");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("parse")
+        .arg(&grammar)
+        .arg(&input)
+        .arg("--output")
+        .arg("sexp")
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("(source_file"))
+        .stdout(predicate::str::contains("Expr"))
+        .stdout(predicate::str::contains(r"/\d+/"))
+        .stdout(predicate::str::contains("[0..3]").not())
         .stdout(predicate::str::contains("Static parse mode").not());
 }
 
