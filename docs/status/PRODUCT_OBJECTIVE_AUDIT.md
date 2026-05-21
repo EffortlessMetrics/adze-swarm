@@ -148,6 +148,11 @@ the burn-in lane without changing branch protection. The PR check rollup showed
 `Rust Small Result`, `ci-product stable canaries`, and `Product Proof Result`
 green. This counts as a selected Stable-canary burn-in receipt; skipped-canary
 receipts still need to be collected before any required-check promotion.
+Follow-up PRs #387 through #390 completed the receipt mix: #387 added another
+selected Stable-canary receipt, while #388 through #390 exercised the
+skipped-canary path with `Product Proof Result` and `Rust Small Result` green.
+The future promotion remains a separate policy PR; branch protection still
+requires only `Rust Small Result`.
 
 Current CI-tail receipts:
 
@@ -369,8 +374,9 @@ separate and tracked in
    signing/Cargo-token workflows, or claim `cargo install adze-cli`.
 3. Consider promoting `Product Proof Result` only after advisory receipts are
    consistently green and branch-protection policy is updated deliberately.
-4. Burn in `Product Proof Result` with recent selected/skipped PR receipts
-   before any policy PR makes it a required branch-protection context.
+4. If Product Proof is promoted, make it a deliberate policy PR that updates
+   `.github/settings.yml`, `.github/CI_LANES.md`, `KNOWN_RED.md`, and this
+   audit together with rollback to `Rust Small Result` only.
 5. For future non-release work, open a fresh active goal in `adze-swarm`; do
    not promote external scanners or query compatibility beyond their proven
    support-tier slices.
