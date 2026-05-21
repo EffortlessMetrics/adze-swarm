@@ -12,13 +12,6 @@ surfaces without changing release authorization, public publish state, or
 support-tier claims by implication.
 """
 
-handoff = """
-Release and crates.io install work remains blocked on explicit human
-authorization tracked by EffortlessMetrics/adze-swarm#325. This active goal is
-the non-release continuation lane for adze-swarm development after the paused
-release-boundary state and Product Proof receipts.
-"""
-
 end_state = [
   "adze-swarm remains the operating repo for implementation, proof, and maintainability work.",
   "public adze remains the release, public-intake, promotion, tag, publish, signing, and Cargo-token surface.",
