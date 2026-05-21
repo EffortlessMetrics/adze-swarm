@@ -171,11 +171,11 @@ microcrates do not return before release.
 **Area:** tooling
 **Symptom:** To validate a grammar, users must write a full Rust program with `build.rs` integration.
 **Expected:** A CLI command like `adze check grammar.rs` validates grammars without a full project.
-**Actual:** `adze check`, `adze stats`, `adze init`, `adze build`, `adze test`, and `adze doc` exist. `adze parse` is present as a command shape, but static and dynamic parse output currently fail explicitly as unimplemented.
+**Actual:** `adze check`, `adze stats`, `adze init`, `adze build`, `adze test`, and `adze doc` exist. Static `adze parse` output now has document-backed `tree`, `sexp`, `json`, `dot`, and document projection smoke receipts. Dynamic parse output remains experimental and unimplemented.
 **Fix:** Implement `adze check` and `adze stats` subcommands; keep parse-mode documentation and errors explicit until parse output is behavior-backed.
 **Status:** Resolved
 **Discovered:** Wave 14
-**Resolved:** Wave 15 (2026-03-25) - CLI validation and project scaffolding exist in `cli/`. Parse output remains a developing surface, tracked separately under CLI truthfulness/product-proof work.
+**Resolved:** Wave 15 (2026-03-25) - CLI validation and project scaffolding exist in `cli/`. Static parse output later gained document-backed smoke receipts; dynamic parse output remains a developing surface, tracked separately under CLI truthfulness/product-proof work.
 
 ### FR-014 - Stale Runtime Test API References
 

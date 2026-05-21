@@ -3,10 +3,11 @@
 **Last updated:** 2026-05-21
 **Status:** incomplete; use this as an audit checklist, not as a support-tier
 promotion. Routine product-proof, query/tooling, recovery, user-experience,
-parser/runtime maintainability, and CLI parse-surface lanes are closed out.
-The current `active.toml` records the CLI parse-surface lane as complete with
-no active, ready, or blocked non-release work items. Release/publish work
-remains separate and blocked on explicit authorization.
+parser/runtime maintainability, CLI parse-surface, static S-expression, and
+static JSON/DOT lanes are closed out. The current `active.toml` records the CLI
+static JSON/DOT lane as complete with no active, ready, or blocked non-release
+work items. Release/publish work remains separate and blocked on explicit
+authorization.
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
 
@@ -58,7 +59,8 @@ cargo test -p adze-cli cargo_install_adze_cli_claims_stay_release_surface_bounde
 cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exact --nocapture
 cargo test -p adze-cli test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture
 cargo test -p adze-cli test_parse_static_sexp_mode_emits_document_backed_sexp -- --exact --nocapture
-cargo test -p adze-cli test_parse_static_non_document_modes_are_explicitly_unimplemented -- --exact --nocapture
+cargo test -p adze-cli test_parse_static_json_mode_emits_document_json -- --exact --nocapture
+cargo test -p adze-cli test_parse_static_dot_mode_emits_document_backed_graph -- --exact --nocapture
 cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
 cargo test -p adze-cli parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture
 cargo test --manifest-path testing/downstream-starter/Cargo.toml
@@ -169,10 +171,12 @@ lands. Local proof included:
 
 ```bash
 cargo test -p adze-cli test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture
-cargo test -p adze-cli test_parse_static_non_document_modes_are_explicitly_unimplemented -- --exact --nocapture
 cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
 cargo test -p adze-cli parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture
 ```
+
+The #458 explicit unsupported-mode canary was retired after static `sexp`,
+`json`, and `dot` output gained document-backed receipts.
 
 Hosted receipts on #458 included `Rust Small Result`, `Product Proof Result`,
 `Source of Truth`, `Supported Rust Gate`, `PR Gate Success`, and
@@ -191,11 +195,13 @@ lands. Local proof included:
 
 ```bash
 cargo test -p adze-cli test_parse_static_sexp_mode_emits_document_backed_sexp -- --exact --nocapture
-cargo test -p adze-cli test_parse_static_non_document_modes_are_explicitly_unimplemented -- --exact --nocapture
 cargo test -p adze-cli test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture
 cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
 cargo test -p adze-cli parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture
 ```
+
+The #462 explicit unsupported-mode canary was retired after static `json` and
+`dot` output gained document-backed receipts.
 
 Hosted receipts on #462 included `Rust Small Result`, `Product Proof Result`,
 `Source of Truth`, `Supported Rust Gate`, `PR Gate Success`,
