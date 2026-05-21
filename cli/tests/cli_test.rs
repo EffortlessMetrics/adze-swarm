@@ -245,30 +245,6 @@ fn test_stats_rejects_file_without_adze_grammar() {
 }
 
 #[test]
-fn test_parse_static_non_document_modes_are_explicitly_unimplemented() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    let grammar = temp.path().join("grammar.rs");
-    let input = temp.path().join("input.txt");
-    std::fs::write(&grammar, "// dummy grammar").expect("write grammar");
-    std::fs::write(&input, "x").expect("write input");
-
-    let mut cmd = cargo_bin_cmd!("adze");
-    cmd.arg("parse")
-        .arg(&grammar)
-        .arg(&input)
-        .arg("--output")
-        .arg("dot")
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("unimplemented"))
-        .stderr(predicate::str::contains("tree"))
-        .stderr(predicate::str::contains("dot"))
-        .stdout(predicate::str::contains("adze build"))
-        .stdout(predicate::str::contains("cargo test"))
-        .stdout(predicate::str::contains("Static parse output format `dot`"));
-}
-
-#[test]
 fn test_parse_static_tree_mode_emits_document_backed_tree() {
     let temp = tempfile::tempdir().expect("tempdir");
     let project_name = "parsetree";
@@ -295,6 +271,78 @@ fn test_parse_static_tree_mode_emits_document_backed_tree() {
         .stdout(predicate::str::contains("Expr"))
         .stdout(predicate::str::contains(r"/\d+/"))
         .stdout(predicate::str::contains("[0..3]"))
+        .stdout(predicate::str::contains("Static parse mode").not());
+}
+
+#[test]
+fn test_parse_static_json_mode_emits_document_json() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let project_name = "parsejsonstatic";
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg(project_name)
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    let project_dir = temp.path().join(project_name);
+    let grammar = project_dir.join("src/grammar.rs");
+    let input = temp.path().join("input.txt");
+    std::fs::write(&input, "123").expect("write input");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    let output = cmd
+        .arg("parse")
+        .arg(&grammar)
+        .arg(&input)
+        .arg("--output")
+        .arg("json")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("static json output should be document JSON");
+    assert_eq!(json["schema"].as_str(), Some("adze.document.v1"));
+    assert_eq!(json["language"]["name"].as_str(), Some("parsejsonstatic"));
+    assert_eq!(json["source"]["byte_len"].as_u64(), Some(3));
+    assert_eq!(json["tree"]["root"]["kind"].as_str(), Some("source_file"));
+    assert!(json["diagnostics"].is_array());
+}
+
+#[test]
+fn test_parse_static_dot_mode_emits_document_backed_graph() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let project_name = "parsedot";
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg(project_name)
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    let project_dir = temp.path().join(project_name);
+    let grammar = project_dir.join("src/grammar.rs");
+    let input = temp.path().join("input.txt");
+    std::fs::write(&input, "123").expect("write input");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("parse")
+        .arg(&grammar)
+        .arg(&input)
+        .arg("--output")
+        .arg("dot")
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("digraph adze_tree"))
+        .stdout(predicate::str::contains("source_file"))
+        .stdout(predicate::str::contains("Expr"))
+        .stdout(predicate::str::contains(r"/\\d+/"))
+        .stdout(predicate::str::contains("->"))
         .stdout(predicate::str::contains("Static parse mode").not());
 }
 

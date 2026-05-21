@@ -16,8 +16,10 @@ Linked issues:
 - EffortlessMetrics/adze-swarm#325
 Linked PRs:
 - EffortlessMetrics/adze-swarm#464
+- EffortlessMetrics/adze-swarm#465
 Support-tier impact:
-- No support-tier promotion by campaign setup.
+- Records static `json` and `dot` CLI output receipts as Stabilizing, not
+  Stable.
 Policy impact:
 - Keeps CLI output hardening in `EffortlessMetrics/adze-swarm`.
 - Keeps release, tag, publish, signing, Cargo-token, and crates.io install

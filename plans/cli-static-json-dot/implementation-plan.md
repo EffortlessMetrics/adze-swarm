@@ -74,7 +74,8 @@ manifest.
 
 ## Work Item: static-cli-json-dot-output
 
-Status: ready
+Status: complete
+Completed by: EffortlessMetrics/adze-swarm#465
 Linked proposal: ../../docs/proposals/ADZE-PROP-0015-cli-static-json-dot-output.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0008-json-cli-wasm-projections.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
