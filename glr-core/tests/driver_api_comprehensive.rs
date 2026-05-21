@@ -111,14 +111,53 @@ fn make_table(
     }
 }
 
+mod forest_counting {
+    use super::ForestView;
+
+    const MAX_RECURSION_DEPTH: usize = 200;
+
+    pub(super) fn count_nodes(view: &dyn ForestView, id: u32, depth: usize) -> usize {
+        recursion_guard::ensure_bounded(depth);
+        let direct_children = children::best(view, id);
+        node_totals::including_self(view, direct_children, depth + 1)
+    }
+
+    mod recursion_guard {
+        use super::MAX_RECURSION_DEPTH;
+
+        pub(super) fn ensure_bounded(depth: usize) {
+            assert!(depth < MAX_RECURSION_DEPTH, "infinite recursion guard");
+        }
+    }
+
+    mod children {
+        use super::ForestView;
+
+        pub(super) fn best(view: &dyn ForestView, id: u32) -> &[u32] {
+            view.best_children(id)
+        }
+    }
+
+    mod node_totals {
+        use super::{ForestView, count_nodes};
+
+        pub(super) fn including_self(
+            view: &dyn ForestView,
+            children: &[u32],
+            next_depth: usize,
+        ) -> usize {
+            1 + children
+                .iter()
+                .copied()
+                .map(|child| count_nodes(view, child, next_depth))
+                .sum::<usize>()
+        }
+    }
+}
+
 /// Walk a forest recursively, counting nodes.
 fn count_nodes(view: &dyn ForestView, id: u32, depth: usize) -> usize {
-    assert!(depth < 200, "infinite recursion guard");
-    let mut count = 1;
-    for &child in view.best_children(id) {
-        count += count_nodes(view, child, depth + 1);
-    }
-    count
+    forest_counting::count_nodes(view, id, depth)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
