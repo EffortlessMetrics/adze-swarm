@@ -522,6 +522,10 @@ fn parse_file(
         }
     }
 
+    if matches!(format, OutputFormat::Tree) {
+        return parse_file_static_tree(grammar, input);
+    }
+
     if format.is_document_projection() {
         return parse_file_static_document_projection(grammar, input, format);
     }
@@ -537,18 +541,10 @@ fn parse_file(
         format.cli_name()
     );
     println!(
-        "{} Static parse mode is not yet available in adze-cli.",
-        "⚠️ ".yellow()
+        "{} Static parse output format `{}` is not yet available in adze-cli.",
+        "⚠️ ".yellow(),
+        format.cli_name()
     );
-    if format.is_document_projection() {
-        println!(
-            "   `{}` is reserved for the ADZE-SPEC-0008 document projection surface.",
-            format.cli_name()
-        );
-        println!(
-            "   Until CLI schema output lands, use generated `parse_document()` from Rust code."
-        );
-    }
     println!(
         "   To parse files from Rust code, use `adze build` + `cargo test` in your grammar project."
     );
@@ -558,8 +554,33 @@ fn parse_file(
     );
 
     anyhow::bail!(
-        "static parse mode is currently unimplemented — use `adze build` + `cargo test` instead"
+        "static parse output format `{}` is currently unimplemented — use `tree` or a document projection mode instead",
+        format.cli_name()
     )
+}
+
+fn parse_file_static_tree(grammar: &Path, input: &Path) -> Result<()> {
+    let output = run_static_parse_runner(grammar, input, "document-json")?;
+    let document: serde_json::Value = serde_json::from_str(&output).map_err(|err| {
+        anyhow::anyhow!(
+            "static tree output could not read generated document JSON for {}: {}",
+            grammar.display(),
+            err
+        )
+    })?;
+
+    let root = &document["tree"]["root"];
+    if root.is_null() {
+        anyhow::bail!(
+            "static tree output could not find document tree root for {}",
+            grammar.display()
+        );
+    }
+
+    let mut rendered = String::new();
+    render_selected_tree(root, 0, None, &mut rendered);
+    print!("{rendered}");
+    Ok(())
 }
 
 fn parse_file_static_document_projection(
@@ -567,6 +588,12 @@ fn parse_file_static_document_projection(
     input: &Path,
     format: OutputFormat,
 ) -> Result<()> {
+    let output = run_static_parse_runner(grammar, input, format.cli_name())?;
+    print!("{output}");
+    Ok(())
+}
+
+fn run_static_parse_runner(grammar: &Path, input: &Path, output_format: &str) -> Result<String> {
     let grammar = absolute_path(grammar)?;
     let input = absolute_path(input)?;
     if !input.is_file() {
@@ -594,7 +621,7 @@ fn parse_file_static_document_projection(
         .arg(runner.path().join("Cargo.toml"))
         .arg("--")
         .arg(&input)
-        .arg(format.cli_name())
+        .arg(output_format)
         .env("ADZE_USE_PURE_RUST", "1")
         .output()?;
 
@@ -610,8 +637,53 @@ fn parse_file_static_document_projection(
         );
     }
 
-    print!("{}", String::from_utf8_lossy(&output.stdout));
-    Ok(())
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+fn render_selected_tree(
+    node: &serde_json::Value,
+    depth: usize,
+    field_name: Option<&str>,
+    out: &mut String,
+) {
+    let indent = "  ".repeat(depth);
+    let kind = node["kind"].as_str().unwrap_or("<unknown>");
+    let start = node["range"]["start_byte"].as_u64().unwrap_or(0);
+    let end = node["range"]["end_byte"].as_u64().unwrap_or(start);
+
+    out.push_str(&indent);
+    if let Some(field_name) = field_name {
+        out.push_str(field_name);
+        out.push_str(": ");
+    }
+    out.push_str(kind);
+    out.push_str(" [");
+    out.push_str(&start.to_string());
+    out.push_str("..");
+    out.push_str(&end.to_string());
+    out.push(']');
+
+    if node["flags"]["has_error"].as_bool().unwrap_or(false) {
+        out.push_str(" has_error");
+    }
+    if node["flags"]["missing"].as_bool().unwrap_or(false) {
+        out.push_str(" missing");
+    }
+    if node["flags"]["error"].as_bool().unwrap_or(false) {
+        out.push_str(" error");
+    }
+    if let Some(text) = node["text"].as_str() {
+        out.push(' ');
+        out.push_str(&format!("{text:?}"));
+    }
+    out.push('\n');
+
+    if let Some(children) = node["children"].as_array() {
+        for edge in children {
+            let field_name = edge["field_name"].as_str();
+            render_selected_tree(&edge["node"], depth + 1, field_name, out);
+        }
+    }
 }
 
 fn absolute_path(path: &Path) -> Result<PathBuf> {

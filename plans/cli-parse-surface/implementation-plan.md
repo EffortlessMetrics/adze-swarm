@@ -84,7 +84,7 @@ maintainability active manifest.
 
 ## Work Item: static-cli-selected-tree-output
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0013-cli-parse-surface-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0008-json-cli-wasm-projections.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -120,6 +120,7 @@ must remain unchanged.
 - Unsupported output modes remain explicit until implemented.
 - Existing `document-json`, `tree-json`, `diagnostics-json`, and
   `ambiguity-json` tests still pass.
+- Completed by #458.
 
 ### Proof Commands
 
@@ -138,7 +139,7 @@ available.
 
 ## Work Item: cli-parse-surface-closeout
 
-Status: blocked
+Status: ready
 Linked proposal: ../../docs/proposals/ADZE-PROP-0013-cli-parse-surface-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md

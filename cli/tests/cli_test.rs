@@ -245,7 +245,7 @@ fn test_stats_rejects_file_without_adze_grammar() {
 }
 
 #[test]
-fn test_parse_static_mode_is_explicitly_unimplemented() {
+fn test_parse_static_non_document_modes_are_explicitly_unimplemented() {
     let temp = tempfile::tempdir().expect("tempdir");
     let grammar = temp.path().join("grammar.rs");
     let input = temp.path().join("input.txt");
@@ -256,11 +256,48 @@ fn test_parse_static_mode_is_explicitly_unimplemented() {
     cmd.arg("parse")
         .arg(&grammar)
         .arg(&input)
+        .arg("--output")
+        .arg("sexp")
         .assert()
         .failure()
         .stderr(predicate::str::contains("unimplemented"))
+        .stderr(predicate::str::contains("tree"))
+        .stderr(predicate::str::contains("sexp"))
         .stdout(predicate::str::contains("adze build"))
-        .stdout(predicate::str::contains("cargo test"));
+        .stdout(predicate::str::contains("cargo test"))
+        .stdout(predicate::str::contains(
+            "Static parse output format `sexp`",
+        ));
+}
+
+#[test]
+fn test_parse_static_tree_mode_emits_document_backed_tree() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let project_name = "parsetree";
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg(project_name)
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    let project_dir = temp.path().join(project_name);
+    let grammar = project_dir.join("src/grammar.rs");
+    let input = temp.path().join("input.txt");
+    std::fs::write(&input, "123").expect("write input");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("parse")
+        .arg(&grammar)
+        .arg(&input)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("source_file"))
+        .stdout(predicate::str::contains("Expr"))
+        .stdout(predicate::str::contains(r"/\d+/"))
+        .stdout(predicate::str::contains("[0..3]"))
+        .stdout(predicate::str::contains("Static parse mode").not());
 }
 
 #[test]
