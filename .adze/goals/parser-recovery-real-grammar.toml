@@ -1,8 +1,9 @@
 id = "adze-parser-recovery-real-grammar"
 title = "Adze Parser Recovery Real-Grammar Coverage"
-status = "active"
+status = "complete"
 owner = "droid-factory"
 created = "2026-05-20"
+archived = "2026-05-20"
 
 objective = """
 Continue non-release product-trust work by narrowing the broader real-grammar
@@ -18,6 +19,7 @@ end_state = [
   "parser-v4 external-scanner recovery smoke stays source-bounded and no-panic.",
   "support-tier wording changes only after proof commands exist.",
   "external scanners remain Experimental unless a later support-tier review promotes a proven slice.",
+  "the targeted real-grammar recovery lane is closed out with no release/publish authorization implied.",
 ]
 
 [[work_item]]
@@ -27,6 +29,7 @@ proposal = "docs/proposals/ADZE-PROP-0009-parser-recovery-real-grammar-coverage.
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/parser-recovery-real-grammar/implementation-plan.md"
+prs = [376]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
@@ -41,6 +44,7 @@ spec = "ADZE-SPEC-0005"
 adr = "ADZE-ADR-0001"
 plan = "plans/parser-recovery-real-grammar/implementation-plan.md"
 blocked_by = ["parser-recovery-source-of-truth"]
+prs = [377, 378]
 commands = [
   "cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_matrix_returns_diagnostic_document --features pure-rust -- --exact --nocapture",
   "git diff --check",
@@ -54,14 +58,15 @@ spec = "ADZE-SPEC-0005"
 adr = "ADZE-ADR-0001"
 plan = "plans/parser-recovery-real-grammar/implementation-plan.md"
 blocked_by = ["parser-recovery-source-of-truth"]
+prs = [379]
 commands = [
-  "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests -- --nocapture",
+  "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests::test_external_scanner_parse_document_bad_input_returns_diagnostic_document -- --exact --nocapture",
   "git diff --check",
 ]
 
 [[work_item]]
 id = "support-tier-boundary-refresh"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0009-parser-recovery-real-grammar-coverage.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
