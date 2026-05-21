@@ -1,5 +1,7 @@
 //! Shared syntax helpers for parsing macro/tool attributes.
 
+mod syntax_parse;
+
 pub use adze_common_type_ops_core::{filter_inner_type, try_extract_inner_type, wrap_leaf_type};
 
 use syn::{
@@ -24,11 +26,7 @@ pub struct NameValueExpr {
 
 impl Parse for NameValueExpr {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(NameValueExpr {
-            path: input.parse()?,
-            eq_token: input.parse()?,
-            expr: input.parse()?,
-        })
+        syntax_parse::parse_name_value_expr(input)
     }
 }
 
@@ -48,13 +46,7 @@ pub struct FieldThenParams {
 
 impl Parse for FieldThenParams {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let field = Field::parse_unnamed(input)?;
-        let comma: Option<Token![,]> = input.parse()?;
-        let params = if comma.is_some() {
-            Punctuated::parse_terminated_with(input, NameValueExpr::parse)?
-        } else {
-            Punctuated::new()
-        };
+        let (field, comma, params) = syntax_parse::parse_field_then_params(input)?;
 
         Ok(FieldThenParams {
             field,
