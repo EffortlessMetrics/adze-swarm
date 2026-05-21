@@ -99,6 +99,17 @@ impl GraphStructuredStack {
         self.active_heads.len() - 1
     }
 
+    /// Try to fork a stack head. Returns `None` when `head_idx` is out of bounds.
+    pub fn try_fork_head(&mut self, head_idx: usize) -> Option<usize> {
+        let head = self.active_heads.get(head_idx)?.clone();
+        self.active_heads.push(head);
+
+        self.stats.total_forks += 1;
+        self.stats.max_active_heads = self.stats.max_active_heads.max(self.active_heads.len());
+
+        Some(self.active_heads.len() - 1)
+    }
+
     /// Push a new state onto a stack head
     pub fn push(&mut self, head_idx: usize, state: StateId, symbol: Option<SymbolId>) {
         let parent = Some(self.active_heads[head_idx].clone());
@@ -172,6 +183,16 @@ impl GraphStructuredStack {
     pub fn mark_completed(&mut self, head_idx: usize) {
         let head = self.active_heads.remove(head_idx);
         self.completed_heads.push(head);
+    }
+
+    /// Try to mark a head as completed. Returns `false` when `head_idx` is out of bounds.
+    pub fn try_mark_completed(&mut self, head_idx: usize) -> bool {
+        if head_idx >= self.active_heads.len() {
+            return false;
+        }
+        let head = self.active_heads.remove(head_idx);
+        self.completed_heads.push(head);
+        true
     }
 
     /// Get statistics about the GSS
