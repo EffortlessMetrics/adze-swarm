@@ -93,6 +93,7 @@ Current receipts:
 | PR | Product Proof Result | Stable canaries | Rust Small Result |
 | --- | --- | --- | --- |
 | `adze-swarm#386` | success | selected, success | success |
+| `adze-swarm#387` | success | selected, success | success |
 
 ### Proof Commands
 
