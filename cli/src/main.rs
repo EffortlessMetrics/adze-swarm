@@ -526,6 +526,10 @@ fn parse_file(
         return parse_file_static_tree(grammar, input);
     }
 
+    if matches!(format, OutputFormat::Sexp) {
+        return parse_file_static_sexp(grammar, input);
+    }
+
     if format.is_document_projection() {
         return parse_file_static_document_projection(grammar, input, format);
     }
@@ -579,6 +583,31 @@ fn parse_file_static_tree(grammar: &Path, input: &Path) -> Result<()> {
 
     let mut rendered = String::new();
     render_selected_tree(root, 0, None, &mut rendered);
+    print!("{rendered}");
+    Ok(())
+}
+
+fn parse_file_static_sexp(grammar: &Path, input: &Path) -> Result<()> {
+    let output = run_static_parse_runner(grammar, input, "document-json")?;
+    let document: serde_json::Value = serde_json::from_str(&output).map_err(|err| {
+        anyhow::anyhow!(
+            "static sexp output could not read generated document JSON for {}: {}",
+            grammar.display(),
+            err
+        )
+    })?;
+
+    let root = &document["tree"]["root"];
+    if root.is_null() {
+        anyhow::bail!(
+            "static sexp output could not find document tree root for {}",
+            grammar.display()
+        );
+    }
+
+    let mut rendered = String::new();
+    render_selected_sexp(root, None, &mut rendered);
+    rendered.push('\n');
     print!("{rendered}");
     Ok(())
 }
@@ -684,6 +713,79 @@ fn render_selected_tree(
             render_selected_tree(&edge["node"], depth + 1, field_name, out);
         }
     }
+}
+
+fn render_selected_sexp(node: &serde_json::Value, field_name: Option<&str>, out: &mut String) {
+    if let Some(field_name) = field_name {
+        write_sexp_atom(field_name, out);
+        out.push_str(": ");
+    }
+
+    let kind = node["kind"].as_str().unwrap_or("<unknown>");
+    let children = node["children"].as_array();
+
+    if children.is_none_or(|children| children.is_empty()) {
+        write_sexp_atom(kind, out);
+        return;
+    }
+
+    out.push('(');
+    write_sexp_atom(kind, out);
+    if let Some(children) = children {
+        for edge in children {
+            out.push(' ');
+            render_selected_sexp(&edge["node"], edge["field_name"].as_str(), out);
+        }
+    }
+    out.push(')');
+}
+
+fn write_sexp_atom(atom: &str, out: &mut String) {
+    if is_plain_sexp_atom(atom) {
+        out.push_str(atom);
+        return;
+    }
+
+    out.push('"');
+    for ch in atom.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            _ => out.push(ch),
+        }
+    }
+    out.push('"');
+}
+
+fn is_plain_sexp_atom(atom: &str) -> bool {
+    !atom.is_empty()
+        && atom.chars().all(|ch| {
+            ch.is_ascii_alphanumeric()
+                || matches!(
+                    ch,
+                    '_' | '-'
+                        | '+'
+                        | '*'
+                        | '/'
+                        | '\\'
+                        | '.'
+                        | '?'
+                        | '!'
+                        | '@'
+                        | '#'
+                        | '$'
+                        | '%'
+                        | '^'
+                        | '&'
+                        | '='
+                        | '<'
+                        | '>'
+                        | ':'
+                )
+        })
 }
 
 fn absolute_path(path: &Path) -> Result<PathBuf> {

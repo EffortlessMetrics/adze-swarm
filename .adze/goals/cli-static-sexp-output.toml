@@ -45,12 +45,13 @@ commands = [
 
 [[work_item]]
 id = "static-cli-sexpression-output"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0014-cli-static-sexpression-output.md"
 spec = "ADZE-SPEC-0008"
 adr = "ADZE-ADR-0001"
 plan = "plans/cli-static-sexp/implementation-plan.md"
 blocked_by = ["cli-static-sexp-source-of-truth"]
+prs = [462]
 commands = [
   "cargo test -p adze-cli test_parse_static_sexp_mode_emits_document_backed_sexp -- --exact --nocapture",
   "cargo test -p adze-cli test_parse_static_non_document_modes_are_explicitly_unimplemented -- --exact --nocapture",
@@ -63,7 +64,7 @@ commands = [
 
 [[work_item]]
 id = "cli-static-sexp-closeout"
-status = "blocked"
+status = "ready"
 proposal = "docs/proposals/ADZE-PROP-0014-cli-static-sexpression-output.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
