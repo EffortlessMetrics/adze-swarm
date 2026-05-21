@@ -31,7 +31,7 @@ If it happens twice, it's not "user error". It's friction we own until we remove
 | FR-019 | Tooling | Temp worktree cleanup can drift when a `/tmp` path becomes a standalone repo | Cleanup requires manual removal and prune steps | Resolved | [Issue #268](https://github.com/EffortlessMetrics/adze/issues/268) |
 | FR-020 | CI | `just ci-supported` formatting can hit Windows command-line length limits | Blocks the local supported proof on Windows | Resolved | `adze-swarm#157` |
 | FR-021 | CI | `just ci-supported` can flood local logs with per-test names on cold Windows runs | Makes the supported proof look less bounded and can create pipe/timeout artifacts in local runners | Mitigated | `ci-supported` uses quiet test harness output |
-| FR-022 | CI | Pure Rust PR lane can die during supported crate tests without step output | Creates noisy red advisory checks after the required gates pass | Mitigated | `.github/workflows/pure-rust-ci.yml` |
+| FR-022 | CI | Pure Rust PR lane can exhaust linker/debug pressure during supported crate tests | Creates noisy red advisory checks after the required gates pass | Mitigated | `.github/workflows/pure-rust-ci.yml` |
 
 ---
 
@@ -280,7 +280,7 @@ environment variable when they explicitly need debug info.
 **Status:** Mitigated
 **Links:** `scripts/ci-supported.sh`
 
-### FR-022 - Pure Rust Supported-Test Output Timeout
+### FR-022 - Pure Rust Supported-Test Linker Pressure
 
 **Area:** ci
 **Symptom:** `Test Pure Rust Implementation (ubuntu-latest, stable)` completed
@@ -288,12 +288,19 @@ formatting, clippy, and build, then failed while the supported crate test step
 was still marked in progress.
 **Expected:** The broad Pure Rust advisory lane should either finish its
 selected supported tests or report a real test failure.
-**Actual:** PRs #445 and #446 reached the supported-test step and then failed
-around the 10-minute no-output window, while `Rust Small Result`, `Product
-Proof Result`, `Supported Rust Gate`, and the tablegen/core crate lane passed.
-**Repro:** `adze-swarm` PRs #445 and #446 on 2026-05-21.
-**Fix:** Add a low-noise heartbeat around the supported crate test step so long
-test compilation or execution periods do not look like a hung job.
+**Actual:** PRs #445 and #446 reached the supported-test step and appeared to
+fail around the 10-minute no-output window, while `Rust Small Result`,
+`Product Proof Result`, `Supported Rust Gate`, and the tablegen/core crate lane
+passed. PR #447 added heartbeat output, which exposed the real failure mode:
+`rust-lld`/`ld` terminated with signal 7 while linking `adze` supported test
+binaries.
+**Repro:** `adze-swarm` PRs #445, #446, and #447 on 2026-05-21.
+**Fix:** Keep the low-noise supported-test heartbeat and default
+`CARGO_PROFILE_TEST_DEBUG=0` in the Pure Rust workflow, matching
+`scripts/ci-supported.sh`, so the advisory lane emits less debug/PDB data while
+preserving the supported test surface. If the lane still exhausts hosted-runner
+link resources, the next mitigation is to split supported tests by crate or
+lower test-step build concurrency.
 **Status:** Mitigated
 **Links:** `.github/workflows/pure-rust-ci.yml`
 
