@@ -1,8 +1,9 @@
 id = "adze-parser-runtime-maintainability-hardening"
 title = "Adze Parser Runtime Maintainability Hardening"
-status = "active"
+status = "complete"
 owner = "runtime/product"
 created = "2026-05-21"
+archived = "2026-05-21"
 
 objective = """
 Keep the proven parser and runtime product surfaces maintainable after the
@@ -51,23 +52,31 @@ commands = [
 
 [[work_item]]
 id = "focused-runtime-hardening-prs"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/parser-runtime-maintainability/implementation-plan.md"
 blocked_by = ["supported-surface-maintainability-audit"]
+prs = [444, 445, 446, 451, 452, 453, 454]
 commands = [
   "cargo test -p adze --features pure-rust",
   "cargo test -p adze-tablegen --all-features",
+  "cargo test -p adze-tablegen -- --test-threads=2",
+  "cargo clippy -p adze-tablegen --all-targets -- -D warnings",
 ]
 
 [[work_item]]
 id = "maintainability-closeout-and-release-boundary-refresh"
-status = "blocked"
+status = "complete"
 blocked_by = ["focused-runtime-hardening-prs"]
 proposal = "docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/parser-runtime-maintainability/implementation-plan.md"
 issues = [325]
+commands = [
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
+  "git diff --check",
+]

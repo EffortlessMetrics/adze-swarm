@@ -1,6 +1,6 @@
 # Parser Runtime Maintainability Hardening Plan
 
-Status: active
+Status: complete
 Owner: runtime/product
 Created: 2026-05-21
 Linked proposal: ../../docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md
@@ -137,7 +137,7 @@ irrelevant.
 
 ## Work Item: focused-runtime-hardening-prs
 
-Status: active
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -167,6 +167,9 @@ supported parser/runtime surface or make an existing proof more reliable.
 - Each PR includes focused proof for the touched surface.
 - Aggregate gates remain `Rust Small Result` and `Product Proof Result`.
 - Initial focused tablegen hardening landed in #444, #445, and #446.
+- Exact ABI field-name follow-up hardening landed in #451, #452, #453, and
+  #454 after the Microcrate core/tablegen lane exposed stale sentinel-based
+  integration tests.
 
 ### Proof Commands
 
@@ -183,7 +186,7 @@ maintainability work.
 
 ## Work Item: maintainability-closeout-and-release-boundary-refresh
 
-Status: blocked
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -212,6 +215,7 @@ Source-of-truth closeout only.
 - Any remaining work is explicitly superseded, paused, or moved into a new
   source-of-truth lane.
 - Release-only work remains tracked on #325.
+- Closeout recorded in [`closeout.md`](./closeout.md).
 
 ### Proof Commands
 
