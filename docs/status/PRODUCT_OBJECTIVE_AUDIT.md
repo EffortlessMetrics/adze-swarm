@@ -2,10 +2,11 @@
 
 **Last updated:** 2026-05-21
 **Status:** incomplete; use this as an audit checklist, not as a support-tier
-promotion. The query/tooling expansion lane is closed out, and the Product
-Proof required-gate burn-in lane has promoted the aggregate
-`Product Proof Result` context into branch protection in
-[`../../.adze/goals/active.toml`](../../.adze/goals/active.toml).
+promotion. Routine product-proof, query/tooling, recovery, user-experience,
+and parser/runtime maintainability lanes are closed out. The current
+`active.toml` records the parser/runtime maintainability lane as complete with
+no active, ready, or blocked non-release work items. Release/publish work
+remains separate and blocked on explicit authorization.
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
 
@@ -36,14 +37,14 @@ Adze should be release-readable as a Rust parser generator where:
 | --- | --- | --- | --- |
 | Rust types define grammar and generated parsers return typed ASTs. | README core example; `SUPPORT_TIERS.md` Stable `Typed extraction` row; `PRODUCT_PROOF_MAP.md` Stable typed extraction claim. | Covered for the supported generated-parser contract. | Keep Stable claim limited to proof rows; do not broaden to every grammar shape. |
 | Quickstart works in a clean downstream crate. | `testing/downstream-starter/`; `docs/product/ACCEPTANCE_MATRIX.md`; `SUPPORT_TIERS.md` Pure-Rust parser row; user-experience hardening closeout. | Covered for path-dependency downstream wiring, generated starter shape, local `adze-cli` package verification, and the post-closeout starter README/local dependency polish from PR #352. | Published `cargo install adze-cli` is not proven until `adze-cli` is published and an install receipt exists. |
-| Core pure-Rust pipeline is green, bounded, and boring. | `just ci-supported`; `Rust Small Result`; `Product Proof Result`; `KNOWN_RED.md` supported-lane description; `adze-swarm` PRs #284, #285, #329, #354, #381, #383, and Product Proof required-gate burn-in receipts #386-#391. | Covered as the required swarm gate plus local supported proof. PR #284 bounds the broad Rust tail, PR #285 scopes the default pure-rust PR test step to supported crates while keeping full workspace tests explicit through manual/full-ci, PRs #329/#354/#381 reduce Windows supported-gate friction, PR #383 adds the always-present Product Proof result context, and the burn-in receipts prove selected and skipped Stable-canary paths before required-gate promotion. | Keep broad feature matrices and advisory product canaries outside branch protection unless separately promoted. |
-| Tablegen emits valid tables. | `SUPPORT_TIERS.md` Tablegen `TSLanguage` ABI row; `PRODUCT_PROOF_MAP.md` tablegen ABI claim. | Stabilizing with compressed decode, field metadata, aliases, externals, lex modes, and conflict-cell proof. | Broader generated-language roundtrip and full Tree-sitter parity remain future work. |
+| Core pure-Rust pipeline is green, bounded, and boring. | `just ci-supported`; `Rust Small Result`; `Product Proof Result`; `KNOWN_RED.md` supported-lane description; `adze-swarm` PRs #284, #285, #329, #354, #381, #383, Product Proof required-gate burn-in receipts #386-#391, and parser/runtime maintainability closeout #455. | Covered as the required swarm gate plus supported proof. PR #284 bounds the broad Rust tail, PR #285 scopes the default pure-rust PR test step to supported crates while keeping full workspace tests explicit through manual/full-ci, PRs #329/#354/#381 reduce Windows supported-gate friction, PR #383 adds the always-present Product Proof result context, the burn-in receipts prove selected/skipped Stable-canary paths, and #455 records the post-maintainability closeout with `Supported Rust Gate` green. | Keep broad feature matrices and advisory product canaries outside branch protection unless separately promoted. |
+| Tablegen emits valid tables. | `SUPPORT_TIERS.md` Tablegen `TSLanguage` ABI row; `PRODUCT_PROOF_MAP.md` tablegen ABI claim; parser/runtime maintainability PRs #444-#446 and #451-#454. | Stabilizing with compressed decode, field metadata, aliases, externals, lex modes, conflict-cell proof, and recent guardrails for invalid names, null field names, zero-symbol metadata, exact field-name counts, generated ABI name arrays, generated API reads, and exact-array validation fixtures. | Broader generated-language roundtrip and full Tree-sitter parity remain future work. |
 | GLR handles real conflicts honestly. | `SUPPORT_TIERS.md` GLR conflict routing row; `docs/product/ACCEPTANCE_MATRIX.md` GLR ambiguity row. | Stabilizing with generated shift/reduce conflict preservation, generated reduce/reduce preservation and selected typed-AST extraction, dangling-else nearest-else selected typed AST proof, retained alternatives, deterministic selected output, ambiguity summaries, and no-panic bad-input guardrails. | Broader conflict-class coverage and any Stable GLR promotion still require support-tier proof review. |
 | Typed extraction is deterministic. | `typed_ast_contract_left_associative_addition`; `typed_ast_contract_repeated_parse_is_deterministic`; `readme_arithmetic_quickstart_builds_and_runs`. | Covered for Stable typed extraction rows. | Keep determinism claims scoped to supported generated-parser shapes. |
 | Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors and External scanners rows; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof; `docs/reference/diagnostics-and-recovery.md`. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, generated-parser matrix canaries, object-like `parse_document()`/JSON recovery proof, and user-facing diagnostics/recovery guidance from PR #353. External-scanner dispatch now has focused parser-v4 proof for emitted-token byte spans/text, rejection of scanner tokens that are invalid in the parser state without advancing input position, direct parser-v4 `parse_document()` diagnostic-document behavior for bad input in an external-scanner grammar shape with rendered source context, and generated external-token grammar diagnostic-document matrix behavior for malformed root, empty/whitespace input, keyword/missing-condition, missing-colon, trailing-token, multibyte expression, multibyte body-token, invalid body, newline/CRLF boundary, and nested invalid-expression inputs. The generated matrix also compares `parse()` errors with `parse_document()` diagnostics for span and expected-token agreement. | Corpus-wide external-scanner recovery parity remains future work; any Stable promotion still needs support-tier review. |
 | Every Stable README claim maps to proof. | README capability table; `SUPPORT_TIERS.md`; `readme_stable_claims_are_in_stable_product_lane`; `scripts/ci-product-stable.sh`; `Product Proof Result`. | Covered by current proof map and stable-product canaries. PR #383 proves the Product Proof workflow emits an always-present aggregate result while selecting Stable canaries only for relevant product surfaces, schedule, or manual dispatch. Product Proof required-gate burn-in receipts #386-#391 proved enough selected/skipped paths for the deliberate required-gate policy update. | `Product Proof Result` is now required; keep the path-selected `ci-product stable canaries` implementation job out of branch protection. |
 | Experimental/developing surfaces are clearly labeled. | README capability table; `SUPPORT_TIERS.md`; `KNOWN_RED.md`; `PRODUCT_PROOF_MAP.md`; query/tooling closeout. | Covered for runtime2, broader grammars, WASM, Tree-sitter interop, CLI, benchmarks, typed CST, incremental, JSON, and the documented query subset. Query remains Stabilizing for the documented subset, not full Tree-sitter query parity. | Re-check after any README, support-tier, or release-facing wording change. |
-| Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI document JSON recovery diagnostics; public promotion PR #795; user-experience hardening closeout; query/tooling closeout. | Covered for local/downstream fixtures, CLI recovery smoke, public repository promotion, starter README polish, diagnostics/recovery guidance, performance receipt boundaries, query example/differential receipts, and local proof-loop friction mitigation. | Published CLI install and any future crates.io release surface need fresh receipts. |
+| Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI document JSON recovery diagnostics; public promotion PR #795; user-experience hardening closeout; query/tooling closeout; parser/runtime maintainability closeout. | Covered for local/downstream fixtures, CLI recovery smoke, public repository promotion, starter README polish, diagnostics/recovery guidance, performance receipt boundaries, query example/differential receipts, local proof-loop friction mitigation, and post-closeout tablegen/supported-gate receipts. | Published CLI install and any future crates.io release surface need fresh receipts. |
 
 ## Commands And Receipts
 
@@ -138,6 +139,20 @@ documented subset rather than full Tree-sitter query parity. GitHub receipts
 included `Rust Small Result`, Source of Truth, CI Lane Whitelist, GLR
 Invariants, and `ci-product stable canaries` where relevant. The post-closeout
 `active.toml` state is paused with no selected non-release lane.
+
+Latest parser/runtime maintainability closeout: PRs #443-#455 completed the
+non-release parser/runtime maintainability lane and archived it in
+[`../../plans/parser-runtime-maintainability/closeout.md`](../../plans/parser-runtime-maintainability/closeout.md).
+The lane recorded the supported-surface audit, landed focused tablegen
+validation hardening, mitigated CI linker/no-output friction, repaired exact
+field-name ABI test drift discovered by Microcrate CI, and kept release/publish
+work blocked on #325. Hosted receipts on #454 included `Rust Small Result`,
+`Supported Rust Gate`, `Product Proof Result`,
+`Test Core Crates (ir, glr-core, tablegen)`, and
+`Test Pure Rust Implementation (ubuntu-latest, stable)`. Hosted receipts on
+#455 included `Rust Small Result`, `Source of Truth`, `Product Proof Result`,
+`Supported Rust Gate`, and `PR Gate Success`. The post-closeout `active.toml`
+state is complete with no active, ready, or blocked non-release work items.
 
 Latest Product Proof result-readiness receipt: `adze-swarm` PR #383 made
 `.github/workflows/product-proof.yml` emit `Detect Product Proof Paths`,
@@ -361,12 +376,15 @@ Do not mark the product objective complete while any of these are true:
 ## Next Concrete Actions
 
 The routine product-proof, user-experience, external-scanner recovery,
-parser-recovery real-grammar, and query/tooling expansion lanes are closed out:
+parser-recovery real-grammar, query/tooling expansion, and parser/runtime
+maintainability lanes are closed out:
 [`../../plans/user-experience-hardening/closeout.md`](../../plans/user-experience-hardening/closeout.md),
 [`../../plans/external-scanner-recovery/closeout.md`](../../plans/external-scanner-recovery/closeout.md),
 [`../../plans/parser-recovery-real-grammar/closeout.md`](../../plans/parser-recovery-real-grammar/closeout.md),
 and
-[`../../plans/query-tooling-expansion/closeout.md`](../../plans/query-tooling-expansion/closeout.md).
+[`../../plans/query-tooling-expansion/closeout.md`](../../plans/query-tooling-expansion/closeout.md),
+plus
+[`../../plans/parser-runtime-maintainability/closeout.md`](../../plans/parser-runtime-maintainability/closeout.md).
 Release authorization and post-publish crates.io install receipt work remain
 separate and tracked in
 [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
@@ -383,3 +401,6 @@ separate and tracked in
 4. For future non-release work, open a fresh active goal in `adze-swarm`; do
    not promote external scanners or query compatibility beyond their proven
    support-tier slices.
+5. If no release/publish authorization exists and no material product/proof gap
+   is selected, leave the repo without an invented active lane rather than
+   creating routine status-refresh PRs.
