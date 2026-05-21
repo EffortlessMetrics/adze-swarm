@@ -1,39 +1,9 @@
-//! Parse-diagnostic construction and document-node correlation helpers.
-
 use super::*;
 
-pub(super) fn build_diagnostics(
+pub(super) fn related_nodes_for_diagnostic(
     root: &ParseNode,
-    error_count: usize,
-    source: &str,
-) -> Vec<ParseDiagnostic> {
-    if error_count == 0 {
-        return Vec::new();
-    }
-
-    let span = first_error_span(root).unwrap_or(root.start_byte..root.end_byte);
-    let start_byte = span.start.min(source.len());
-    let end_byte = span.end.min(source.len()).max(start_byte);
-    let point_range = PointRange::from_byte_range(source, start_byte..end_byte);
-
-    vec![ParseDiagnostic {
-        start_byte,
-        end_byte,
-        point_range,
-        found: None,
-        expected: Vec::new(),
-        related_nodes: Vec::new(),
-        message: format!("parser recorded {error_count} recovery/error event(s)"),
-    }]
-}
-
-pub(super) fn attach_related_nodes(root: &ParseNode, diagnostics: &mut [ParseDiagnostic]) {
-    for diagnostic in diagnostics {
-        diagnostic.related_nodes = related_nodes_for_diagnostic(root, diagnostic);
-    }
-}
-
-fn related_nodes_for_diagnostic(root: &ParseNode, diagnostic: &ParseDiagnostic) -> Vec<NodeId> {
+    diagnostic: &ParseDiagnostic,
+) -> Vec<NodeId> {
     let mut related_errors = Vec::new();
     let mut next_id = 0;
     collect_related_error_nodes(root, diagnostic, &mut next_id, &mut related_errors);
@@ -107,32 +77,4 @@ fn node_covers_diagnostic(node: &ParseNode, diagnostic: &ParseDiagnostic) -> boo
     } else {
         node.start_byte <= diagnostic.start_byte && diagnostic.end_byte <= node.end_byte
     }
-}
-
-fn first_error_span(node: &ParseNode) -> Option<Range<usize>> {
-    if node.symbol.0 == 0 && node.children.is_empty() {
-        return Some(node.start_byte..node.end_byte);
-    }
-
-    node.children.iter().find_map(first_error_span)
-}
-
-pub(in crate::document) fn source_line(source: &str, byte_offset: usize) -> Option<&str> {
-    if source.is_empty() {
-        return None;
-    }
-
-    let bytes = source.as_bytes();
-    let offset = byte_offset.min(bytes.len());
-    let mut start = offset;
-    while start > 0 && bytes[start - 1] != b'\n' && bytes[start - 1] != b'\r' {
-        start -= 1;
-    }
-
-    let mut end = offset;
-    while end < bytes.len() && bytes[end] != b'\n' && bytes[end] != b'\r' {
-        end += 1;
-    }
-
-    source.get(start..end)
 }
