@@ -247,6 +247,26 @@ links_to = [
 ]
 
 [[artifact]]
+id = "ADZE-PROP-0013"
+kind = "proposal"
+path = "docs/proposals/ADZE-PROP-0013-cli-parse-surface-hardening.md"
+status = "accepted"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["CLI parse surface hardening rationale", "non-release CLI selected-tree output campaign"]
+links_to = [
+  "ADZE-SPEC-0008",
+  "ADZE-SPEC-0011",
+  "ADZE-SPEC-0012",
+  "ADZE-ADR-0001",
+  "ADZE-ADR-0004",
+  "plans/cli-parse-surface/implementation-plan.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/cli-parse-surface-hardening.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = "ADZE-SPEC-0001"
 kind = "spec"
 path = "docs/specs/ADZE-SPEC-0001-package-surface-boundary.md"
@@ -771,6 +791,24 @@ links_to = [
 ]
 
 [[artifact]]
+id = "plans/cli-parse-surface/implementation-plan.md"
+kind = "plan"
+path = "plans/cli-parse-surface/implementation-plan.md"
+status = "active"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["CLI parse surface hardening implementation sequence"]
+links_to = [
+  "ADZE-PROP-0013",
+  "ADZE-SPEC-0008",
+  "ADZE-SPEC-0011",
+  "ADZE-SPEC-0012",
+  ".adze/goals/active.toml",
+  ".adze/goals/cli-parse-surface-hardening.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = ".adze/goals/glr-toolkit-productization.toml"
 kind = "goal"
 path = ".adze/goals/glr-toolkit-productization.toml"
@@ -964,6 +1002,35 @@ links_to = [
   "ADZE-SPEC-0012",
   "plans/parser-runtime-maintainability/implementation-plan.md",
   "plans/parser-runtime-maintainability/closeout.md",
+  ".adze/goals/active.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/archive/2026-05-21-parser-runtime-maintainability-hardening.toml"
+kind = "goal"
+path = ".adze/goals/archive/2026-05-21-parser-runtime-maintainability-hardening.toml"
+status = "complete"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["archived parser runtime maintainability complete manifest"]
+links_to = [
+  "ADZE-PROP-0012",
+  "plans/parser-runtime-maintainability/implementation-plan.md",
+  "plans/parser-runtime-maintainability/closeout.md",
+]
+
+[[artifact]]
+id = ".adze/goals/cli-parse-surface-hardening.toml"
+kind = "goal"
+path = ".adze/goals/cli-parse-surface-hardening.toml"
+status = "active"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["CLI parse surface hardening agent work queue"]
+links_to = [
+  "ADZE-PROP-0013",
+  "plans/cli-parse-surface/implementation-plan.md",
   ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
