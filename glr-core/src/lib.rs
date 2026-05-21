@@ -381,23 +381,29 @@ pub enum TableError {
 /// Check if a symbol can derive the start symbol through unit productions
 #[allow(dead_code)]
 fn can_derive_start(grammar: &Grammar, symbol: SymbolId, start: SymbolId) -> bool {
-    if symbol == start {
-        return true;
-    }
+    direct_symbol_match(symbol, start) || has_unit_production_to_start(grammar, symbol, start)
+}
 
-    // Check if there's a rule symbol -> start
-    if let Some(rules) = grammar.get_rules_for_symbol(symbol) {
-        for rule in rules {
-            if rule.rhs.len() == 1
-                && let Symbol::NonTerminal(target) = &rule.rhs[0]
-                && *target == start
-            {
-                return true;
-            }
-        }
-    }
+#[inline]
+fn direct_symbol_match(symbol: SymbolId, start: SymbolId) -> bool {
+    symbol == start
+}
 
-    false
+fn has_unit_production_to_start(grammar: &Grammar, symbol: SymbolId, start: SymbolId) -> bool {
+    grammar
+        .get_rules_for_symbol(symbol)
+        .into_iter()
+        .flatten()
+        .any(|rule| is_unit_production_to_start(rule, start))
+}
+
+#[inline]
+fn is_unit_production_to_start(rule: &Rule, start: SymbolId) -> bool {
+    rule.rhs.len() == 1
+        && matches!(
+            rule.rhs.first(),
+            Some(Symbol::NonTerminal(target)) if *target == start
+        )
 }
 
 /// Build LR(1) automaton (parse table) from grammar.
