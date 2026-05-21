@@ -157,23 +157,25 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       claims.
 - [x] Latest crates.io CLI install-boundary receipt:
       `cargo info --registry crates-io adze-cli` was refreshed on 2026-05-20
-      and reported that `adze-cli` is not present in crates.io. The explicit
+      and again on 2026-05-21 from `adze-swarm/main` at commit `0df9f420`.
+      It reported that `adze-cli` is not present in crates.io. The explicit
       registry flag prevents Cargo from resolving the local workspace package,
       and PRs #319-#320 hardened the post-publish verifier so both metadata
       lookup and `cargo install` use the explicit `crates-io` registry. The
       verifier dry-run was refreshed on 2026-05-20 from `adze-swarm/main` at
       commit `df4be63a` and again at commit `fc959ec1`, printing the fully
-      qualified command plan. The crates.io metadata check was refreshed again
+      qualified command plan. The crates.io metadata check was also refreshed
       from commit `99dd12b0` after the 0.9.0 workspace version bump and still
-      reported that `adze-cli` is not present in crates.io. The active
-      goal carries a blocked `crates-io-cli-install-receipt` item so agents do
-      not confuse local package verification with a registry install receipt.
+      reported that `adze-cli` is not present in crates.io. The active manifest
+      is complete with no ready non-release work; the install receipt remains
+      release-surface work blocked on explicit authorization.
 - [x] Latest root README dependency-boundary receipt:
       `cargo info --registry crates-io adze` reports published `adze` 0.8.0,
       while `cargo info --registry crates-io adze-tool` reports no registry
-      package. The root README install block now explicitly says the dependency
-      block is a release-surface dependency shape, not a crates.io install
-      receipt for every co-release crate.
+      package; both were refreshed on 2026-05-21 from `adze-swarm/main` at
+      commit `0df9f420`. The root README install block now explicitly says the
+      dependency block is a release-surface dependency shape, not a crates.io
+      install receipt for every co-release crate.
 - [x] Live co-release dependency snippets that name `adze-tool` or
       registry-shaped `cargo add --build adze-tool` commands are guarded by
       `cargo test -p adze-cli co_release_dependency_snippets_stay_release_surface_bounded -- --exact --nocapture`.
