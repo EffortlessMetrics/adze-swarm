@@ -530,6 +530,14 @@ fn parse_file(
         return parse_file_static_sexp(grammar, input);
     }
 
+    if matches!(format, OutputFormat::Json) {
+        return parse_file_static_json(grammar, input);
+    }
+
+    if matches!(format, OutputFormat::Dot) {
+        return parse_file_static_dot(grammar, input);
+    }
+
     if format.is_document_projection() {
         return parse_file_static_document_projection(grammar, input, format);
     }
@@ -608,6 +616,36 @@ fn parse_file_static_sexp(grammar: &Path, input: &Path) -> Result<()> {
     let mut rendered = String::new();
     render_selected_sexp(root, None, &mut rendered);
     rendered.push('\n');
+    print!("{rendered}");
+    Ok(())
+}
+
+fn parse_file_static_json(grammar: &Path, input: &Path) -> Result<()> {
+    let output = run_static_parse_runner(grammar, input, "document-json")?;
+    print!("{output}");
+    Ok(())
+}
+
+fn parse_file_static_dot(grammar: &Path, input: &Path) -> Result<()> {
+    let output = run_static_parse_runner(grammar, input, "document-json")?;
+    let document: serde_json::Value = serde_json::from_str(&output).map_err(|err| {
+        anyhow::anyhow!(
+            "static dot output could not read generated document JSON for {}: {}",
+            grammar.display(),
+            err
+        )
+    })?;
+
+    let root = &document["tree"]["root"];
+    if root.is_null() {
+        anyhow::bail!(
+            "static dot output could not find document tree root for {}",
+            grammar.display()
+        );
+    }
+
+    let mut rendered = String::new();
+    render_selected_dot(root, &mut rendered);
     print!("{rendered}");
     Ok(())
 }
@@ -738,6 +776,87 @@ fn render_selected_sexp(node: &serde_json::Value, field_name: Option<&str>, out:
         }
     }
     out.push(')');
+}
+
+fn render_selected_dot(root: &serde_json::Value, out: &mut String) {
+    out.push_str("digraph adze_tree {\n");
+    out.push_str("  node [shape=box];\n");
+    let mut next_id = 0;
+    render_selected_dot_node(root, out, &mut next_id);
+    out.push_str("}\n");
+}
+
+fn render_selected_dot_node(
+    node: &serde_json::Value,
+    out: &mut String,
+    next_id: &mut usize,
+) -> usize {
+    let node_id = *next_id;
+    *next_id += 1;
+
+    out.push_str("  n");
+    out.push_str(&node_id.to_string());
+    out.push_str(" [label=\"");
+    write_dot_label(node, out);
+    out.push_str("\"];\n");
+
+    if let Some(children) = node["children"].as_array() {
+        for edge in children {
+            let child_id = render_selected_dot_node(&edge["node"], out, next_id);
+            out.push_str("  n");
+            out.push_str(&node_id.to_string());
+            out.push_str(" -> n");
+            out.push_str(&child_id.to_string());
+            if let Some(field_name) = edge["field_name"].as_str() {
+                out.push_str(" [label=\"");
+                write_dot_escaped(field_name, out);
+                out.push_str("\"]");
+            }
+            out.push_str(";\n");
+        }
+    }
+
+    node_id
+}
+
+fn write_dot_label(node: &serde_json::Value, out: &mut String) {
+    let kind = node["kind"].as_str().unwrap_or("<unknown>");
+    let start = node["range"]["start_byte"].as_u64().unwrap_or(0);
+    let end = node["range"]["end_byte"].as_u64().unwrap_or(start);
+
+    write_dot_escaped(kind, out);
+    out.push_str("\\n[");
+    out.push_str(&start.to_string());
+    out.push_str("..");
+    out.push_str(&end.to_string());
+    out.push(']');
+
+    if node["flags"]["has_error"].as_bool().unwrap_or(false) {
+        out.push_str("\\nhas_error");
+    }
+    if node["flags"]["missing"].as_bool().unwrap_or(false) {
+        out.push_str("\\nmissing");
+    }
+    if node["flags"]["error"].as_bool().unwrap_or(false) {
+        out.push_str("\\nerror");
+    }
+    if let Some(text) = node["text"].as_str() {
+        out.push_str("\\n");
+        write_dot_escaped(text, out);
+    }
+}
+
+fn write_dot_escaped(value: &str, out: &mut String) {
+    for ch in value.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            _ => out.push(ch),
+        }
+    }
 }
 
 fn write_sexp_atom(atom: &str, out: &mut String) {
