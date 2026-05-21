@@ -115,45 +115,7 @@ fn generate_field_names(grammar: &Grammar) -> Vec<String> {
 }
 
 fn generate_symbol_metadata(grammar: &Grammar) -> Vec<u8> {
-    let mut metadata = Vec::new();
-
-    // EOF
-    metadata.push(create_symbol_metadata(true, false, false, false, false));
-
-    // Tokens
-    let mut tokens: Vec<_> = grammar.tokens.iter().collect();
-    tokens.sort_by_key(|(id, _)| id.0);
-    for (_, token) in tokens {
-        let visible = !token.name.starts_with('_');
-        let named = visible && matches!(&token.pattern, adze_ir::TokenPattern::Regex(_));
-        metadata.push(create_symbol_metadata(visible, named, false, false, false));
-    }
-
-    // Non-terminals
-    let mut rules: Vec<_> = grammar.rules.iter().collect();
-    rules.sort_by_key(|(id, _)| id.0);
-    for (id, _) in rules {
-        let name = grammar
-            .rule_names
-            .get(id)
-            .cloned()
-            .unwrap_or_else(|| format!("rule_{}", id.0));
-        let visible = !name.starts_with('_');
-        let named = visible;
-        let supertype = grammar.supertypes.contains(id);
-        metadata.push(create_symbol_metadata(
-            visible, named, false, false, supertype,
-        ));
-    }
-
-    // Externals
-    for external in &grammar.externals {
-        let visible = !external.name.starts_with('_');
-        let named = visible;
-        metadata.push(create_symbol_metadata(visible, named, false, false, false));
-    }
-
-    metadata
+    symbol_metadata::build(grammar)
 }
 
 fn generate_parse_table_data(compressed: Option<&CompressedTables>) -> (Vec<u16>, Vec<u32>) {
@@ -186,6 +148,59 @@ fn generate_parse_table_data(compressed: Option<&CompressedTables>) -> (Vec<u16>
         (table_data, map_data)
     } else {
         (vec![], vec![])
+    }
+}
+
+mod symbol_metadata {
+    use super::*;
+
+    pub(super) fn build(grammar: &Grammar) -> Vec<u8> {
+        let mut metadata = Vec::new();
+        push_eof(&mut metadata);
+        push_tokens(grammar, &mut metadata);
+        push_rules(grammar, &mut metadata);
+        push_externals(grammar, &mut metadata);
+        metadata
+    }
+
+    fn push_eof(metadata: &mut Vec<u8>) {
+        metadata.push(create_symbol_metadata(true, false, false, false, false));
+    }
+
+    fn push_tokens(grammar: &Grammar, metadata: &mut Vec<u8>) {
+        let mut tokens: Vec<_> = grammar.tokens.iter().collect();
+        tokens.sort_by_key(|(id, _)| id.0);
+        for (_, token) in tokens {
+            let visible = !token.name.starts_with('_');
+            let named = visible && matches!(&token.pattern, adze_ir::TokenPattern::Regex(_));
+            metadata.push(create_symbol_metadata(visible, named, false, false, false));
+        }
+    }
+
+    fn push_rules(grammar: &Grammar, metadata: &mut Vec<u8>) {
+        let mut rules: Vec<_> = grammar.rules.iter().collect();
+        rules.sort_by_key(|(id, _)| id.0);
+        for (id, _) in rules {
+            let name = grammar
+                .rule_names
+                .get(id)
+                .cloned()
+                .unwrap_or_else(|| format!("rule_{}", id.0));
+            let visible = !name.starts_with('_');
+            let named = visible;
+            let supertype = grammar.supertypes.contains(id);
+            metadata.push(create_symbol_metadata(
+                visible, named, false, false, supertype,
+            ));
+        }
+    }
+
+    fn push_externals(grammar: &Grammar, metadata: &mut Vec<u8>) {
+        for external in &grammar.externals {
+            let visible = !external.name.starts_with('_');
+            let named = visible;
+            metadata.push(create_symbol_metadata(visible, named, false, false, false));
+        }
     }
 }
 
