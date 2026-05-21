@@ -1,6 +1,6 @@
 # CLI Static S-Expression Output Plan
 
-Status: active
+Status: complete
 Owner: cli/product
 Created: 2026-05-21
 Linked proposal: ../../docs/proposals/ADZE-PROP-0014-cli-static-sexpression-output.md
@@ -12,6 +12,7 @@ Linked ADRs:
 - ../../docs/adr/ADZE-ADR-0004-schema-versioned-projections.md
 Active goal: ../../.adze/goals/active.toml
 Named goal: ../../.adze/goals/cli-static-sexp-output.toml
+Closeout: ./closeout.md
 Support-tier impact: no promotion by campaign setup
 Policy impact: no release, publish, signing, Cargo-token, branch-protection, or public-promotion change
 
@@ -140,7 +141,7 @@ projection modes while returning to the explicit unsupported boundary for
 
 ## Work Item: cli-static-sexp-closeout
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0014-cli-static-sexpression-output.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -170,6 +171,8 @@ exist.
   behavior and known limitations.
 - The closeout records PRs, proof commands, and remaining unsupported modes.
 - Release-only work remains tracked on #325.
+- Closeout recorded in [`closeout.md`](./closeout.md).
+- Completed by #463.
 
 ### Proof Commands
 

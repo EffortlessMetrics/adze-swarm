@@ -270,7 +270,7 @@ links_to = [
 id = "ADZE-PROP-0014"
 kind = "proposal"
 path = "docs/proposals/ADZE-PROP-0014-cli-static-sexpression-output.md"
-status = "accepted"
+status = "implemented"
 owner = "cli/product"
 milestone = "post-0.9"
 source_of_truth_for = ["CLI static S-expression output rationale", "non-release CLI S-expression output campaign"]
@@ -280,8 +280,10 @@ links_to = [
   "ADZE-ADR-0001",
   "ADZE-ADR-0004",
   "plans/cli-static-sexp/implementation-plan.md",
+  "plans/cli-static-sexp/closeout.md",
   ".adze/goals/active.toml",
   ".adze/goals/cli-static-sexp-output.toml",
+  ".adze/goals/archive/2026-05-21-cli-static-sexp-output.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -847,7 +849,7 @@ links_to = [
 id = "plans/cli-static-sexp/implementation-plan.md"
 kind = "plan"
 path = "plans/cli-static-sexp/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "cli/product"
 milestone = "post-0.9"
 source_of_truth_for = ["CLI static S-expression output implementation sequence"]
@@ -857,6 +859,24 @@ links_to = [
   "ADZE-SPEC-0011",
   ".adze/goals/active.toml",
   ".adze/goals/cli-static-sexp-output.toml",
+  ".adze/goals/archive/2026-05-21-cli-static-sexp-output.toml",
+  "plans/cli-static-sexp/closeout.md",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = "plans/cli-static-sexp/closeout.md"
+kind = "plan"
+path = "plans/cli-static-sexp/closeout.md"
+status = "complete"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["CLI static S-expression output closeout receipts and claim boundaries"]
+links_to = [
+  "ADZE-PROP-0014",
+  "plans/cli-static-sexp/implementation-plan.md",
+  ".adze/goals/cli-static-sexp-output.toml",
+  ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -1106,15 +1126,30 @@ links_to = [
 id = ".adze/goals/cli-static-sexp-output.toml"
 kind = "goal"
 path = ".adze/goals/cli-static-sexp-output.toml"
-status = "active"
+status = "complete"
 owner = "cli/product"
 milestone = "post-0.9"
 source_of_truth_for = ["CLI static S-expression output agent work queue"]
 links_to = [
   "ADZE-PROP-0014",
   "plans/cli-static-sexp/implementation-plan.md",
+  "plans/cli-static-sexp/closeout.md",
   ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/archive/2026-05-21-cli-static-sexp-output.toml"
+kind = "goal"
+path = ".adze/goals/archive/2026-05-21-cli-static-sexp-output.toml"
+status = "complete"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["archived CLI static S-expression output complete manifest"]
+links_to = [
+  "ADZE-PROP-0014",
+  "plans/cli-static-sexp/implementation-plan.md",
+  "plans/cli-static-sexp/closeout.md",
 ]
 
 [[artifact]]
