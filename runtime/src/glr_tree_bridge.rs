@@ -185,51 +185,59 @@ impl<'tree> GLRNode<'tree> {
         let indent = "  ".repeat(depth);
 
         if self.child_count() == 0 {
-            // Leaf node
-            format!("{}{}", indent, self.kind())
+            self.format_leaf_node(&indent)
         } else {
-            // Non-leaf node
-            let mut result = format!("{}({}", indent, self.kind());
+            self.format_non_leaf_node(depth, &indent)
+        }
+    }
 
-            for edge in self.subtree.children.iter() {
-                result.push('\n');
+    fn format_leaf_node(&self, indent: &str) -> String {
+        format!("{}{}", indent, self.kind())
+    }
 
-                // Add field name if present
-                if edge.field_id != crate::subtree::FIELD_NONE {
-                    if let Some((_field_id, field_name)) = self
-                        .tree
-                        .grammar
-                        .fields
-                        .iter()
-                        .find(|(id, _)| id.0 == edge.field_id)
-                    {
-                        result.push_str(&format!("{}  {}: ", indent, field_name));
-                        let child_sexp = GLRNode {
-                            subtree: edge.subtree.clone(),
-                            tree: self.tree,
-                        }
-                        .to_sexp_internal(0);
-                        result.push_str(child_sexp.trim_start());
-                    } else {
-                        let child_sexp = GLRNode {
-                            subtree: edge.subtree.clone(),
-                            tree: self.tree,
-                        }
-                        .to_sexp_internal(depth + 1);
-                        result.push_str(&child_sexp);
-                    }
-                } else {
-                    let child_sexp = GLRNode {
-                        subtree: edge.subtree.clone(),
-                        tree: self.tree,
-                    }
-                    .to_sexp_internal(depth + 1);
-                    result.push_str(&child_sexp);
-                }
-            }
+    fn format_non_leaf_node(&self, depth: usize, indent: &str) -> String {
+        let mut result = format!("{}({}", indent, self.kind());
 
-            result.push_str(&format!("\n{})", indent));
-            result
+        for edge in &self.subtree.children {
+            result.push('\n');
+            self.push_formatted_child(&mut result, edge, depth, indent);
+        }
+
+        result.push_str(&format!("\n{})", indent));
+        result
+    }
+
+    fn push_formatted_child(
+        &self,
+        result: &mut String,
+        edge: &crate::subtree::ChildEdge,
+        depth: usize,
+        indent: &str,
+    ) {
+        if let Some(field_name) = self.lookup_field_name(edge.field_id) {
+            result.push_str(&format!("{}  {}: ", indent, field_name));
+            result.push_str(self.child_for_edge(edge).to_sexp_internal(0).trim_start());
+        } else {
+            result.push_str(&self.child_for_edge(edge).to_sexp_internal(depth + 1));
+        }
+    }
+
+    fn lookup_field_name(&self, field_id: u16) -> Option<&str> {
+        if field_id == crate::subtree::FIELD_NONE {
+            return None;
+        }
+        self.tree
+            .grammar
+            .fields
+            .iter()
+            .find(|(id, _)| id.0 == field_id)
+            .map(|(_, field_name)| field_name.as_str())
+    }
+
+    fn child_for_edge(&self, edge: &crate::subtree::ChildEdge) -> GLRNode<'tree> {
+        GLRNode {
+            subtree: edge.subtree.clone(),
+            tree: self.tree,
         }
     }
 
