@@ -133,11 +133,14 @@ Rung 0 is the current local supported proof:
 just ci-supported
 ```
 
-The current `adze-swarm` required GitHub merge gate is `Rust Small Result`.
+The current `adze-swarm` required GitHub merge gates are `Rust Small Result`
+and `Product Proof Result`.
 
 Rung 1 is advisory product behavior. Convert `scripts/ci-product.sh` from compile-only smoke to bounded behavior smokes, but keep it non-blocking until stable.
 
-Rung 2 is a stable product lane. A candidate `just ci-product-stable` lane now exists for README-stable claims, but it remains advisory until branch protection promotes it:
+Rung 2 is the Stable product proof lane. `Product Proof Result` is the required
+aggregate GitHub context; `just ci-product-stable` is the path-selected
+implementation proof for README-stable and claim-boundary surfaces:
 
 ```bash
 just ci-supported
@@ -150,8 +153,10 @@ Latest receipt: GitHub workflow dispatch
 [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
 passed on 2026-05-19 from current `adze-swarm/main` after PR #281. The
 `ci-product stable canaries` job passed in 3m02s and the broad advisory
-canaries skipped under the stable-only default. This remains advisory until
-branch protection explicitly promotes it.
+canaries skipped under the stable-only default. That receipt predates the
+required-gate promotion. Current branch protection now requires the aggregate
+`Product Proof Result`; it does not require the path-selected `ci-product
+stable canaries` implementation job by name.
 
 Rung 3 remains scheduled/manual: full workspace all-features, fuzzing, Miri, sanitizers, benchmarks, grammar corpus, runtime2, and browser WASM execution.
 
