@@ -1,0 +1,89 @@
+id = "adze-parser-runtime-maintainability-hardening"
+title = "Adze Parser Runtime Maintainability Hardening"
+status = "complete"
+owner = "runtime/product"
+created = "2026-05-21"
+archived = "2026-05-21"
+
+objective = """
+Keep the proven parser and runtime product surfaces maintainable after the
+release-boundary closeout. Use small, proof-backed adze-swarm PRs to audit and
+harden supported parser, runtime, tablegen, diagnostics, query, and projection
+surfaces without changing release authorization, public publish state, or
+support-tier claims by implication.
+"""
+
+handoff = """
+Release and crates.io install work remains blocked on explicit human
+authorization tracked by EffortlessMetrics/adze-swarm#325. This active goal is
+the non-release continuation lane for adze-swarm development after the paused
+release-boundary state and Product Proof receipts.
+"""
+
+end_state = [
+  "adze-swarm remains the operating repo for implementation, proof, and maintainability work.",
+  "public adze remains the release, public-intake, promotion, tag, publish, signing, and Cargo-token surface.",
+  "No release tag, crate publish, signing, Cargo-token, or crates.io install-receipt work happens in this lane.",
+  "Parser/runtime/tablegen maintainability work is organized into PR-sized items with focused proof commands.",
+  "Stable README and support-tier claims are not promoted without proof receipts and source-of-truth updates.",
+  "The supported product proof loop remains green or failures are recorded as explicit friction before follow-up work proceeds.",
+  "Any future public release candidate still requires an explicit promotion/sync from adze-swarm to public adze before publish.",
+]
+
+[[work_item]]
+id = "parser-runtime-maintainability-source-of-truth"
+status = "complete"
+proposal = "docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/parser-runtime-maintainability/implementation-plan.md"
+issues = [325]
+commands = [
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
+  "git diff --check",
+]
+
+[[work_item]]
+id = "supported-surface-maintainability-audit"
+status = "complete"
+proposal = "docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/parser-runtime-maintainability/implementation-plan.md"
+blocked_by = ["parser-runtime-maintainability-source-of-truth"]
+commands = [
+  "just ci-product-stable",
+  "CARGO_PROFILE_TEST_DEBUG=0 just ci-supported",
+]
+
+[[work_item]]
+id = "focused-runtime-hardening-prs"
+status = "complete"
+proposal = "docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/parser-runtime-maintainability/implementation-plan.md"
+blocked_by = ["supported-surface-maintainability-audit"]
+prs = [444, 445, 446, 451, 452, 453, 454]
+commands = [
+  "cargo test -p adze --features pure-rust",
+  "cargo test -p adze-tablegen --all-features",
+  "cargo test -p adze-tablegen -- --test-threads=2",
+  "cargo clippy -p adze-tablegen --all-targets -- -D warnings",
+]
+
+[[work_item]]
+id = "maintainability-closeout-and-release-boundary-refresh"
+status = "complete"
+blocked_by = ["focused-runtime-hardening-prs"]
+proposal = "docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/parser-runtime-maintainability/implementation-plan.md"
+issues = [325]
+commands = [
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
+  "git diff --check",
+]
