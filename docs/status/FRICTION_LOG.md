@@ -30,6 +30,7 @@ If it happens twice, it's not "user error". It's friction we own until we remove
 | FR-018 | CI | Pure-rust benchmark compilation tail in PRs | Routine PRs no longer block on low-signal benchmark compilation | Resolved for routine PRs | [Issue #269](https://github.com/EffortlessMetrics/adze/issues/269) |
 | FR-019 | Tooling | Temp worktree cleanup can drift when a `/tmp` path becomes a standalone repo | Cleanup requires manual removal and prune steps | Resolved | [Issue #268](https://github.com/EffortlessMetrics/adze/issues/268) |
 | FR-020 | CI | `just ci-supported` formatting can hit Windows command-line length limits | Blocks the local supported proof on Windows | Resolved | `adze-swarm#157` |
+| FR-021 | CI | `just ci-supported` can flood local logs with per-test names on cold Windows runs | Makes the supported proof look less bounded and can create pipe/timeout artifacts in local runners | Mitigated | `ci-supported` uses quiet test harness output |
 
 ---
 

@@ -25,8 +25,10 @@ supported_crates=(
   -p adze-tablegen
 )
 
+test_args=(--test-threads="$RUST_TEST_THREADS" --quiet)
+
 ./scripts/fmt-workspace.sh --check "${supported_crate_paths[@]}"
 
 cargo clippy "${supported_crates[@]}" --all-targets -- -D warnings
-cargo test "${supported_crates[@]}" --lib --tests --bins -- --test-threads="$RUST_TEST_THREADS"
-cargo test -p adze-glr-core --features serialization --doc -- --test-threads="$RUST_TEST_THREADS"
+cargo test "${supported_crates[@]}" --lib --tests --bins -- "${test_args[@]}"
+cargo test -p adze-glr-core --features serialization --doc -- "${test_args[@]}"
