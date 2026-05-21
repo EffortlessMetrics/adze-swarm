@@ -271,6 +271,13 @@ impl<'a> LanguageValidator<'a> {
                 self.language.field_count as usize + 1, // +1 for empty string at start
             );
 
+            for &field_name in field_names {
+                if field_name.is_null() {
+                    errors.push(ValidationError::NullPointer("field_names entry"));
+                    return;
+                }
+            }
+
             // Check lexicographic ordering
             for i in 2..field_names.len() {
                 let prev = std::ffi::CStr::from_ptr(field_names[i - 1]);
@@ -472,6 +479,37 @@ mod tests {
         let result = validator.validate();
 
         assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn test_null_field_name_entry_is_rejected_before_cstr_decode() {
+        let parse_table = [0u16];
+        let field_name_empty = b"\0";
+        let field_names = [
+            field_name_empty.as_ptr().cast::<std::os::raw::c_char>(),
+            std::ptr::null::<std::os::raw::c_char>(),
+        ];
+        let symbol_names = [std::ptr::null::<std::os::raw::c_char>()];
+        let symbol_metadata = [TSSymbolMetadata {
+            visible: false,
+            named: false,
+        }];
+
+        let mut language = create_test_language();
+        language.symbol_count = 1;
+        language.state_count = 1;
+        language.field_count = 1;
+        language.production_id_count = 0;
+        language.parse_table = parse_table.as_ptr();
+        language.symbol_names = symbol_names.as_ptr();
+        language.symbol_metadata = symbol_metadata.as_ptr();
+        language.field_names = field_names.as_ptr();
+
+        let tables = CompressedParseTable::new_for_testing(1, 1);
+        let validator = LanguageValidator::new(&language, &tables);
+        let errors = validator.validate().unwrap_err();
+
+        assert!(errors.contains(&ValidationError::NullPointer("field_names entry")));
     }
 
     #[test]
