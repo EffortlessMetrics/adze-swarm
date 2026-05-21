@@ -196,8 +196,15 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] CLI static S-expression hardening closed out in PRs #461-#463. Static
       `adze parse --output sexp <grammar.rs> <input>` now emits a
       document-backed selected-tree S-expression through generated
-      `parse_document()`, while `json` and `dot` remain explicit unsupported
-      static modes and CLI output remains Stabilizing.
+      `parse_document()`. `json` and `dot` were intentionally left for a
+      separate proof lane that later closed in PRs #464-#466, and CLI output
+      remains Stabilizing.
+- [x] CLI static JSON/DOT hardening closed out in PRs #464-#466. Static
+      `adze parse --output json <grammar.rs> <input>` now emits generated
+      document JSON, and static `adze parse --output dot <grammar.rs> <input>`
+      renders a document-backed selected-tree Graphviz graph through generated
+      `parse_document()`. Dynamic parse output and stable CLI/WASM schemas
+      remain outside the Stable product contract.
 
 ### Operational tail
 - [x] [Issue #269](https://github.com/EffortlessMetrics/adze/issues/269): pure-rust benchmark-compilation tail is removed from routine PRs; benchmark compile/performance signal remains in explicit performance and benchmark lanes.
