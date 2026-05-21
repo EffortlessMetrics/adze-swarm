@@ -288,6 +288,25 @@ links_to = [
 ]
 
 [[artifact]]
+id = "ADZE-PROP-0015"
+kind = "proposal"
+path = "docs/proposals/ADZE-PROP-0015-cli-static-json-dot-output.md"
+status = "accepted"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["CLI static JSON and DOT output rationale", "non-release CLI JSON and DOT output campaign"]
+links_to = [
+  "ADZE-SPEC-0008",
+  "ADZE-SPEC-0011",
+  "ADZE-ADR-0001",
+  "ADZE-ADR-0004",
+  "plans/cli-static-json-dot/implementation-plan.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/cli-static-json-dot-output.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = "ADZE-SPEC-0001"
 kind = "spec"
 path = "docs/specs/ADZE-SPEC-0001-package-surface-boundary.md"
@@ -881,6 +900,23 @@ links_to = [
 ]
 
 [[artifact]]
+id = "plans/cli-static-json-dot/implementation-plan.md"
+kind = "plan"
+path = "plans/cli-static-json-dot/implementation-plan.md"
+status = "active"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["CLI static JSON and DOT output implementation sequence"]
+links_to = [
+  "ADZE-PROP-0015",
+  "ADZE-SPEC-0008",
+  "ADZE-SPEC-0011",
+  ".adze/goals/active.toml",
+  ".adze/goals/cli-static-json-dot-output.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = ".adze/goals/glr-toolkit-productization.toml"
 kind = "goal"
 path = ".adze/goals/glr-toolkit-productization.toml"
@@ -1150,6 +1186,21 @@ links_to = [
   "ADZE-PROP-0014",
   "plans/cli-static-sexp/implementation-plan.md",
   "plans/cli-static-sexp/closeout.md",
+]
+
+[[artifact]]
+id = ".adze/goals/cli-static-json-dot-output.toml"
+kind = "goal"
+path = ".adze/goals/cli-static-json-dot-output.toml"
+status = "active"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["CLI static JSON and DOT output agent work queue"]
+links_to = [
+  "ADZE-PROP-0015",
+  "plans/cli-static-json-dot/implementation-plan.md",
+  ".adze/goals/active.toml",
+  "docs/status/SUPPORT_TIERS.md",
 ]
 
 [[artifact]]
