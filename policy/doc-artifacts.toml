@@ -193,6 +193,22 @@ links_to = [
 ]
 
 [[artifact]]
+id = "ADZE-PROP-0010"
+kind = "proposal"
+path = "docs/proposals/ADZE-PROP-0010-product-proof-result-readiness.md"
+status = "accepted"
+owner = "release/product"
+milestone = "post-0.9"
+source_of_truth_for = ["Product Proof result readiness rationale", "branch-protection-safe stable product proof preparation"]
+links_to = [
+  "ADZE-SPEC-0011",
+  "plans/product-proof-result-readiness/implementation-plan.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/product-proof-result-readiness.toml",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
 id = "ADZE-SPEC-0001"
 kind = "spec"
 path = "docs/specs/ADZE-SPEC-0001-package-surface-boundary.md"
@@ -593,6 +609,22 @@ links_to = [
 ]
 
 [[artifact]]
+id = "plans/product-proof-result-readiness/implementation-plan.md"
+kind = "plan"
+path = "plans/product-proof-result-readiness/implementation-plan.md"
+status = "active"
+owner = "release/product"
+milestone = "post-0.9"
+source_of_truth_for = ["Product Proof result readiness implementation sequence"]
+links_to = [
+  "ADZE-PROP-0010",
+  "ADZE-SPEC-0011",
+  ".adze/goals/active.toml",
+  ".adze/goals/product-proof-result-readiness.toml",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
 id = ".adze/goals/glr-toolkit-productization.toml"
 kind = "goal"
 path = ".adze/goals/glr-toolkit-productization.toml"
@@ -705,6 +737,21 @@ links_to = [
   ".adze/goals/archive/2026-05-20-parser-recovery-real-grammar.toml",
   ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
+id = ".adze/goals/product-proof-result-readiness.toml"
+kind = "goal"
+path = ".adze/goals/product-proof-result-readiness.toml"
+status = "active"
+owner = "droid-factory"
+milestone = "post-0.9"
+source_of_truth_for = ["Product Proof result readiness agent work queue"]
+links_to = [
+  "ADZE-PROP-0010",
+  "plans/product-proof-result-readiness/implementation-plan.md",
+  ".adze/goals/active.toml",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
 ]
 
