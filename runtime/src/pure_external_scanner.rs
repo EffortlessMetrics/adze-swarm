@@ -251,60 +251,25 @@ impl ExternalScanner for StringScanner {
         const STRING_CONTENT: usize = 1;
         const STRING_END: usize = 2;
 
-        if valid_symbols.get(STRING_START).copied().unwrap_or(false) {
-            // Look for triple quotes
-            if lexer.lookahead() == Some(b'"') {
-                lexer.advance(false);
-                if lexer.lookahead() == Some(b'"') {
-                    lexer.advance(false);
-                    if lexer.lookahead() == Some(b'"') {
-                        lexer.advance(false);
-                        lexer.mark_end();
-                        lexer.result(STRING_START as u16);
-                        self.delimiter = Some("\"\"\"".to_string());
-                        return true;
-                    }
-                }
-            }
-        }
-
-        if valid_symbols.get(STRING_END).copied().unwrap_or(false)
-            && let Some(delim) = &self.delimiter
+        if symbol_is_valid(valid_symbols, STRING_START)
+            && self.scan_string_start(lexer, STRING_START as u16)
         {
-            // Look for matching delimiter
-            let delim_bytes = delim.as_bytes();
-            let mut matched = true;
-
-            for &b in delim_bytes {
-                if lexer.lookahead() != Some(b) {
-                    matched = false;
-                    break;
-                }
-                lexer.advance(false);
-            }
-
-            if matched {
-                lexer.mark_end();
-                lexer.result(STRING_END as u16);
-                self.delimiter = None;
-                return true;
-            }
+            return true;
         }
 
-        if valid_symbols.get(STRING_CONTENT).copied().unwrap_or(false) && self.delimiter.is_some() {
-            // Consume content until delimiter
-            while !lexer.eof() {
-                if lexer.lookahead() == Some(b'"') {
-                    // Might be end delimiter
-                    break;
-                }
-                lexer.advance(false);
-            }
+        if symbol_is_valid(valid_symbols, STRING_END)
+            && let Some(delim) = &self.delimiter
+            && self.scan_string_end(lexer, delim, STRING_END as u16)
+        {
+            self.delimiter = None;
+            return true;
+        }
 
-            if lexer.token_length() > 0 {
-                lexer.result(STRING_CONTENT as u16);
-                return true;
-            }
+        if symbol_is_valid(valid_symbols, STRING_CONTENT)
+            && self.delimiter.is_some()
+            && self.scan_string_content(lexer, STRING_CONTENT as u16)
+        {
+            return true;
         }
 
         false
@@ -328,6 +293,65 @@ impl ExternalScanner for StringScanner {
             self.delimiter = None;
         }
     }
+}
+
+impl StringScanner {
+    fn scan_string_start(&mut self, lexer: &mut Lexer, symbol: u16) -> bool {
+        if !advance_if_matches(lexer, b'"') {
+            return false;
+        }
+        if !advance_if_matches(lexer, b'"') {
+            return false;
+        }
+        if !advance_if_matches(lexer, b'"') {
+            return false;
+        }
+
+        lexer.mark_end();
+        lexer.result(symbol);
+        self.delimiter = Some("\"\"\"".to_string());
+        true
+    }
+
+    fn scan_string_end(&self, lexer: &mut Lexer, delimiter: &str, symbol: u16) -> bool {
+        for &byte in delimiter.as_bytes() {
+            if !advance_if_matches(lexer, byte) {
+                return false;
+            }
+        }
+
+        lexer.mark_end();
+        lexer.result(symbol);
+        true
+    }
+
+    fn scan_string_content(&self, lexer: &mut Lexer, symbol: u16) -> bool {
+        while !lexer.eof() {
+            if lexer.lookahead() == Some(b'"') {
+                break;
+            }
+            lexer.advance(false);
+        }
+
+        if lexer.token_length() > 0 {
+            lexer.result(symbol);
+            return true;
+        }
+
+        false
+    }
+}
+
+fn symbol_is_valid(valid_symbols: &[bool], index: usize) -> bool {
+    valid_symbols.get(index).copied().unwrap_or(false)
+}
+
+fn advance_if_matches(lexer: &mut Lexer, expected: u8) -> bool {
+    if lexer.lookahead() != Some(expected) {
+        return false;
+    }
+    lexer.advance(false);
+    true
 }
 
 #[cfg(test)]
