@@ -12,7 +12,7 @@ schema_version = "1.0"
 policy = "ci-risk-packs"
 owner = "release/ci"
 status = "advisory"
-updated = "2026-05-14"
+updated = "2026-05-21"
 
 [risk_pack.core_runtime]
 description = "Runtime parser, typed extraction, errors, and public runtime behavior."
@@ -32,14 +32,14 @@ labels = ["full-ci"]
 description = "LR/GLR automata, conflict routing, ambiguity machinery, parse-table behavior."
 paths = ["glr-core/**"]
 lanes = ["ci-supported", "ripr-advisory"]
-deep_lanes = ["fuzz-pr", "benchmarks-pr", "performance-regression"]
+deep_lanes = ["product-proof-advisory", "criterion-smoke"]
 labels = ["mutation", "property-tests", "ci:perf"]
 
 [risk_pack.tablegen]
 description = "Parse-table generation, compression, metadata, and ABI decode."
 paths = ["tablegen/**", "crates/parsetable-metadata/**"]
 lanes = ["ci-supported", "ripr-advisory"]
-deep_lanes = ["product-proof-advisory", "benchmarks-pr"]
+deep_lanes = ["product-proof-advisory", "criterion-smoke"]
 labels = ["full-ci", "ci:perf"]
 
 [risk_pack.grammar_golden]
@@ -79,7 +79,7 @@ description = "Benchmarks, baselines, parser hot paths, benchmark fixtures."
 paths = ["benchmarks/**", "baselines/**", "docs/PERFORMANCE_BASELINE.md"]
 keywords = ["bench", "performance", "hot path"]
 lanes = ["criterion-smoke"]
-deep_lanes = ["performance-regression", "benchmarks-pr"]
+deep_lanes = ["product-proof-advisory"]
 labels = ["ci:perf", "benchmarks", "full-ci"]
 
 [risk_pack.manifest_release]

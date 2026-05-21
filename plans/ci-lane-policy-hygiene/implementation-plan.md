@@ -59,3 +59,57 @@ git diff --check
 
 Remove the `em-rust-small-cx53` lane entry and restore runner-class wording to
 describe CX53 Rust Small routing as future-only.
+
+## Work Item: prune-absent-swarm-workflow-lanes
+
+Status: complete
+Linked proposal: `ADZE-PROP-0001`
+Linked spec: `ADZE-SPEC-0002`
+Linked ADR: n/a
+Blocks: n/a
+Blocked by: n/a
+PR: `adze-swarm#394`
+
+### Goal
+
+Keep the adze-swarm lane whitelist scoped to workflow jobs that exist in this
+repo. Public/release, Droid, fuzz, benchmark, and performance workflows that
+are absent from adze-swarm should not be registered as current swarm lanes.
+
+### Production Delta
+
+- Remove lane whitelist rows for workflow files absent from adze-swarm.
+- Remove exceptions that only referred to those absent lanes.
+- Update risk-pack deep-lane hints to point at existing product/performance
+  evidence lanes.
+- Clarify that staged fuzz/benchmark/performance lanes require deliberate
+  workflow restoration before they re-enter the whitelist.
+
+### Non-Goals
+
+- No workflow deletion.
+- No release, publish, signing, Cargo-token, or crates.io install work.
+- No public `adze` work.
+- No branch-protection, runner routing, or required-check changes.
+
+### Acceptance
+
+- `check-ci-lane-whitelist --mode blocking-strict` reports no missing workflow
+  files.
+- Public/release workflows remain outside adze-swarm unless explicitly
+  reintroduced.
+- Existing aggregate required checks remain unchanged.
+
+### Proof Commands
+
+```bash
+cargo run -q -p xtask -- check-ci-lane-whitelist --mode blocking-strict
+cargo run -q -p xtask -- check-active-goal --mode blocking
+cargo run -q -p xtask -- check-doc-artifacts --mode blocking
+git diff --check
+```
+
+### Rollback
+
+Re-add the removed lane rows and exceptions if their workflow files are
+deliberately restored in adze-swarm.

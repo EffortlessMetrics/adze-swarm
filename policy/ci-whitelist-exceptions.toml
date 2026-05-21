@@ -14,7 +14,7 @@ schema_version = "1.0"
 policy = "ci-whitelist-exceptions"
 owner = "release/ci"
 status = "active"
-updated = "2026-05-08"
+updated = "2026-05-21"
 
 [[exception]]
 id = "ci-exception-pure-rust-os-matrix-default-pr"
@@ -39,44 +39,6 @@ reason = "Microcrate routing by risk pack is active; changes setup job routes ea
 created = "2026-05-07"
 review_after = "2026-06-07"
 expires = "2026-08-07"
-
-[[exception]]
-id = "ci-exception-fuzz-default-pr"
-kind = "expensive_default_pr_lane"
-lane = "fuzz-pr"
-allowed = false
-resolved = true
-resolution = "Lane now default_pr=false. Runtime fuzz gated to labels/push/schedule. Default PR uses fuzz-build-smoke only."
-owner = "core/parser"
-issue = "TODO"
-reason = "Resolved: fuzz.yml runtime fuzz already gated to fuzz/full-ci labels and push/schedule."
-created = "2026-05-07"
-resolved_date = "2026-05-08"
-
-[[exception]]
-id = "ci-exception-performance-default-pr"
-kind = "expensive_default_pr_lane"
-lane = "performance-regression"
-allowed = true
-owner = "core/perf"
-issue = "TODO"
-reason = "performance-check job uses path filter on PR. ci/benchmark-dedup will gate baseline comparison to ci:perf/full-ci labels."
-created = "2026-05-07"
-review_after = "2026-06-07"
-expires = "2026-08-07"
-
-[[exception]]
-id = "ci-exception-benchmarks-default-pr"
-kind = "expensive_default_pr_lane"
-lane = "benchmarks-pr"
-allowed = false
-resolved = true
-resolution = "Lane now default_pr=false. Full benchmark suite gated to ci:perf/benchmarks/full-ci labels and main/push."
-owner = "core/perf"
-issue = "TODO"
-reason = "Resolved: benchmarks.yml already gated to labels/main. Lane is no longer default_pr."
-created = "2026-05-07"
-resolved_date = "2026-05-08"
 
 [[exception]]
 id = "ci-exception-golden-tests-default-pr"

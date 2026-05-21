@@ -19,7 +19,7 @@ schema_version = "1.0"
 policy = "ci-lane-whitelist"
 owner = "release/ci"
 status = "advisory"
-updated = "2026-05-15"
+updated = "2026-05-21"
 
 [budget]
 # All values in LEM (Linux-equivalent minutes).
@@ -391,74 +391,6 @@ review_after = "2026-06-07"
 expires = "2026-08-07"
 
 [[lane]]
-id = "fuzz-pr"
-workflow = ".github/workflows/fuzz.yml"
-job = "multiple"
-display_name = "Fuzz Testing (PR)"
-kind = "fuzz"
-tier = "deep"
-default_pr = false
-blocking = false
-runner = "ubuntu_latest"
-base_lem = 45
-owner = "core/parser"
-intent = "Run bounded fuzz targets for lexer, GLR parser, and incremental edits."
-failure_mode = "Parser crash or robustness defect not caught by unit/oracle tests."
-proof_obligation = "Run cargo-fuzz targets for 300 seconds each."
-evidence = ["fuzz artifacts on failure"]
-allowed_triggers = ["push", "schedule", "workflow_dispatch", "pull_request"]
-routing_note = "Runtime fuzz gated to 'fuzz'/'full-ci' labels, push, and schedule since rollout PR 10. Default PR uses fuzz-build-smoke lane only (3 LEM). base_lem=45 reflects cost when the lane actually runs."
-duplicate_of = ["fuzz-build-smoke"]
-review_after = "2026-06-07"
-expires = "2026-08-07"
-
-[[lane]]
-id = "performance-regression"
-workflow = ".github/workflows/performance.yml"
-job = "multiple"
-display_name = "Performance Regression Check"
-kind = "performance"
-tier = "advisory"
-default_pr = true
-blocking = false
-runner = "ubuntu_latest"
-base_lem = 35
-owner = "core/perf"
-intent = "Compare baseline and PR benchmark results on performance-sensitive paths."
-failure_mode = "Runtime/GLR/tablegen performance regresses silently."
-proof_obligation = "Run baseline and PR Criterion benchmarks and report >5% deltas."
-evidence = ["performance_report.txt", "PR comment"]
-allowed_triggers = ["pull_request"]
-routing_note = "performance-check job uses path filter on PR. ci/benchmark-dedup will gate baseline comparison to 'ci:perf'/'full-ci' labels; quick-smoke-test remains default."
-expensive = true
-default_pr_exception = "ci-exception-performance-default-pr"
-duplicate_of = ["benchmarks-pr"]
-review_after = "2026-06-07"
-expires = "2026-08-07"
-
-[[lane]]
-id = "benchmarks-pr"
-workflow = ".github/workflows/benchmarks.yml"
-job = "multiple"
-display_name = "Performance Benchmarks"
-kind = "performance"
-tier = "advisory"
-default_pr = false
-blocking = false
-runner = "ubuntu_latest"
-base_lem = 35
-owner = "core/perf"
-intent = "Run benchmark suites and post comparison output."
-failure_mode = "Benchmark drift not visible to reviewers."
-proof_obligation = "Run adze benchmark suites and compare to cached baseline when available."
-evidence = ["bench-results/", "benchmark-report.md", "PR comment"]
-allowed_triggers = ["pull_request", "push", "workflow_dispatch"]
-routing_note = "Benchmark comparison is gated to 'ci:perf'/'benchmarks'/'full-ci' labels, workflow_dispatch, and main/push since rollout PR 11. Criterion HTML publishing is manual-only; compile/no-run benchmark proof lives in criterion-smoke/performance lanes. Does not run on unlabeled PR. base_lem=35 reflects cost when it runs."
-duplicate_of = ["performance-regression"]
-review_after = "2026-06-07"
-expires = "2026-08-07"
-
-[[lane]]
 id = "golden-path-detect"
 workflow = ".github/workflows/golden-tests.yml"
 job = "paths"
@@ -744,111 +676,6 @@ duplicate_of = ["golden-tests", "product-proof-stable", "ci-supported"]
 review_after = "2026-06-07"
 expires = "2026-11-07"
 
-[[lane]]
-id = "release"
-workflow = ".github/workflows/release.yml"
-job = "multiple"
-display_name = "release"
-kind = "release"
-tier = "release"
-default_pr = false
-blocking = false
-runner = "ubuntu_latest"
-base_lem = 30
-owner = "release/ci"
-intent = "Release automation for adze."
-failure_mode = "Tagged release fails to publish."
-proof_obligation = "Build, test, and publish artifacts."
-evidence = ["release artifacts"]
-allowed_triggers = ["workflow_dispatch", "push"]
-duplicate_of = []
-review_after = "2026-06-07"
-expires = "2026-11-07"
-
-[[lane]]
-id = "mdbook"
-workflow = ".github/workflows/mdbook.yml"
-job = "multiple"
-display_name = "mdbook"
-kind = "docs"
-tier = "release"
-default_pr = false
-blocking = false
-runner = "ubuntu_latest"
-base_lem = 4
-owner = "core/docs"
-intent = "Build the documentation site."
-failure_mode = "Docs site build breaks silently."
-proof_obligation = "Run mdbook build on docs/."
-evidence = ["site artifact"]
-allowed_triggers = ["push", "workflow_dispatch"]
-duplicate_of = []
-review_after = "2026-06-07"
-expires = "2026-11-07"
-
-[[lane]]
-id = "droid-review"
-workflow = ".github/workflows/droid-review.yml"
-job = "droid-review"
-display_name = "droid review"
-kind = "external"
-tier = "advisory"
-default_pr = false
-blocking = false
-runner = "external_ai_review"
-base_lem = 10
-owner = "release/ci"
-intent = "External AI-assisted review hook."
-failure_mode = "External review service drifts from policy."
-proof_obligation = "Invoke external review service when explicitly requested."
-evidence = ["service-side artifacts"]
-allowed_triggers = ["pull_request"]
-routing_note = "Job runs only when the PR title/body contains @droid or the droid-review label is present."
-duplicate_of = []
-review_after = "2026-06-07"
-expires = "2026-11-07"
-
-[[lane]]
-id = "droid"
-workflow = ".github/workflows/droid.yml"
-job = "droid"
-kind = "external"
-tier = "advisory"
-default_pr = false
-blocking = false
-runner = "external_ai_review"
-base_lem = 10
-owner = "release/ci"
-intent = "External droid integration hook."
-failure_mode = "External integration regresses."
-proof_obligation = "Invoke external droid integration."
-evidence = ["service-side artifacts"]
-allowed_triggers = ["workflow_dispatch"]
-duplicate_of = ["droid-review"]
-review_after = "2026-06-07"
-expires = "2026-11-07"
-
-[[lane]]
-id = "droid-security-scan"
-workflow = ".github/workflows/droid-security-scan.yml"
-job = "droid-security-scan"
-display_name = "Droid security scan"
-kind = "external"
-tier = "deep"
-default_pr = false
-blocking = false
-runner = "external_ai_review"
-base_lem = 10
-owner = "release/security"
-intent = "Scheduled/manual external security scan."
-failure_mode = "External security scan drifts from release policy."
-proof_obligation = "Invoke external security scan when scheduled or manually requested."
-evidence = ["service-side artifacts"]
-allowed_triggers = ["workflow_dispatch", "schedule"]
-duplicate_of = ["droid"]
-review_after = "2026-06-07"
-expires = "2026-11-07"
-
 # ---------------------------------------------------------------------------
 # Sub-jobs surfaced by the new rollout workflows
 # ---------------------------------------------------------------------------
@@ -913,27 +740,6 @@ proof_obligation = "Run pr-plan.yml as a reusable workflow under ripr."
 evidence = ["pr-plan.yml outputs"]
 allowed_triggers = ["pull_request", "workflow_dispatch"]
 duplicate_of = ["pr-plan"]
-review_after = "2026-06-07"
-expires = "2026-11-07"
-
-[[lane]]
-id = "fuzz-build-smoke"
-workflow = ".github/workflows/fuzz.yml"
-job = "fuzz-build-smoke"
-display_name = "Fuzz Build Smoke"
-kind = "fuzz"
-tier = "frontdoor"
-default_pr = true
-blocking = false
-runner = "ubuntu_latest"
-base_lem = 3
-owner = "core/parser"
-intent = "Compile-only smoke check on parser/glr PRs to catch fuzz harness rot without paying the runtime cost."
-failure_mode = "Fuzz harness silently breaks; nightly fuzz becomes the first signal."
-proof_obligation = "cargo +nightly fuzz build fuzz_glr_parser when parser/glr risk pack matches."
-evidence = ["job logs"]
-allowed_triggers = ["pull_request"]
-duplicate_of = ["fuzz-pr"]
 review_after = "2026-06-07"
 expires = "2026-11-07"
 
