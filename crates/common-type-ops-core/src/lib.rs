@@ -7,6 +7,9 @@ use std::collections::HashSet;
 
 use syn::{GenericArgument, PathArguments, Type, parse_quote};
 
+mod container_path;
+use container_path::{first_type_argument, is_named_segment, last_type_segment};
+
 /// Extract the first generic argument from `inner_of`, optionally unwrapping
 /// containers named in `skip_over` while searching.
 ///
@@ -23,39 +26,25 @@ pub fn try_extract_inner_type(
     inner_of: &str,
     skip_over: &HashSet<&str>,
 ) -> (Type, bool) {
-    if let Type::Path(path) = ty {
-        let Some(type_segment) = path.path.segments.last() else {
-            return (ty.clone(), false);
-        };
-        if type_segment.ident == inner_of {
-            return match &type_segment.arguments {
-                PathArguments::AngleBracketed(arguments) => {
-                    if let Some(GenericArgument::Type(inner)) = arguments.args.first().cloned() {
-                        (inner, true)
-                    } else {
-                        panic!("argument in angle brackets must be a type")
-                    }
-                }
-                _ => (ty.clone(), false),
+    if let Some(type_segment) = last_type_segment(ty) {
+        if is_named_segment(type_segment, inner_of) {
+            return match first_type_argument(type_segment) {
+                Some(Some(inner)) => (inner, true),
+                Some(None) | None => (ty.clone(), false),
             };
         }
 
         if skip_over.contains(type_segment.ident.to_string().as_str()) {
-            return match &type_segment.arguments {
-                PathArguments::AngleBracketed(arguments) => {
-                    if let Some(GenericArgument::Type(inner)) = arguments.args.first().cloned() {
-                        let (inner, extracted) =
-                            try_extract_inner_type(&inner, inner_of, skip_over);
-                        if extracted {
-                            (inner, true)
-                        } else {
-                            (ty.clone(), false)
-                        }
+            return match first_type_argument(type_segment) {
+                Some(Some(inner)) => {
+                    let (inner, extracted) = try_extract_inner_type(&inner, inner_of, skip_over);
+                    if extracted {
+                        (inner, true)
                     } else {
-                        panic!("argument in angle brackets must be a type")
+                        (ty.clone(), false)
                     }
                 }
-                _ => (ty.clone(), false),
+                Some(None) | None => (ty.clone(), false),
             };
         }
     }
@@ -73,20 +62,11 @@ pub fn try_extract_inner_type(
 /// Panics when a skipped angle-bracketed type has a first generic argument that
 /// is not a type.
 pub fn filter_inner_type(ty: &Type, skip_over: &HashSet<&str>) -> Type {
-    if let Type::Path(path) = ty {
-        let Some(type_segment) = path.path.segments.last() else {
-            return ty.clone();
-        };
+    if let Some(type_segment) = last_type_segment(ty) {
         if skip_over.contains(type_segment.ident.to_string().as_str()) {
-            return match &type_segment.arguments {
-                PathArguments::AngleBracketed(arguments) => {
-                    if let Some(GenericArgument::Type(inner)) = arguments.args.first().cloned() {
-                        filter_inner_type(&inner, skip_over)
-                    } else {
-                        panic!("argument in angle brackets must be a type")
-                    }
-                }
-                _ => ty.clone(),
+            return match first_type_argument(type_segment) {
+                Some(Some(inner)) => filter_inner_type(&inner, skip_over),
+                Some(None) | None => ty.clone(),
             };
         }
     }
