@@ -1,7 +1,7 @@
 # Now / Next / Later
 
 **Last updated:** 2026-05-21
-**Status:** **Product Proof required-gate policy promotion complete; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The latest completed non-release lanes are closed out in [`../../plans/product-proof-result-readiness/closeout.md`](../../plans/product-proof-result-readiness/closeout.md), [`../../plans/product-proof-required-gate/implementation-plan.md`](../../plans/product-proof-required-gate/implementation-plan.md), and [`../../plans/ci-lane-policy-hygiene/implementation-plan.md`](../../plans/ci-lane-policy-hygiene/implementation-plan.md). The active manifest is paused on the release boundary so agents can see that the remaining work is blocked on explicit release authorization.
+**Status:** **Product Proof required-gate policy promotion complete; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The latest completed non-release lanes are closed out in [`../../plans/product-proof-result-readiness/closeout.md`](../../plans/product-proof-result-readiness/closeout.md), [`../../plans/product-proof-required-gate/implementation-plan.md`](../../plans/product-proof-required-gate/implementation-plan.md), [`../../plans/ci-lane-policy-hygiene/implementation-plan.md`](../../plans/ci-lane-policy-hygiene/implementation-plan.md), [`../../plans/parser-runtime-maintainability/closeout.md`](../../plans/parser-runtime-maintainability/closeout.md), and [`../../plans/cli-parse-surface/closeout.md`](../../plans/cli-parse-surface/closeout.md). The active manifest is complete with no active, ready, or blocked non-release work items; release/publish remains blocked on explicit authorization.
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -187,6 +187,12 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       goal in `adze-swarm`; release/publish authorization and post-publish
       crates.io install receipt remain tracked separately in
       [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
+- [x] CLI parse-surface hardening closed out in PRs #457-#459. Default static
+      `adze parse <grammar.rs> <input>` now emits a document-backed selected
+      tree through generated `parse_document()`, document-projection modes keep
+      schema-envelope/recovery receipts, unsupported non-document static modes
+      fail explicitly, and CLI output remains Stabilizing rather than a stable
+      CLI/WASM schema claim.
 
 ### Operational tail
 - [x] [Issue #269](https://github.com/EffortlessMetrics/adze/issues/269): pure-rust benchmark-compilation tail is removed from routine PRs; benchmark compile/performance signal remains in explicit performance and benchmark lanes.
@@ -229,5 +235,6 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
   field constraints, anchors, and the source-aware predicate subset are already
   documented as covered; remaining work is broader alternation/directive,
   imported-fixture, differential-corpus, and GLR-forest matching proof.
-- Continue CLI/tooling polish now that the basic command surface exists.
+- Open fresh CLI/tooling work only for a material selected gap such as dynamic
+  parse output, additional static output formats, or stable schema promotion.
 - Stabilize the LSP generator and related developer tooling for broader use.
