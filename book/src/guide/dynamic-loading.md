@@ -17,7 +17,9 @@ Before using dynamic loading, ensure you have:
    `adze-cli` has a crates.io install receipt. For current repo proof, build
    the CLI from this checkout.
    ```bash
-   cargo install adze-cli --features dynamic
+   git clone https://github.com/EffortlessMetrics/adze
+   cd adze
+   cargo build --release -p adze-cli --features dynamic
    ```
 
 2. **Tree-sitter Grammar Libraries**: Compiled `.so/.dylib/.dll` files
