@@ -1,6 +1,6 @@
 # ADZE-PROP-0014: CLI Static S-Expression Output
 
-Status: accepted
+Status: implemented
 Owner: cli/product
 Created: 2026-05-21
 Target milestone: post-0.9 / non-release CLI hardening
@@ -17,6 +17,7 @@ Linked issues:
 Linked PRs:
 - EffortlessMetrics/adze-swarm#461
 - EffortlessMetrics/adze-swarm#462
+- EffortlessMetrics/adze-swarm#463
 Support-tier impact:
 - No support-tier promotion by campaign setup.
 Policy impact:

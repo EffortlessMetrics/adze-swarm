@@ -44,7 +44,7 @@ Adze should be release-readable as a Rust parser generator where:
 | Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors and External scanners rows; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof; `docs/reference/diagnostics-and-recovery.md`. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, generated-parser matrix canaries, object-like `parse_document()`/JSON recovery proof, and user-facing diagnostics/recovery guidance from PR #353. External-scanner dispatch now has focused parser-v4 proof for emitted-token byte spans/text, rejection of scanner tokens that are invalid in the parser state without advancing input position, direct parser-v4 `parse_document()` diagnostic-document behavior for bad input in an external-scanner grammar shape with rendered source context, and generated external-token grammar diagnostic-document matrix behavior for malformed root, empty/whitespace input, keyword/missing-condition, missing-colon, trailing-token, multibyte expression, multibyte body-token, invalid body, newline/CRLF boundary, and nested invalid-expression inputs. The generated matrix also compares `parse()` errors with `parse_document()` diagnostics for span and expected-token agreement. | Corpus-wide external-scanner recovery parity remains future work; any Stable promotion still needs support-tier review. |
 | Every Stable README claim maps to proof. | README capability table; `SUPPORT_TIERS.md`; `readme_stable_claims_are_in_stable_product_lane`; `scripts/ci-product-stable.sh`; `Product Proof Result`. | Covered by current proof map and stable-product canaries. PR #383 proves the Product Proof workflow emits an always-present aggregate result while selecting Stable canaries only for relevant product surfaces, schedule, or manual dispatch. Product Proof required-gate burn-in receipts #386-#391 proved enough selected/skipped paths for the deliberate required-gate policy update. | `Product Proof Result` is now required; keep the path-selected `ci-product stable canaries` implementation job out of branch protection. |
 | Experimental/developing surfaces are clearly labeled. | README capability table; `SUPPORT_TIERS.md`; `KNOWN_RED.md`; `PRODUCT_PROOF_MAP.md`; query/tooling closeout. | Covered for runtime2, broader grammars, WASM, Tree-sitter interop, CLI, benchmarks, typed CST, incremental, JSON, and the documented query subset. Query remains Stabilizing for the documented subset, not full Tree-sitter query parity. | Re-check after any README, support-tier, or release-facing wording change. |
-| Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI selected-tree and document JSON recovery diagnostics; public promotion PR #795; user-experience hardening closeout; query/tooling closeout; parser/runtime maintainability closeout; CLI parse-surface closeout. | Covered for local/downstream fixtures, CLI recovery smoke, document-backed static selected-tree output, explicit unsupported-mode failures, public repository promotion, starter README polish, diagnostics/recovery guidance, performance receipt boundaries, query example/differential receipts, local proof-loop friction mitigation, and post-closeout tablegen/supported-gate receipts. | Published CLI install, dynamic parse output, stable CLI/WASM schemas, and any future crates.io release surface need fresh receipts. |
+| Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI selected-tree, S-expression, and document JSON recovery diagnostics; public promotion PR #795; user-experience hardening closeout; query/tooling closeout; parser/runtime maintainability closeout; CLI parse-surface closeout; CLI static S-expression closeout. | Covered for local/downstream fixtures, CLI recovery smoke, document-backed static selected-tree output, document-backed static S-expression output, explicit unsupported-mode failures, public repository promotion, starter README polish, diagnostics/recovery guidance, performance receipt boundaries, query example/differential receipts, local proof-loop friction mitigation, and post-closeout tablegen/supported-gate receipts. | Published CLI install, dynamic parse output, stable CLI/WASM schemas, remaining static `json`/`dot` formats, and any future crates.io release surface need fresh receipts. |
 
 ## Commands And Receipts
 
@@ -57,6 +57,7 @@ cargo test -p adze-cli product_proof_workflow_routes_stable_claim_surfaces -- --
 cargo test -p adze-cli cargo_install_adze_cli_claims_stay_release_surface_bounded -- --exact --nocapture
 cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exact --nocapture
 cargo test -p adze-cli test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture
+cargo test -p adze-cli test_parse_static_sexp_mode_emits_document_backed_sexp -- --exact --nocapture
 cargo test -p adze-cli test_parse_static_non_document_modes_are_explicitly_unimplemented -- --exact --nocapture
 cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
 cargo test -p adze-cli parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture
@@ -179,6 +180,28 @@ Hosted receipts on #458 included `Rust Small Result`, `Product Proof Result`,
 #459 included `Rust Small Result`, `Product Proof Result`, and Source of Truth
 checks. The post-closeout `active.toml` state is complete with no active,
 ready, or blocked non-release work items.
+
+Latest CLI static S-expression closeout: PRs #461-#463 completed the
+non-release CLI static S-expression lane and archived it in
+[`../../plans/cli-static-sexp/closeout.md`](../../plans/cli-static-sexp/closeout.md).
+PR #462 made static `adze parse --output sexp <grammar.rs> <input>` emit a
+document-backed selected-tree S-expression from generated `parse_document()`
+while keeping `json` and `dot` explicitly unsupported until separate proof
+lands. Local proof included:
+
+```bash
+cargo test -p adze-cli test_parse_static_sexp_mode_emits_document_backed_sexp -- --exact --nocapture
+cargo test -p adze-cli test_parse_static_non_document_modes_are_explicitly_unimplemented -- --exact --nocapture
+cargo test -p adze-cli test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture
+cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
+cargo test -p adze-cli parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture
+```
+
+Hosted receipts on #462 included `Rust Small Result`, `Product Proof Result`,
+`Source of Truth`, `Supported Rust Gate`, `PR Gate Success`,
+`Test Pure Rust Implementation (ubuntu-latest, stable)`, `Test Runtime Crates`,
+and `ci-product stable canaries`. The post-closeout `active.toml` state is
+complete with no active, ready, or blocked non-release work items.
 
 Latest Product Proof result-readiness receipt: `adze-swarm` PR #383 made
 `.github/workflows/product-proof.yml` emit `Detect Product Proof Paths`,
@@ -395,15 +418,15 @@ Do not mark the product objective complete while any of these are true:
 - Corpus-wide external-scanner recovery parity remains future work and is not
   a Stable claim.
 - GLR conflict routing, structured parse errors, Tree-sitter compatibility,
-  query compatibility, CLI selected-tree/document output, and `AdzeDocument`
-  are not all Stable; their current tiers and limitations are recorded in
+  query compatibility, CLI selected-tree/S-expression/document output, and
+  `AdzeDocument` are not all Stable; their current tiers and limitations are recorded in
   `SUPPORT_TIERS.md`.
 
 ## Next Concrete Actions
 
 The routine product-proof, user-experience, external-scanner recovery,
 parser-recovery real-grammar, query/tooling expansion, parser/runtime
-maintainability, and CLI parse-surface lanes are closed out:
+maintainability, CLI parse-surface, and CLI static S-expression lanes are closed out:
 [`../../plans/user-experience-hardening/closeout.md`](../../plans/user-experience-hardening/closeout.md),
 [`../../plans/external-scanner-recovery/closeout.md`](../../plans/external-scanner-recovery/closeout.md),
 [`../../plans/parser-recovery-real-grammar/closeout.md`](../../plans/parser-recovery-real-grammar/closeout.md),
@@ -412,7 +435,9 @@ and
 plus
 [`../../plans/parser-runtime-maintainability/closeout.md`](../../plans/parser-runtime-maintainability/closeout.md)
 and
-[`../../plans/cli-parse-surface/closeout.md`](../../plans/cli-parse-surface/closeout.md).
+[`../../plans/cli-parse-surface/closeout.md`](../../plans/cli-parse-surface/closeout.md),
+plus
+[`../../plans/cli-static-sexp/closeout.md`](../../plans/cli-static-sexp/closeout.md).
 Release authorization and post-publish crates.io install receipt work remain
 separate and tracked in
 [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
