@@ -207,46 +207,6 @@ fn parse_with_recovery(
     parser.finish()
 }
 
-/// Check if any node in the subtree is an error node.
-#[allow(dead_code)]
-fn has_error_nodes(tree: &Subtree) -> bool {
-    if tree.node.is_error {
-        return true;
-    }
-    tree.children
-        .iter()
-        .any(|edge| has_error_nodes(&edge.subtree))
-}
-
-/// Collect all error nodes from the tree.
-#[allow(dead_code)]
-fn collect_error_nodes(tree: &Subtree) -> Vec<Arc<Subtree>> {
-    let mut errors = Vec::new();
-    if tree.node.is_error {
-        // We don't have an owned Arc here, but we can note this is an error root.
-        // For child collection we use the Arc children.
-    }
-    for edge in &tree.children {
-        if edge.subtree.node.is_error {
-            errors.push(edge.subtree.clone());
-        }
-        errors.extend(collect_error_nodes_inner(&edge.subtree));
-    }
-    errors
-}
-
-#[allow(dead_code)]
-fn collect_error_nodes_inner(tree: &Subtree) -> Vec<Arc<Subtree>> {
-    let mut errors = Vec::new();
-    for edge in &tree.children {
-        if edge.subtree.node.is_error {
-            errors.push(edge.subtree.clone());
-        }
-        errors.extend(collect_error_nodes_inner(&edge.subtree));
-    }
-    errors
-}
-
 /// Count total nodes in the subtree.
 fn count_nodes(tree: &Subtree) -> usize {
     1 + tree
