@@ -411,7 +411,6 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                                 type LeafFn = ();
                                 const GRAMMAR_NAME: &'static str = #grammar_name_str;
 
-                                #[allow(non_snake_case)]
                                 fn extract(node: Option<&::adze::pure_parser::ParsedNode>, source: &[u8], _last_idx: usize, _leaf_fn: Option<&Self::LeafFn>) -> Self {
                                     let node = node.expect("Extract called with None node for enum");
 
@@ -451,7 +450,6 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                             impl ::adze::Extract<#enum_name> for #enum_name {
                                 type LeafFn = ();
 
-                                #[allow(non_snake_case)]
                                 fn extract(node: Option<::adze::tree_sitter::Node>, source: &[u8], _last_idx: usize, _leaf_fn: Option<&Self::LeafFn>) -> Self {
                                     let node = node.expect("Extract called with None node for enum");
 
@@ -508,7 +506,6 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                                 type LeafFn = ();
                                 const GRAMMAR_NAME: &'static str = #grammar_name_str;
 
-                                #[allow(non_snake_case)]
                                 fn extract(node: Option<&::adze::pure_parser::ParsedNode>, source: &[u8], last_idx: usize, _leaf_fn: Option<&Self::LeafFn>) -> Self {
                                     let node = node.expect("Extract called with None node for struct");
                                     #extract_expr
@@ -520,7 +517,6 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                             impl ::adze::Extract<#struct_name> for #struct_name {
                                 type LeafFn = ();
 
-                                #[allow(non_snake_case)]
                                 fn extract(node: Option<::adze::tree_sitter::Node>, source: &[u8], last_idx: usize, _leaf_fn: Option<&Self::LeafFn>) -> Self {
                                     let node = node.expect("Extract called with None node for struct");
                                     #extract_expr
