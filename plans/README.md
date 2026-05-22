@@ -54,7 +54,7 @@ Existing lanes include:
 - [`cli-parse-surface/`](./cli-parse-surface/closeout.md) for the completed non-release CLI parse-surface hardening lane.
 - [`cli-static-sexp/`](./cli-static-sexp/closeout.md) for the completed non-release CLI static S-expression output lane.
 - [`cli-static-json-dot/`](./cli-static-json-dot/closeout.md) for the completed non-release CLI static JSON and DOT output lane.
-- [`cli-dynamic-parse/`](./cli-dynamic-parse/implementation-plan.md) for the active non-release CLI dynamic parse boundary-hardening lane.
+- [`cli-dynamic-parse/`](./cli-dynamic-parse/closeout.md) for the completed non-release CLI dynamic parse boundary-hardening lane.
 - [`product-gap-burn-down/`](./product-gap-burn-down/implementation-plan.md) also carries the current paused release boundary: routine swarm proof is complete, while release/publish and crates.io install receipt work remain blocked on explicit authorization.
 
 ## Plan header
