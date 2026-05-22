@@ -10,24 +10,16 @@
 //! 7. pure_complex_*       — complex grammar building
 //! 8. pure_deterministic_* — deterministic output
 
-#[allow(unused_imports)]
 use adze_ir::builder::GrammarBuilder;
-#[allow(unused_imports)]
 use adze_ir::{Associativity, Grammar};
-#[allow(unused_imports)]
-use adze_tool::pure_rust_builder::{
-    BuildOptions, BuildResult, build_parser, build_parser_from_json,
-};
-#[allow(unused_imports)]
+use adze_tool::pure_rust_builder::{BuildOptions, build_parser, build_parser_from_json};
 use serde_json::json;
-#[allow(unused_imports)]
 use tempfile::TempDir;
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
 fn tmp_opts() -> (TempDir, BuildOptions) {
     let dir = TempDir::new().unwrap();
     let opts = BuildOptions {
@@ -38,7 +30,6 @@ fn tmp_opts() -> (TempDir, BuildOptions) {
     (dir, opts)
 }
 
-#[allow(dead_code)]
 fn tmp_opts_compressed() -> (TempDir, BuildOptions) {
     let dir = TempDir::new().unwrap();
     let opts = BuildOptions {
@@ -49,7 +40,6 @@ fn tmp_opts_compressed() -> (TempDir, BuildOptions) {
     (dir, opts)
 }
 
-#[allow(dead_code)]
 fn tmp_opts_emit() -> (TempDir, BuildOptions) {
     let dir = TempDir::new().unwrap();
     let opts = BuildOptions {
@@ -60,7 +50,6 @@ fn tmp_opts_emit() -> (TempDir, BuildOptions) {
     (dir, opts)
 }
 
-#[allow(dead_code)]
 fn single_token_grammar() -> Grammar {
     GrammarBuilder::new("single_tok")
         .token("x", "x")
@@ -69,7 +58,6 @@ fn single_token_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn two_alt_grammar() -> Grammar {
     GrammarBuilder::new("two_alt")
         .token("a", "a")
@@ -80,7 +68,6 @@ fn two_alt_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn seq_grammar() -> Grammar {
     GrammarBuilder::new("seq")
         .token("a", "a")
@@ -91,7 +78,6 @@ fn seq_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn arith_grammar() -> Grammar {
     GrammarBuilder::new("arith")
         .token("num", "[0-9]+")
@@ -104,7 +90,6 @@ fn arith_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn chain_grammar() -> Grammar {
     GrammarBuilder::new("chain")
         .token("x", "x")
@@ -115,7 +100,6 @@ fn chain_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn simple_json(name: &str) -> String {
     json!({
         "name": name,
@@ -133,7 +117,6 @@ fn simple_json(name: &str) -> String {
     .to_string()
 }
 
-#[allow(dead_code)]
 fn multi_rule_json(name: &str) -> String {
     json!({
         "name": name,
