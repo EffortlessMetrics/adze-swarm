@@ -16,7 +16,6 @@ use tempfile::TempDir;
 
 // ── Helper Functions ─────────────────────────────────────────────────────
 
-#[allow(dead_code)]
 fn make_opts() -> (TempDir, BuildOptions) {
     let dir = TempDir::new().unwrap();
     let opts = BuildOptions {
@@ -27,7 +26,6 @@ fn make_opts() -> (TempDir, BuildOptions) {
     (dir, opts)
 }
 
-#[allow(dead_code)]
 fn make_opts_with_dir(dir: &TempDir) -> BuildOptions {
     BuildOptions {
         out_dir: dir.path().to_string_lossy().to_string(),
@@ -36,7 +34,6 @@ fn make_opts_with_dir(dir: &TempDir) -> BuildOptions {
     }
 }
 
-#[allow(dead_code)]
 fn minimal_grammar(name: &str) -> adze_ir::Grammar {
     GrammarBuilder::new(name)
         .token("tok", "x")
@@ -45,7 +42,6 @@ fn minimal_grammar(name: &str) -> adze_ir::Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn ab_grammar(name: &str) -> adze_ir::Grammar {
     GrammarBuilder::new(name)
         .token("a", "a")
@@ -55,7 +51,6 @@ fn ab_grammar(name: &str) -> adze_ir::Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn token_only_grammar(name: &str) -> adze_ir::Grammar {
     GrammarBuilder::new(name)
         .token("num", "[0-9]+")
@@ -64,7 +59,6 @@ fn token_only_grammar(name: &str) -> adze_ir::Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn multi_rule_grammar(name: &str) -> adze_ir::Grammar {
     GrammarBuilder::new(name)
         .token("a", "a")
@@ -78,7 +72,6 @@ fn multi_rule_grammar(name: &str) -> adze_ir::Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn chain_grammar(name: &str) -> adze_ir::Grammar {
     GrammarBuilder::new(name)
         .token("leaf", "z")
@@ -88,7 +81,6 @@ fn chain_grammar(name: &str) -> adze_ir::Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn with_start_grammar(name: &str) -> adze_ir::Grammar {
     GrammarBuilder::new(name)
         .token("id", "[a-z]+")
@@ -99,7 +91,6 @@ fn with_start_grammar(name: &str) -> adze_ir::Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn complex_grammar(name: &str) -> adze_ir::Grammar {
     GrammarBuilder::new(name)
         .token("num", "[0-9]+")
@@ -114,7 +105,6 @@ fn complex_grammar(name: &str) -> adze_ir::Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn nested_expr_grammar(name: &str) -> adze_ir::Grammar {
     GrammarBuilder::new(name)
         .token("id", "[a-z_][a-z0-9_]*")
