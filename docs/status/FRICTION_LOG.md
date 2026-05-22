@@ -277,6 +277,9 @@ links (`LNK1180`).
 `CARGO_PROFILE_TEST_DEBUG=0`, keeping the supported test surface intact while
 avoiding Windows test-profile PDB pressure. Developers can override the
 environment variable when they explicitly need debug info.
+**Latest receipt:** `just ci-supported` passed on 2026-05-21 from current
+`adze-swarm/main` at commit `aa9a65d2` on Windows after the test-profile debug
+default was in place.
 **Status:** Mitigated
 **Links:** `scripts/ci-supported.sh`
 
