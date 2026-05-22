@@ -5,13 +5,7 @@
 
 use adze_ir::builder::GrammarBuilder;
 use adze_ir::validation::GrammarValidator;
-#[allow(unused_imports)]
-use adze_ir::{
-    AliasSequence, Associativity, ExternalToken, FieldId, Grammar, Precedence, PrecedenceKind,
-    ProductionId, Rule, Symbol, SymbolId, Token, TokenPattern,
-};
-#[allow(unused_imports)]
-use indexmap::IndexMap;
+use adze_ir::{Associativity, FieldId, Grammar, Rule, Symbol, SymbolId};
 use proptest::prelude::*;
 
 // ---------------------------------------------------------------------------
@@ -20,11 +14,6 @@ use proptest::prelude::*;
 
 fn arb_grammar_name() -> impl Strategy<Value = String> {
     "[a-z][a-z0-9_]{2,8}".prop_map(|s| s)
-}
-
-#[allow(dead_code)]
-fn arb_token_name() -> impl Strategy<Value = String> {
-    "[A-Z][A-Z0-9_]{1,6}".prop_map(|s| s)
 }
 
 fn arb_rule_name() -> impl Strategy<Value = String> {
@@ -53,7 +42,6 @@ fn arb_associativity() -> impl Strategy<Value = Associativity> {
 }
 
 /// Build a simple grammar with `n` unique tokens and a start rule referencing them.
-#[allow(dead_code)]
 fn build_grammar_with_tokens(name: &str, token_names: &[String], patterns: &[String]) -> Grammar {
     let mut builder = GrammarBuilder::new(name);
     for (tname, pat) in token_names.iter().zip(patterns.iter()) {
@@ -68,7 +56,6 @@ fn build_grammar_with_tokens(name: &str, token_names: &[String], patterns: &[Str
 }
 
 /// Merge tokens from `src` into `dst`, skipping duplicates by name.
-#[allow(dead_code)]
 fn merge_tokens(dst: &mut Grammar, src: &Grammar) {
     let existing_names: std::collections::HashSet<String> =
         dst.tokens.values().map(|t| t.name.clone()).collect();
@@ -91,7 +78,6 @@ fn merge_tokens(dst: &mut Grammar, src: &Grammar) {
 }
 
 /// Merge rules from `src` into `dst`, remapping symbol IDs by name.
-#[allow(dead_code)]
 fn merge_rules(dst: &mut Grammar, src: &Grammar) {
     let max_id = dst
         .tokens
@@ -174,7 +160,6 @@ fn merge_rules(dst: &mut Grammar, src: &Grammar) {
 }
 
 /// Merge precedence declarations from `src` into `dst`.
-#[allow(dead_code)]
 fn merge_precedences(dst: &mut Grammar, src: &Grammar) {
     let existing_levels: std::collections::HashSet<i16> =
         dst.precedences.iter().map(|p| p.level).collect();
@@ -186,7 +171,6 @@ fn merge_precedences(dst: &mut Grammar, src: &Grammar) {
 }
 
 /// Merge fields from `src` into `dst`, skipping duplicates by name.
-#[allow(dead_code)]
 fn merge_fields(dst: &mut Grammar, src: &Grammar) {
     let existing: std::collections::HashSet<String> = dst.fields.values().cloned().collect();
     let max_field_id = dst.fields.keys().map(|f| f.0).max().unwrap_or(0);
@@ -200,7 +184,6 @@ fn merge_fields(dst: &mut Grammar, src: &Grammar) {
 }
 
 /// Merge extras from `src` into `dst`, skipping duplicates.
-#[allow(dead_code)]
 fn merge_extras_into(dst: &mut Grammar, src: &Grammar) {
     // Merge extras by token name to avoid ID clashes
     let dst_extra_names: std::collections::HashSet<String> = dst
@@ -232,7 +215,6 @@ fn merge_extras_into(dst: &mut Grammar, src: &Grammar) {
 }
 
 /// Create a minimal valid grammar for merging tests.
-#[allow(dead_code)]
 fn minimal_grammar(name: &str) -> Grammar {
     GrammarBuilder::new(name)
         .token("NUM", r"\d+")
