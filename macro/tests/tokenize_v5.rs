@@ -844,22 +844,3 @@ fn code_gen_quote_with_conditional() {
     assert!(output.contains("Config"));
     assert!(output.contains("derive"));
 }
-
-// ============================================================================
-// Helper functions (marked with allow(dead_code) for test infrastructure)
-// ============================================================================
-
-#[allow(dead_code)]
-fn print_token_stream(ts: &TokenStream) -> String {
-    ts.to_string()
-}
-
-#[allow(dead_code)]
-fn count_tokens(ts: &TokenStream) -> usize {
-    ts.clone().into_iter().count()
-}
-
-#[allow(dead_code)]
-fn extract_ident_string(ident: &Ident) -> String {
-    ident.to_string()
-}
