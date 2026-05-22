@@ -30,7 +30,6 @@ use proptest::prelude::*;
 const INVALID: StateId = StateId(u16::MAX);
 
 /// Build a token with a string pattern.
-#[allow(dead_code)]
 fn string_token(name: &str, literal: &str) -> Token {
     Token {
         name: name.to_string(),
@@ -40,7 +39,6 @@ fn string_token(name: &str, literal: &str) -> Token {
 }
 
 /// Build a token with a regex pattern.
-#[allow(dead_code)]
 fn regex_token(name: &str, pattern: &str) -> Token {
     Token {
         name: name.to_string(),
@@ -50,7 +48,6 @@ fn regex_token(name: &str, pattern: &str) -> Token {
 }
 
 /// Construct a simple rule (no precedence, no fields).
-#[allow(dead_code)]
 fn simple_rule(lhs: u16, rhs: Vec<Symbol>, prod_id: u16) -> Rule {
     Rule {
         lhs: SymbolId(lhs),
@@ -63,7 +60,6 @@ fn simple_rule(lhs: u16, rhs: Vec<Symbol>, prod_id: u16) -> Rule {
 }
 
 /// Build a Grammar manually from components.
-#[allow(dead_code)]
 fn make_grammar(
     name: &str,
     tokens: Vec<(SymbolId, Token)>,
@@ -92,7 +88,6 @@ fn make_grammar(
 /// Build a minimal ParseTable for property tests.
 ///
 /// Symbol layout: ERROR(0), terminals [1..=terms], externals, EOF, non-terminals.
-#[allow(dead_code)]
 fn make_empty_table(states: usize, terms: usize, nonterms: usize, externals: usize) -> ParseTable {
     let states = states.max(1);
     let eof_idx = 1 + terms + externals;
@@ -155,7 +150,6 @@ fn make_empty_table(states: usize, terms: usize, nonterms: usize, externals: usi
 }
 
 /// Build a grammar with N tokens and a single rule referencing them all.
-#[allow(dead_code)]
 fn grammar_with_n_tokens(n: usize) -> (Grammar, ParseTable) {
     let eof_idx = 1 + n;
     let start_nt = SymbolId((eof_idx + 1) as u16);
@@ -182,7 +176,6 @@ fn grammar_with_n_tokens(n: usize) -> (Grammar, ParseTable) {
 }
 
 /// Build a grammar with N named rules.
-#[allow(dead_code)]
 fn grammar_with_n_rules(n: usize) -> (Grammar, ParseTable) {
     let eof_idx = 1 + 1; // 1 token
     let tokens = vec![(SymbolId(1), string_token("a", "a"))];
@@ -206,7 +199,6 @@ fn grammar_with_n_rules(n: usize) -> (Grammar, ParseTable) {
 }
 
 /// Build a grammar with N fields.
-#[allow(dead_code)]
 fn grammar_with_n_fields(n: usize) -> (Grammar, ParseTable) {
     let eof_idx = 2; // 1 token
     let start_nt = SymbolId((eof_idx + 1) as u16);
@@ -234,7 +226,6 @@ fn grammar_with_n_fields(n: usize) -> (Grammar, ParseTable) {
 }
 
 /// Build a grammar with N external tokens.
-#[allow(dead_code)]
 fn grammar_with_n_externals(n: usize) -> (Grammar, ParseTable) {
     let tokens = vec![(SymbolId(1), string_token("a", "a"))];
     let eof_idx = 1 + 1 + n;
