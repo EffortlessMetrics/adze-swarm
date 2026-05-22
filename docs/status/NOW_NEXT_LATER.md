@@ -31,9 +31,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 ### CLI dynamic parse boundary
 - [x] Open the focused source-of-truth lane for feature-gated dynamic parse
       boundary hardening in `adze-swarm`.
-- [ ] Add executable receipts proving `--dynamic` is feature-gated,
+- [x] Add executable receipts proving `--dynamic` is feature-gated,
       experimental, and not currently a supported parse-output path.
-- [ ] Tighten the dynamic-loading guide and support-tier wording so they do
+- [x] Tighten the dynamic-loading guide and support-tier wording so they do
       not imply dynamic parse output or crates.io install support.
 - [ ] Close the lane only after behavior receipts exist.
 

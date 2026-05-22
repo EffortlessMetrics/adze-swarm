@@ -44,12 +44,13 @@ commands = [
 
 [[work_item]]
 id = "dynamic-cli-boundary-receipts"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0016-cli-dynamic-parse-boundary.md"
 spec = "ADZE-SPEC-0008"
 adr = "ADZE-ADR-0001"
 plan = "plans/cli-dynamic-parse/implementation-plan.md"
 blocked_by = ["cli-dynamic-parse-source-of-truth"]
+prs = [472]
 commands = [
   "cargo test -p adze-cli test_parse_dynamic_without_feature_reports_feature_gate -- --exact --nocapture",
   "cargo test -p adze-cli --features dynamic dynamic -- --nocapture",
@@ -60,7 +61,7 @@ commands = [
 
 [[work_item]]
 id = "cli-dynamic-parse-closeout"
-status = "blocked"
+status = "ready"
 proposal = "docs/proposals/ADZE-PROP-0016-cli-dynamic-parse-boundary.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"

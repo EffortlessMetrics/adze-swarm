@@ -782,6 +782,46 @@ fn test_parse_help_documents_available_modes() {
         .stdout(predicate::str::contains("experimental"));
 }
 
+#[cfg(not(feature = "dynamic"))]
+#[test]
+fn test_parse_dynamic_without_feature_reports_feature_gate() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let grammar = temp.path().join("grammar.so");
+    let input = temp.path().join("input.txt");
+    std::fs::write(&input, "1").expect("write input");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("parse")
+        .arg(&grammar)
+        .arg(&input)
+        .arg("--dynamic")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "requires building adze-cli with --features dynamic",
+        ))
+        .stderr(predicate::str::contains("currently unimplemented").not());
+}
+
+#[cfg(feature = "dynamic")]
+#[test]
+fn test_parse_dynamic_with_feature_reports_missing_grammar_before_output_boundary() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let grammar = temp.path().join("missing-grammar.so");
+    let input = temp.path().join("input.txt");
+    std::fs::write(&input, "1").expect("write input");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("parse")
+        .arg(&grammar)
+        .arg(&input)
+        .arg("--dynamic")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("dynamic grammar not found"))
+        .stderr(predicate::str::contains("currently unimplemented").not());
+}
+
 // ---------------------------------------------------------------------------
 // Unit tests for CLI argument parsing (no binary execution)
 // ---------------------------------------------------------------------------

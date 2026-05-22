@@ -78,7 +78,8 @@ manifest.
 
 ## Work Item: dynamic-cli-boundary-receipts
 
-Status: ready
+Status: complete
+Completed by: EffortlessMetrics/adze-swarm#472
 Linked proposal: ../../docs/proposals/ADZE-PROP-0016-cli-dynamic-parse-boundary.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0008-json-cli-wasm-projections.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -118,6 +119,7 @@ wording only.
   reads like a supported workflow recipe.
 - `docs/status/SUPPORT_TIERS.md` keeps dynamic parse output outside supported
   CLI claims.
+- Completed by #472.
 
 ### Proof Commands
 
@@ -136,7 +138,7 @@ with the previous documentation boundary restored.
 
 ## Work Item: cli-dynamic-parse-closeout
 
-Status: blocked
+Status: ready
 Linked proposal: ../../docs/proposals/ADZE-PROP-0016-cli-dynamic-parse-boundary.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
