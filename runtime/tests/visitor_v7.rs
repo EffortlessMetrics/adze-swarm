@@ -22,7 +22,6 @@ use adze::visitor::{
 // ---------------------------------------------------------------------------
 
 /// Construct a synthetic `ParsedNode` with standard defaults.
-#[allow(dead_code)]
 fn make_node(
     symbol: u16,
     children: Vec<ParsedNode>,
@@ -37,24 +36,20 @@ fn make_node(
         .build()
 }
 
-#[allow(dead_code)]
 fn leaf(sym: u16, start: usize, end: usize) -> ParsedNode {
     make_node(sym, vec![], start, end, false, true)
 }
 
-#[allow(dead_code)]
 fn unnamed_leaf(sym: u16, start: usize, end: usize) -> ParsedNode {
     make_node(sym, vec![], start, end, false, false)
 }
 
-#[allow(dead_code)]
 fn interior(sym: u16, children: Vec<ParsedNode>) -> ParsedNode {
     let start = children.first().map_or(0, |c| c.start_byte);
     let end = children.last().map_or(0, |c| c.end_byte);
     make_node(sym, children, start, end, false, true)
 }
 
-#[allow(dead_code)]
 fn error_node(start: usize, end: usize) -> ParsedNode {
     make_node(0, vec![], start, end, true, false)
 }
@@ -68,7 +63,6 @@ fn error_node(start: usize, end: usize) -> ParsedNode {
 ///  └── d(4) leaf "d"
 /// ```
 /// Source: `"abcd"`
-#[allow(dead_code)]
 fn sample_tree() -> (ParsedNode, Vec<u8>) {
     let src = b"abcd".to_vec();
     let a = leaf(1, 0, 1);
@@ -87,7 +81,6 @@ fn sample_tree() -> (ParsedNode, Vec<u8>) {
 ///       └── n2(102)
 ///            └── n3(103) leaf "deep"
 /// ```
-#[allow(dead_code)]
 fn deep_tree() -> (ParsedNode, Vec<u8>) {
     let src = b"deep".to_vec();
     let n3 = leaf(103, 0, 4);
@@ -99,7 +92,6 @@ fn deep_tree() -> (ParsedNode, Vec<u8>) {
 
 /// A flat tree (root + many direct children) for breadth-first tests.
 /// Source: `"12345"`
-#[allow(dead_code)]
 fn flat_tree() -> (ParsedNode, Vec<u8>) {
     let src = b"12345".to_vec();
     let children: Vec<ParsedNode> = (0..5)
@@ -358,7 +350,6 @@ fn visitor_search_error_nodes_not_entered() {
 
 #[test]
 fn visitor_custom_counting_visitor() {
-    #[allow(dead_code)]
     struct Counter(usize);
     impl Visitor for Counter {
         fn enter_node(&mut self, _: &ParsedNode) -> VisitorAction {
