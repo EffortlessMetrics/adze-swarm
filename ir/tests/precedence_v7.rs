@@ -11,17 +11,15 @@
 //!   8. prec_edge_*      — edge cases
 
 use adze_ir::builder::GrammarBuilder;
-#[allow(unused_imports)]
 use adze_ir::{
     Associativity, ConflictDeclaration, ConflictResolution, Grammar, Precedence, PrecedenceKind,
-    ProductionId, Rule, Symbol, SymbolId,
+    ProductionId, Rule, SymbolId,
 };
 
 // ───────────────────────────────────────────────────────────────────────────
 // Helpers
 // ───────────────────────────────────────────────────────────────────────────
 
-#[allow(dead_code)]
 fn arith_grammar() -> Grammar {
     GrammarBuilder::new("arith")
         .token("NUMBER", r"\d+")
@@ -38,7 +36,6 @@ fn arith_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn assign_grammar() -> Grammar {
     GrammarBuilder::new("assign")
         .token("ID", r"[a-z]+")
@@ -49,7 +46,6 @@ fn assign_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn comparison_grammar() -> Grammar {
     GrammarBuilder::new("cmp")
         .token("NUM", r"\d+")
