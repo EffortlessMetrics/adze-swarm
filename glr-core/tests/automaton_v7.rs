@@ -25,7 +25,6 @@ use std::collections::BTreeSet;
 // ---------------------------------------------------------------------------
 
 /// Build automaton and FirstFollowSets from a mutable grammar.
-#[allow(dead_code)]
 fn build_automaton(
     grammar: &mut adze_ir::Grammar,
 ) -> Result<(ParseTable, FirstFollowSets), GLRError> {
@@ -35,7 +34,6 @@ fn build_automaton(
 }
 
 /// Build ItemSetCollection and FirstFollowSets from a mutable grammar.
-#[allow(dead_code)]
 fn build_item_collection(
     grammar: &mut adze_ir::Grammar,
 ) -> Result<(ItemSetCollection, FirstFollowSets), GLRError> {
@@ -45,7 +43,6 @@ fn build_item_collection(
 }
 
 /// Count how many states are reachable from the initial state.
-#[allow(dead_code)]
 fn count_reachable_states(col: &ItemSetCollection) -> usize {
     let mut visited = BTreeSet::new();
     let mut queue = vec![StateId(0)];
@@ -64,7 +61,6 @@ fn count_reachable_states(col: &ItemSetCollection) -> usize {
 }
 
 /// Get all symbols that have transitions from a given state.
-#[allow(dead_code)]
 fn transitions_from_state(col: &ItemSetCollection, state: StateId) -> BTreeSet<SymbolId> {
     col.goto_table
         .iter()
@@ -74,50 +70,6 @@ fn transitions_from_state(col: &ItemSetCollection, state: StateId) -> BTreeSet<S
             },
         )
         .collect()
-}
-
-/// Check if an action contains a Shift for a given state.
-#[allow(dead_code)]
-fn has_shift_action(actions: &[Action], target_state: StateId) -> bool {
-    actions.iter().any(|a| {
-        if let Action::Shift(s) = a {
-            *s == target_state
-        } else {
-            false
-        }
-    })
-}
-
-/// Check if an action contains a Reduce with a given rule.
-#[allow(dead_code)]
-fn has_reduce_action(actions: &[Action], rule_id: RuleId) -> bool {
-    actions.iter().any(|a| {
-        if let Action::Reduce(rid) = a {
-            *rid == rule_id
-        } else {
-            false
-        }
-    })
-}
-
-/// Find a nonterminal symbol ID by its name.
-#[allow(dead_code)]
-fn find_rule_by_name(grammar: &adze_ir::Grammar, name: &str) -> Option<SymbolId> {
-    grammar
-        .rule_names
-        .iter()
-        .find(|(_, v)| v.as_str() == name)
-        .map(|(&k, _)| k)
-}
-
-/// Find a terminal symbol ID by its name.
-#[allow(dead_code)]
-fn find_token_by_name(grammar: &adze_ir::Grammar, name: &str) -> Option<SymbolId> {
-    grammar
-        .tokens
-        .iter()
-        .find(|(_, token)| token.name.as_str() == name)
-        .map(|(&k, _)| k)
 }
 
 // ===========================================================================
