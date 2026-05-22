@@ -31,7 +31,6 @@ type ActionCell = Vec<Action>;
 const NO_GOTO: StateId = StateId(u16::MAX);
 
 /// Build a parse table from a `GrammarBuilder` via the standard pipeline.
-#[allow(dead_code)]
 fn pipeline(builder: GrammarBuilder) -> ParseTable {
     let mut grammar = builder.build();
     grammar.normalize();
@@ -39,17 +38,7 @@ fn pipeline(builder: GrammarBuilder) -> ParseTable {
     build_lr1_automaton(&grammar, &ff).expect("build automaton")
 }
 
-/// Try building a table, returning None on failure.
-#[allow(dead_code)]
-fn try_pipeline(builder: GrammarBuilder) -> Option<ParseTable> {
-    let mut grammar = builder.build();
-    grammar.normalize();
-    let ff = FirstFollowSets::compute(&grammar).ok()?;
-    build_lr1_automaton(&grammar, &ff).ok()
-}
-
 /// Check whether any cell in the table contains an Accept action.
-#[allow(dead_code)]
 fn has_accept(table: &ParseTable) -> bool {
     table.action_table.iter().any(|row| {
         row.iter()
@@ -58,7 +47,6 @@ fn has_accept(table: &ParseTable) -> bool {
 }
 
 /// Check whether any Accept action is in the EOF column.
-#[allow(dead_code)]
 fn accept_on_eof(table: &ParseTable) -> bool {
     let Some(&eof_col) = table.symbol_to_index.get(&table.eof_symbol) else {
         return false;
@@ -70,7 +58,6 @@ fn accept_on_eof(table: &ParseTable) -> bool {
 }
 
 /// Count states that contain an Accept action.
-#[allow(dead_code)]
 fn count_accept_states(table: &ParseTable) -> usize {
     table
         .action_table
@@ -83,7 +70,6 @@ fn count_accept_states(table: &ParseTable) -> usize {
 }
 
 /// All Shift targets point to valid states.
-#[allow(dead_code)]
 fn shifts_are_valid(table: &ParseTable) -> bool {
     table.action_table.iter().all(|row| {
         row.iter().all(|cell| {
@@ -100,7 +86,6 @@ fn shifts_are_valid(table: &ParseTable) -> bool {
 }
 
 /// All Reduce RuleIds are in-range.
-#[allow(dead_code)]
 fn reduces_are_valid(table: &ParseTable) -> bool {
     if table.rules.is_empty() {
         return true;
@@ -124,7 +109,6 @@ fn reduces_are_valid(table: &ParseTable) -> bool {
 // ---------------------------------------------------------------------------
 
 /// S → a
-#[allow(dead_code)]
 fn minimal_grammar() -> GrammarBuilder {
     GrammarBuilder::new("minimal")
         .token("a", "a")
@@ -133,7 +117,6 @@ fn minimal_grammar() -> GrammarBuilder {
 }
 
 /// S → a b
-#[allow(dead_code)]
 fn two_token_grammar() -> GrammarBuilder {
     GrammarBuilder::new("twotok")
         .token("a", "a")
@@ -143,7 +126,6 @@ fn two_token_grammar() -> GrammarBuilder {
 }
 
 /// S → a | b
-#[allow(dead_code)]
 fn two_alt_grammar() -> GrammarBuilder {
     GrammarBuilder::new("twoalt")
         .token("a", "a")
@@ -154,7 +136,6 @@ fn two_alt_grammar() -> GrammarBuilder {
 }
 
 /// S → ε | a
-#[allow(dead_code)]
 fn nullable_grammar() -> GrammarBuilder {
     GrammarBuilder::new("nullable")
         .token("a", "a")
@@ -164,7 +145,6 @@ fn nullable_grammar() -> GrammarBuilder {
 }
 
 /// S → S a | a  (left-recursive)
-#[allow(dead_code)]
 fn left_recursive_grammar() -> GrammarBuilder {
     GrammarBuilder::new("leftrec")
         .token("a", "a")
@@ -174,7 +154,6 @@ fn left_recursive_grammar() -> GrammarBuilder {
 }
 
 /// S → a S | a  (right-recursive)
-#[allow(dead_code)]
 fn right_recursive_grammar() -> GrammarBuilder {
     GrammarBuilder::new("rightrec")
         .token("a", "a")
@@ -184,7 +163,6 @@ fn right_recursive_grammar() -> GrammarBuilder {
 }
 
 /// S → T, T → a  (chain)
-#[allow(dead_code)]
 fn chain_grammar() -> GrammarBuilder {
     GrammarBuilder::new("chain")
         .token("a", "a")
@@ -194,7 +172,6 @@ fn chain_grammar() -> GrammarBuilder {
 }
 
 /// S → T, T → U, U → a  (deep chain)
-#[allow(dead_code)]
 fn deep_chain_grammar() -> GrammarBuilder {
     GrammarBuilder::new("deep")
         .token("a", "a")
@@ -205,7 +182,6 @@ fn deep_chain_grammar() -> GrammarBuilder {
 }
 
 /// S → a b c  (sequence)
-#[allow(dead_code)]
 fn sequence_grammar() -> GrammarBuilder {
     GrammarBuilder::new("seq")
         .token("a", "a")
@@ -216,7 +192,6 @@ fn sequence_grammar() -> GrammarBuilder {
 }
 
 /// S → a | b | c | d | e  (wide alternatives)
-#[allow(dead_code)]
 fn wide_alt_grammar() -> GrammarBuilder {
     GrammarBuilder::new("wide")
         .token("a", "a")
@@ -233,7 +208,6 @@ fn wide_alt_grammar() -> GrammarBuilder {
 }
 
 /// E → E + E | E * E | a  (precedence)
-#[allow(dead_code)]
 fn precedence_grammar() -> GrammarBuilder {
     GrammarBuilder::new("prec")
         .token("a", "a")
@@ -246,7 +220,6 @@ fn precedence_grammar() -> GrammarBuilder {
 }
 
 /// S → T U, T → a, U → b  (two NTs in sequence)
-#[allow(dead_code)]
 fn two_nt_seq_grammar() -> GrammarBuilder {
     GrammarBuilder::new("twontseq")
         .token("a", "a")
@@ -294,7 +267,6 @@ fn arb_action_cell(max_state: u16) -> impl Strategy<Value = ActionCell> {
 }
 
 /// Build a well-formed synthetic `ParseTable` with the given dimensions.
-#[allow(dead_code)]
 fn build_synthetic_table(
     num_states: usize,
     num_terminals: usize,
