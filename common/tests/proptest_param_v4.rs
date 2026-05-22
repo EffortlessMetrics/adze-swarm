@@ -15,7 +15,6 @@ use syn::{Type, parse_str};
 // ---------------------------------------------------------------------------
 
 /// Leaf primitives that are always valid, non-keyword Rust types.
-#[allow(dead_code)]
 fn leaf_type() -> impl Strategy<Value = &'static str> {
     prop::sample::select(
         &[
@@ -26,50 +25,32 @@ fn leaf_type() -> impl Strategy<Value = &'static str> {
 }
 
 /// Common single-arg generic containers.
-#[allow(dead_code)]
 fn container_name() -> impl Strategy<Value = &'static str> {
     prop::sample::select(&["Option", "Vec", "Box", "Arc", "Rc"][..])
 }
 
 /// Containers suitable for skip sets (not typically extraction targets).
-#[allow(dead_code)]
 fn skip_member() -> impl Strategy<Value = &'static str> {
     prop::sample::select(&["Box", "Arc", "Rc"][..])
 }
 
 /// Containers typically used as extraction targets.
-#[allow(dead_code)]
 fn target_container() -> impl Strategy<Value = &'static str> {
     prop::sample::select(&["Option", "Vec"][..])
 }
 
 /// Depth-1 parameterized type string.
-#[allow(dead_code)]
 fn param_type_string() -> impl Strategy<Value = String> {
     (container_name(), leaf_type()).prop_map(|(c, l)| format!("{c}<{l}>"))
 }
 
 /// Depth-2 nested parameterized type string.
-#[allow(dead_code)]
 fn nested_param_string() -> impl Strategy<Value = String> {
     (container_name(), container_name(), leaf_type())
         .prop_map(|(c1, c2, l)| format!("{c1}<{c2}<{l}>>"))
 }
 
-/// Depth-3 deeply nested parameterized type string.
-#[allow(dead_code)]
-fn deep_nested_string() -> impl Strategy<Value = String> {
-    (
-        container_name(),
-        container_name(),
-        container_name(),
-        leaf_type(),
-    )
-        .prop_map(|(c1, c2, c3, l)| format!("{c1}<{c2}<{c3}<{l}>>>"))
-}
-
 /// Any type string from depth 0–2.
-#[allow(dead_code)]
 fn any_type_string() -> impl Strategy<Value = String> {
     prop_oneof![
         leaf_type().prop_map(|s| s.to_string()),
@@ -82,12 +63,10 @@ fn any_type_string() -> impl Strategy<Value = String> {
 // Helpers
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
 fn to_str(ty: &Type) -> String {
     ty.to_token_stream().to_string()
 }
 
-#[allow(dead_code)]
 fn is_parameterized(ty: &Type) -> bool {
     if let Type::Path(p) = ty
         && let Some(seg) = p.path.segments.last()
@@ -97,17 +76,14 @@ fn is_parameterized(ty: &Type) -> bool {
     false
 }
 
-#[allow(dead_code)]
 fn empty_skip() -> HashSet<&'static str> {
     HashSet::new()
 }
 
-#[allow(dead_code)]
 fn skip_set<'a>(items: &'a [&'a str]) -> HashSet<&'a str> {
     items.iter().copied().collect()
 }
 
-#[allow(dead_code)]
 fn has_angle_brackets(s: &str) -> bool {
     s.contains('<') && s.contains('>')
 }
