@@ -11,8 +11,7 @@ use std::collections::HashSet;
 use adze_common::{filter_inner_type, try_extract_inner_type, wrap_leaf_type};
 use proptest::prelude::*;
 use quote::{ToTokens, format_ident, quote};
-#[allow(unused_imports)]
-use syn::{Attribute, Ident, Item, ItemEnum, ItemMod, ItemStruct, Type, parse_quote, parse_str};
+use syn::{Attribute, Ident, ItemEnum, ItemMod, ItemStruct, Type, parse_quote, parse_str};
 
 // ── Strategies ──────────────────────────────────────────────────────────────
 
@@ -87,23 +86,6 @@ fn type_name_strategy() -> impl Strategy<Value = String> {
     })
 }
 
-/// Select one of a few well-known wrapper types.
-#[allow(dead_code)]
-fn wrapper_strategy() -> impl Strategy<Value = &'static str> {
-    prop_oneof![Just("Option"), Just("Vec"), Just("Box"),]
-}
-
-/// Generate a simple type path string such as `Foo`, `Option<Bar>`, `Vec<Baz>`.
-#[allow(dead_code)]
-fn type_path_strategy() -> impl Strategy<Value = String> {
-    prop_oneof![
-        type_name_strategy(),
-        (wrapper_strategy(), type_name_strategy()).prop_map(|(w, t)| format!("{w}<{t}>")),
-        (type_name_strategy(), type_name_strategy())
-            .prop_map(|(a, b)| format!("std::collections::HashMap<{a}, {b}>")),
-    ]
-}
-
 /// Pick an adze attribute name.
 fn attr_name_strategy() -> impl Strategy<Value = &'static str> {
     prop_oneof![
@@ -129,38 +111,6 @@ fn ty(s: &str) -> Type {
 
 fn ts(t: &Type) -> String {
     t.to_token_stream().to_string()
-}
-
-#[allow(dead_code)]
-fn parse_mod(tokens: proc_macro2::TokenStream) -> ItemMod {
-    syn::parse2(tokens).expect("failed to parse module")
-}
-
-#[allow(dead_code)]
-fn module_items(m: &ItemMod) -> &[Item] {
-    &m.content.as_ref().expect("module has no content").1
-}
-
-#[allow(dead_code)]
-fn find_struct<'a>(m: &'a ItemMod, name: &str) -> Option<&'a ItemStruct> {
-    module_items(m).iter().find_map(|i| {
-        if let Item::Struct(s) = i {
-            if s.ident == name { Some(s) } else { None }
-        } else {
-            None
-        }
-    })
-}
-
-#[allow(dead_code)]
-fn find_enum<'a>(m: &'a ItemMod, name: &str) -> Option<&'a ItemEnum> {
-    module_items(m).iter().find_map(|i| {
-        if let Item::Enum(e) = i {
-            if e.ident == name { Some(e) } else { None }
-        } else {
-            None
-        }
-    })
 }
 
 fn is_adze_attr(attr: &Attribute, name: &str) -> bool {
