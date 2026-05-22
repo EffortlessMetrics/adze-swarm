@@ -4,6 +4,7 @@ status = "complete"
 owner = "runtime/incremental"
 created = "2026-05-22"
 closed = "2026-05-22"
+archived = "2026-05-22"
 
 objective = """
 Make the accepted incremental document lifecycle contract more executable
@@ -50,13 +51,13 @@ spec = "ADZE-SPEC-0009"
 adr = "ADZE-ADR-0001"
 plan = "plans/incremental-document-lifecycle/implementation-plan.md"
 blocked_by = ["incremental-document-source-of-truth"]
+prs = [534, 535]
 commands = [
   "cargo test -p adze --lib --features incremental_glr document::tests::changed_ranges -- --nocapture",
   "cargo test -p adze --lib --features incremental_glr document::tests::reparse_fallback_metadata_records_full_reparse_fallback -- --exact --nocapture",
   "./scripts/fmt-workspace.sh --check runtime",
   "git diff --check",
 ]
-prs = [534, 535]
 
 [[work_item]]
 id = "incremental-document-lifecycle-closeout"

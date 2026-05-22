@@ -1,7 +1,7 @@
 # Now / Next / Later
 
 **Last updated:** 2026-05-22
-**Status:** **Product Proof required-gate policy promotion complete; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, and the latest supported, Stable-product, package-local, publishability, install dry-run, registry metadata, and public-drift receipts are recorded in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) and [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325). Public `adze/main` remains behind the current swarm proof state, so a fresh explicit public promotion PR is required before any authorized tag, publish, or crates.io install-receipt work. The latest completed non-release lanes are closed out in [`../../plans/product-proof-result-readiness/closeout.md`](../../plans/product-proof-result-readiness/closeout.md), [`../../plans/product-proof-required-gate/implementation-plan.md`](../../plans/product-proof-required-gate/implementation-plan.md), [`../../plans/ci-lane-policy-hygiene/implementation-plan.md`](../../plans/ci-lane-policy-hygiene/implementation-plan.md), [`../../plans/parser-runtime-maintainability/closeout.md`](../../plans/parser-runtime-maintainability/closeout.md), [`../../plans/cli-parse-surface/closeout.md`](../../plans/cli-parse-surface/closeout.md), [`../../plans/cli-static-sexp/closeout.md`](../../plans/cli-static-sexp/closeout.md), [`../../plans/cli-static-json-dot/closeout.md`](../../plans/cli-static-json-dot/closeout.md), and [`../../plans/cli-dynamic-parse/closeout.md`](../../plans/cli-dynamic-parse/closeout.md). No routine release, publish, signing, Cargo-token, or crates.io install receipt work is authorized.
+**Status:** **Product Proof required-gate policy promotion complete; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, and the latest supported, Stable-product, package-local, publishability, install dry-run, registry metadata, and public-drift receipts are recorded in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) and [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325). Public `adze/main` remains behind the current swarm proof state, so a fresh explicit public promotion PR is required before any authorized tag, publish, or crates.io install-receipt work. The latest completed non-release lanes are closed out in [`../../plans/product-proof-result-readiness/closeout.md`](../../plans/product-proof-result-readiness/closeout.md), [`../../plans/product-proof-required-gate/implementation-plan.md`](../../plans/product-proof-required-gate/implementation-plan.md), [`../../plans/ci-lane-policy-hygiene/implementation-plan.md`](../../plans/ci-lane-policy-hygiene/implementation-plan.md), [`../../plans/parser-runtime-maintainability/closeout.md`](../../plans/parser-runtime-maintainability/closeout.md), [`../../plans/cli-parse-surface/closeout.md`](../../plans/cli-parse-surface/closeout.md), [`../../plans/cli-static-sexp/closeout.md`](../../plans/cli-static-sexp/closeout.md), [`../../plans/cli-static-json-dot/closeout.md`](../../plans/cli-static-json-dot/closeout.md), [`../../plans/cli-dynamic-parse/closeout.md`](../../plans/cli-dynamic-parse/closeout.md), and [`../../plans/incremental-document-lifecycle/closeout.md`](../../plans/incremental-document-lifecycle/closeout.md). No routine release, publish, signing, Cargo-token, or crates.io install receipt work is authorized.
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -36,6 +36,16 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Tighten the dynamic-loading guide and support-tier wording so they do
       not imply dynamic parse output or crates.io install support.
 - [x] Close the lane only after behavior receipts exist.
+
+### Incremental document lifecycle
+- [x] Open the focused source-of-truth lane for non-release incremental
+      document lifecycle hardening in `adze-swarm`.
+- [x] Add conservative `AdzeDocument::changed_ranges(&newer)` canaries for
+      equal sources, edited sources, and UTF-8 boundary preservation.
+- [x] Keep full-reparse fallback metadata explicit when incremental reuse is
+      requested but not used.
+- [x] Close the lane without promoting incremental parsing beyond Experimental
+      or authorizing release/publish/install work.
 
 ### Parser recovery real-grammar coverage
 - [x] Replace the paused query/tooling closeout manifest with a focused
@@ -274,8 +284,10 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - Benchmark suite with clearer regression detection and less CI noise.
 
 ### 🌳 Incremental parsing
-- Move from conservative fallback toward active forest-splicing for editor-scale workflows.
-- Revisit the currently deferred incremental path once the surrounding runtime contracts are steadier.
+- Move from conservative fallback and document-level changed-range canaries
+  toward active forest-splicing for editor-scale workflows.
+- Revisit the currently deferred incremental path only through a fresh active
+  goal and support-tier proof before making reuse or performance claims.
 
 ### 🔍 Query and tooling expansion
 - Broaden query compatibility only through
