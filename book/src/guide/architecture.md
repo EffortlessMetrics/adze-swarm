@@ -150,10 +150,12 @@ Tree-sitter uses:
 | Sparse row encoding | Stores only non-default entries |
 | Symbol grouping | Shares rows across symbols with identical actions |
 
-The output is a **static `Language` struct** with FFI-compatible layout,
-plus a `NODE_TYPES` JSON file describing every node kind.  Because the layout
-matches Tree-sitter's C ABI exactly, existing Tree-sitter tooling (queries,
-highlights, folds) works with Adze-generated parsers out of the box.
+The output is a **static `Language` struct** with FFI-oriented layout, plus a
+`NODE_TYPES` JSON file describing node kinds. Those facts are useful for
+Tree-sitter-shaped tooling experiments, but they do not by themselves prove
+full Tree-sitter runtime, query, highlighting, folding, or imported-grammar
+parity. Use the support-tier ledger and compatibility references for the
+currently proven subset.
 
 ### 6. Code Emission (`adze-tool`)
 

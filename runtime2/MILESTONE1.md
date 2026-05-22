@@ -1,12 +1,19 @@
-# Milestone 1: Runtime Integration & Tree-sitter-like API ✅
+# Milestone 1: Runtime Integration & Tree-sitter-like API
+
+> **Historical status note:** this milestone log predates the current
+> support-tier ledger. `runtime2/` is an experimental runtime surface, not the
+> Stable Adze product path. For current claims, use `runtime2/README.md` and
+> `docs/status/SUPPORT_TIERS.md`.
 
 ## Overview
 
-This milestone delivers a minimal adze-runtime crate with a Tree-sitter-compatible API that provides the foundation for GLR parsing. The runtime serves as a stable interface that users can develop against while the GLR engine integration is completed.
+This milestone delivered an early runtime prototype with a Tree-sitter-shaped
+API foundation for GLR parsing experiments. The runtime is not a Stable user
+interface today.
 
 ## Deliverables Completed
 
-### 1. Core Runtime Types (✅)
+### 1. Core Runtime Types
 
 **Location**: `runtime2/src/`
 
@@ -31,7 +38,7 @@ This milestone delivers a minimal adze-runtime crate with a Tree-sitter-compatib
   - Symbol metadata and names
   - External scanner support (stubbed)
 
-### 2. GLR Engine Adapter (✅)
+### 2. GLR Engine Adapter
 
 **Location**: `runtime2/src/engine.rs`
 
@@ -45,7 +52,7 @@ This milestone delivers a minimal adze-runtime crate with a Tree-sitter-compatib
   - Uses `adze-ir::Grammar`  
   - Adapter pattern for future SPPF→Tree conversion
 
-### 3. Error Handling (✅)
+### 3. Error Handling
 
 **Location**: `runtime2/src/error.rs`
 
@@ -57,7 +64,7 @@ This milestone delivers a minimal adze-runtime crate with a Tree-sitter-compatib
 
 - Location tracking for error reporting
 
-### 4. External Scanner Support (✅)
+### 4. External Scanner Support
 
 **Location**: `runtime2/src/external_scanner.rs`
 
@@ -71,7 +78,7 @@ This milestone delivers a minimal adze-runtime crate with a Tree-sitter-compatib
 
 - **Example**: `IndentationScanner` showing Python-like indent tracking
 
-### 5. Build Configuration (✅)
+### 5. Build Configuration
 
 **Location**: `runtime2/Cargo.toml`
 
@@ -117,22 +124,22 @@ Demonstrates basic API usage without GLR.
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Parser API | ✅ | Tree-sitter compatible |
-| Tree/Node API | ✅ | Basic implementation |
-| Language struct | ✅ | GLR-ready with multi-action cells |
-| GLR adapter | ✅ | Engine module ready |
-| SPPF→Tree | ✅ | Production forest-to-tree conversion |
-| Grammar loading | ✅ | Complete parse table generation and validation |
+| Parser API | Recorded | Tree-sitter-shaped prototype |
+| Tree/Node API | Recorded | Basic implementation |
+| Language struct | Recorded | GLR-oriented multi-action cells |
+| GLR adapter | Recorded | Engine module prototype |
+| SPPF-to-tree | Recorded | Prototype forest-to-tree conversion |
+| Grammar loading | Recorded | Parse-table generation and validation prototype |
 
-## ✅ GLR Runtime Integration Complete (PR #14)
+## GLR Runtime Integration Record (PR #14)
 
-### Successfully Implemented:
+### Recorded Prototype Work:
 
-1. **Production GLR Parser**: Full GLR engine integration with `engine_parse_full()` and `engine_parse_incremental()`
+1. **GLR parser prototype**: GLR engine integration with `engine_parse_full()` and `engine_parse_incremental()`
 2. **Language Validation**: Runtime validation ensures parse tables and tokenizers are present for GLR mode
-3. **Forest-to-Tree Pipeline**: Complete conversion from GLR parse forests to Tree-sitter-compatible trees  
+3. **Forest-to-Tree Pipeline**: Prototype conversion from GLR parse forests to Tree-sitter-shaped trees
 4. **Feature-Gated Architecture**: Graceful fallback when GLR features are disabled
-5. **Error Recovery**: Comprehensive `ParseError` handling with descriptive validation messages
+5. **Error Recovery**: `ParseError` handling with descriptive validation messages
 
 ### Usage Pattern (Once Complete):
 
@@ -180,14 +187,18 @@ runtime2/
 
 ## Summary
 
-**Milestone 1: COMPLETE** ✅
+**Milestone 1: recorded**
 
-Milestone 1 has been successfully completed with full GLR Runtime Integration. The runtime now provides:
+Milestone 1 recorded an early GLR runtime integration prototype. Current
+support claims are narrower:
 
-- **Production-Ready GLR Parsing**: Complete integration of GLR engine with Tree-sitter-compatible API
+- **GLR parsing prototype**: Integration of GLR engine ideas with a
+  Tree-sitter-shaped API surface
 - **Automatic Feature Routing**: Parser automatically selects GLR engine when `glr-core` feature is enabled
 - **Robust Error Handling**: Language validation and comprehensive error reporting
 - **Performance Instrumentation**: Built-in performance monitoring via environment variables
-- **Incremental Parsing Support**: Seamless integration with incremental parsing features
+- **Incremental Parsing Experiments**: Integration points for incremental parsing features
 
-The GLR runtime is now **production-ready** and provides the foundation for parsing complex, ambiguous grammars while maintaining full Tree-sitter API compatibility.
+Do not read this milestone as a production-ready or full Tree-sitter API
+compatibility claim. The stable public path remains generated pure-Rust parsing
+through the main `adze` runtime.
