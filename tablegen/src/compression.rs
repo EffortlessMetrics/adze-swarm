@@ -8,9 +8,6 @@ use std::collections::HashMap;
 
 /// Compressed representation of action table
 pub struct CompressedActionTable {
-    // Row compression: map identical rows to a single index
-    #[allow(dead_code)]
-    row_map: HashMap<Vec<Vec<Action>>, usize>,
     /// Deduplicated rows of the action table.
     pub unique_rows: Vec<Vec<Vec<Action>>>,
     /// Mapping from state index to deduplicated row index.
@@ -21,10 +18,6 @@ pub struct CompressedActionTable {
 pub struct CompressedGotoTable {
     /// Sparse representation: only store non-None entries.
     pub entries: HashMap<(usize, usize), StateId>,
-    #[allow(dead_code)]
-    state_count: usize,
-    #[allow(dead_code)]
-    symbol_count: usize,
 }
 
 /// Compress action table using row deduplication
@@ -46,7 +39,6 @@ pub fn compress_action_table(table: &[Vec<Vec<Action>>]) -> CompressedActionTabl
     }
 
     CompressedActionTable {
-        row_map,
         unique_rows,
         state_to_row,
     }
@@ -68,8 +60,6 @@ pub fn decompress_action(
 /// Compress goto table using sparse representation
 pub fn compress_goto_table(table: &[Vec<Option<StateId>>]) -> CompressedGotoTable {
     let mut entries = HashMap::new();
-    let state_count = table.len();
-    let symbol_count = if state_count > 0 { table[0].len() } else { 0 };
 
     for (state_idx, row) in table.iter().enumerate() {
         for (symbol_idx, &goto) in row.iter().enumerate() {
@@ -79,11 +69,7 @@ pub fn compress_goto_table(table: &[Vec<Option<StateId>>]) -> CompressedGotoTabl
         }
     }
 
-    CompressedGotoTable {
-        entries,
-        state_count,
-        symbol_count,
-    }
+    CompressedGotoTable { entries }
 }
 
 /// Decompress a single goto from compressed table
@@ -103,8 +89,6 @@ pub struct BitPackedActionTable {
     reduce_data: Vec<u32>, // Rule IDs for reduce actions
     fork_data: HashMap<(usize, usize), Vec<Action>>, // Full data for fork actions
 
-    #[allow(dead_code)]
-    state_count: usize,
     symbol_count: usize,
 }
 
@@ -167,7 +151,6 @@ impl BitPackedActionTable {
             shift_data,
             reduce_data,
             fork_data,
-            state_count,
             symbol_count,
         }
     }
