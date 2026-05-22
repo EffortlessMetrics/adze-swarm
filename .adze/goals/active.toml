@@ -13,8 +13,8 @@ and release/publish blockers.
 
 handoff = """
 Release and crates.io install work remains blocked on explicit human
-authorization tracked by EffortlessMetrics/adze-swarm#325. This active goal is
-the non-release continuation lane for dynamic CLI parse boundary hardening in
+authorization tracked by EffortlessMetrics/adze-swarm#325. This completed goal
+closed the non-release dynamic CLI parse boundary hardening lane in
 adze-swarm.
 """
 
