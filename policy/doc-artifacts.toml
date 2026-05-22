@@ -41,6 +41,8 @@ links_to = [
   "ADZE-ADR-0003",
   "ADZE-ADR-0004",
   "plans/0.9.0/api-foundation.md",
+  "plans/incremental-document-lifecycle/implementation-plan.md",
+  ".adze/goals/incremental-document-lifecycle.toml",
 ]
 
 [[artifact]]
@@ -357,7 +359,13 @@ status = "accepted"
 owner = "runtime/api"
 milestone = "0.9.x"
 source_of_truth_for = ["canonical parse document behavior"]
-links_to = ["ADZE-PROP-0002", "ADZE-ADR-0001", "plans/0.9.0/api-foundation.md"]
+links_to = [
+  "ADZE-PROP-0002",
+  "ADZE-ADR-0001",
+  "plans/0.9.0/api-foundation.md",
+  "plans/incremental-document-lifecycle/implementation-plan.md",
+  ".adze/goals/incremental-document-lifecycle.toml",
+]
 
 [[artifact]]
 id = "ADZE-SPEC-0004"
@@ -992,6 +1000,24 @@ links_to = [
 ]
 
 [[artifact]]
+id = "plans/incremental-document-lifecycle/implementation-plan.md"
+kind = "plan"
+path = "plans/incremental-document-lifecycle/implementation-plan.md"
+status = "active"
+owner = "runtime/incremental"
+milestone = "post-0.9"
+source_of_truth_for = ["incremental document lifecycle hardening implementation sequence"]
+links_to = [
+  "ADZE-PROP-0002",
+  "ADZE-SPEC-0009",
+  "ADZE-SPEC-0011",
+  "ADZE-ADR-0001",
+  ".adze/goals/active.toml",
+  ".adze/goals/incremental-document-lifecycle.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = ".adze/goals/glr-toolkit-productization.toml"
 kind = "goal"
 path = ".adze/goals/glr-toolkit-productization.toml"
@@ -1307,6 +1333,22 @@ links_to = [
   "plans/cli-dynamic-parse/closeout.md",
   ".adze/goals/active.toml",
   ".adze/goals/archive/2026-05-21-cli-dynamic-parse-boundary.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/incremental-document-lifecycle.toml"
+kind = "goal"
+path = ".adze/goals/incremental-document-lifecycle.toml"
+status = "active"
+owner = "runtime/incremental"
+milestone = "post-0.9"
+source_of_truth_for = ["incremental document lifecycle hardening agent work queue"]
+links_to = [
+  "ADZE-PROP-0002",
+  "ADZE-SPEC-0009",
+  "plans/incremental-document-lifecycle/implementation-plan.md",
+  ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
