@@ -1,26 +1,40 @@
 # Adze LSP Generator
 
-Automatically generate Language Server Protocol (LSP) implementations from adze grammars.
+Experimental Language Server Protocol (LSP) generator prototypes for Adze
+grammars.
+
+> **Support boundary:** `adze-lsp-generator` is not part of the Stable Adze
+> product contract. Treat this crate as a prototype/advisory surface until the
+> support-tier ledger names a stable LSP generation slice and proof command.
+> Published `cargo install adze-lsp-generator` usage is not claimed here.
 
 ## Features
 
-- **Automatic LSP Generation**: Generate complete LSP servers from your grammar
-- **Multiple Features**: Support for completion, hover, diagnostics, and more
-- **Type-Safe**: Leverages Rust's type system for safety
-- **Incremental Updates**: Built-in support for incremental parsing
-- **Easy to Use**: Simple CLI tool and builder API
+- **Server scaffolding experiments**: Generate prototype LSP server structure
+  from a grammar-oriented configuration.
+- **Feature templates**: Exercise completion, hover, and diagnostics handler
+  generation where implemented.
+- **Rust API surface**: Use `adze_ir` data and typed Rust configuration
+  structures for generation experiments.
 
-## Installation
+## Local Checkout Usage
+
+Build or run the prototype from this repository checkout:
 
 ```bash
-cargo install adze-lsp-generator
+cargo build -p adze-lsp-generator
+cargo run -p adze-lsp-generator --bin adze-lsp-gen -- --help
 ```
+
+Do not use this README as a crates.io install receipt. A published install
+claim requires an explicit release/publish approval and post-publish install
+verification.
 
 ## Usage
 
 ### CLI Tool
 
-Generate an LSP server with all features:
+Generate a prototype LSP server with all currently implemented templates:
 
 ```bash
 adze-lsp-gen generate \
@@ -81,10 +95,10 @@ Shows documentation on hover with UTF-8 safe word extraction:
 
 ### Diagnostics
 
-Real-time syntax error detection:
+Prototype syntax error detection:
 - Parse errors with exact locations
 - Error recovery suggestions
-- Incremental updates
+- Incremental-update experiments
 
 ### Coming Soon
 
@@ -190,7 +204,7 @@ fn main() -> anyhow::Result<()> {
         .with_hover()
         .generate("./generated-lsp")?;
     
-    println!("✅ LSP server with hover support generated!");
+    println!("LSP server with hover support generated");
     Ok(())
 }
 ```
@@ -205,22 +219,25 @@ The generated hover handler provides documentation for:
 - **Python constructs**: `def`, `class`, `import`, `async`, `await`, etc.
 - **Generic programming**: `return`, `break`, `continue`, `while`, `for`, `try`, etc.
 
-When a user hovers over any of these keywords, they'll see formatted documentation like:
+When the prototype hover provider recognizes one of these keywords, it can
+return formatted documentation such as:
 
 ```
 **fn**: Declares a function
 ```
 
-### Complete Examples
+### Prototype Examples
 
-See the `examples/` directory for complete examples:
+Example material is still advisory and should be treated as fixture/prototype
+coverage, not a stable editor integration contract. Current and planned example
+themes include:
 - JavaScript LSP server
 - Python LSP server with indentation
 - Go LSP server
 
 ## Architecture
 
-The LSP generator works by:
+The LSP generator prototype is intended to:
 1. Analyzing your adze grammar
 2. Extracting keywords, symbols, and structure
 3. Generating handler implementations

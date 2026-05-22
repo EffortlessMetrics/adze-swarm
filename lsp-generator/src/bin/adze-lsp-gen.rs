@@ -1,4 +1,4 @@
-// CLI tool for generating LSP servers from adze grammars
+// Prototype CLI tool for experimenting with LSP server generation from Adze grammars.
 
 use adze_lsp_generator::{LspBuilder, LspConfig};
 use anyhow::Result;
@@ -7,7 +7,10 @@ use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "adze-lsp-gen")]
-#[command(about = "Generate LSP servers from adze grammars", long_about = None)]
+#[command(
+    about = "Prototype LSP server generator for Adze grammars",
+    long_about = None
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -15,7 +18,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Generate a new LSP server
+    /// Generate a prototype LSP server
     Generate {
         /// Name of the language server
         #[arg(short, long)]
@@ -50,7 +53,7 @@ enum Commands {
         all_features: bool,
     },
 
-    /// Create an LSP server from a config file
+    /// Create a prototype LSP server from a config file
     FromConfig {
         /// Path to config file
         #[arg(short, long)]
@@ -72,7 +75,7 @@ fn main() -> Result<()> {
             diagnostics,
             all_features,
         } => {
-            println!("🚀 Generating LSP server for {}...", name);
+            println!("Generating prototype LSP server for {name}...");
 
             let mut builder = LspBuilder::new(name)
                 .version(version)
@@ -95,21 +98,21 @@ fn main() -> Result<()> {
 
             builder.build()?;
 
-            println!("✅ LSP server generated successfully!");
-            println!("📝 To build and run:");
+            println!("Prototype LSP server generated successfully.");
+            println!("To build and run:");
             println!("   cd <output-dir>");
             println!("   cargo build --release");
             println!("   ./target/release/<name>-lsp");
         }
 
         Commands::FromConfig { config } => {
-            println!("📄 Loading config from: {}", config.display());
+            println!("Loading config from: {}", config.display());
 
             // Load and parse config file
             let config_str = std::fs::read_to_string(&config)?;
             let lsp_config: LspConfig = serde_json::from_str(&config_str)?;
 
-            println!("🚀 Generating LSP server: {}", lsp_config.name);
+            println!("Generating prototype LSP server: {}", lsp_config.name);
 
             // Create builder from config
             let builder = LspBuilder::new(lsp_config.name.clone())
@@ -120,7 +123,7 @@ fn main() -> Result<()> {
 
             builder.build()?;
 
-            println!("✅ LSP server generated successfully!");
+            println!("Prototype LSP server generated successfully.");
         }
     }
 
