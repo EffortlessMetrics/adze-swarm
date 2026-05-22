@@ -20,7 +20,6 @@ use proptest::prelude::*;
 // Helpers
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
 fn test_opts() -> BuildOptions {
     BuildOptions {
         out_dir: "/tmp/proptest_build_v4".to_string(),
@@ -30,7 +29,6 @@ fn test_opts() -> BuildOptions {
 }
 
 /// Build via the IR path and assert success.
-#[allow(dead_code)]
 fn build_ir(name: &str, tokens: &[(&str, &str)], rules: &[(&str, Vec<&str>)]) -> BuildResult {
     let mut b = GrammarBuilder::new(name);
     for &(tname, tpat) in tokens {
@@ -46,7 +44,6 @@ fn build_ir(name: &str, tokens: &[(&str, &str)], rules: &[(&str, Vec<&str>)]) ->
 }
 
 /// Build via the JSON path and assert success.
-#[allow(dead_code)]
 fn build_json(name: &str) -> BuildResult {
     let json = serde_json::json!({
         "name": name,
@@ -75,7 +72,6 @@ fn build_json(name: &str) -> BuildResult {
 }
 
 /// Build n-alternative grammar: s -> tok0 | tok1 | … | tok(n-1).
-#[allow(dead_code)]
 fn build_n_alts(name: &str, n: usize) -> BuildResult {
     let tok_names: Vec<String> = (0..n).map(|i| format!("tok{i}")).collect();
     let tok_pats: Vec<String> = (0..n).map(|i| format!("p{i}")).collect();
@@ -97,7 +93,6 @@ fn build_n_alts(name: &str, n: usize) -> BuildResult {
 }
 
 /// Build a JSON grammar with `n` rules branching from source_file.
-#[allow(dead_code)]
 fn build_json_n_rules(name: &str, n: usize) -> BuildResult {
     let mut rules = serde_json::Map::new();
     let alt_members: Vec<serde_json::Value> = (0..n)
@@ -135,7 +130,6 @@ fn build_json_n_rules(name: &str, n: usize) -> BuildResult {
 // ---------------------------------------------------------------------------
 
 /// Alphabetic grammar names that avoid Rust 2024 reserved keywords.
-#[allow(dead_code)]
 fn grammar_name_strategy() -> impl Strategy<Value = String> {
     "[a-z]{3,8}".prop_filter("must not be a Rust keyword", |s| {
         !matches!(
@@ -193,7 +187,6 @@ fn grammar_name_strategy() -> impl Strategy<Value = String> {
 }
 
 /// Strategy for the number of alternative tokens (1..=6).
-#[allow(dead_code)]
 fn alt_count_strategy() -> impl Strategy<Value = usize> {
     1..=6usize
 }
