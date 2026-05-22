@@ -1,5 +1,6 @@
 ---
 source: macro/src/lib.rs
+assertion_line: 621
 expression: "rustfmt_code(&expand_grammar(parse_quote!\n{\n    #[adze::grammar(\"test\")] mod grammar\n    {\n        use adze::Spanned; #[adze::language] pub struct NumberList\n        { numbers: Vec<Spanned<Number>>, } pub struct Number\n        {\n            #[adze::leaf(pattern = r\"\\d+\", transform = |v|\n            v.parse().unwrap())] v: i32\n        } #[adze::extra] struct Whitespace\n        { #[adze::leaf(pattern = r\"\\s\")] _whitespace: (), }\n    }\n})? .to_token_stream().to_string())"
 ---
 mod grammar {
@@ -10,7 +11,6 @@ mod grammar {
     impl ::adze::Extract<NumberList> for NumberList {
         type LeafFn = ();
         const GRAMMAR_NAME: &'static str = "test";
-        #[allow(non_snake_case)]
         fn extract(
             node: Option<&::adze::pure_parser::ParsedNode>,
             source: &[u8],
@@ -33,7 +33,6 @@ mod grammar {
     impl ::adze::Extract<Number> for Number {
         type LeafFn = ();
         const GRAMMAR_NAME: &'static str = "test";
-        #[allow(non_snake_case)]
         fn extract(
             node: Option<&::adze::pure_parser::ParsedNode>,
             source: &[u8],
@@ -60,7 +59,6 @@ mod grammar {
     impl ::adze::Extract<Whitespace> for Whitespace {
         type LeafFn = ();
         const GRAMMAR_NAME: &'static str = "test";
-        #[allow(non_snake_case)]
         fn extract(
             node: Option<&::adze::pure_parser::ParsedNode>,
             source: &[u8],
