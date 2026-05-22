@@ -16,7 +16,8 @@ fi
 
 echo "Header hashes match ✓"
 
-# Runtime ABI (v15) check using shim
-cargo run -q -p ts-bridge --bin tsb-abi-check
+# Runtime ABI (v15) check using shim. ts-bridge is intentionally outside the
+# main workspace member set, so use its manifest path explicitly.
+cargo run -q --manifest-path tools/ts-bridge/Cargo.toml --bin tsb-abi-check
 
 echo "ABI verification complete ✓"
