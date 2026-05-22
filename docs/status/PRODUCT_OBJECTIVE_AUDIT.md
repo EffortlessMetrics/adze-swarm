@@ -415,8 +415,13 @@ Use `cargo info --registry crates-io adze-cli` when verifying registry
 publication. The explicit registry flag avoids resolving the local workspace
 package. It reported on 2026-05-20 that `adze-cli` could not be found in
 crates.io, including current-main refreshes at commits `fc959ec1` and
-`99dd12b0`, so `cargo install adze-cli` remains a release-surface target rather
-than current product proof.
+`99dd12b0`. It was refreshed again on 2026-05-21 from `adze-swarm/main` at
+commit `0df9f420` after the CLI static JSON/DOT status alignment, and still
+reported that `adze-cli` could not be found in crates.io. In the same registry
+check, `cargo info --registry crates-io adze` resolved published `adze 0.8.0`,
+while `cargo info --registry crates-io adze-tool` reported no registry package.
+`cargo install adze-cli` remains a release-surface target rather than current
+product proof.
 
 `cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version
 X.Y.Z --locked` is the post-publish receipt hook for the missing crates.io
