@@ -4,9 +4,7 @@
 use adze_ir::builder::GrammarBuilder;
 use adze_ir::optimizer::GrammarOptimizer;
 use adze_ir::validation::GrammarValidator;
-use adze_ir::{
-    Associativity, Grammar, ProductionId, Rule, Symbol, SymbolId, Token, TokenPattern,
-};
+use adze_ir::{Associativity, Grammar, ProductionId, Rule, Symbol, SymbolId, Token, TokenPattern};
 use proptest::prelude::*;
 
 // ---------------------------------------------------------------------------
