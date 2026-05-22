@@ -10,9 +10,7 @@
 //!   inline_serialize_*   – serialization round-trips for inline/supertype data
 //!   inline_edge_*        – edge cases and boundary conditions
 
-#[allow(unused_imports)]
 use adze_ir::builder::GrammarBuilder;
-#[allow(unused_imports)]
 use adze_ir::{Grammar, SymbolId};
 
 // ---------------------------------------------------------------------------
@@ -20,7 +18,6 @@ use adze_ir::{Grammar, SymbolId};
 // ---------------------------------------------------------------------------
 
 /// Build a small grammar with two tokens and a start rule.
-#[allow(dead_code)]
 fn base_builder(name: &str) -> GrammarBuilder {
     GrammarBuilder::new(name)
         .token("ID", r"[a-z]+")
@@ -31,7 +28,6 @@ fn base_builder(name: &str) -> GrammarBuilder {
 }
 
 /// Resolve a symbol name to its SymbolId.
-#[allow(dead_code)]
 fn sym(g: &Grammar, name: &str) -> SymbolId {
     g.find_symbol_by_name(name)
         .unwrap_or_else(|| panic!("symbol `{name}` not found"))
