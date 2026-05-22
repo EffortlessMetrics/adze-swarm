@@ -485,6 +485,10 @@ while `cargo info --registry crates-io adze-tool` reported no registry package.
 The registry absence check was refreshed again on 2026-05-21 from
 `adze-swarm/main` at commit `ae317e42`; `adze-cli` and `adze-tool` were still
 absent from crates.io.
+The crates.io metadata check was refreshed again on 2026-05-22 from
+`adze-swarm/main` after PR #476; `adze-cli` and `adze-tool` were still absent
+from the explicit `crates-io` registry, while `adze` resolved to published
+`adze 0.8.0`.
 `cargo install adze-cli` remains a release-surface target rather than current
 product proof.
 
@@ -513,14 +517,14 @@ The dry-run command shape was refreshed again on 2026-05-22 from
 `crates-io` command sequence. It remains pre-publish command-shape evidence
 only.
 
-Latest public release-surface drift refresh:
+Latest public release-surface drift refreshes are tracked on
+[`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
+Do not rely on hard-coded drift counts in this audit: a status PR that records
+fresh receipts changes the swarm tree and can make the exact diff count stale
+as soon as it merges.
 
-- `adze-swarm/main`: `e6aa7ea0`.
-- Public `adze/main`: `6263c6a8`.
-- `git diff --shortstat FETCH_HEAD..origin/main`: `246 files changed, 16894
-  insertions(+), 8428 deletions(-)`.
-
-This non-empty diff is a release blocker until maintainers select a release
+The stable invariant is that a non-empty public `adze/main` versus
+`adze-swarm/main` diff is a release blocker until maintainers select a release
 candidate and promote it into public `EffortlessMetrics/adze` with an explicit
 public promotion PR. It is not a reason to tag, publish, or move release
 secrets into `adze-swarm`.
