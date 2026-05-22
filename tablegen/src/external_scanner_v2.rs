@@ -3,9 +3,8 @@
 
 // Enhanced external scanner generator with state-based validity computation
 use adze_glr_core::ParseTable;
-use adze_ir::{ExternalToken, Grammar, SymbolId};
+use adze_ir::{ExternalToken, Grammar};
 use quote::quote;
-use std::collections::HashMap;
 
 #[cfg(not(debug_assertions))]
 macro_rules! debug_trace {
@@ -27,12 +26,7 @@ macro_rules! debug_trace {
 
 /// Enhanced external scanner generator that computes state-based validity
 pub struct ExternalScannerGenerator {
-    #[allow(dead_code)]
-    grammar: Grammar,
     external_tokens: Vec<ExternalToken>,
-    /// Maps symbol IDs to their indices in the external scanner
-    #[allow(dead_code)]
-    symbol_map: HashMap<SymbolId, usize>,
     /// Parse table for computing valid external tokens
     parse_table: ParseTable,
 }
@@ -40,16 +34,9 @@ pub struct ExternalScannerGenerator {
 impl ExternalScannerGenerator {
     pub fn new(grammar: Grammar, parse_table: ParseTable) -> Self {
         let external_tokens = grammar.externals.clone();
-        let mut symbol_map = HashMap::new();
-
-        for (index, token) in external_tokens.iter().enumerate() {
-            symbol_map.insert(token.symbol_id, index);
-        }
 
         Self {
-            grammar,
             external_tokens,
-            symbol_map,
             parse_table,
         }
     }
@@ -200,7 +187,7 @@ impl ExternalScannerGenerator {
 mod tests {
     use super::*;
     use adze_glr_core::{Action, FirstFollowSets, build_lr1_automaton};
-    use adze_ir::{ProductionId, Rule, Symbol, Token, TokenPattern};
+    use adze_ir::{ProductionId, Rule, Symbol, SymbolId, Token, TokenPattern};
 
     #[test]
     fn test_state_validity_computation() {
