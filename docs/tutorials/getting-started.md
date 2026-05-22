@@ -4,7 +4,7 @@
 > If something here disagrees with the repo, treat the repo as truth
 > and log it in [`docs/status/FRICTION_LOG.md`](../status/FRICTION_LOG.md).
 
-A comprehensive guide to building parsers with Adze's macro-based grammar generation.
+A guide to building parsers with Adze's macro-based grammar generation.
 
 ## Table of Contents
 
@@ -257,7 +257,11 @@ pub mod grammar {
 
 ## Working Examples
 
-The following examples are included in the repository and are fully working:
+The following examples are included in the repository as tutorial and smoke
+fixtures. Their support status follows
+[`SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md), local status notes, and the
+known-limitations reference; do not treat every example as a stable language
+package.
 
 ### test-mini
 
