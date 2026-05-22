@@ -12,15 +12,9 @@
 //!   8. gen_deterministic_*   — deterministic output verification
 
 use adze_ir::builder::GrammarBuilder;
-#[allow(unused_imports)]
-use adze_ir::{
-    Associativity, Grammar, PrecedenceKind, ProductionId, Rule, Symbol, SymbolId, Token,
-    TokenPattern,
-};
+use adze_ir::{Associativity, Grammar};
 use adze_tool::grammar_js::GrammarJsConverter;
 use adze_tool::grammar_js::json_converter::from_tree_sitter_json;
-#[allow(unused_imports)]
-use adze_tool::pure_rust_builder::BuildStats;
 use adze_tool::pure_rust_builder::{
     BuildOptions, BuildResult, build_parser, build_parser_from_json,
 };
@@ -140,22 +134,6 @@ fn chain_ir(name: &str) -> Grammar {
 fn do_build(grammar: Grammar) -> BuildResult {
     let (_dir, opts) = tmp_opts();
     build_parser(grammar, opts).expect("build should succeed")
-}
-
-#[allow(dead_code)]
-fn find_regex_token(grammar: &Grammar, regex: &str) -> bool {
-    grammar.tokens.values().any(|t| match &t.pattern {
-        TokenPattern::Regex(r) => r == regex,
-        _ => false,
-    })
-}
-
-#[allow(dead_code)]
-fn find_string_token(grammar: &Grammar, literal: &str) -> bool {
-    grammar.tokens.values().any(|t| match &t.pattern {
-        TokenPattern::String(s) => s == literal,
-        _ => false,
-    })
 }
 
 // ===========================================================================
