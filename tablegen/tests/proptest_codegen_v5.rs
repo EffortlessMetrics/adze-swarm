@@ -35,42 +35,11 @@ fn grammar_name_strategy() -> impl Strategy<Value = String> {
     "[a-z][a-z0-9_]{0,12}".prop_filter("non-empty", |s| !s.is_empty())
 }
 
-/// Token name: lowercase ASCII, 1–11 chars.
-#[allow(dead_code)]
-fn token_name_strategy() -> impl Strategy<Value = String> {
-    "[a-z][a-z0-9_]{0,10}".prop_filter("non-empty", |s| !s.is_empty())
-}
-
-/// Number of extra tokens to add (beyond the mandatory first one).
-#[allow(dead_code)]
-fn extra_token_count() -> impl Strategy<Value = usize> {
-    0usize..=5
-}
-
-/// Number of rule alternatives (each referencing the first token).
-#[allow(dead_code)]
-fn rule_alt_count() -> impl Strategy<Value = usize> {
-    1usize..=4
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Build a grammar with `n` visible tokens and a single rule referencing the first token.
-#[allow(dead_code)]
-fn grammar_with_n_tokens(name: &str, n: usize) -> Grammar {
-    let count = n.max(1);
-    let mut builder = GrammarBuilder::new(name);
-    for i in 0..count {
-        builder = builder.token(&format!("tok{i}"), &format!("t{i}"));
-    }
-    builder = builder.rule("root", vec!["tok0"]).start("root");
-    builder.build()
-}
-
 /// Build a grammar and parse table via the full LR(1) pipeline.
-#[allow(dead_code)]
 fn build_pipeline(
     name: &str,
     tokens: &[(&str, &str)],
@@ -92,13 +61,11 @@ fn build_pipeline(
 }
 
 /// Build a simple grammar (1 token, 1 rule) with the given name through the full pipeline.
-#[allow(dead_code)]
 fn simple_pipeline(name: &str) -> (Grammar, ParseTable) {
     build_pipeline(name, &[("a", "a")], &[("s", vec!["a"])], "s")
 }
 
 /// Build a two-alternative grammar through the full pipeline.
-#[allow(dead_code)]
 fn two_alt_pipeline(name: &str) -> (Grammar, ParseTable) {
     build_pipeline(
         name,
@@ -109,7 +76,6 @@ fn two_alt_pipeline(name: &str) -> (Grammar, ParseTable) {
 }
 
 /// Build a chain grammar: s -> a b.
-#[allow(dead_code)]
 fn chain_pipeline(name: &str) -> (Grammar, ParseTable) {
     build_pipeline(
         name,
@@ -120,7 +86,6 @@ fn chain_pipeline(name: &str) -> (Grammar, ParseTable) {
 }
 
 /// Build a multi-nonterminal grammar: inner -> a, s -> inner b.
-#[allow(dead_code)]
 fn multi_nt_pipeline(name: &str) -> (Grammar, ParseTable) {
     build_pipeline(
         name,
@@ -131,7 +96,6 @@ fn multi_nt_pipeline(name: &str) -> (Grammar, ParseTable) {
 }
 
 /// Build a left-recursive grammar: s -> a | s a.
-#[allow(dead_code)]
 fn recursive_pipeline(name: &str) -> (Grammar, ParseTable) {
     build_pipeline(
         name,
@@ -142,7 +106,6 @@ fn recursive_pipeline(name: &str) -> (Grammar, ParseTable) {
 }
 
 /// Build a deep nesting grammar: leaf -> a, mid -> leaf, s -> mid.
-#[allow(dead_code)]
 fn deep_pipeline(name: &str) -> (Grammar, ParseTable) {
     build_pipeline(
         name,
@@ -157,7 +120,6 @@ fn deep_pipeline(name: &str) -> (Grammar, ParseTable) {
 }
 
 /// Attach external tokens to a grammar (mutates in place).
-#[allow(dead_code)]
 fn add_externals(grammar: &mut Grammar, names: &[&str]) {
     for (i, name) in names.iter().enumerate() {
         grammar.externals.push(ExternalToken {
@@ -168,7 +130,6 @@ fn add_externals(grammar: &mut Grammar, names: &[&str]) {
 }
 
 /// Attach field entries to a grammar (mutates in place).
-#[allow(dead_code)]
 fn add_fields(grammar: &mut Grammar, names: &[&str]) {
     for (i, name) in names.iter().enumerate() {
         grammar
