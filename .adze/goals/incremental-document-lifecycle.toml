@@ -1,14 +1,22 @@
 id = "incremental-document-lifecycle"
 title = "Incremental Document Lifecycle Hardening"
-status = "active"
+status = "complete"
 owner = "runtime/incremental"
 created = "2026-05-22"
+closed = "2026-05-22"
 
 objective = """
 Make the accepted incremental document lifecycle contract more executable
 without changing release claims: prove conservative changed ranges between
 immutable AdzeDocument snapshots, keep incremental parsing Experimental, and
 preserve crates.io install and release/publish blockers.
+"""
+
+handoff = """
+Release and crates.io install work remains blocked on explicit human
+authorization tracked by EffortlessMetrics/adze-swarm#325. This completed goal
+closed the non-release incremental document lifecycle hardening lane in
+adze-swarm.
 """
 
 end_state = [
@@ -48,10 +56,11 @@ commands = [
   "./scripts/fmt-workspace.sh --check runtime",
   "git diff --check",
 ]
+prs = [534, 535]
 
 [[work_item]]
 id = "incremental-document-lifecycle-closeout"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0002-api-foundation.md"
 spec = "ADZE-SPEC-0009"
 adr = "ADZE-ADR-0001"

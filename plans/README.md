@@ -55,7 +55,7 @@ Existing lanes include:
 - [`cli-static-sexp/`](./cli-static-sexp/closeout.md) for the completed non-release CLI static S-expression output lane.
 - [`cli-static-json-dot/`](./cli-static-json-dot/closeout.md) for the completed non-release CLI static JSON and DOT output lane.
 - [`cli-dynamic-parse/`](./cli-dynamic-parse/closeout.md) for the completed non-release CLI dynamic parse boundary-hardening lane.
-- [`incremental-document-lifecycle/`](./incremental-document-lifecycle/implementation-plan.md) for the active non-release incremental document lifecycle hardening lane.
+- [`incremental-document-lifecycle/`](./incremental-document-lifecycle/closeout.md) for the completed non-release incremental document lifecycle hardening lane.
 - [`product-gap-burn-down/`](./product-gap-burn-down/implementation-plan.md) also carries the current paused release boundary: routine swarm proof is complete, while release/publish and crates.io install receipt work remain blocked on explicit authorization.
 
 ## Plan header

@@ -42,7 +42,9 @@ links_to = [
   "ADZE-ADR-0004",
   "plans/0.9.0/api-foundation.md",
   "plans/incremental-document-lifecycle/implementation-plan.md",
+  "plans/incremental-document-lifecycle/closeout.md",
   ".adze/goals/incremental-document-lifecycle.toml",
+  ".adze/goals/archive/2026-05-22-incremental-document-lifecycle.toml",
 ]
 
 [[artifact]]
@@ -364,7 +366,9 @@ links_to = [
   "ADZE-ADR-0001",
   "plans/0.9.0/api-foundation.md",
   "plans/incremental-document-lifecycle/implementation-plan.md",
+  "plans/incremental-document-lifecycle/closeout.md",
   ".adze/goals/incremental-document-lifecycle.toml",
+  ".adze/goals/archive/2026-05-22-incremental-document-lifecycle.toml",
 ]
 
 [[artifact]]
@@ -425,7 +429,15 @@ status = "accepted"
 owner = "runtime/incremental"
 milestone = "post-0.9"
 source_of_truth_for = ["incremental document lifecycle behavior"]
-links_to = ["ADZE-PROP-0002", "ADZE-ADR-0001", "plans/0.9.0/api-foundation.md"]
+links_to = [
+  "ADZE-PROP-0002",
+  "ADZE-ADR-0001",
+  "plans/0.9.0/api-foundation.md",
+  "plans/incremental-document-lifecycle/implementation-plan.md",
+  "plans/incremental-document-lifecycle/closeout.md",
+  ".adze/goals/incremental-document-lifecycle.toml",
+  ".adze/goals/archive/2026-05-22-incremental-document-lifecycle.toml",
+]
 
 [[artifact]]
 id = "ADZE-SPEC-0010"
@@ -1003,7 +1015,7 @@ links_to = [
 id = "plans/incremental-document-lifecycle/implementation-plan.md"
 kind = "plan"
 path = "plans/incremental-document-lifecycle/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "runtime/incremental"
 milestone = "post-0.9"
 source_of_truth_for = ["incremental document lifecycle hardening implementation sequence"]
@@ -1012,8 +1024,27 @@ links_to = [
   "ADZE-SPEC-0009",
   "ADZE-SPEC-0011",
   "ADZE-ADR-0001",
+  "plans/incremental-document-lifecycle/closeout.md",
   ".adze/goals/active.toml",
   ".adze/goals/incremental-document-lifecycle.toml",
+  ".adze/goals/archive/2026-05-22-incremental-document-lifecycle.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = "plans/incremental-document-lifecycle/closeout.md"
+kind = "plan"
+path = "plans/incremental-document-lifecycle/closeout.md"
+status = "complete"
+owner = "runtime/incremental"
+milestone = "post-0.9"
+source_of_truth_for = ["incremental document lifecycle closeout receipts and claim boundaries"]
+links_to = [
+  "ADZE-PROP-0002",
+  "ADZE-SPEC-0009",
+  "plans/incremental-document-lifecycle/implementation-plan.md",
+  ".adze/goals/incremental-document-lifecycle.toml",
+  ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -1340,7 +1371,7 @@ links_to = [
 id = ".adze/goals/incremental-document-lifecycle.toml"
 kind = "goal"
 path = ".adze/goals/incremental-document-lifecycle.toml"
-status = "active"
+status = "complete"
 owner = "runtime/incremental"
 milestone = "post-0.9"
 source_of_truth_for = ["incremental document lifecycle hardening agent work queue"]
@@ -1348,8 +1379,25 @@ links_to = [
   "ADZE-PROP-0002",
   "ADZE-SPEC-0009",
   "plans/incremental-document-lifecycle/implementation-plan.md",
+  "plans/incremental-document-lifecycle/closeout.md",
   ".adze/goals/active.toml",
+  ".adze/goals/archive/2026-05-22-incremental-document-lifecycle.toml",
   "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/archive/2026-05-22-incremental-document-lifecycle.toml"
+kind = "goal"
+path = ".adze/goals/archive/2026-05-22-incremental-document-lifecycle.toml"
+status = "complete"
+owner = "runtime/incremental"
+milestone = "post-0.9"
+source_of_truth_for = ["archived incremental document lifecycle complete manifest"]
+links_to = [
+  "ADZE-PROP-0002",
+  "ADZE-SPEC-0009",
+  "plans/incremental-document-lifecycle/implementation-plan.md",
+  "plans/incremental-document-lifecycle/closeout.md",
 ]
 
 [[artifact]]

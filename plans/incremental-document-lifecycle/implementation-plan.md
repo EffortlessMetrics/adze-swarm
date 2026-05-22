@@ -1,8 +1,9 @@
 # Incremental Document Lifecycle Hardening Plan
 
-Status: active
+Status: complete
 Owner: runtime/incremental
 Created: 2026-05-22
+Closed: 2026-05-22
 Linked proposal: ../../docs/proposals/ADZE-PROP-0002-api-foundation.md
 Linked specs:
 - ../../docs/specs/ADZE-SPEC-0009-incremental-document-lifecycle.md
@@ -11,6 +12,7 @@ Linked ADRs:
 - ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 Active goal: ../../.adze/goals/active.toml
 Named goal: ../../.adze/goals/incremental-document-lifecycle.toml
+Closeout: ./closeout.md
 Support-tier impact: incremental parsing remains Experimental
 Policy impact: no release, publish, signing, Cargo-token, branch-protection, or public-promotion change
 
@@ -126,7 +128,7 @@ Experimental with only full-reparse fallback metadata proof.
 
 ## Work Item: incremental-document-lifecycle-closeout
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0002-api-foundation.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0009-incremental-document-lifecycle.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
