@@ -17,6 +17,9 @@ reference implementations and integration fixtures:
 | **Go** | `grammars/go` | Standard grammar structure |
 | **Python (Simple)** | `grammars/python-simple` | Simplified subset for testing |
 
+For the local contributor-facing boundary, see
+[`grammars/README.md`](../../grammars/README.md).
+
 ## Importing Tree-sitter Grammars (Experimental)
 
 Adze includes an experimental `ts-bridge` tool for extracting metadata from
