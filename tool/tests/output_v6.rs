@@ -22,12 +22,10 @@ use tempfile::TempDir;
 // Helpers
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
 fn tmp_dir() -> TempDir {
     TempDir::new().expect("Failed to create temp dir")
 }
 
-#[allow(dead_code)]
 fn tmp_opts(dir: &TempDir) -> BuildOptions {
     BuildOptions {
         out_dir: dir.path().to_string_lossy().into(),
@@ -36,7 +34,6 @@ fn tmp_opts(dir: &TempDir) -> BuildOptions {
     }
 }
 
-#[allow(dead_code)]
 fn tmp_opts_with_artifacts(dir: &TempDir) -> BuildOptions {
     BuildOptions {
         out_dir: dir.path().to_string_lossy().into(),
@@ -45,7 +42,6 @@ fn tmp_opts_with_artifacts(dir: &TempDir) -> BuildOptions {
     }
 }
 
-#[allow(dead_code)]
 fn tmp_opts_with_compression(dir: &TempDir) -> BuildOptions {
     BuildOptions {
         out_dir: dir.path().to_string_lossy().into(),
@@ -55,7 +51,6 @@ fn tmp_opts_with_compression(dir: &TempDir) -> BuildOptions {
 }
 
 /// Minimal one-token grammar
-#[allow(dead_code)]
 fn minimal_grammar(name: &str) -> Grammar {
     let mut g = Grammar::new(name.to_string());
     let tok = SymbolId(1);
@@ -81,7 +76,6 @@ fn minimal_grammar(name: &str) -> Grammar {
 }
 
 /// Two-token grammar with alternatives
-#[allow(dead_code)]
 fn two_token_grammar(name: &str) -> Grammar {
     let mut g = minimal_grammar(name);
     let ident = SymbolId(10);
@@ -106,7 +100,6 @@ fn two_token_grammar(name: &str) -> Grammar {
 }
 
 /// Expression grammar with binary operators
-#[allow(dead_code)]
 fn expr_grammar(name: &str) -> Grammar {
     let mut g = Grammar::new(name.to_string());
     let num = SymbolId(1);
@@ -160,7 +153,6 @@ fn expr_grammar(name: &str) -> Grammar {
 }
 
 /// Three-operator grammar (add, sub, mul)
-#[allow(dead_code)]
 fn three_op_grammar(name: &str) -> Grammar {
     let mut g = expr_grammar(name);
     let minus = SymbolId(5);
@@ -216,7 +208,6 @@ fn three_op_grammar(name: &str) -> Grammar {
 }
 
 /// Nested rule grammar (rule -> rule | token)
-#[allow(dead_code)]
 fn nested_rule_grammar(name: &str) -> Grammar {
     let mut g = Grammar::new(name.to_string());
     let tok = SymbolId(1);
