@@ -423,7 +423,7 @@ fn conservative_changed_ranges(old_source: &str, new_source: &str) -> Vec<Range<
 
     let start = previous_char_boundary(new_source, prefix_len.min(new_source.len()));
     let end = next_char_boundary(new_source, new_suffix_start.min(new_source.len()));
-    vec![start..end]
+    std::iter::once(start..end).collect()
 }
 
 fn previous_char_boundary(source: &str, mut byte: usize) -> usize {
