@@ -10,39 +10,30 @@
 //!   - derive_complex_*   : nested / multi-layer type structures
 //!   - derive_edge_*      : edge cases and unusual forms
 
-#[allow(unused_imports)]
-use proc_macro2::TokenStream;
-#[allow(unused_imports)]
-use quote::{ToTokens, format_ident, quote};
-#[allow(unused_imports)]
+use quote::ToTokens;
 use syn::{
-    Attribute, Data, DeriveInput, Fields, GenericArgument, GenericParam, ItemEnum, ItemStruct,
-    Lifetime, LifetimeParam, PathArguments, Type, TypeParam, TypePath, parse_quote, parse2,
+    Data, DeriveInput, Fields, GenericArgument, GenericParam, ItemStruct, PathArguments, Type,
+    TypePath,
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-#[allow(dead_code)]
 fn type_str(ty: &Type) -> String {
     ty.to_token_stream().to_string()
 }
 
-#[allow(dead_code)]
 fn parse_derive_str(s: &str) -> DeriveInput {
     syn::parse_str::<DeriveInput>(s).expect("failed to parse DeriveInput from str")
 }
 
-#[allow(dead_code)]
 fn parse_type_str(s: &str) -> Type {
     syn::parse_str::<Type>(s).expect("failed to parse Type from str")
 }
 
-#[allow(dead_code)]
 fn parse_struct_str(s: &str) -> ItemStruct {
     syn::parse_str::<ItemStruct>(s).expect("failed to parse ItemStruct from str")
 }
 
-#[allow(dead_code)]
 fn named_field_names(fields: &Fields) -> Vec<String> {
     fields
         .iter()
@@ -50,12 +41,10 @@ fn named_field_names(fields: &Fields) -> Vec<String> {
         .collect()
 }
 
-#[allow(dead_code)]
 fn field_type_strings(fields: &Fields) -> Vec<String> {
     fields.iter().map(|f| type_str(&f.ty)).collect()
 }
 
-#[allow(dead_code)]
 fn extract_inner_type<'a>(ty: &'a Type, wrapper: &str) -> Option<&'a Type> {
     if let Type::Path(TypePath { path, .. }) = ty
         && let Some(seg) = path.segments.last()
