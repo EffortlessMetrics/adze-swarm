@@ -24,7 +24,6 @@ use std::collections::BTreeMap;
 // HELPER FUNCTIONS
 // =============================================================================
 
-#[allow(dead_code)]
 fn make_minimal_table(
     mut actions: Vec<Vec<Vec<Action>>>,
     mut gotos: Vec<Vec<StateId>>,
@@ -120,7 +119,6 @@ fn make_minimal_table(
     }
 }
 
-#[allow(dead_code)]
 fn make_empty_table(states: usize, terms: usize, nonterms: usize, externals: usize) -> ParseTable {
     let states = states.max(1);
     let eof_idx = 1 + terms + externals;
@@ -136,7 +134,6 @@ fn make_empty_table(states: usize, terms: usize, nonterms: usize, externals: usi
     make_minimal_table(actions, gotos, vec![], start_symbol, eof_symbol, externals)
 }
 
-#[allow(dead_code)]
 fn create_single_action_table(action: Action) -> ParseTable {
     let actions = vec![vec![vec![action]; 2]; 1];
     let gotos = vec![vec![StateId(u16::MAX); 2]];
@@ -146,7 +143,6 @@ fn create_single_action_table(action: Action) -> ParseTable {
     make_minimal_table(actions, gotos, vec![], start_symbol, eof_symbol, 0)
 }
 
-#[allow(dead_code)]
 fn create_sparse_goto_table() -> ParseTable {
     let actions = vec![vec![vec![]; 5]; 3];
     let mut gotos = vec![vec![StateId(u16::MAX); 5]; 3];
@@ -160,7 +156,6 @@ fn create_sparse_goto_table() -> ParseTable {
     make_minimal_table(actions, gotos, vec![], start_symbol, eof_symbol, 0)
 }
 
-#[allow(dead_code)]
 fn create_dense_goto_table() -> ParseTable {
     let actions = vec![vec![vec![]; 4]; 4];
     let mut gotos = vec![vec![StateId(u16::MAX); 4]; 4];
