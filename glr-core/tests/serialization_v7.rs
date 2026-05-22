@@ -25,19 +25,16 @@ use std::collections::BTreeMap;
 // Helpers
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
 fn build_table(grammar: &Grammar) -> ParseTable {
     let ff = FirstFollowSets::compute(grammar).expect("FIRST/FOLLOW");
     build_lr1_automaton(grammar, &ff).expect("automaton construction")
 }
 
-#[allow(dead_code)]
 fn roundtrip(table: &ParseTable) -> ParseTable {
     let bytes = table.to_bytes().expect("serialize");
     ParseTable::from_bytes(&bytes).expect("deserialize")
 }
 
-#[allow(dead_code)]
 fn make_action_table(actions: Vec<Action>) -> ParseTable {
     let mut sym_to_idx = BTreeMap::new();
     sym_to_idx.insert(SymbolId(0), 0);
@@ -51,7 +48,6 @@ fn make_action_table(actions: Vec<Action>) -> ParseTable {
     }
 }
 
-#[allow(dead_code)]
 fn craft_versioned_bytes(version: u32, inner_data: &[u8]) -> Vec<u8> {
     #[derive(serde::Serialize)]
     struct Wrapper {
@@ -65,11 +61,13 @@ fn craft_versioned_bytes(version: u32, inner_data: &[u8]) -> Vec<u8> {
     postcard::to_stdvec(&w).expect("encode wrapper")
 }
 
-#[allow(dead_code)]
 fn replace_version_in(valid_bytes: &[u8], new_version: u32) -> Vec<u8> {
     #[derive(serde::Deserialize)]
     struct WrapperDe {
-        #[allow(dead_code)]
+        #[expect(
+            dead_code,
+            reason = "decoded wrapper version preserves the wire shape but is not read"
+        )]
         version: u32,
         data: Vec<u8>,
     }
@@ -91,7 +89,6 @@ fn replace_version_in(valid_bytes: &[u8], new_version: u32) -> Vec<u8> {
 // ---------------------------------------------------------------------------
 
 /// S -> a
-#[allow(dead_code)]
 fn single_token_grammar() -> Grammar {
     GrammarBuilder::new("single_tok")
         .token("a", "a")
@@ -101,7 +98,6 @@ fn single_token_grammar() -> Grammar {
 }
 
 /// S -> a | b
-#[allow(dead_code)]
 fn two_alt_grammar() -> Grammar {
     GrammarBuilder::new("two_alt")
         .token("a", "a")
@@ -113,7 +109,6 @@ fn two_alt_grammar() -> Grammar {
 }
 
 /// S -> A, A -> a
-#[allow(dead_code)]
 fn chain_grammar() -> Grammar {
     GrammarBuilder::new("chain")
         .token("a", "a")
@@ -124,7 +119,6 @@ fn chain_grammar() -> Grammar {
 }
 
 /// E -> E + E | n (ambiguous)
-#[allow(dead_code)]
 fn expr_grammar() -> Grammar {
     GrammarBuilder::new("expr")
         .token("n", r"\d+")
@@ -136,7 +130,6 @@ fn expr_grammar() -> Grammar {
 }
 
 /// S -> a b
-#[allow(dead_code)]
 fn seq_grammar() -> Grammar {
     GrammarBuilder::new("seq")
         .token("a", "a")
@@ -147,7 +140,6 @@ fn seq_grammar() -> Grammar {
 }
 
 /// S -> L R, L -> a, R -> b
-#[allow(dead_code)]
 fn two_nt_grammar() -> Grammar {
     GrammarBuilder::new("two_nt")
         .token("a", "a")
@@ -160,7 +152,6 @@ fn two_nt_grammar() -> Grammar {
 }
 
 /// list -> a list | a (right-recursive)
-#[allow(dead_code)]
 fn right_recursive_grammar() -> Grammar {
     GrammarBuilder::new("right_rec")
         .token("a", "a")
@@ -171,7 +162,6 @@ fn right_recursive_grammar() -> Grammar {
 }
 
 /// E -> E + T | T, T -> T * F | F, F -> n | ( E )
-#[allow(dead_code)]
 fn arithmetic_grammar() -> Grammar {
     GrammarBuilder::new("arith")
         .token("n", r"\d+")
@@ -190,7 +180,6 @@ fn arithmetic_grammar() -> Grammar {
 }
 
 /// S -> a | b | c | d | e
-#[allow(dead_code)]
 fn five_alt_grammar() -> Grammar {
     GrammarBuilder::new("five_alt")
         .token("a", "a")
@@ -208,7 +197,6 @@ fn five_alt_grammar() -> Grammar {
 }
 
 /// S -> A B C, A -> a, B -> b, C -> c
-#[allow(dead_code)]
 fn three_nt_chain_grammar() -> Grammar {
     GrammarBuilder::new("three_nt_chain")
         .token("a", "a")
@@ -223,7 +211,6 @@ fn three_nt_chain_grammar() -> Grammar {
 }
 
 /// S -> S a | a (left-recursive)
-#[allow(dead_code)]
 fn left_recursive_grammar() -> Grammar {
     GrammarBuilder::new("left_rec")
         .token("a", "a")
@@ -234,7 +221,6 @@ fn left_recursive_grammar() -> Grammar {
 }
 
 /// S -> a S b | epsilon (nested)
-#[allow(dead_code)]
 fn nested_grammar() -> Grammar {
     GrammarBuilder::new("nested")
         .token("a", "a")
@@ -246,7 +232,6 @@ fn nested_grammar() -> Grammar {
 }
 
 /// stmts -> stmt stmts | stmt, stmt -> ID = NUM ;
-#[allow(dead_code)]
 fn statement_list_grammar() -> Grammar {
     GrammarBuilder::new("stmt_list")
         .token("ID", r"[a-z]+")
@@ -261,7 +246,6 @@ fn statement_list_grammar() -> Grammar {
 }
 
 /// S -> A B, A -> a | epsilon, B -> b
-#[allow(dead_code)]
 fn nullable_prefix_grammar() -> Grammar {
     GrammarBuilder::new("nullable_prefix")
         .token("a", "a")
@@ -275,7 +259,6 @@ fn nullable_prefix_grammar() -> Grammar {
 }
 
 /// S -> a b c d e f
-#[allow(dead_code)]
 fn wide_rhs_grammar() -> Grammar {
     GrammarBuilder::new("wide_rhs")
         .token("a", "a")
@@ -290,7 +273,6 @@ fn wide_rhs_grammar() -> Grammar {
 }
 
 /// S -> A, A -> B, B -> C, C -> a (deep chain)
-#[allow(dead_code)]
 fn deep_chain_grammar() -> Grammar {
     GrammarBuilder::new("deep_chain")
         .token("a", "a")
