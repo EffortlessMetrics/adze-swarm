@@ -1,22 +1,36 @@
 # ts-bridge: Tree-sitter to GLR Runtime Bridge
 
-This tool extracts parse tables from compiled Tree-sitter grammars and converts them into a format suitable for our custom GLR runtime.
+This advisory tool experiments with extracting parse tables from compiled
+Tree-sitter grammars and converting them into data that Adze runtime experiments
+can inspect.
+
+> **Support status:** `tools/ts-bridge/` is outside the stable Adze parser
+> product contract. The current proof is smoke-level and advisory. It should not
+> be described as a production bridge, full imported-grammar compatibility, or a
+> stable Tree-sitter interop surface until support tiers promote a narrower
+> slice with proof.
 
 ## Features
 
-- **Production-ready**: Full extraction of Tree-sitter parse tables with ABI guards
-- **ABI stability**: Pinned to Tree-sitter v15 with header hash verification
-- **Comprehensive testing**: Parity tests ensure extracted tables match Tree-sitter exactly
+- **Table extraction experiments**: parse-table data can be extracted from a
+  compiled grammar for inspection and follow-on runtime work.
+- **ABI guards**: pinned Tree-sitter v15 checks and header hash verification
+  catch obvious drift.
+- **Advisory parity work**: optional tests and fixtures provide signal, not a
+  full Tree-sitter compatibility guarantee.
 
 ## Building
 
-### Production Build
+### Advisory Build
 ```bash
-# Build with real Tree-sitter headers (requires libtree-sitter-dev system package)
-cargo build -p ts-bridge
+# Build with the vendored shim/runtime used by the advisory smoke path.
+cargo build --manifest-path tools/ts-bridge/Cargo.toml
 
 # Run the ABI verification
-cargo run -p ts-bridge --bin tsb-abi-check
+cargo run --manifest-path tools/ts-bridge/Cargo.toml --bin tsb-abi-check
+
+# Optional: link a system libtree-sitter instead of the vendored runtime.
+cargo build --manifest-path tools/ts-bridge/Cargo.toml --no-default-features --features link-system-ts
 ```
 
 
@@ -24,12 +38,12 @@ cargo run -p ts-bridge --bin tsb-abi-check
 
 ### Extract Parse Tables (dynamic loading)
 ```bash
-# Extract from a compiled Tree-sitter grammar library
-cargo run -p ts-bridge -- path/to/libtree-sitter-json.so output.json tree_sitter_json
+# Extract from a compiled Tree-sitter grammar library.
+cargo run --manifest-path tools/ts-bridge/Cargo.toml -- path/to/libtree-sitter-json.so output.json tree_sitter_json
 
 # The output will be a JSON file containing:
 # - Symbol names and counts
-# - Parse rules with stable IDs
+# - Parse rules with deterministic IDs for this extraction
 # - Action table (for terminals) 
 # - Goto table (for non-terminals)
 # - Start symbol detection
@@ -45,13 +59,13 @@ cargo run -p ts-bridge -- path/to/libtree-sitter-json.so output.json tree_sitter
 
 ### Basic Tests (always run)
 ```bash
-cargo test -p ts-bridge --test basic
+cargo test --manifest-path tools/ts-bridge/Cargo.toml --test basic
 ```
 
 ### Parity Tests (requires tree-sitter-json)
 ```bash
-# Enable with-grammars feature to link actual Tree-sitter libraries
-cargo test -p ts-bridge --features with-grammars -- --nocapture
+# Enable with-grammars feature for optional grammar-linked tests.
+cargo test --manifest-path tools/ts-bridge/Cargo.toml --features with-grammars -- --nocapture
 ```
 
 ## Architecture
@@ -59,7 +73,7 @@ cargo test -p ts-bridge --features with-grammars -- --nocapture
 The bridge works by:
 1. Loading a compiled Tree-sitter grammar (`.so`/`.dll`/`.dylib`)
 2. Using FFI shim to call Tree-sitter's table access functions
-3. Extracting complete parse table data with proper type conversions
+3. Extracting parse table data with checked type conversions
 4. Serializing to JSON for consumption by GLR runtime or static generation
 
 ### Key Components
@@ -67,7 +81,8 @@ The bridge works by:
 - `ffi/shim.c`: C shim that interfaces with Tree-sitter API
 - `src/extract.rs`: Core extraction logic with width checks and buffer safety
 - `src/schema.rs`: Data structures for parse table representation
-- Production builds link against system libtree-sitter-dev
+- Optional system-linked builds use `link-system-ts`; the default smoke path
+  uses vendored Tree-sitter runtime sources.
 
 ### Safety Features
 
@@ -94,9 +109,11 @@ We pin to Tree-sitter language version 15 and use multiple layers of protection:
 - **External scanners**: Headers defined but implementation deferred to PR2
 - **Field mappings**: Production IDs map to fields via `field_map_slices` (PR2)
 
-## Production Checklist
+## Advisory Checklist
 
 ✅ Run `tsb-abi-check` to verify ABI compatibility
 ✅ Execute `abi-hash.sh` to verify header integrity
-✅ Run parity tests with actual grammars
-✅ Verify extracted JSON contains valid data (non-zero counts)
+✅ Run optional parity tests with actual grammars when available
+✅ Verify extracted JSON contains plausible data for the targeted grammar
+
+Passing this checklist is useful interop evidence, not a Stable product claim.

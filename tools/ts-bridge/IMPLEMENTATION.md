@@ -7,7 +7,7 @@ This is the initial implementation of the Tree-sitter to GLR runtime bridge tool
 ### ✅ Completed Components
 
 1. **Project Structure**
-   - `/tools/ts-bridge` crate added to workspace
+   - `/tools/ts-bridge` standalone crate added under `tools/`
    - FFI layer with C shim for Tree-sitter interaction
    - Schema definitions for parse table data
    - Extraction logic for converting Tree-sitter tables to our format
@@ -23,7 +23,7 @@ This is the initial implementation of the Tree-sitter to GLR runtime bridge tool
 3. **Testing**
    - Basic schema serialization tests
    - Action serialization tests
-   - Parity test framework (ready but requires actual Tree-sitter library)
+   - Parity test framework (advisory; requires actual Tree-sitter libraries)
 
 4. **Build System**
    - C shim compilation via `cc` crate
@@ -71,14 +71,14 @@ This is the initial implementation of the Tree-sitter to GLR runtime bridge tool
 ## How to Use (Development)
 
 ```bash
-# Build the tool
-cargo build -p ts-bridge
+# Build the tool from the repository root.
+cargo build --manifest-path tools/ts-bridge/Cargo.toml
 
 # Run tests
-cargo test -p ts-bridge --test basic
+cargo test --manifest-path tools/ts-bridge/Cargo.toml --test basic
 
 # Once real Tree-sitter is available:
-# cargo run -p ts-bridge -- path/to/libtree-sitter-json.so output.json tree_sitter_json
+# cargo run --manifest-path tools/ts-bridge/Cargo.toml -- path/to/libtree-sitter-json.so output.json tree_sitter_json
 ```
 
 ## Technical Decisions
@@ -96,4 +96,6 @@ cargo test -p ts-bridge --test basic
 - **Testing Strategy**: Unit tests → Parity tests → End-to-end tests
 - **CI Integration**: ABI hash checks prevent silent breakage
 
-This implementation provides the foundation for bridging Tree-sitter grammars to our GLR runtime. The modular design allows incremental enhancement while maintaining a working system at each stage.
+This implementation provides advisory foundation work for bridging
+Tree-sitter-shaped table data into Adze runtime experiments. It is not a Stable
+product claim or full imported-grammar compatibility promise.
