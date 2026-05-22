@@ -27,14 +27,12 @@ use adze_ir::builder::GrammarBuilder;
 // ---------------------------------------------------------------------------
 
 /// Build grammar → first/follow → parse table in one step.
-#[allow(dead_code)]
 fn build_table(grammar: &adze_ir::Grammar) -> Result<ParseTable, adze_glr_core::GLRError> {
     let ff = FirstFollowSets::compute(grammar)?;
     build_lr1_automaton(grammar, &ff)
 }
 
 /// Count cells with multiple actions (conflict / fork points).
-#[allow(dead_code)]
 fn count_fork_cells(table: &ParseTable) -> usize {
     table
         .action_table
@@ -45,7 +43,6 @@ fn count_fork_cells(table: &ParseTable) -> usize {
 }
 
 /// True if any cell contains both Shift and Reduce actions.
-#[allow(dead_code)]
 fn has_shift_reduce(table: &ParseTable) -> bool {
     table.action_table.iter().any(|row| {
         row.iter().any(|cell| {
@@ -57,7 +54,6 @@ fn has_shift_reduce(table: &ParseTable) -> bool {
 }
 
 /// True if any cell contains two or more distinct Reduce actions.
-#[allow(dead_code)]
 fn has_reduce_reduce(table: &ParseTable) -> bool {
     table.action_table.iter().any(|row| {
         row.iter().any(|cell| {
@@ -69,17 +65,7 @@ fn has_reduce_reduce(table: &ParseTable) -> bool {
     })
 }
 
-/// True if any cell contains a Fork variant.
-#[allow(dead_code)]
-fn has_fork_action(table: &ParseTable) -> bool {
-    table.action_table.iter().any(|row| {
-        row.iter()
-            .any(|cell| cell.iter().any(|a| matches!(a, Action::Fork(_))))
-    })
-}
-
 /// True if at least one cell contains Accept.
-#[allow(dead_code)]
 fn has_accept(table: &ParseTable) -> bool {
     table.action_table.iter().any(|row| {
         row.iter()
@@ -88,7 +74,6 @@ fn has_accept(table: &ParseTable) -> bool {
 }
 
 /// Collect all Reduce rule-ids that appear anywhere in the table.
-#[allow(dead_code)]
 fn all_reduce_rule_ids(table: &ParseTable) -> Vec<adze_ir::RuleId> {
     let mut ids = Vec::new();
     for row in &table.action_table {
@@ -106,7 +91,6 @@ fn all_reduce_rule_ids(table: &ParseTable) -> Vec<adze_ir::RuleId> {
 }
 
 /// Total number of actions across the entire table.
-#[allow(dead_code)]
 fn total_action_count(table: &ParseTable) -> usize {
     table
         .action_table
