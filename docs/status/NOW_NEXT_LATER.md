@@ -136,6 +136,10 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       carries stable-product receipt and release-boundary wording.
       The path list is guarded by
       `product_proof_workflow_routes_stable_claim_surfaces`.
+      It was refreshed again on 2026-05-21 from `adze-swarm/main` at commit
+      `ae317e42` after CLI static output closeout and release-boundary refresh
+      PRs #464-#469; `just ci-supported` and `just ci-product-stable` both
+      passed locally from current `main`.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
       the remaining `cargo install adze-cli`, required aggregate
@@ -152,7 +156,8 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       `fc959ec1` after the stable-product receipt status update.
       Both `just package-local adze-cli` and `just check-publishable` were
       refreshed again from `adze-swarm/main` at commit `99dd12b0` after the
-      0.9.0 workspace version bump.
+      0.9.0 workspace version bump. `just check-publishable` was refreshed
+      again on 2026-05-21 from `adze-swarm/main` at commit `ae317e42`.
       These are package verification receipts, not crates.io install or publish
       claims.
 - [x] Latest crates.io CLI install-boundary receipt:
@@ -166,16 +171,21 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       commit `df4be63a` and again at commit `fc959ec1`, printing the fully
       qualified command plan. The crates.io metadata check was also refreshed
       from commit `99dd12b0` after the 0.9.0 workspace version bump and still
-      reported that `adze-cli` is not present in crates.io. The active manifest
-      is complete with no ready non-release work; the install receipt remains
-      release-surface work blocked on explicit authorization.
+      reported that `adze-cli` is not present in crates.io. The crates.io
+      metadata check and verifier dry-run were refreshed again on 2026-05-21
+      from `adze-swarm/main` at commit `ae317e42`; `adze-cli` and `adze-tool`
+      were still absent from crates.io, and the dry run still printed explicit
+      `crates-io` commands. The active manifest is complete with no ready
+      non-release work; the install receipt remains release-surface work
+      blocked on explicit authorization.
 - [x] Latest root README dependency-boundary receipt:
       `cargo info --registry crates-io adze` reports published `adze` 0.8.0,
       while `cargo info --registry crates-io adze-tool` reports no registry
       package; both were refreshed on 2026-05-21 from `adze-swarm/main` at
-      commit `0df9f420`. The root README install block now explicitly says the
-      dependency block is a release-surface dependency shape, not a crates.io
-      install receipt for every co-release crate.
+      commit `0df9f420` and again at commit `ae317e42`. The root README install
+      block now explicitly says the dependency block is a release-surface
+      dependency shape, not a crates.io install receipt for every co-release
+      crate.
 - [x] Live co-release dependency snippets that name `adze-tool` or
       registry-shaped `cargo add --build adze-tool` commands are guarded by
       `cargo test -p adze-cli co_release_dependency_snippets_stay_release_surface_bounded -- --exact --nocapture`.

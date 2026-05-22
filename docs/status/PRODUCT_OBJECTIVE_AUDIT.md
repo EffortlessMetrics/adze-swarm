@@ -125,6 +125,14 @@ routing, clean-room quickstart, downstream fixture, typed AST determinism,
 precedence, and serialization canaries from the current swarm state. It is
 the final local pre-promotion stable-product receipt in this sequence.
 
+Latest current-main receipt after CLI static JSON/DOT closeout and release
+boundary refresh PRs #464-#469: `just ci-supported` and
+`just ci-product-stable` passed on 2026-05-21 from `adze-swarm/main` at commit
+`ae317e42`. This refreshes the supported core pipeline and the Stable README
+claim canaries after the static `tree`, `sexp`, `json`, and `dot` CLI output
+lanes closed and after the latest crates.io install-boundary status updates.
+It is still non-release product proof, not a crates.io install receipt.
+
 Latest user-experience hardening closeout: PRs #350-#356 completed the
 non-release adoption polish lane and archived it in
 [`../../plans/user-experience-hardening/closeout.md`](../../plans/user-experience-hardening/closeout.md).
@@ -332,7 +340,8 @@ again on 2026-05-20 at commit `464a32a9` after PR #311. It was refreshed again
 on 2026-05-20 from current `adze-swarm/main` at commit `fc959ec1`, after the
 stable-product receipt status update. It was refreshed again on 2026-05-20 from
 `adze-swarm/main` at commit `99dd12b0`, after PR #330 bumped the publishable
-workspace crates to 0.9.0.
+workspace crates to 0.9.0, and again on 2026-05-21 from `adze-swarm/main` at
+commit `ae317e42` after PRs #468-#469.
 It verifies publish-order metadata and `cargo package --list` for
 the core publish surface (`adze-common`, `adze-ir`, `adze-glr-core`,
 `adze-tablegen`, `adze-macro`, `adze-tool`, `adze-cli`, and `adze`). This is
@@ -420,6 +429,9 @@ commit `0df9f420` after the CLI static JSON/DOT status alignment, and still
 reported that `adze-cli` could not be found in crates.io. In the same registry
 check, `cargo info --registry crates-io adze` resolved published `adze 0.8.0`,
 while `cargo info --registry crates-io adze-tool` reported no registry package.
+The registry absence check was refreshed again on 2026-05-21 from
+`adze-swarm/main` at commit `ae317e42`; `adze-cli` and `adze-tool` were still
+absent from crates.io.
 `cargo install adze-cli` remains a release-surface target rather than current
 product proof.
 
@@ -434,7 +446,8 @@ temporary root and runs
 only; it does not contact crates.io and does not close the install-receipt gap.
 The dry-run command shape was refreshed on 2026-05-20 from `adze-swarm/main` at
 commit `df4be63a` after PRs #319-#320 and refreshed again from current
-`adze-swarm/main` at commit `fc959ec1`; it printed:
+`adze-swarm/main` at commit `fc959ec1`. It was refreshed again on 2026-05-21
+from `adze-swarm/main` at commit `ae317e42`; it printed:
 
 ```text
 cargo info --registry crates-io adze-cli
@@ -449,6 +462,9 @@ Do not mark the product objective complete while any of these are true:
 - `cargo install adze-cli` has no crates.io install receipt.
 - The root README dependency block is release-surface-bounded because
   `adze-tool` does not yet have a crates.io metadata receipt.
+- Public `adze/main` is not tree-identical to current `adze-swarm/main`; an
+  explicit public promotion PR is required before any authorized publish from
+  the public release surface.
 - Corpus-wide external-scanner recovery parity remains future work and is not
   a Stable claim.
 - GLR conflict routing, structured parse errors, Tree-sitter compatibility,

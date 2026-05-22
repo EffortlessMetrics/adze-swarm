@@ -83,10 +83,10 @@ These may run as optional signal (nightly/manual/canary), but are not required f
   repo-built CLI and
   downstream fixtures. `cargo info --registry crates-io adze-cli` was refreshed
   on 2026-05-20 and again on 2026-05-21 from `adze-swarm/main` at commit
-  `0df9f420`; it reported that `adze-cli` is not present in crates.io. The
-  explicit registry flag avoids resolving the local workspace package. Treat
-  crates.io CLI installation as release-surface work until an install receipt
-  exists.
+  `0df9f420`, then again at commit `ae317e42`; it reported that `adze-cli` is
+  not present in crates.io. The explicit registry flag avoids resolving the
+  local workspace package. Treat crates.io CLI installation as release-surface
+  work until an install receipt exists.
 
 ---
 
