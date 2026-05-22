@@ -1310,4 +1310,35 @@ mod tests {
 
         assert_eq!(literal, r#""\\\\?\\D:\\repo\\adze\\runtime""#);
     }
+
+    #[cfg(feature = "dynamic")]
+    #[test]
+    fn dynamic_symbol_name_appends_null_terminator() {
+        let symbol = super::symbol_name_with_null_terminator("tree_sitter_json");
+
+        assert_eq!(symbol, b"tree_sitter_json\0");
+    }
+
+    #[cfg(feature = "dynamic")]
+    #[test]
+    fn dynamic_symbol_name_keeps_existing_null_terminator() {
+        let symbol = super::symbol_name_with_null_terminator("tree_sitter_json\0");
+
+        assert_eq!(symbol, b"tree_sitter_json\0");
+    }
+
+    #[cfg(feature = "dynamic")]
+    #[test]
+    fn dynamic_missing_grammar_error_is_bounded() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let missing = temp.path().join("missing-grammar.so");
+
+        let err = super::ensure_dynamic_grammar_exists(&missing)
+            .expect_err("missing dynamic grammar should fail");
+
+        assert!(
+            err.to_string().contains("dynamic grammar not found"),
+            "missing grammar error should be explicit: {err}"
+        );
+    }
 }

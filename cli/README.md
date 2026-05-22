@@ -50,6 +50,12 @@ adze parse src/grammar.rs input.txt --output ambiguity-json
 These modes are intended for single-file grammar smoke checks and tooling
 receipts. They are not a stable CLI/WASM schema contract.
 
+Dynamic parse mode is a separate experimental boundary. `adze parse --dynamic`
+requires building `adze-cli` with `--features dynamic`; with that feature it can
+attempt to load a shared-library symbol, but dynamic parse output is not
+implemented or supported yet. See the dynamic-loading guide for the current
+non-claim boundary.
+
 ## License
 
 Licensed under either of
