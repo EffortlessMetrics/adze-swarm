@@ -10,27 +10,19 @@
 //!   7. convert_complex_*    – multi-layer / real-world-ish grammars
 //!   8. convert_edge_*       – edge cases and error paths
 
-#[allow(unused_imports)]
 use adze_ir::{
-    Associativity, FieldId, Grammar, PrecedenceKind, ProductionId, Rule, RuleId, StateId, Symbol,
-    SymbolId, Token, TokenPattern, builder::GrammarBuilder,
+    Associativity, Grammar, PrecedenceKind, Rule, Symbol, SymbolId, TokenPattern,
+    builder::GrammarBuilder,
 };
-#[allow(unused_imports)]
+use adze_tool::grammar_js::GrammarJsConverter;
 use adze_tool::grammar_js::json_converter::from_tree_sitter_json;
-#[allow(unused_imports)]
-use adze_tool::grammar_js::{self, GrammarJs, GrammarJsConverter, Rule as JsRule};
-#[allow(unused_imports)]
-use adze_tool::pure_rust_builder::{
-    BuildOptions, BuildResult, build_parser, build_parser_from_json,
-};
-#[allow(unused_imports)]
+use adze_tool::pure_rust_builder::{BuildOptions, BuildResult, build_parser_from_json};
 use serde_json::{Value, json};
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
 fn opts() -> BuildOptions {
     BuildOptions {
         out_dir: "/tmp/adze-converter-v6".to_string(),
@@ -40,7 +32,6 @@ fn opts() -> BuildOptions {
 }
 
 /// Convert a JSON value through from_tree_sitter_json → GrammarJsConverter → Grammar.
-#[allow(dead_code)]
 fn convert(val: &Value) -> Grammar {
     let gjs = from_tree_sitter_json(val).expect("from_tree_sitter_json failed");
     GrammarJsConverter::new(gjs)
@@ -49,13 +40,11 @@ fn convert(val: &Value) -> Grammar {
 }
 
 /// Build a parser directly from a JSON value.
-#[allow(dead_code)]
 fn build_json(val: &Value) -> anyhow::Result<BuildResult> {
     build_parser_from_json(serde_json::to_string(val).unwrap(), opts())
 }
 
 /// Find a token whose pattern matches the given regex string.
-#[allow(dead_code)]
 fn find_regex_token(g: &Grammar, regex: &str) -> bool {
     g.tokens.values().any(|t| match &t.pattern {
         TokenPattern::Regex(r) => r == regex,
@@ -64,7 +53,6 @@ fn find_regex_token(g: &Grammar, regex: &str) -> bool {
 }
 
 /// Find a token whose pattern matches the given literal string.
-#[allow(dead_code)]
 fn find_string_token(g: &Grammar, literal: &str) -> bool {
     g.tokens.values().any(|t| match &t.pattern {
         TokenPattern::String(s) => s == literal,
@@ -73,13 +61,11 @@ fn find_string_token(g: &Grammar, literal: &str) -> bool {
 }
 
 /// Count total IR rules across all LHS symbols.
-#[allow(dead_code)]
 fn total_rules(g: &Grammar) -> usize {
     g.rules.values().map(|rs| rs.len()).sum()
 }
 
 /// Collect rules for the named symbol.
-#[allow(dead_code)]
 fn rules_for<'a>(g: &'a Grammar, name: &str) -> Vec<&'a Rule> {
     let sid = g
         .rule_names
@@ -91,23 +77,6 @@ fn rules_for<'a>(g: &'a Grammar, name: &str) -> Vec<&'a Rule> {
         .get(&sid)
         .map(|rs| rs.iter().collect())
         .unwrap_or_default()
-}
-
-/// Build a minimal grammar JSON with a single rule.
-#[allow(dead_code)]
-fn minimal_json(name: &str, rule_name: &str, rule_body: Value) -> Value {
-    json!({
-        "name": name,
-        "rules": { rule_name: rule_body }
-    })
-}
-
-/// Build a GrammarJs with only one rule.
-#[allow(dead_code)]
-fn grammar_js_one_rule(name: &str, rule_name: &str, rule: grammar_js::Rule) -> GrammarJs {
-    let mut gjs = GrammarJs::new(name.to_string());
-    gjs.rules.insert(rule_name.to_string(), rule);
-    gjs
 }
 
 // ===========================================================================
@@ -445,7 +414,6 @@ fn convert_rule_blank_creates_no_rhs() {
 // 4. convert_prec_* — precedence and associativity (8 tests)
 // ===========================================================================
 
-#[allow(dead_code)]
 fn arith_json() -> Value {
     json!({
         "name": "arith",
