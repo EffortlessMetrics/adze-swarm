@@ -7,7 +7,7 @@ use adze_common::NameValueExpr;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::punctuated::Punctuated;
-use syn::{Attribute, Fields, Item, ItemEnum, ItemMod, ItemStruct, Token, parse_quote};
+use syn::{Attribute, Fields, ItemEnum, ItemMod, ItemStruct, Token, parse_quote};
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -30,24 +30,6 @@ fn adze_attr_names(attrs: &[Attribute]) -> Vec<String> {
             }
         })
         .collect()
-}
-
-/// Parse a token stream as a single `syn::Item`.
-#[allow(dead_code)]
-fn parse_item(tokens: TokenStream) -> Item {
-    syn::parse2(tokens).expect("failed to parse item")
-}
-
-/// Parse a token stream as an `ItemStruct`.
-#[allow(dead_code)]
-fn parse_struct(tokens: TokenStream) -> ItemStruct {
-    syn::parse2(tokens).expect("failed to parse struct")
-}
-
-/// Parse a token stream as an `ItemEnum`.
-#[allow(dead_code)]
-fn parse_enum(tokens: TokenStream) -> ItemEnum {
-    syn::parse2(tokens).expect("failed to parse enum")
 }
 
 /// Parse a token stream as an `ItemMod`.
