@@ -1,7 +1,7 @@
 # Now / Next / Later
 
 **Last updated:** 2026-05-21
-**Status:** **Product Proof required-gate policy promotion complete; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The latest completed non-release lanes are closed out in [`../../plans/product-proof-result-readiness/closeout.md`](../../plans/product-proof-result-readiness/closeout.md), [`../../plans/product-proof-required-gate/implementation-plan.md`](../../plans/product-proof-required-gate/implementation-plan.md), [`../../plans/ci-lane-policy-hygiene/implementation-plan.md`](../../plans/ci-lane-policy-hygiene/implementation-plan.md), [`../../plans/parser-runtime-maintainability/closeout.md`](../../plans/parser-runtime-maintainability/closeout.md), [`../../plans/cli-parse-surface/closeout.md`](../../plans/cli-parse-surface/closeout.md), [`../../plans/cli-static-sexp/closeout.md`](../../plans/cli-static-sexp/closeout.md), and [`../../plans/cli-static-json-dot/closeout.md`](../../plans/cli-static-json-dot/closeout.md). The active manifest is complete with no active, ready, or blocked non-release work items; release/publish remains blocked on explicit authorization.
+**Status:** **Product Proof required-gate policy promotion complete; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The latest completed non-release lanes are closed out in [`../../plans/product-proof-result-readiness/closeout.md`](../../plans/product-proof-result-readiness/closeout.md), [`../../plans/product-proof-required-gate/implementation-plan.md`](../../plans/product-proof-required-gate/implementation-plan.md), [`../../plans/ci-lane-policy-hygiene/implementation-plan.md`](../../plans/ci-lane-policy-hygiene/implementation-plan.md), [`../../plans/parser-runtime-maintainability/closeout.md`](../../plans/parser-runtime-maintainability/closeout.md), [`../../plans/cli-parse-surface/closeout.md`](../../plans/cli-parse-surface/closeout.md), [`../../plans/cli-static-sexp/closeout.md`](../../plans/cli-static-sexp/closeout.md), and [`../../plans/cli-static-json-dot/closeout.md`](../../plans/cli-static-json-dot/closeout.md). The active non-release lane is now CLI dynamic parse boundary hardening in [`../../plans/cli-dynamic-parse/implementation-plan.md`](../../plans/cli-dynamic-parse/implementation-plan.md); release/publish remains blocked on explicit authorization.
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -27,6 +27,15 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 ---
 
 ## Now
+
+### CLI dynamic parse boundary
+- [x] Open the focused source-of-truth lane for feature-gated dynamic parse
+      boundary hardening in `adze-swarm`.
+- [ ] Add executable receipts proving `--dynamic` is feature-gated,
+      experimental, and not currently a supported parse-output path.
+- [ ] Tighten the dynamic-loading guide and support-tier wording so they do
+      not imply dynamic parse output or crates.io install support.
+- [ ] Close the lane only after behavior receipts exist.
 
 ### Parser recovery real-grammar coverage
 - [x] Replace the paused query/tooling closeout manifest with a focused
