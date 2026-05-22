@@ -5,6 +5,48 @@
 
 use adze_glr_core::ParseTable;
 use adze_ir::{Grammar, Symbol};
+use std::fmt;
+
+/// Fallible test helper result.
+///
+/// This keeps tests readable while allowing them to return `Result` instead of
+/// using panic-family assertions for every precondition.
+pub type TestResult<T = ()> = Result<T, String>;
+
+/// Require `condition` to be true.
+///
+/// This is the fallible counterpart to `assert!`.
+pub fn ensure(condition: bool, message: impl Into<String>) -> TestResult {
+    if condition {
+        Ok(())
+    } else {
+        Err(message.into())
+    }
+}
+
+/// Require an [`Option`] to contain a value.
+///
+/// This is the fallible counterpart to `Option::expect`.
+pub fn require_some<T>(value: Option<T>, message: impl Into<String>) -> TestResult<T> {
+    value.ok_or_else(|| message.into())
+}
+
+/// Require a [`Result`] to be successful and attach a caller-facing context.
+///
+/// This is the fallible counterpart to `Result::expect`.
+pub fn require_ok<T, E>(value: Result<T, E>, context: impl Into<String>) -> TestResult<T>
+where
+    E: fmt::Display,
+{
+    value.map_err(|error| {
+        let context = context.into();
+        if context.is_empty() {
+            error.to_string()
+        } else {
+            format!("{context}: {error}")
+        }
+    })
+}
 
 // ---------------------------------------------------------------------------
 // Grammar assertions
@@ -212,6 +254,48 @@ macro_rules! assert_grammar_invalid {
 mod tests {
     use super::*;
     use crate::grammar_helpers::{arithmetic_grammar, test_grammar, trivial_grammar};
+
+    #[test]
+    fn ensure_succeeds_when_condition_is_true() {
+        assert_eq!(ensure(true, "must be true"), Ok(()));
+    }
+
+    #[test]
+    fn ensure_returns_message_when_condition_is_false() {
+        assert_eq!(
+            ensure(false, "condition failed"),
+            Err("condition failed".to_string())
+        );
+    }
+
+    #[test]
+    fn require_some_extracts_value() {
+        assert_eq!(require_some(Some(42), "missing value"), Ok(42));
+    }
+
+    #[test]
+    fn require_some_reports_missing_value() {
+        assert_eq!(
+            require_some::<u8>(None, "missing value"),
+            Err("missing value".to_string())
+        );
+    }
+
+    #[test]
+    fn require_ok_extracts_success() {
+        assert_eq!(
+            require_ok::<_, &str>(Ok("value"), "parse should succeed"),
+            Ok("value")
+        );
+    }
+
+    #[test]
+    fn require_ok_reports_context_and_error() {
+        assert_eq!(
+            require_ok::<(), _>(Err("bad token"), "parse should succeed"),
+            Err("parse should succeed: bad token".to_string())
+        );
+    }
 
     #[test]
     fn test_assert_has_rule() {

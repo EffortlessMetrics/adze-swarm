@@ -7,6 +7,8 @@ pub mod grammar_helpers;
 pub mod snapshots;
 pub mod strategies;
 
+pub use assertions::{TestResult, ensure, require_ok, require_some};
+
 use adze_glr_core::ParseTable;
 use adze_ir::Grammar;
 use anyhow::{Context, Result};
@@ -445,6 +447,21 @@ fn average_positive_speedup(results: &[GrammarTestResult]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn root_reexports_fallible_helpers() -> TestResult {
+        ensure(true, "root ensure should be available")?;
+        let value = require_some(Some(7), "root require_some should be available")?;
+        ensure(
+            value == 7,
+            "root require_some should return the inner value",
+        )?;
+        let parsed = require_ok("9".parse::<u8>(), "root require_ok should be available")?;
+        ensure(
+            parsed == 9,
+            "root require_ok should return the parsed value",
+        )
+    }
 
     #[test]
     fn test_report_generation() {
