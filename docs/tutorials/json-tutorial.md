@@ -1,6 +1,9 @@
 # Tutorial: Building a JSON Parser with Adze
 
-In this tutorial, we will build a fully functional JSON parser from scratch using Adze. You will learn how to define complex grammars using Rust enums and structs, handle recursive structures, and extract typed data.
+In this tutorial, we will build a JSON-subset parser from scratch using Adze.
+You will learn how to define complex grammars using Rust enums and structs,
+handle recursive structures, and extract typed data. Treat this as a tutorial
+fixture, not a separate stable `adze-json` language package.
 
 ## What You'll Build
 
@@ -129,7 +132,7 @@ Update your `grammar` module in `src/lib.rs`:
 
 ## Step 4: Add a Test Case
 
-Now let's add a test to verify our parser works with a complex nested JSON string.
+Now let's add a test that exercises the parser with a nested JSON string.
 
 Add this to the bottom of `src/lib.rs`:
 
