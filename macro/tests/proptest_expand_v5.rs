@@ -19,17 +19,14 @@ use syn::{DeriveInput, Fields, Type, parse_quote, parse_str};
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-#[allow(dead_code)]
 fn skip_set<'a>(names: &'a [&'a str]) -> HashSet<&'a str> {
     names.iter().copied().collect()
 }
 
-#[allow(dead_code)]
 fn ty_str(ty: &Type) -> String {
     ty.to_token_stream().to_string()
 }
 
-#[allow(dead_code)]
 fn is_parameterized(ty: &Type) -> bool {
     if let Type::Path(p) = ty
         && let Some(seg) = p.path.segments.last()
@@ -39,15 +36,9 @@ fn is_parameterized(ty: &Type) -> bool {
     false
 }
 
-#[allow(dead_code)]
 fn is_adze_attr(attr: &syn::Attribute, name: &str) -> bool {
     let segs: Vec<_> = attr.path().segments.iter().collect();
     segs.len() == 2 && segs[0].ident == "adze" && segs[1].ident == name
-}
-
-#[allow(dead_code)]
-fn try_parse_type(s: &str) -> Option<Type> {
-    parse_str::<Type>(s).ok()
 }
 
 // ── Strategy helpers ────────────────────────────────────────────────────────
