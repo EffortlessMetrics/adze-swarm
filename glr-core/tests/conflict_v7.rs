@@ -15,7 +15,7 @@
 //! 7. Complex grammars: real-world-like grammar patterns (8 tests)
 //! 8. Edge cases: corner cases and boundary conditions (8 tests)
 
-use adze_glr_core::{Action, FirstFollowSets, SymbolId, build_lr1_automaton};
+use adze_glr_core::{Action, FirstFollowSets, build_lr1_automaton};
 use adze_ir::Associativity;
 use adze_ir::builder::GrammarBuilder;
 
@@ -30,7 +30,6 @@ fn build_table(grammar: &adze_ir::Grammar) -> adze_glr_core::ParseTable {
 }
 
 /// Count total number of shift-reduce conflicts in a parse table.
-#[allow(dead_code)]
 fn count_sr_conflicts(table: &adze_glr_core::ParseTable) -> usize {
     let mut count = 0;
     for state_idx in 0..table.state_count {
@@ -49,7 +48,6 @@ fn count_sr_conflicts(table: &adze_glr_core::ParseTable) -> usize {
 }
 
 /// Count total number of reduce-reduce conflicts in a parse table.
-#[allow(dead_code)]
 fn count_rr_conflicts(table: &adze_glr_core::ParseTable) -> usize {
     let mut count = 0;
     for state_idx in 0..table.state_count {
@@ -74,7 +72,6 @@ fn count_rr_conflicts(table: &adze_glr_core::ParseTable) -> usize {
 }
 
 /// Count multi-action cells (cells with more than one action).
-#[allow(dead_code)]
 fn count_multi_action_cells(table: &adze_glr_core::ParseTable) -> usize {
     let mut count = 0;
     for state_idx in 0..table.state_count {
@@ -89,7 +86,6 @@ fn count_multi_action_cells(table: &adze_glr_core::ParseTable) -> usize {
 }
 
 /// Count fork actions in the parse table.
-#[allow(dead_code)]
 fn count_fork_actions(table: &adze_glr_core::ParseTable) -> usize {
     let mut count = 0;
     for state_idx in 0..table.state_count {
@@ -104,30 +100,7 @@ fn count_fork_actions(table: &adze_glr_core::ParseTable) -> usize {
     count
 }
 
-/// Get a terminal symbol ID by name.
-#[allow(dead_code)]
-fn tok_id(grammar: &adze_ir::Grammar, name: &str) -> SymbolId {
-    grammar
-        .tokens
-        .iter()
-        .find(|(_, tok)| tok.name == name)
-        .map(|(id, _)| *id)
-        .unwrap_or_else(|| panic!("token '{name}' not found"))
-}
-
-/// Get a nonterminal symbol ID by name.
-#[allow(dead_code)]
-fn nt_id(grammar: &adze_ir::Grammar, name: &str) -> SymbolId {
-    grammar
-        .rule_names
-        .iter()
-        .find(|(_, n)| n.as_str() == name)
-        .map(|(id, _)| *id)
-        .unwrap_or_else(|| panic!("nonterminal '{name}' not found"))
-}
-
 /// Check if a parse table has any Accept action.
-#[allow(dead_code)]
 fn has_any_accept(table: &adze_glr_core::ParseTable) -> bool {
     for state_idx in 0..table.state_count {
         for sym_idx in 0..table.symbol_count {
@@ -135,19 +108,6 @@ fn has_any_accept(table: &adze_glr_core::ParseTable) -> bool {
             if actions.iter().any(|a| matches!(a, Action::Accept)) {
                 return true;
             }
-        }
-    }
-    false
-}
-
-/// Check if any state has shift action on a symbol.
-#[allow(dead_code)]
-fn any_state_has_shift(table: &adze_glr_core::ParseTable, sym: SymbolId) -> bool {
-    let sym_idx = table.symbol_to_index.get(&sym).copied().unwrap_or(0);
-    for state_idx in 0..table.state_count {
-        let actions = &table.action_table[state_idx][sym_idx];
-        if actions.iter().any(|a| matches!(a, Action::Shift(_))) {
-            return true;
         }
     }
     false
