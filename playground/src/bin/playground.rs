@@ -1,4 +1,4 @@
-// CLI entry point for adze playground
+// CLI entry point for the experimental Adze playground.
 
 use adze_playground::{PlaygroundBuilder, PlaygroundFeature};
 use anyhow::Result;
@@ -7,7 +7,10 @@ use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "adze-playground")]
-#[command(about = "Interactive grammar testing playground for adze", long_about = None)]
+#[command(
+    about = "Experimental grammar playground for Adze",
+    long_about = None
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -73,7 +76,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Cli { grammar, tests } => {
-            println!("🚀 Launching CLI playground...");
+            println!("Launching prototype CLI playground...");
 
             let mut builder = PlaygroundBuilder::new()
                 .grammar(grammar.to_string_lossy())
@@ -91,7 +94,7 @@ fn main() -> Result<()> {
             port,
             tests,
         } => {
-            println!("🌐 Launching web playground on port {}...", port);
+            println!("Launching prototype web playground on port {port}...");
 
             let mut builder = PlaygroundBuilder::new()
                 .grammar(grammar.to_string_lossy())
@@ -109,7 +112,7 @@ fn main() -> Result<()> {
             tests,
             format,
         } => {
-            println!("🧪 Running tests...");
+            println!("Running playground test prototype...");
 
             PlaygroundBuilder::new()
                 .grammar(grammar.to_string_lossy())
@@ -129,7 +132,7 @@ fn main() -> Result<()> {
         }
 
         Commands::Analyze { grammar, format } => {
-            println!("🔍 Analyzing grammar...");
+            println!("Analyzing grammar with playground prototype...");
 
             PlaygroundBuilder::new()
                 .grammar(grammar.to_string_lossy())

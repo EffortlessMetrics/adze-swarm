@@ -1,29 +1,41 @@
 # Adze Grammar Playground
 
-An interactive testing environment for adze grammars with both CLI and web interfaces.
+Experimental playground prototypes for exercising Adze grammar ideas through
+CLI and web-oriented interfaces.
+
+> **Support boundary:** `adze-playground` is not part of the Stable Adze
+> product contract. Treat this crate as an advisory developer prototype until
+> the support-tier ledger names a stable playground slice and proof command.
+> Published `cargo install adze-playground` usage is not claimed here.
 
 ## Features
 
-- **Interactive Testing**: Test your grammar with real-time feedback
-- **Web Interface**: Beautiful web UI for grammar exploration
-- **CLI Interface**: Terminal-based interactive testing
-- **Grammar Analysis**: Detect conflicts, ambiguities, and performance issues
-- **Visualization**: See parse trees as graphs
-- **Test Management**: Create, run, and manage test suites
-- **Performance Metrics**: Measure parsing speed
-- **Import/Export**: Save and share playground sessions
+- **CLI prototype**: Exercise grammar parsing and analysis commands from this
+  repository checkout.
+- **Web prototype**: Explore the shape of an Axum-backed playground surface.
+- **Analysis experiments**: Try conflict, ambiguity, and statistics reporting
+  ideas without treating them as release-quality diagnostics.
+- **Visualization experiments**: Render parser output in developer-oriented
+  forms where implemented.
 
-## Installation
+## Local Checkout Usage
+
+Build or run the prototype from this repository checkout:
 
 ```bash
-cargo install adze-playground
+cargo build -p adze-playground
+cargo run -p adze-playground --bin adze-playground -- --help
 ```
+
+Do not use this README as a crates.io install receipt. A published install
+claim requires an explicit release/publish approval and post-publish install
+verification.
 
 ## Usage
 
 ### Web Interface
 
-Launch a web server for interactive testing:
+Launch the prototype web server:
 
 ```bash
 adze-playground web --grammar ./my-grammar/src/lib.rs --port 8080
@@ -33,7 +45,7 @@ Then open http://localhost:8080 in your browser.
 
 ### CLI Interface
 
-Launch an interactive terminal session:
+Launch the prototype interactive terminal session:
 
 ```bash
 adze-playground cli --grammar ./my-grammar/src/lib.rs
@@ -93,14 +105,14 @@ Create test files in JSON format:
 ## Web Interface Features
 
 ### Parse Tree Visualization
-- See the parse tree structure
-- Syntax highlighted output
-- Collapsible nodes
+- See the parse tree structure where implemented
+- Experiment with highlighted output
+- Explore collapsible node concepts
 
 ### Grammar Analysis
 - Rule statistics
 - Conflict detection
-- Performance suggestions
+- Advisory performance suggestions
 - Ambiguity warnings
 
 ### Test Management
@@ -118,16 +130,16 @@ Create test files in JSON format:
 ## CLI Interface Features
 
 ### Interactive Commands
-- Real-time parsing
+- Prototype parsing feedback
 - Test case management
 - Grammar analysis
 - Session persistence
 
 ### Colored Output
-- ✅ Green for success
-- ❌ Red for errors
-- 🔵 Blue for prompts
-- 📊 Statistics tables
+- Green for success
+- Red for errors
+- Blue for prompts
+- Statistics tables
 
 ## Examples
 
@@ -142,7 +154,7 @@ adze-playground web \
 # CLI testing
 adze-playground cli --grammar ../grammars/javascript/src/lib.rs
 > parse function hello() { return "world"; }
-✓ Parse successful
+Parse successful
 Tree:
 (program
   (function_declaration
@@ -157,7 +169,7 @@ Time: 0.52ms
 ### Python Grammar Testing
 
 ```bash
-# Analyze Python grammar
+# Analyze Python grammar in the prototype
 adze-playground analyze --grammar ../grammars/python/src/lib.rs
 
 Grammar Statistics:
@@ -167,11 +179,11 @@ Grammar Statistics:
   Avg rule length: 3.2
 
 Suggestions:
-  ℹ Consider adding error recovery rules
-  ⚠ Left recursion detected in expression rules
+  Info: Consider adding error recovery rules
+  Warning: Left recursion detected in expression rules
 ```
 
-## Architecture
+## Prototype Architecture
 
 The playground consists of:
 
@@ -204,7 +216,7 @@ The playground is extensible:
 - Use the web interface for visual exploration
 - Use the CLI for automated testing
 - Export sessions to share with others
-- Analyze grammar before production use
+- Use stable `adze` parser APIs for product parsing proof
 - Add tests for edge cases
 
 ## License
