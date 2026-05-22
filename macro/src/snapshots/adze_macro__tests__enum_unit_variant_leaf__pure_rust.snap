@@ -1,5 +1,6 @@
 ---
 source: macro/src/lib.rs
+assertion_line: 973
 expression: "rustfmt_code(&expand_grammar(parse_quote!\n{\n    #[adze::grammar(\"test\")] mod grammar\n    {\n        #[adze::language] pub enum Keyword\n        {\n            #[adze::leaf(text = \"if\")] If, #[adze::leaf(text = \"else\")] Else,\n            #[adze::leaf(text = \"while\")] While,\n        }\n    }\n})? .to_token_stream().to_string())"
 ---
 mod grammar {
@@ -11,7 +12,6 @@ mod grammar {
     impl ::adze::Extract<Keyword> for Keyword {
         type LeafFn = ();
         const GRAMMAR_NAME: &'static str = "test";
-        #[allow(non_snake_case)]
         fn extract(
             node: Option<&::adze::pure_parser::ParsedNode>,
             source: &[u8],
