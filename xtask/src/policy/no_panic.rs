@@ -365,6 +365,39 @@ fn write_reports(report_dir: &Path, report: &CheckReport, findings: &[Finding]) 
         md.push_str(&format!("| {k} | {v} |\n"));
     }
 
+    md.push_str("\n## Path prefix breakdown\n\n");
+    let mut by_prefix: BTreeMap<&str, usize> = BTreeMap::new();
+    for f in findings {
+        let prefix = f.path.split('/').next().unwrap_or("<root>");
+        *by_prefix.entry(prefix).or_default() += 1;
+    }
+    let mut prefix_rows = by_prefix.into_iter().collect::<Vec<_>>();
+    prefix_rows.sort_by(|(left_name, left_count), (right_name, right_count)| {
+        right_count
+            .cmp(left_count)
+            .then_with(|| left_name.cmp(right_name))
+    });
+    md.push_str("| prefix | count |\n|---|---|\n");
+    for (prefix, count) in prefix_rows {
+        md.push_str(&format!("| {prefix} | {count} |\n"));
+    }
+
+    md.push_str("\n## Top files by finding count\n\n");
+    let mut by_file: BTreeMap<&str, usize> = BTreeMap::new();
+    for f in findings {
+        *by_file.entry(&f.path).or_default() += 1;
+    }
+    let mut file_rows = by_file.into_iter().collect::<Vec<_>>();
+    file_rows.sort_by(|(left_path, left_count), (right_path, right_count)| {
+        right_count
+            .cmp(left_count)
+            .then_with(|| left_path.cmp(right_path))
+    });
+    md.push_str("| path | count |\n|---|---|\n");
+    for (path, count) in file_rows.iter().take(25) {
+        md.push_str(&format!("| {path} | {count} |\n"));
+    }
+
     if !report.unallowlisted.is_empty() {
         md.push_str("\n## Unallowlisted (top 50)\n\n");
         md.push_str("| family | path | container | callee | line |\n|---|---|---|---|---|\n");
