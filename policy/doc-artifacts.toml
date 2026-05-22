@@ -312,7 +312,7 @@ links_to = [
 id = "ADZE-PROP-0016"
 kind = "proposal"
 path = "docs/proposals/ADZE-PROP-0016-cli-dynamic-parse-boundary.md"
-status = "accepted"
+status = "implemented"
 owner = "cli/product"
 milestone = "post-0.9"
 source_of_truth_for = ["CLI dynamic parse boundary rationale", "non-release CLI dynamic parse hardening campaign"]
@@ -322,8 +322,10 @@ links_to = [
   "ADZE-ADR-0001",
   "ADZE-ADR-0004",
   "plans/cli-dynamic-parse/implementation-plan.md",
+  "plans/cli-dynamic-parse/closeout.md",
   ".adze/goals/active.toml",
   ".adze/goals/cli-dynamic-parse-boundary.toml",
+  ".adze/goals/archive/2026-05-21-cli-dynamic-parse-boundary.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -959,7 +961,7 @@ links_to = [
 id = "plans/cli-dynamic-parse/implementation-plan.md"
 kind = "plan"
 path = "plans/cli-dynamic-parse/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "cli/product"
 milestone = "post-0.9"
 source_of_truth_for = ["CLI dynamic parse boundary implementation sequence"]
@@ -967,8 +969,25 @@ links_to = [
   "ADZE-PROP-0016",
   "ADZE-SPEC-0008",
   "ADZE-SPEC-0011",
+  "plans/cli-dynamic-parse/closeout.md",
   ".adze/goals/active.toml",
   ".adze/goals/cli-dynamic-parse-boundary.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = "plans/cli-dynamic-parse/closeout.md"
+kind = "plan"
+path = "plans/cli-dynamic-parse/closeout.md"
+status = "complete"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["CLI dynamic parse boundary closeout receipts and claim boundaries"]
+links_to = [
+  "ADZE-PROP-0016",
+  "plans/cli-dynamic-parse/implementation-plan.md",
+  ".adze/goals/cli-dynamic-parse-boundary.toml",
+  ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -1278,15 +1297,31 @@ links_to = [
 id = ".adze/goals/cli-dynamic-parse-boundary.toml"
 kind = "goal"
 path = ".adze/goals/cli-dynamic-parse-boundary.toml"
-status = "active"
+status = "complete"
 owner = "cli/product"
 milestone = "post-0.9"
 source_of_truth_for = ["CLI dynamic parse boundary agent work queue"]
 links_to = [
   "ADZE-PROP-0016",
   "plans/cli-dynamic-parse/implementation-plan.md",
+  "plans/cli-dynamic-parse/closeout.md",
   ".adze/goals/active.toml",
+  ".adze/goals/archive/2026-05-21-cli-dynamic-parse-boundary.toml",
   "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/archive/2026-05-21-cli-dynamic-parse-boundary.toml"
+kind = "goal"
+path = ".adze/goals/archive/2026-05-21-cli-dynamic-parse-boundary.toml"
+status = "complete"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["archived CLI dynamic parse boundary complete manifest"]
+links_to = [
+  "ADZE-PROP-0016",
+  "plans/cli-dynamic-parse/implementation-plan.md",
+  "plans/cli-dynamic-parse/closeout.md",
 ]
 
 [[artifact]]

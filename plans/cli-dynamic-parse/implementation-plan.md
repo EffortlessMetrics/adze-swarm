@@ -1,6 +1,6 @@
 # CLI Dynamic Parse Boundary Hardening Plan
 
-Status: active
+Status: complete
 Owner: cli/product
 Created: 2026-05-21
 Linked proposal: ../../docs/proposals/ADZE-PROP-0016-cli-dynamic-parse-boundary.md
@@ -138,7 +138,8 @@ with the previous documentation boundary restored.
 
 ## Work Item: cli-dynamic-parse-closeout
 
-Status: ready
+Status: complete
+Completed by: EffortlessMetrics/adze-swarm#473
 Linked proposal: ../../docs/proposals/ADZE-PROP-0016-cli-dynamic-parse-boundary.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -154,6 +155,15 @@ language matches the proved surface.
 ### Production Delta
 
 Source-of-truth closeout only when behavior receipts exist.
+
+### Acceptance
+
+- `plans/cli-dynamic-parse/closeout.md` records the behavior receipts and
+  claim boundaries.
+- The active and named goal manifests mark all lane work items complete.
+- `policy/doc-artifacts.toml` registers the closeout and archived goal.
+- `plans/README.md` and `docs/status/NOW_NEXT_LATER.md` no longer describe
+  this lane as active.
 
 ### Proof Commands
 

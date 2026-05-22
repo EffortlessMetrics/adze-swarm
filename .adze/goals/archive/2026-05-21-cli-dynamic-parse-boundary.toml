@@ -3,6 +3,7 @@ title = "Adze CLI Dynamic Parse Boundary"
 status = "complete"
 owner = "cli/product"
 created = "2026-05-21"
+archived = "2026-05-21"
 
 objective = """
 Make the feature-gated `adze parse --dynamic` surface safer without changing
@@ -13,15 +14,15 @@ and release/publish blockers.
 
 handoff = """
 Release and crates.io install work remains blocked on explicit human
-authorization tracked by EffortlessMetrics/adze-swarm#325. This active goal is
-the non-release continuation lane for dynamic CLI parse boundary hardening in
+authorization tracked by EffortlessMetrics/adze-swarm#325. This completed goal
+closed the non-release dynamic CLI parse boundary hardening lane in
 adze-swarm.
 """
 
 end_state = [
   "adze-swarm remains the operating repo for CLI implementation and proof work.",
   "public adze remains the release, public-intake, promotion, tag, publish, signing, and Cargo-token surface.",
-  "No release tag, crate publish, signing, Cargo-token, or crates.io install-receipt work happens in this lane.",
+  "No release tag, crate publish, signing, Cargo-token, or crates.io install-receipt work happened in this lane.",
   "Dynamic parse output remains explicitly experimental and unimplemented unless behavior receipts prove otherwise.",
   "Dynamic-loading docs and support tiers do not imply a supported parse-output path.",
   "Stable CLI/WASM schema claims are not promoted without proof receipts and source-of-truth updates.",

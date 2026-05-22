@@ -1,6 +1,6 @@
 # ADZE-PROP-0016: CLI Dynamic Parse Boundary Hardening
 
-Status: accepted
+Status: implemented
 Owner: cli/product
 Created: 2026-05-21
 Target milestone: post-0.9 / non-release CLI hardening
@@ -16,9 +16,11 @@ Linked issues:
 - EffortlessMetrics/adze-swarm#325
 Linked PRs:
 - EffortlessMetrics/adze-swarm#471
+- EffortlessMetrics/adze-swarm#472
+- EffortlessMetrics/adze-swarm#473
 Support-tier impact:
-- Keeps dynamic CLI parse output below Stabilizing until behavior receipts
-  exist.
+- Keeps dynamic CLI parse output below Stabilizing after boundary receipts
+  proved the current feature-gated, unimplemented output surface.
 Policy impact:
 - Keeps CLI hardening in `EffortlessMetrics/adze-swarm`.
 - Keeps release, tag, publish, signing, Cargo-token, and crates.io install

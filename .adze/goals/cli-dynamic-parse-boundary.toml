@@ -1,6 +1,6 @@
 id = "adze-cli-dynamic-parse-boundary"
 title = "Adze CLI Dynamic Parse Boundary"
-status = "active"
+status = "complete"
 owner = "cli/product"
 created = "2026-05-21"
 
@@ -61,13 +61,14 @@ commands = [
 
 [[work_item]]
 id = "cli-dynamic-parse-closeout"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0016-cli-dynamic-parse-boundary.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/cli-dynamic-parse/implementation-plan.md"
 blocked_by = ["dynamic-cli-boundary-receipts"]
 issues = [325]
+prs = [473]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
