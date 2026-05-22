@@ -176,16 +176,6 @@ fn action_strategy() -> impl Strategy<Value = Action> {
     ]
 }
 
-#[allow(dead_code)]
-fn flat_action_strategy() -> impl Strategy<Value = Action> {
-    prop_oneof![
-        3 => Just(Action::Error),
-        2 => (1u16..100).prop_map(|s| Action::Shift(StateId(s))),
-        2 => (0u16..50).prop_map(|r| Action::Reduce(RuleId(r))),
-        1 => Just(Action::Accept),
-    ]
-}
-
 fn action_cell_strategy() -> impl Strategy<Value = Vec<Action>> {
     prop::collection::vec(action_strategy(), 0..=3)
 }
@@ -197,19 +187,6 @@ fn action_table_strategy(
     (1..=max_states, 1..=max_symbols).prop_flat_map(|(states, symbols)| {
         prop::collection::vec(
             prop::collection::vec(action_cell_strategy(), symbols..=symbols),
-            states..=states,
-        )
-    })
-}
-
-#[allow(dead_code)]
-fn flat_action_table_strategy(
-    max_states: usize,
-    max_symbols: usize,
-) -> impl Strategy<Value = Vec<Vec<Action>>> {
-    (1..=max_states, 1..=max_symbols).prop_flat_map(|(states, symbols)| {
-        prop::collection::vec(
-            prop::collection::vec(flat_action_strategy(), symbols..=symbols),
             states..=states,
         )
     })
@@ -233,11 +210,6 @@ fn goto_table_strategy(
 
 fn grammar_name_strategy() -> impl Strategy<Value = String> {
     "[a-z][a-z0-9_]{0,15}".prop_filter("non-empty", |s| !s.is_empty())
-}
-
-#[allow(dead_code)]
-fn token_name_strategy() -> impl Strategy<Value = String> {
-    "[a-z][a-z0-9_]{0,10}".prop_filter("non-empty", |s| !s.is_empty())
 }
 
 // ═══════════════════════════════════════════════════════════════════════
