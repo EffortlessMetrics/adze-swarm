@@ -25,20 +25,17 @@ use adze_tablegen::external_scanner_v2::ExternalScannerGenerator as V2Generator;
 // ---------------------------------------------------------------------------
 
 /// Build a real LR(1) parse table from a grammar (normalizes in place).
-#[allow(dead_code)]
 fn build_table(grammar: &mut Grammar) -> adze_glr_core::ParseTable {
     let ff = FirstFollowSets::compute_normalized(grammar).expect("FIRST/FOLLOW computation failed");
     build_lr1_automaton(grammar, &ff).expect("LR(1) automaton construction failed")
 }
 
 /// Minimal parse table via test_helpers (no LR build).
-#[allow(dead_code)]
 fn minimal_table(grammar: &Grammar) -> adze_glr_core::ParseTable {
     test_helpers::create_minimal_parse_table(grammar.clone())
 }
 
 /// Grammar with one rule, one token, and N externals via GrammarBuilder.
-#[allow(dead_code)]
 fn grammar_ext(names: &[&str]) -> Grammar {
     let mut b = GrammarBuilder::new("ext_v7")
         .token("WORD", r"[a-z]+")
@@ -51,7 +48,6 @@ fn grammar_ext(names: &[&str]) -> Grammar {
 }
 
 /// Push N raw ExternalTokens into a Grammar.
-#[allow(dead_code)]
 fn add_externals(g: &mut Grammar, count: u16, base_id: u16) {
     for i in 0..count {
         g.externals.push(ExternalToken {
