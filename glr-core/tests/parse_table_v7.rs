@@ -36,7 +36,6 @@ use std::collections::HashSet;
 // ============================================================================
 
 /// Build a ParseTable from tokens, rules, and start symbol.
-#[allow(dead_code)]
 fn build_pt(
     name: &str,
     tokens: &[(&str, &str)],
@@ -57,7 +56,6 @@ fn build_pt(
 }
 
 /// Count actions of a specific type in the table.
-#[allow(dead_code)]
 fn count_actions(pt: &ParseTable, pred: fn(&Action) -> bool) -> usize {
     let mut count = 0;
     for s in 0..pt.state_count {
@@ -73,25 +71,21 @@ fn count_actions(pt: &ParseTable, pred: fn(&Action) -> bool) -> usize {
 }
 
 /// Count accept actions.
-#[allow(dead_code)]
 fn count_accept_actions(pt: &ParseTable) -> usize {
     count_actions(pt, |a| matches!(a, Action::Accept))
 }
 
 /// Count shift actions.
-#[allow(dead_code)]
 fn count_shift_actions(pt: &ParseTable) -> usize {
     count_actions(pt, |a| matches!(a, Action::Shift(_)))
 }
 
 /// Count reduce actions.
-#[allow(dead_code)]
 fn count_reduce_actions(pt: &ParseTable) -> usize {
     count_actions(pt, |a| matches!(a, Action::Reduce(_)))
 }
 
 /// Check if table has accept action on EOF.
-#[allow(dead_code)]
 fn has_accept_on_eof(pt: &ParseTable) -> bool {
     let eof = pt.eof_symbol;
     (0..pt.state_count).any(|s| {
@@ -102,7 +96,6 @@ fn has_accept_on_eof(pt: &ParseTable) -> bool {
 }
 
 /// Get all reachable states via closure from initial state.
-#[allow(dead_code)]
 fn reachable_states(pt: &ParseTable) -> HashSet<StateId> {
     let mut visited = HashSet::new();
     let mut to_visit = vec![pt.initial_state];
@@ -138,7 +131,6 @@ fn reachable_states(pt: &ParseTable) -> HashSet<StateId> {
 }
 
 /// Count total non-empty cells in action table.
-#[allow(dead_code)]
 fn action_table_density(pt: &ParseTable) -> usize {
     pt.action_table
         .iter()
@@ -148,7 +140,6 @@ fn action_table_density(pt: &ParseTable) -> usize {
 }
 
 /// Compute a simple hash/fingerprint of table for comparison.
-#[allow(dead_code)]
 fn table_fingerprint(pt: &ParseTable) -> u64 {
     let mut fp: u64 = 0;
     fp = fp.wrapping_mul(31).wrapping_add(pt.state_count as u64);
