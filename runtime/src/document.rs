@@ -185,6 +185,17 @@ impl AdzeDocument {
         self.source.get(range)
     }
 
+    /// Return conservative changed byte ranges between this document and a
+    /// newer document.
+    ///
+    /// The returned ranges are byte ranges in `newer`'s source text. This is
+    /// an experimental document-lifecycle helper: it reports a source-text
+    /// range that changed, but does not claim node reuse, stable cross-document
+    /// node identity, or incremental performance.
+    pub fn changed_ranges(&self, newer: &Self) -> impl Iterator<Item = Range<usize>> {
+        conservative_changed_ranges(&self.source, &newer.source).into_iter()
+    }
+
     /// Return a schema-versioned JSON value for this native document.
     ///
     /// This experimental projection is intended for canaries and future CLI or
@@ -384,6 +395,49 @@ impl AdzeDocument {
             }]
         })
     }
+}
+
+fn conservative_changed_ranges(old_source: &str, new_source: &str) -> Vec<Range<usize>> {
+    if old_source == new_source {
+        return Vec::new();
+    }
+
+    let old_bytes = old_source.as_bytes();
+    let new_bytes = new_source.as_bytes();
+    let common_len = old_bytes.len().min(new_bytes.len());
+
+    let mut prefix_len = 0;
+    while prefix_len < common_len && old_bytes[prefix_len] == new_bytes[prefix_len] {
+        prefix_len += 1;
+    }
+
+    let mut old_suffix_start = old_bytes.len();
+    let mut new_suffix_start = new_bytes.len();
+    while old_suffix_start > prefix_len
+        && new_suffix_start > prefix_len
+        && old_bytes[old_suffix_start - 1] == new_bytes[new_suffix_start - 1]
+    {
+        old_suffix_start -= 1;
+        new_suffix_start -= 1;
+    }
+
+    let start = previous_char_boundary(new_source, prefix_len.min(new_source.len()));
+    let end = next_char_boundary(new_source, new_suffix_start.min(new_source.len()));
+    vec![start..end]
+}
+
+fn previous_char_boundary(source: &str, mut byte: usize) -> usize {
+    while byte > 0 && !source.is_char_boundary(byte) {
+        byte -= 1;
+    }
+    byte
+}
+
+fn next_char_boundary(source: &str, mut byte: usize) -> usize {
+    while byte < source.len() && !source.is_char_boundary(byte) {
+        byte += 1;
+    }
+    byte
 }
 
 /// A typed AST value paired with document-level syntax provenance.
@@ -1649,6 +1703,41 @@ mod tests {
         (Grammar::new("fielded".to_string()), table)
     }
 
+    fn fielded_document(source: &str) -> AdzeDocument {
+        let (grammar, table) = fielded_language();
+        let source_file = SymbolId(1);
+        let expression = SymbolId(2);
+        let number = SymbolId(3);
+
+        let root = ParseNode {
+            symbol: source_file,
+            symbol_id: source_file,
+            start_byte: 0,
+            end_byte: source.len(),
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![ParseNode {
+                symbol: expression,
+                symbol_id: expression,
+                start_byte: 0,
+                end_byte: source.len(),
+                field_name: None,
+                alias_symbol_id: None,
+                children: vec![ParseNode {
+                    symbol: number,
+                    symbol_id: number,
+                    start_byte: 0,
+                    end_byte: source.len(),
+                    field_name: Some("left".to_string()),
+                    alias_symbol_id: None,
+                    children: Vec::new(),
+                }],
+            }],
+        };
+
+        AdzeDocument::from_parse_result(source, root, 0, "fielded", &grammar, &table)
+    }
+
     #[test]
     fn reparse_fallback_metadata_records_full_reparse_fallback() {
         let (grammar, table) = fielded_language();
@@ -1699,6 +1788,38 @@ mod tests {
             Some(&IncrementalFallbackReason::FullReparseOnly)
         );
         assert!(document.metadata().full_reparse_fallback());
+    }
+
+    #[test]
+    fn changed_ranges_returns_empty_when_sources_match() {
+        let old = fielded_document("1 + 2");
+        let newer = fielded_document("1 + 2");
+
+        let ranges: Vec<Range<usize>> = old.changed_ranges(&newer).collect();
+
+        assert!(ranges.is_empty());
+    }
+
+    #[test]
+    fn changed_ranges_reports_new_document_byte_range() {
+        let old = fielded_document("1 + 2");
+        let newer = fielded_document("1 + 3");
+
+        let ranges: Vec<Range<usize>> = old.changed_ranges(&newer).collect();
+
+        assert_eq!(ranges, vec![4..5]);
+        assert_eq!(newer.source_slice(ranges[0].clone()), Some("3"));
+    }
+
+    #[test]
+    fn changed_ranges_preserves_utf8_boundaries() {
+        let old = fielded_document("a é c");
+        let newer = fielded_document("a ê c");
+
+        let ranges: Vec<Range<usize>> = old.changed_ranges(&newer).collect();
+
+        assert_eq!(ranges, vec![2..4]);
+        assert_eq!(newer.source_slice(ranges[0].clone()), Some("ê"));
     }
 
     #[test]
