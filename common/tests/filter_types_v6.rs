@@ -11,19 +11,16 @@ use syn::{Type, parse_quote};
 // Helpers
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
 fn skip<'a>(names: &'a [&'a str]) -> HashSet<&'a str> {
     names.iter().copied().collect()
 }
 
-#[allow(dead_code)]
 fn ty_str(ty: &Type) -> String {
     ty.to_token_stream().to_string()
 }
 
 /// Returns `true` when the outermost type carries angle-bracketed generic
 /// arguments (i.e. is a parameterized `Type::Path`).
-#[allow(dead_code)]
 fn is_parameterized(ty: &Type) -> bool {
     if let Type::Path(p) = ty
         && let Some(seg) = p.path.segments.last()
