@@ -133,6 +133,14 @@ claim canaries after the static `tree`, `sexp`, `json`, and `dot` CLI output
 lanes closed and after the latest crates.io install-boundary status updates.
 It is still non-release product proof, not a crates.io install receipt.
 
+Latest current-main receipt after CLI dynamic parse boundary closeout and audit
+alignment PRs #471-#474: `just ci-supported` and `just ci-product-stable`
+passed on 2026-05-22 from `adze-swarm/main` at commit `3a2f83e6`. This
+refreshes the supported core pipeline and the Stable README claim canaries
+after the dynamic parse boundary lane closed and after this audit was aligned
+with that closeout. It is still non-release product proof, not a crates.io
+install receipt or release authorization.
+
 Latest user-experience hardening closeout: PRs #350-#356 completed the
 non-release adoption polish lane and archived it in
 [`../../plans/user-experience-hardening/closeout.md`](../../plans/user-experience-hardening/closeout.md).
