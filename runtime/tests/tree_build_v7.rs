@@ -11,8 +11,6 @@
 //! - Stats collection (8 tests)
 //! - Integration scenarios (8 tests)
 
-#![allow(dead_code)]
-
 use adze::arena_allocator::{NodeHandle, TreeArena, TreeNode};
 
 // ============================================================================
@@ -437,7 +435,6 @@ fn scale_many_internal_nodes() {
 // Category 5: Tree Walking - Depth-First (8 tests)
 // ============================================================================
 
-#[allow(dead_code)]
 fn walk_tree_dfs(arena: &TreeArena, node_h: NodeHandle, visitor: &mut impl FnMut(NodeHandle, i32)) {
     let node_ref = arena.get(node_h);
     visitor(node_h, node_ref.value());
@@ -596,7 +593,6 @@ fn walk_dfs_balanced_tree() {
 // Category 6: Tree Walking - Breadth-First (8 tests)
 // ============================================================================
 
-#[allow(dead_code)]
 fn walk_tree_bfs(arena: &TreeArena, root_h: NodeHandle, visitor: &mut impl FnMut(NodeHandle, i32)) {
     use std::collections::VecDeque;
     let mut queue = VecDeque::new();
@@ -769,7 +765,6 @@ fn walk_bfs_complete_tree() {
 // Category 7: Stats Visitor (8 tests)
 // ============================================================================
 
-#[allow(dead_code)]
 struct SimpleStatsVisitor {
     node_count: usize,
     leaf_count: usize,
@@ -778,7 +773,6 @@ struct SimpleStatsVisitor {
     current_depth: usize,
 }
 
-#[allow(dead_code)]
 impl SimpleStatsVisitor {
     fn new() -> Self {
         SimpleStatsVisitor {
