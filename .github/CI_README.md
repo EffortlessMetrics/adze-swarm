@@ -13,19 +13,20 @@ changes without paying the full public-release CI cost on every PR.
 
 Jobs are classified into three visibility tiers:
 
-- **Required** (`Rust Small Result`): The single merge gate in branch protection. Must be green before merge.
+- **Required** (`Rust Small Result`, `Product Proof Result`): The aggregate
+  merge gates in branch protection. Both must be green before merge.
 - **Push / scheduled**: Runs on schedules, manual dispatch, labels, or explicit paths. Not the default PR blocker.
 - **Advisory** (prefixed `Advisory / `): Uses nightly/unstable toolchains. May be red due to toolchain drift. Inspect, don't block.
 
 ### Jobs
 
 1. **Rust Small Result** - Required routed Rust Small aggregate check for ordinary swarm PRs.
-2. **Route Rust Small** - Chooses CX43 or GitHub-hosted execution.
-3. **Rust Small on CX43** - Runs the small gate on the trusted self-hosted runner when idle.
-4. **Rust Small on GitHub Hosted** - Fallback lane when CX43 is unavailable.
+2. **Product Proof Result** - Required aggregate Stable-claim proof gate.
+3. **Route Rust Small** - Chooses CX43, CX53/CPX-class capacity, or GitHub-hosted execution.
+4. **Rust Small implementation lanes** - Conditional implementation lanes; one selected lane runs, while the others usually skip.
 5. **ci-supported** - Legacy public full-CI support lane; retained for schedule/manual dispatch in `ci.yml`.
 6. **Policy checks** - Source-of-truth and lane-whitelist guardrails.
-7. **Deep lanes** - Feature matrix, OS matrix, coverage, benchmarks, fuzzing, security, docs, and product proof; scheduled, manual, label, or path-routed unless explicitly promoted.
+7. **Deep lanes** - Feature matrix, OS matrix, coverage, benchmarks, fuzzing, security, docs, and advisory product proof; scheduled, manual, label, or path-routed unless explicitly promoted.
 
 ## Manual CI triggers
 
@@ -42,8 +43,14 @@ To make the CI effective, configure these branch protection rules:
 
 ### Required Status Checks
 
-Required status checks are intentionally single-gated.
-Set `adze-swarm` branch protection to require only: `Rust Small Result`.
+Required status checks are intentionally aggregate-gated. Set `adze-swarm`
+branch protection to require only:
+
+- `Rust Small Result`
+- `Product Proof Result`
+
+Do not require conditional implementation jobs such as `Rust Small on CX43`,
+`Rust Small on GitHub Hosted`, or `ci-product stable canaries` directly.
 Everything else is optional signal unless explicitly promoted in
 [CI_LANES.md](./CI_LANES.md) and repository settings.
 
@@ -51,7 +58,7 @@ Everything else is optional signal unless explicitly promoted in
 - Require branches to be up to date before merging
 - Do not require conversation resolution in `adze-swarm`; bot review
   conversations are advisory and must not block the single-operator merge loop
-  once `Rust Small Result` is green.
+  once `Rust Small Result` and `Product Proof Result` are green.
 
 ## Local Development
 
