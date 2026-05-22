@@ -1,6 +1,6 @@
 # Product Objective Audit
 
-**Last updated:** 2026-05-21
+**Last updated:** 2026-05-22
 **Status:** incomplete; use this as an audit checklist, not as a support-tier
 promotion. Routine product-proof, query/tooling, recovery, user-experience,
 parser/runtime maintainability, CLI parse-surface, static S-expression, static
@@ -140,6 +140,16 @@ refreshes the supported core pipeline and the Stable README claim canaries
 after the dynamic parse boundary lane closed and after this audit was aligned
 with that closeout. It is still non-release product proof, not a crates.io
 install receipt or release authorization.
+
+Latest current-main receipt after the current supported-product receipt PR
+#475: `just ci-supported` and `just ci-product-stable` passed on 2026-05-22
+from `adze-swarm/main` at commit `e6aa7ea0`. This reran the supported
+format/clippy/test/doc surface and the Stable README claim canaries from the
+actual post-receipt `main` tree. Source-of-truth checks also passed:
+`cargo run -q -p xtask -- check-active-goal --mode blocking`, `cargo run -q -p
+xtask -- check-doc-artifacts --mode blocking`, and `git diff --check`. This is
+still non-release product proof, not a crates.io install receipt or release
+authorization.
 
 Latest user-experience hardening closeout: PRs #350-#356 completed the
 non-release adoption polish lane and archived it in
@@ -377,7 +387,9 @@ on 2026-05-20 from current `adze-swarm/main` at commit `fc959ec1`, after the
 stable-product receipt status update. It was refreshed again on 2026-05-20 from
 `adze-swarm/main` at commit `99dd12b0`, after PR #330 bumped the publishable
 workspace crates to 0.9.0, and again on 2026-05-21 from `adze-swarm/main` at
-commit `ae317e42` after PRs #468-#469.
+commit `ae317e42` after PRs #468-#469. It was refreshed again on 2026-05-22
+from `adze-swarm/main` at commit `e6aa7ea0` after the current supported and
+Stable-product receipts were recorded.
 It verifies publish-order metadata and `cargo package --list` for
 the core publish surface (`adze-common`, `adze-ir`, `adze-glr-core`,
 `adze-tablegen`, `adze-macro`, `adze-tool`, `adze-cli`, and `adze`). This is
@@ -432,8 +444,11 @@ patches for unpublished co-release crates. It passed on 2026-05-19 from
 `adze-swarm`, producing and verifying `adze-cli v0.9.0`, and passed again
 on 2026-05-20 from `adze-swarm/main` at commit `390ab76f`. It was refreshed
 again from `adze-swarm/main` at commit `99dd12b0` after the workspace version
-bump. This is local publish-readiness evidence, not a crates.io install
-receipt.
+bump, and again on 2026-05-22 from `adze-swarm/main` at commit `e6aa7ea0`.
+The current refresh packaged and verified `adze-cli v0.9.0`; Cargo printed
+non-fatal unused patch warnings for packages not used in the `adze-cli`
+verification graph. This is local publish-readiness evidence, not a crates.io
+install receipt.
 
 `cargo_install_adze_cli_claims_stay_release_surface_bounded` keeps live
 beginner/status/spec docs from presenting `cargo install adze-cli` as a
@@ -492,6 +507,23 @@ cargo info --registry crates-io adze-cli
 cargo install --registry crates-io adze-cli --root <temp-root> --version X.Y.Z --locked
 <temp-root>/bin/adze.exe --version
 ```
+
+The dry-run command shape was refreshed again on 2026-05-22 from
+`adze-swarm/main` at commit `e6aa7ea0` and printed the same explicit
+`crates-io` command sequence. It remains pre-publish command-shape evidence
+only.
+
+Latest public release-surface drift refresh:
+
+- `adze-swarm/main`: `e6aa7ea0`.
+- Public `adze/main`: `6263c6a8`.
+- `git diff --shortstat FETCH_HEAD..origin/main`: `246 files changed, 16894
+  insertions(+), 8428 deletions(-)`.
+
+This non-empty diff is a release blocker until maintainers select a release
+candidate and promote it into public `EffortlessMetrics/adze` with an explicit
+public promotion PR. It is not a reason to tag, publish, or move release
+secrets into `adze-swarm`.
 
 ## Current Non-Completion Reasons
 

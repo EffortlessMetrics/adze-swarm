@@ -1,7 +1,7 @@
 # Now / Next / Later
 
-**Last updated:** 2026-05-21
-**Status:** **Product Proof required-gate policy promotion complete; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, public status sync PR #797 has synced the latest install-gap receipts, and release/publish blockers in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) must stay explicitly proved or bounded before any tag, publish, or release-workflow work. The latest completed non-release lanes are closed out in [`../../plans/product-proof-result-readiness/closeout.md`](../../plans/product-proof-result-readiness/closeout.md), [`../../plans/product-proof-required-gate/implementation-plan.md`](../../plans/product-proof-required-gate/implementation-plan.md), [`../../plans/ci-lane-policy-hygiene/implementation-plan.md`](../../plans/ci-lane-policy-hygiene/implementation-plan.md), [`../../plans/parser-runtime-maintainability/closeout.md`](../../plans/parser-runtime-maintainability/closeout.md), [`../../plans/cli-parse-surface/closeout.md`](../../plans/cli-parse-surface/closeout.md), [`../../plans/cli-static-sexp/closeout.md`](../../plans/cli-static-sexp/closeout.md), [`../../plans/cli-static-json-dot/closeout.md`](../../plans/cli-static-json-dot/closeout.md), and [`../../plans/cli-dynamic-parse/closeout.md`](../../plans/cli-dynamic-parse/closeout.md). No routine release, publish, signing, Cargo-token, or crates.io install receipt work is authorized.
+**Last updated:** 2026-05-22
+**Status:** **Product Proof required-gate policy promotion complete; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, public promotion PR #795 has merged into public `adze`, and current `adze-swarm/main` at `e6aa7ea0` has fresh supported, Stable-product, package-local, publishability, and install dry-run receipts recorded in [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md) and [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325). Public `adze/main` remains behind that current swarm proof state, so a fresh explicit public promotion PR is required before any authorized tag, publish, or crates.io install-receipt work. The latest completed non-release lanes are closed out in [`../../plans/product-proof-result-readiness/closeout.md`](../../plans/product-proof-result-readiness/closeout.md), [`../../plans/product-proof-required-gate/implementation-plan.md`](../../plans/product-proof-required-gate/implementation-plan.md), [`../../plans/ci-lane-policy-hygiene/implementation-plan.md`](../../plans/ci-lane-policy-hygiene/implementation-plan.md), [`../../plans/parser-runtime-maintainability/closeout.md`](../../plans/parser-runtime-maintainability/closeout.md), [`../../plans/cli-parse-surface/closeout.md`](../../plans/cli-parse-surface/closeout.md), [`../../plans/cli-static-sexp/closeout.md`](../../plans/cli-static-sexp/closeout.md), [`../../plans/cli-static-json-dot/closeout.md`](../../plans/cli-static-json-dot/closeout.md), and [`../../plans/cli-dynamic-parse/closeout.md`](../../plans/cli-dynamic-parse/closeout.md). No routine release, publish, signing, Cargo-token, or crates.io install receipt work is authorized.
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -152,7 +152,11 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       2026-05-22 from `adze-swarm/main` at commit `3a2f83e6` after CLI dynamic
       parse boundary PRs #471-#473 and the objective-audit alignment PR #474;
       `just ci-supported` and `just ci-product-stable` both passed locally
-      from current `main`.
+      from current `main`. It was refreshed again on 2026-05-22 from
+      `adze-swarm/main` at commit `e6aa7ea0` after the current supported
+      product receipt PR #475; `just ci-supported`, `just ci-product-stable`,
+      `check-active-goal`, `check-doc-artifacts`, and `git diff --check`
+      passed locally from current `main`.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
       the remaining `cargo install adze-cli`, required aggregate
@@ -170,7 +174,11 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       Both `just package-local adze-cli` and `just check-publishable` were
       refreshed again from `adze-swarm/main` at commit `99dd12b0` after the
       0.9.0 workspace version bump. `just check-publishable` was refreshed
-      again on 2026-05-21 from `adze-swarm/main` at commit `ae317e42`.
+      again on 2026-05-21 from `adze-swarm/main` at commit `ae317e42`. Both
+      `just package-local adze-cli` and `just check-publishable` were refreshed
+      again on 2026-05-22 from `adze-swarm/main` at commit `e6aa7ea0`; the CLI
+      package verification passed with non-fatal unused patch warnings for
+      packages outside the `adze-cli` verification graph.
       These are package verification receipts, not crates.io install or publish
       claims.
 - [x] Latest crates.io CLI install-boundary receipt:
@@ -188,7 +196,10 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       metadata check and verifier dry-run were refreshed again on 2026-05-21
       from `adze-swarm/main` at commit `ae317e42`; `adze-cli` and `adze-tool`
       were still absent from crates.io, and the dry run still printed explicit
-      `crates-io` commands. The active manifest is complete with no ready
+      `crates-io` commands. The verifier dry run was refreshed again on
+      2026-05-22 from `adze-swarm/main` at commit `e6aa7ea0` and printed the
+      same explicit `crates-io` command sequence. The active manifest is
+      complete with no ready
       non-release work; the install receipt remains release-surface work
       blocked on explicit authorization.
 - [x] Latest root README dependency-boundary receipt:
