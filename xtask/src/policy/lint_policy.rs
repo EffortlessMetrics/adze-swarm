@@ -49,6 +49,14 @@ struct Planned {
 #[derive(Debug, Default)]
 struct Findings {
     issues: Vec<String>,
+    bare_allows: Vec<BareAllowFinding>,
+}
+
+#[derive(Debug, Clone)]
+struct BareAllowFinding {
+    path: String,
+    line: usize,
+    attribute: String,
 }
 
 pub fn run_check(mode: Mode) -> Result<()> {
@@ -68,10 +76,12 @@ pub fn run_check(mode: Mode) -> Result<()> {
     check_no_test_carveouts(&root, &mut findings)?;
     check_active_lints_match_cargo(&root, &policy, &mut findings)?;
     check_planned_not_active_early(&root, &policy, &mut findings)?;
+    collect_bare_allow_attributes(&root, &mut findings)?;
 
     let summary = format!(
-        "lint-policy check ({mode:?}): {} issue(s)",
-        findings.issues.len()
+        "lint-policy check ({mode:?}): {} issue(s), {} bare allow attribute(s)",
+        findings.issues.len(),
+        findings.bare_allows.len()
     );
     println!("{summary}");
     for issue in &findings.issues {
@@ -89,6 +99,7 @@ pub fn run_check(mode: Mode) -> Result<()> {
             md.push_str(&format!("- {issue}\n"));
         }
     }
+    append_bare_allow_section(&mut md, &findings.bare_allows);
     std::fs::write(report_dir.join("lint-policy.md"), md)?;
 
     match mode {
@@ -140,6 +151,110 @@ fn check_msrv_consistency(root: &Path, policy: &PolicyFile, findings: &mut Findi
     }
 
     Ok(())
+}
+
+fn collect_bare_allow_attributes(root: &Path, findings: &mut Findings) -> Result<()> {
+    for entry in walkdir::WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| !is_ignored_dir(e))
+    {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(_) => continue,
+        };
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("rs") {
+            continue;
+        }
+        let rel = path.strip_prefix(root).unwrap_or(path);
+        let rel_str = rel.to_string_lossy().replace('\\', "/");
+        if rel_str.starts_with("docs/archive/") {
+            continue;
+        }
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(_) => continue,
+        };
+        for (idx, line) in text.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("#[allow(") && !trimmed.contains("reason") {
+                findings.bare_allows.push(BareAllowFinding {
+                    path: rel_str.clone(),
+                    line: idx + 1,
+                    attribute: trimmed.to_string(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn is_ignored_dir(entry: &walkdir::DirEntry) -> bool {
+    let name = entry.file_name().to_string_lossy();
+    if entry.depth() == 0 {
+        return false;
+    }
+    matches!(
+        name.as_ref(),
+        "target" | ".git" | "node_modules" | "corpus" | "baselines" | "clippy-report"
+    )
+}
+
+fn append_bare_allow_section(md: &mut String, bare_allows: &[BareAllowFinding]) {
+    md.push_str("\n## Bare allow attributes\n\n");
+    md.push_str(&format!("- total: {}\n", bare_allows.len()));
+    if bare_allows.is_empty() {
+        md.push_str("\nNo bare `#[allow(...)]` attributes found.\n");
+        return;
+    }
+
+    md.push_str("\n### Path prefix breakdown\n\n");
+    let mut by_prefix: BTreeMap<&str, usize> = BTreeMap::new();
+    for finding in bare_allows {
+        let prefix = finding.path.split('/').next().unwrap_or("<root>");
+        *by_prefix.entry(prefix).or_default() += 1;
+    }
+    let mut prefix_rows = by_prefix.into_iter().collect::<Vec<_>>();
+    prefix_rows.sort_by(|(left_name, left_count), (right_name, right_count)| {
+        right_count
+            .cmp(left_count)
+            .then_with(|| left_name.cmp(right_name))
+    });
+    md.push_str("| prefix | count |\n|---|---|\n");
+    for (prefix, count) in prefix_rows {
+        md.push_str(&format!("| {prefix} | {count} |\n"));
+    }
+
+    md.push_str("\n### Top files by bare allow count\n\n");
+    let mut by_file: BTreeMap<&str, usize> = BTreeMap::new();
+    for finding in bare_allows {
+        *by_file.entry(&finding.path).or_default() += 1;
+    }
+    let mut file_rows = by_file.into_iter().collect::<Vec<_>>();
+    file_rows.sort_by(|(left_path, left_count), (right_path, right_count)| {
+        right_count
+            .cmp(left_count)
+            .then_with(|| left_path.cmp(right_path))
+    });
+    md.push_str("| path | count |\n|---|---|\n");
+    for (path, count) in file_rows.iter().take(25) {
+        md.push_str(&format!("| {path} | {count} |\n"));
+    }
+
+    md.push_str("\n### Bare allow samples\n\n");
+    md.push_str("| path | line | attribute |\n|---|---:|---|\n");
+    for finding in bare_allows.iter().take(50) {
+        md.push_str(&format!(
+            "| {} | {} | `{}` |\n",
+            finding.path,
+            finding.line,
+            finding.attribute.replace('`', "\\`")
+        ));
+    }
 }
 
 fn extract_kv(text: &str, key: &str) -> Option<String> {
@@ -397,5 +512,35 @@ manual_ilog2 = { level = "warn", priority = -1 }
         assert_eq!(planned_lint_key("clippy::manual_ilog2"), "manual_ilog2");
         assert_eq!(planned_lint_key("rust::missing_docs"), "missing_docs");
         assert_eq!(planned_lint_key("custom_lint"), "custom_lint");
+    }
+
+    #[test]
+    fn bare_allow_report_summarizes_prefixes_files_and_samples() {
+        let bare_allows = vec![
+            BareAllowFinding {
+                path: "runtime/src/lib.rs".to_string(),
+                line: 10,
+                attribute: "#[allow(dead_code)]".to_string(),
+            },
+            BareAllowFinding {
+                path: "runtime/src/lib.rs".to_string(),
+                line: 20,
+                attribute: "#[allow(unused_imports)]".to_string(),
+            },
+            BareAllowFinding {
+                path: "tool/src/lib.rs".to_string(),
+                line: 30,
+                attribute: "#[allow(dead_code)]".to_string(),
+            },
+        ];
+
+        let mut md = String::new();
+        append_bare_allow_section(&mut md, &bare_allows);
+
+        assert!(md.contains("- total: 3"));
+        assert!(md.contains("| runtime | 2 |"));
+        assert!(md.contains("| tool | 1 |"));
+        assert!(md.contains("| runtime/src/lib.rs | 2 |"));
+        assert!(md.contains("| runtime/src/lib.rs | 10 | `#[allow(dead_code)]` |"));
     }
 }
