@@ -1,15 +1,11 @@
 //! Property tests for grammar lifecycle: creation, normalization, optimization,
 //! validation, serialization, chaining, tokens, and rules.
 
-#[allow(unused_imports)]
 use adze_ir::builder::GrammarBuilder;
-#[allow(unused_imports)]
-use adze_ir::optimizer::{GrammarOptimizer, OptimizationStats};
-#[allow(unused_imports)]
+use adze_ir::optimizer::GrammarOptimizer;
 use adze_ir::validation::GrammarValidator;
-#[allow(unused_imports)]
 use adze_ir::{
-    Associativity, Grammar, GrammarError, ProductionId, Rule, Symbol, SymbolId, Token, TokenPattern,
+    Associativity, Grammar, ProductionId, Rule, Symbol, SymbolId, Token, TokenPattern,
 };
 use proptest::prelude::*;
 
@@ -18,7 +14,6 @@ use proptest::prelude::*;
 // ---------------------------------------------------------------------------
 
 /// Build a minimal valid grammar with N tokens and a start rule referencing them.
-#[allow(dead_code)]
 fn build_grammar_with_tokens(name: &str, token_count: usize) -> Grammar {
     let mut b = GrammarBuilder::new(name).token("NUM", r"\d+");
     for i in 0..token_count {
@@ -33,21 +28,7 @@ fn build_grammar_with_tokens(name: &str, token_count: usize) -> Grammar {
     b.build()
 }
 
-/// Build an expression grammar with the given operator token.
-#[allow(dead_code)]
-fn build_expr_grammar(op: &str) -> Grammar {
-    let op_ref: &'static str = Box::leak(op.to_owned().into_boxed_str());
-    GrammarBuilder::new("expr_gram")
-        .token("NUM", r"\d+")
-        .token(op_ref, op_ref)
-        .rule("expr", vec!["expr", op_ref, "expr"])
-        .rule("expr", vec!["NUM"])
-        .start("expr")
-        .build()
-}
-
 /// Build a grammar using GrammarBuilder with a given name and rule count.
-#[allow(dead_code)]
 fn build_multi_rule_grammar(name: &str, rule_count: usize) -> Grammar {
     let mut b = GrammarBuilder::new(name).token("ID", r"[a-z]+");
     for i in 0..rule_count {
