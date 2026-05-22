@@ -148,7 +148,11 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       It was refreshed again on 2026-05-21 from `adze-swarm/main` at commit
       `ae317e42` after CLI static output closeout and release-boundary refresh
       PRs #464-#469; `just ci-supported` and `just ci-product-stable` both
-      passed locally from current `main`.
+      passed locally from current `main`. It was refreshed again on
+      2026-05-22 from `adze-swarm/main` at commit `3a2f83e6` after CLI dynamic
+      parse boundary PRs #471-#473 and the objective-audit alignment PR #474;
+      `just ci-supported` and `just ci-product-stable` both passed locally
+      from current `main`.
 - [x] Objective-level completion audit exists in
       [`PRODUCT_OBJECTIVE_AUDIT.md`](./PRODUCT_OBJECTIVE_AUDIT.md), including
       the remaining `cargo install adze-cli`, required aggregate
