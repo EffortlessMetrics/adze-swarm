@@ -16,29 +16,24 @@ use std::collections::BTreeSet;
 // Helpers
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
 fn build_table(grammar: &Grammar) -> ParseTable {
     let ff = FirstFollowSets::compute(grammar).expect("FIRST/FOLLOW failed");
     build_lr1_automaton(grammar, &ff).expect("build_lr1_automaton failed")
 }
 
-#[allow(dead_code)]
 fn try_build(grammar: &Grammar) -> Option<ParseTable> {
     let ff = FirstFollowSets::compute(grammar).ok()?;
     build_lr1_automaton(grammar, &ff).ok()
 }
 
-#[allow(dead_code)]
 fn nonterminal_ids(table: &ParseTable) -> Vec<SymbolId> {
     table.nonterminal_to_index.keys().copied().collect()
 }
 
-#[allow(dead_code)]
 fn terminal_ids(grammar: &Grammar) -> Vec<SymbolId> {
     grammar.tokens.keys().copied().collect()
 }
 
-#[allow(dead_code)]
 fn all_goto_targets(table: &ParseTable) -> BTreeSet<StateId> {
     let mut targets = BTreeSet::new();
     for s in 0..table.state_count {
@@ -52,7 +47,6 @@ fn all_goto_targets(table: &ParseTable) -> BTreeSet<StateId> {
     targets
 }
 
-#[allow(dead_code)]
 fn goto_defined_count(table: &ParseTable) -> usize {
     let mut count = 0;
     for s in 0..table.state_count {
@@ -71,7 +65,6 @@ fn goto_defined_count(table: &ParseTable) -> usize {
 // ---------------------------------------------------------------------------
 
 /// S → a
-#[allow(dead_code)]
 fn minimal_grammar() -> Grammar {
     GrammarBuilder::new("min")
         .token("a", "a")
@@ -81,7 +74,6 @@ fn minimal_grammar() -> Grammar {
 }
 
 /// S → a | b
-#[allow(dead_code)]
 fn two_alt_grammar() -> Grammar {
     GrammarBuilder::new("twoalt")
         .token("a", "a")
@@ -93,7 +85,6 @@ fn two_alt_grammar() -> Grammar {
 }
 
 /// S → ε | a
-#[allow(dead_code)]
 fn nullable_grammar() -> Grammar {
     GrammarBuilder::new("nullable")
         .token("a", "a")
@@ -104,7 +95,6 @@ fn nullable_grammar() -> Grammar {
 }
 
 /// S → S a | a (left-recursive)
-#[allow(dead_code)]
 fn left_recursive_grammar() -> Grammar {
     GrammarBuilder::new("leftrec")
         .token("a", "a")
@@ -115,7 +105,6 @@ fn left_recursive_grammar() -> Grammar {
 }
 
 /// S → a S | a (right-recursive)
-#[allow(dead_code)]
 fn right_recursive_grammar() -> Grammar {
     GrammarBuilder::new("rightrec")
         .token("a", "a")
@@ -126,7 +115,6 @@ fn right_recursive_grammar() -> Grammar {
 }
 
 /// S → T, T → a (chain of two nonterminals)
-#[allow(dead_code)]
 fn chain_grammar() -> Grammar {
     GrammarBuilder::new("chain")
         .token("a", "a")
@@ -137,7 +125,6 @@ fn chain_grammar() -> Grammar {
 }
 
 /// S → T, T → U, U → a (deep chain)
-#[allow(dead_code)]
 fn deep_chain_grammar() -> Grammar {
     GrammarBuilder::new("deep")
         .token("a", "a")
@@ -149,7 +136,6 @@ fn deep_chain_grammar() -> Grammar {
 }
 
 /// S → T U, T → a, U → b (sequence of two nonterminals)
-#[allow(dead_code)]
 fn two_nt_seq_grammar() -> Grammar {
     GrammarBuilder::new("twont")
         .token("a", "a")
@@ -162,7 +148,6 @@ fn two_nt_seq_grammar() -> Grammar {
 }
 
 /// S → a b c (sequence of terminals)
-#[allow(dead_code)]
 fn sequence_grammar() -> Grammar {
     GrammarBuilder::new("seq")
         .token("a", "a")
@@ -174,7 +159,6 @@ fn sequence_grammar() -> Grammar {
 }
 
 /// S → a | b | c | d | e (wide alternatives)
-#[allow(dead_code)]
 fn wide_alt_grammar() -> Grammar {
     GrammarBuilder::new("wide")
         .token("a", "a")
@@ -192,7 +176,6 @@ fn wide_alt_grammar() -> Grammar {
 }
 
 /// E → E + E | E * E | a (with precedence)
-#[allow(dead_code)]
 fn precedence_grammar() -> Grammar {
     GrammarBuilder::new("prec")
         .token("a", "a")
@@ -206,7 +189,6 @@ fn precedence_grammar() -> Grammar {
 }
 
 /// S → T U V, T → a, U → b, V → c (three nonterminal sequence)
-#[allow(dead_code)]
 fn three_nt_grammar() -> Grammar {
     GrammarBuilder::new("threent")
         .token("a", "a")
@@ -245,7 +227,6 @@ const TOKEN_NAMES: &[&str] = &["a", "b", "c", "d", "e", "f"];
 const TOKEN_PATTERNS: &[&str] = &["a", "b", "c", "d", "e", "f"];
 const NT_NAMES: &[&str] = &["s", "t", "u", "v", "w"];
 
-#[allow(dead_code)]
 fn build_grammar_from(n_tok: usize, productions: &[Vec<Vec<usize>>]) -> Grammar {
     let mut builder = GrammarBuilder::new("proptest");
     for i in 0..n_tok {
