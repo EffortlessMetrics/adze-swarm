@@ -155,14 +155,14 @@ fn struct_doc_comment_via_derive_input() {
 }
 
 #[test]
-fn struct_allow_attribute() {
+fn struct_cfg_attr_attribute() {
     let s = parse_struct(quote! {
-        #[allow(dead_code)]
-        struct Allowed { x: i32 }
+        #[cfg_attr(test, derive(Debug))]
+        struct Configured { x: i32 }
     });
     let meta_str = s.attrs[0].meta.to_token_stream().to_string();
-    assert!(meta_str.contains("allow"));
-    assert!(meta_str.contains("dead_code"));
+    assert!(meta_str.contains("cfg_attr"));
+    assert!(meta_str.contains("derive"));
 }
 
 #[test]
@@ -232,15 +232,18 @@ fn field_doc_comment() {
 }
 
 #[test]
-fn field_allow_unused_attribute() {
+fn field_cfg_attribute() {
     let s = parse_struct(quote! {
-        struct Unused {
-            #[allow(unused)]
+        struct Configured {
+            #[cfg(test)]
             spare: u64,
         }
     });
     let field = &named_fields(&s)[0];
     assert_eq!(field.attrs.len(), 1);
+    let meta_str = field.attrs[0].meta.to_token_stream().to_string();
+    assert!(meta_str.contains("cfg"));
+    assert!(meta_str.contains("test"));
 }
 
 #[test]
@@ -420,7 +423,7 @@ fn multiple_attrs_mixed_doc_derive_adze() {
         #[doc = "some doc"]
         #[derive(Debug)]
         #[adze::language]
-        #[allow(dead_code)]
+        #[cfg(test)]
         struct Mixed { val: u8 }
     });
     assert_eq!(s.attrs.len(), 4);
