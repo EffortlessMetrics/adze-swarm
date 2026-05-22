@@ -1,5 +1,6 @@
 ---
 source: macro/src/lib.rs
+assertion_line: 502
 expression: "rustfmt_code(&expand_grammar(parse_quote!\n{\n    #[adze::grammar(\"test\")] mod grammar\n    {\n        #[adze::language] pub struct NumberList { numbers: Vec<Number>, } pub\n        struct Number\n        {\n            #[adze::leaf(pattern = r\"\\d+\", transform = |v|\n            v.parse().unwrap())] v: i32\n        } #[adze::extra] struct Whitespace\n        { #[adze::leaf(pattern = r\"\\s\")] _whitespace: (), }\n    }\n})? .to_token_stream().to_string())"
 ---
 mod grammar {
@@ -8,7 +9,6 @@ mod grammar {
     }
     impl ::adze::Extract<NumberList> for NumberList {
         type LeafFn = ();
-        #[allow(non_snake_case)]
         fn extract(
             node: Option<::adze::tree_sitter::Node>,
             source: &[u8],
@@ -30,7 +30,6 @@ mod grammar {
     }
     impl ::adze::Extract<Number> for Number {
         type LeafFn = ();
-        #[allow(non_snake_case)]
         fn extract(
             node: Option<::adze::tree_sitter::Node>,
             source: &[u8],
@@ -56,7 +55,6 @@ mod grammar {
     }
     impl ::adze::Extract<Whitespace> for Whitespace {
         type LeafFn = ();
-        #[allow(non_snake_case)]
         fn extract(
             node: Option<::adze::tree_sitter::Node>,
             source: &[u8],
