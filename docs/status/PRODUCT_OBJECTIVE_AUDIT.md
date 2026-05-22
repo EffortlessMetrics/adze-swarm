@@ -286,6 +286,35 @@ Hosted receipts on #472 included `Rust Small Result`,
 `PR Plan`, and `ci-product stable canaries`. The post-closeout `active.toml`
 state is complete with no active, ready, or blocked non-release work items.
 
+Latest claim-boundary closeout after public promotion: PRs #526-#532 tightened
+release-readable wording for surfaces outside the Stable generated-parser
+contract. The sequence bounded `runtime2/`, `tools/ts-bridge`, `wasm-demo`,
+bundled grammar crates, `adze-lsp-generator`, `adze-playground`, and tutorial
+example wording so they remain experimental, advisory, prototype, or fixture
+surfaces unless support tiers promote a named slice.
+
+Local proof across the sequence included targeted command checks for changed
+surfaces plus:
+
+```bash
+cargo run -q -p xtask -- check-doc-artifacts --mode blocking
+cargo run -q -p xtask -- check-active-goal --mode blocking
+git diff --check
+cargo check -p adze-lsp-generator -p adze-playground
+cargo run -q -p adze-lsp-generator --bin adze-lsp-gen -- --help
+cargo run -q -p adze-playground --bin adze-playground -- --help
+cargo check --manifest-path wasm-demo/Cargo.toml --target wasm32-unknown-unknown
+cargo test --manifest-path wasm-demo/Cargo.toml --target wasm32-unknown-unknown --no-run
+cargo test --manifest-path tools/ts-bridge/Cargo.toml --test basic
+cargo run -q --manifest-path tools/ts-bridge/Cargo.toml --bin tsb-abi-check
+```
+
+Hosted receipts on the claim-boundary PRs included `Rust Small Result`,
+Source of Truth, CI Lane Whitelist, GLR Invariants, PR Gate, Product Proof
+where selected, and the path-routed docs/tooling/grammar receipts relevant to
+each change. These PRs did not tag, publish, mutate signing/Cargo-token
+workflows, or promote any experimental surface to Stable.
+
 Latest Product Proof result-readiness receipt: `adze-swarm` PR #383 made
 `.github/workflows/product-proof.yml` emit `Detect Product Proof Paths`,
 `ci-product stable canaries`, and `Product Proof Result`. In GitHub run
@@ -536,9 +565,12 @@ Do not mark the product objective complete while any of these are true:
 - `cargo install adze-cli` has no crates.io install receipt.
 - The root README dependency block is release-surface-bounded because
   `adze-tool` does not yet have a crates.io metadata receipt.
-- Public `adze/main` is not tree-identical to current `adze-swarm/main`; an
-  explicit public promotion PR is required before any authorized publish from
-  the public release surface.
+- Public `adze/main` is not tree-identical to current `adze-swarm/main`; after
+  the post-promotion claim-boundary cleanup, `origin/main` is
+  `81db54aa4986a36bf4c24d545cffc877e749f01f` and `public/main` is
+  `6263c6a80046d13fb98e3ad319dfe726f32f1010` as of the 2026-05-22 refresh.
+  An explicit public promotion PR is required before any authorized publish
+  from the public release surface.
 - Corpus-wide external-scanner recovery parity remains future work and is not
   a Stable claim.
 - GLR conflict routing, structured parse errors, Tree-sitter compatibility,
