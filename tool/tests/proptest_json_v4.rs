@@ -10,24 +10,18 @@
 //! 7. prop_json_deterministic_*   — deterministic output
 //! 8. prop_json_parse_*           — JSON parsing properties
 
-#[allow(unused_imports)]
 use adze_ir::builder::GrammarBuilder;
-#[allow(unused_imports)]
 use adze_tool::grammar_js::{GrammarJsConverter, from_json};
-#[allow(unused_imports)]
 use adze_tool::pure_rust_builder::{
     BuildOptions, BuildResult, build_parser, build_parser_from_json,
 };
-#[allow(unused_imports)]
 use proptest::prelude::*;
-#[allow(unused_imports)]
 use serde_json::{Value, json};
 
 // ===========================================================================
 // Helpers
 // ===========================================================================
 
-#[allow(dead_code)]
 fn test_opts() -> BuildOptions {
     BuildOptions {
         out_dir: "/tmp/proptest_json_v4".to_string(),
@@ -36,7 +30,6 @@ fn test_opts() -> BuildOptions {
     }
 }
 
-#[allow(dead_code)]
 fn uncompressed_opts() -> BuildOptions {
     BuildOptions {
         compress_tables: false,
@@ -44,12 +37,10 @@ fn uncompressed_opts() -> BuildOptions {
     }
 }
 
-#[allow(dead_code)]
 fn build_json_ok(v: &Value) -> BuildResult {
     build_parser_from_json(v.to_string(), test_opts()).expect("build_json_ok failed")
 }
 
-#[allow(dead_code)]
 fn build_ir_ok(
     name: &str,
     tokens: &[(&str, &str)],
@@ -68,7 +59,6 @@ fn build_ir_ok(
 }
 
 /// Minimal JSON grammar with one STRING rule.
-#[allow(dead_code)]
 fn minimal_json(name: &str) -> Value {
     json!({
         "name": name,
@@ -79,7 +69,6 @@ fn minimal_json(name: &str) -> Value {
 }
 
 /// JSON grammar with CHOICE alternatives.
-#[allow(dead_code)]
 fn choice_json(name: &str, alts: &[&str]) -> Value {
     let members: Vec<Value> = alts
         .iter()
@@ -94,7 +83,6 @@ fn choice_json(name: &str, alts: &[&str]) -> Value {
 }
 
 /// JSON grammar with SEQ members.
-#[allow(dead_code)]
 fn seq_json(name: &str, tokens: &[&str]) -> Value {
     let members: Vec<Value> = tokens
         .iter()
@@ -109,7 +97,6 @@ fn seq_json(name: &str, tokens: &[&str]) -> Value {
 }
 
 /// JSON grammar with PATTERN rule.
-#[allow(dead_code)]
 fn pattern_json(name: &str, pat: &str) -> Value {
     json!({
         "name": name,
@@ -120,7 +107,6 @@ fn pattern_json(name: &str, pat: &str) -> Value {
 }
 
 /// JSON grammar with REPEAT.
-#[allow(dead_code)]
 fn repeat_json(name: &str, val: &str) -> Value {
     json!({
         "name": name,
@@ -134,7 +120,6 @@ fn repeat_json(name: &str, val: &str) -> Value {
 }
 
 /// JSON grammar with REPEAT1.
-#[allow(dead_code)]
 fn repeat1_json(name: &str, val: &str) -> Value {
     json!({
         "name": name,
@@ -148,7 +133,6 @@ fn repeat1_json(name: &str, val: &str) -> Value {
 }
 
 /// JSON grammar with a named sub-rule via SYMBOL reference.
-#[allow(dead_code)]
 fn symbol_ref_json(name: &str, token_val: &str) -> Value {
     json!({
         "name": name,
@@ -160,7 +144,6 @@ fn symbol_ref_json(name: &str, token_val: &str) -> Value {
 }
 
 /// JSON grammar with multiple named sub-rules.
-#[allow(dead_code)]
 fn multi_rule_json(name: &str, rule_tokens: &[(&str, &str)]) -> Value {
     let mut rules = serde_json::Map::new();
     let members: Vec<Value> = rule_tokens
@@ -181,7 +164,6 @@ fn multi_rule_json(name: &str, rule_tokens: &[(&str, &str)]) -> Value {
 }
 
 /// JSON grammar with TOKEN wrapper.
-#[allow(dead_code)]
 fn token_wrapper_json(name: &str, inner_val: &str) -> Value {
     json!({
         "name": name,
@@ -195,7 +177,6 @@ fn token_wrapper_json(name: &str, inner_val: &str) -> Value {
 }
 
 /// JSON grammar with PREC_LEFT.
-#[allow(dead_code)]
 fn prec_left_json(name: &str, val: &str, precedence: i32) -> Value {
     json!({
         "name": name,
@@ -210,7 +191,6 @@ fn prec_left_json(name: &str, val: &str, precedence: i32) -> Value {
 }
 
 /// JSON grammar with OPTIONAL.
-#[allow(dead_code)]
 fn optional_json(name: &str, val: &str) -> Value {
     json!({
         "name": name,
@@ -233,7 +213,6 @@ fn optional_json(name: &str, val: &str) -> Value {
 }
 
 /// JSON grammar with FIELD.
-#[allow(dead_code)]
 fn field_json(name: &str, field_name: &str, val: &str) -> Value {
     json!({
         "name": name,
@@ -251,7 +230,6 @@ fn field_json(name: &str, field_name: &str, val: &str) -> Value {
 // Strategies
 // ===========================================================================
 
-#[allow(dead_code)]
 fn grammar_name() -> impl Strategy<Value = String> {
     prop_oneof![
         Just("alpha".to_string()),
@@ -263,7 +241,6 @@ fn grammar_name() -> impl Strategy<Value = String> {
     ]
 }
 
-#[allow(dead_code)]
 fn safe_pattern() -> impl Strategy<Value = String> {
     prop_oneof![
         Just("[a-z]+".to_string()),
@@ -274,7 +251,6 @@ fn safe_pattern() -> impl Strategy<Value = String> {
     ]
 }
 
-#[allow(dead_code)]
 fn safe_token_val() -> impl Strategy<Value = String> {
     prop_oneof![
         Just("foo".to_string()),
@@ -285,7 +261,6 @@ fn safe_token_val() -> impl Strategy<Value = String> {
     ]
 }
 
-#[allow(dead_code)]
 fn safe_field_name() -> impl Strategy<Value = String> {
     prop_oneof![
         Just("left".to_string()),
@@ -296,11 +271,7 @@ fn safe_field_name() -> impl Strategy<Value = String> {
     ]
 }
 
-#[allow(dead_code)]
 const ALTS_A: [&str; 6] = ["aa", "bb", "cc", "dd", "ee", "ff"];
-#[allow(dead_code)]
-const ALTS_B: [&str; 6] = ["gg", "hh", "ii", "jj", "kk", "ll"];
-#[allow(dead_code)]
 const SEQ_VALS: [&str; 5] = ["pp", "qq", "rr", "ss", "tt"];
 
 // ===========================================================================
