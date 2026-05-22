@@ -43,6 +43,11 @@ before merging.
 `clippy.toml` test carveouts (`allow-unwrap-in-tests`, `allow-expect-in-tests`,
 `allow-panic-in-tests`, etc.) are **not allowed** anywhere in the workspace.
 
+`cargo xtask check-lint-policy` records the current bare-allow migration debt
+in `target/policy/lint-policy.md`. That receipt is advisory: it shows the
+path-prefix breakdown, top files, and samples so cleanup can happen in small
+reviewable batches before any blocking enforcement is enabled.
+
 ## Staged lints
 
 Several lints are gated on debt cleanup. They live in
