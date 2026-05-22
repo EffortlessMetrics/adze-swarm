@@ -19,7 +19,6 @@ use serde_json::json;
 // Helpers
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
 fn opts() -> BuildOptions {
     BuildOptions {
         out_dir: "/tmp/adze-json-convert-v5".to_string(),
@@ -28,21 +27,10 @@ fn opts() -> BuildOptions {
     }
 }
 
-#[allow(dead_code)]
 fn make_grammar(name: &str, rules: serde_json::Value) -> serde_json::Value {
     json!({ "name": name, "rules": rules })
 }
 
-#[allow(dead_code)]
-fn make_full_grammar(
-    name: &str,
-    rules: serde_json::Value,
-    extras: serde_json::Value,
-) -> serde_json::Value {
-    json!({ "name": name, "rules": rules, "extras": extras })
-}
-
-#[allow(dead_code)]
 fn minimal_grammar_json(name: &str) -> serde_json::Value {
     json!({
         "name": name,
@@ -52,7 +40,6 @@ fn minimal_grammar_json(name: &str) -> serde_json::Value {
     })
 }
 
-#[allow(dead_code)]
 fn grammar_js_to_json(grammar: &GrammarJs) -> serde_json::Value {
     serde_json::to_value(grammar).expect("GrammarJs should serialize to JSON")
 }
