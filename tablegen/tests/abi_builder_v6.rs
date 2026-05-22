@@ -23,21 +23,18 @@ use adze_tablegen::{
 // Helpers
 // ============================================================================
 
-#[allow(dead_code)]
 fn build_table(grammar: &Grammar) -> ParseTable {
     let mut g = grammar.clone();
     let ff = FirstFollowSets::compute_normalized(&mut g).expect("FIRST/FOLLOW");
     build_lr1_automaton(&g, &ff).expect("LR(1)")
 }
 
-#[allow(dead_code)]
 fn generate_code(grammar: &Grammar, table: &ParseTable) -> String {
     AbiLanguageBuilder::new(grammar, table)
         .generate()
         .to_string()
 }
 
-#[allow(dead_code)]
 fn pipeline(name: &str) -> (Grammar, ParseTable, String) {
     let g = GrammarBuilder::new(name)
         .token("x", "x")
@@ -49,7 +46,6 @@ fn pipeline(name: &str) -> (Grammar, ParseTable, String) {
     (g, pt, code)
 }
 
-#[allow(dead_code)]
 fn single_token_grammar() -> Grammar {
     GrammarBuilder::new("single_tok")
         .token("x", "x")
@@ -58,7 +54,6 @@ fn single_token_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn two_token_grammar() -> Grammar {
     GrammarBuilder::new("two_tok")
         .token("a", "a")
@@ -68,7 +63,6 @@ fn two_token_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn alternatives_grammar() -> Grammar {
     GrammarBuilder::new("alts")
         .token("a", "a")
@@ -81,7 +75,6 @@ fn alternatives_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn nested_grammar() -> Grammar {
     GrammarBuilder::new("nested")
         .token("x", "x")
@@ -93,7 +86,6 @@ fn nested_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn deep_chain_grammar() -> Grammar {
     GrammarBuilder::new("deep_chain")
         .token("z", "z")
@@ -105,7 +97,6 @@ fn deep_chain_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn left_recursive_grammar() -> Grammar {
     GrammarBuilder::new("left_rec")
         .token("a", "a")
@@ -115,7 +106,6 @@ fn left_recursive_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn right_recursive_grammar() -> Grammar {
     GrammarBuilder::new("right_rec")
         .token("a", "a")
@@ -125,7 +115,6 @@ fn right_recursive_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn precedence_grammar() -> Grammar {
     GrammarBuilder::new("prec")
         .token("NUM", r"\d+")
@@ -138,7 +127,6 @@ fn precedence_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn nullable_grammar() -> Grammar {
     GrammarBuilder::new("nullable")
         .token("a", "a")
@@ -149,7 +137,6 @@ fn nullable_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn wide_alternatives_grammar() -> Grammar {
     let mut gb = GrammarBuilder::new("wide");
     for i in 0..10u8 {
@@ -161,7 +148,6 @@ fn wide_alternatives_grammar() -> Grammar {
     gb.start("S").build()
 }
 
-#[allow(dead_code)]
 fn long_sequence_grammar() -> Grammar {
     GrammarBuilder::new("long_seq")
         .token("t1", "a")
@@ -174,7 +160,6 @@ fn long_sequence_grammar() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn grammar_with_fields() -> Grammar {
     let mut g = GrammarBuilder::new("fielded")
         .token("x", "x")
@@ -187,7 +172,6 @@ fn grammar_with_fields() -> Grammar {
     g
 }
 
-#[allow(dead_code)]
 fn grammar_with_extra() -> Grammar {
     GrammarBuilder::new("extra_ws")
         .token("a", "a")
@@ -198,7 +182,6 @@ fn grammar_with_extra() -> Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn grammar_with_external() -> Grammar {
     GrammarBuilder::new("ext_scan")
         .token("a", "a")
