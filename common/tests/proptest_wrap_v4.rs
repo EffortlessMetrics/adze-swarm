@@ -70,12 +70,10 @@ fn any_type_string() -> impl Strategy<Value = String> {
 // Helpers
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
 fn ty_str(ty: &Type) -> String {
     ty.to_token_stream().to_string()
 }
 
-#[allow(dead_code)]
 fn is_parameterized(ty: &Type) -> bool {
     if let Type::Path(p) = ty
         && let Some(seg) = p.path.segments.last()
@@ -85,22 +83,18 @@ fn is_parameterized(ty: &Type) -> bool {
     false
 }
 
-#[allow(dead_code)]
 fn skip1(a: &str) -> HashSet<&str> {
     [a].into_iter().collect()
 }
 
-#[allow(dead_code)]
 fn skip2<'a>(a: &'a str, b: &'a str) -> HashSet<&'a str> {
     [a, b].into_iter().collect()
 }
 
-#[allow(dead_code)]
 fn skip_static(names: &[&'static str]) -> HashSet<&'static str> {
     names.iter().copied().collect()
 }
 
-#[allow(dead_code)]
 fn empty_skip() -> HashSet<&'static str> {
     HashSet::new()
 }
