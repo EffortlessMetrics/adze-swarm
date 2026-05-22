@@ -17,7 +17,6 @@ use tempfile::TempDir;
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-#[allow(dead_code)]
 fn make_opts() -> (TempDir, BuildOptions) {
     let dir = TempDir::new().unwrap();
     let opts = BuildOptions {
@@ -28,7 +27,6 @@ fn make_opts() -> (TempDir, BuildOptions) {
     (dir, opts)
 }
 
-#[allow(dead_code)]
 fn make_opts_no_compress() -> (TempDir, BuildOptions) {
     let dir = TempDir::new().unwrap();
     let opts = BuildOptions {
@@ -39,7 +37,6 @@ fn make_opts_no_compress() -> (TempDir, BuildOptions) {
     (dir, opts)
 }
 
-#[allow(dead_code)]
 fn make_opts_with_artifacts() -> (TempDir, BuildOptions) {
     let dir = TempDir::new().unwrap();
     let opts = BuildOptions {
@@ -50,7 +47,6 @@ fn make_opts_with_artifacts() -> (TempDir, BuildOptions) {
     (dir, opts)
 }
 
-#[allow(dead_code)]
 fn minimal_grammar(name: &str) -> adze_ir::Grammar {
     GrammarBuilder::new(name)
         .token("tok", "x")
@@ -59,7 +55,6 @@ fn minimal_grammar(name: &str) -> adze_ir::Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn two_token_grammar(name: &str) -> adze_ir::Grammar {
     GrammarBuilder::new(name)
         .token("a", "a")
@@ -69,7 +64,6 @@ fn two_token_grammar(name: &str) -> adze_ir::Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn alt_grammar(name: &str) -> adze_ir::Grammar {
     GrammarBuilder::new(name)
         .token("a", "a")
@@ -80,7 +74,6 @@ fn alt_grammar(name: &str) -> adze_ir::Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn chain_grammar(name: &str) -> adze_ir::Grammar {
     GrammarBuilder::new(name)
         .token("leaf", "z")
@@ -90,7 +83,6 @@ fn chain_grammar(name: &str) -> adze_ir::Grammar {
         .build()
 }
 
-#[allow(dead_code)]
 fn pattern_json(name: &str) -> String {
     serde_json::json!({
         "name": name,
@@ -101,7 +93,6 @@ fn pattern_json(name: &str) -> String {
     .to_string()
 }
 
-#[allow(dead_code)]
 fn string_json(name: &str, value: &str) -> String {
     serde_json::json!({
         "name": name,
@@ -112,7 +103,6 @@ fn string_json(name: &str, value: &str) -> String {
     .to_string()
 }
 
-#[allow(dead_code)]
 fn seq_json(name: &str) -> String {
     serde_json::json!({
         "name": name,
@@ -129,7 +119,6 @@ fn seq_json(name: &str) -> String {
     .to_string()
 }
 
-#[allow(dead_code)]
 fn choice_json(name: &str) -> String {
     serde_json::json!({
         "name": name,
