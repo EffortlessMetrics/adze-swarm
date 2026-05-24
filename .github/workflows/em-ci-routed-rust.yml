@@ -29,6 +29,8 @@ jobs:
 
     outputs:
       target: ${{ steps.route.outputs.target }}
+      target_reason: ${{ steps.route.outputs.target_reason }}
+      fallback_allowed: ${{ steps.route.outputs.fallback_allowed }}
 
     steps:
       - name: Choose target
@@ -45,6 +47,8 @@ jobs:
             echo "router_error=true"
             echo "router_reason=${reason}"
             echo "target=github" >> "$GITHUB_OUTPUT"
+            echo "target_reason=${reason}" >> "$GITHUB_OUTPUT"
+            echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
             exit 0
           }
 
@@ -117,21 +121,40 @@ jobs:
             echo "router_error=false"
             echo "router_reason=cpx42_idle"
             echo "target=cpx42" >> "$GITHUB_OUTPUT"
+            echo "target_reason=cpx42_idle" >> "$GITHUB_OUTPUT"
+            echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
           elif [ "$cx43" -gt 0 ]; then
             echo "router_target=cx43"
             echo "router_error=false"
             echo "router_reason=cx43_idle"
             echo "target=cx43" >> "$GITHUB_OUTPUT"
+            echo "target_reason=cx43_idle" >> "$GITHUB_OUTPUT"
+            echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
           elif [ "$cx53" -gt 0 ]; then
             echo "router_target=cx53"
             echo "router_error=false"
             echo "router_reason=cx53_idle"
             echo "target=cx53" >> "$GITHUB_OUTPUT"
+            echo "target_reason=cx53_idle" >> "$GITHUB_OUTPUT"
+            echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
           else
             echo "router_target=github"
             echo "router_error=false"
             echo "router_reason=no_idle_runner"
             echo "target=github" >> "$GITHUB_OUTPUT"
+            echo "target_reason=no_idle_runner" >> "$GITHUB_OUTPUT"
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              labels='${{ toJson(github.event.pull_request.labels.*.name) }}'
+              if printf '%s' "$labels" | jq -e '. | map(ascii_downcase) | index("allow-github-hosted") != null' >/dev/null; then
+                echo "fallback_allowed=true" >> "$GITHUB_OUTPUT"
+              else
+                echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
+              fi
+            elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              echo "fallback_allowed=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
   rust-small-cpx42:
@@ -386,7 +409,7 @@ jobs:
   rust-small-github:
     name: Rust Small on GitHub Hosted
     needs: route-rust-small
-    if: needs.route-rust-small.outputs.target == 'github'
+    if: needs.route-rust-small.outputs.target == 'github' && needs.route-rust-small.outputs.fallback_allowed == 'true'
 
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -416,6 +439,21 @@ jobs:
             echo "No Cargo.toml found; infra smoke only."
           fi
 
+  runner-capacity-exhausted:
+    name: Runner Capacity / Fallback Policy
+    needs: route-rust-small
+    if: needs.route-rust-small.outputs.target == 'github' && needs.route-rust-small.outputs.fallback_allowed != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail with explicit routing policy message
+        run: |
+          echo "Self-hosted routing failed or no idle runner was available."
+          echo "target_reason=${{ needs.route-rust-small.outputs.target_reason }}"
+          echo "GitHub-hosted fallback is blocked by default in this workflow."
+          echo "To allow tiny GitHub-hosted fallback on PR, add label: allow-github-hosted"
+          echo "For trusted runs, wait for self-hosted capacity or use workflow_dispatch."
+          exit 1
+
   rust-small-result:
     name: Rust Small Result
     needs:
@@ -424,6 +462,7 @@ jobs:
       - rust-small-cx43
       - rust-small-cx53
       - rust-small-github
+      - runner-capacity-exhausted
     if: >-
       always() &&
       (
@@ -446,12 +485,14 @@ jobs:
           cx43="${{ needs.rust-small-cx43.result }}"
           cx53="${{ needs.rust-small-cx53.result }}"
           gh="${{ needs.rust-small-github.result }}"
+          capacity="${{ needs.runner-capacity-exhausted.result }}"
 
           echo "target=${target}"
           echo "cpx42=${cpx42}"
           echo "cx43=${cx43}"
           echo "cx53=${cx53}"
           echo "github=${gh}"
+          echo "capacity=${capacity}"
 
           case "$target" in
             cpx42)
@@ -464,7 +505,11 @@ jobs:
               test "$cx53" = "success"
               ;;
             github)
-              test "$gh" = "success"
+              if [ "${{ needs.route-rust-small.outputs.fallback_allowed }}" = "true" ]; then
+                test "$gh" = "success"
+              else
+                test "$capacity" = "failure"
+              fi
               ;;
             *)
               echo "unknown target: $target"
