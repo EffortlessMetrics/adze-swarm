@@ -30,7 +30,7 @@ concurrency:
 jobs:
   plan:
     name: PR Plan
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 15
     outputs:
       docs_only: ${{ steps.classify.outputs.docs_only }}

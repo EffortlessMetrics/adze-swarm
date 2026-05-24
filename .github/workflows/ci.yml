@@ -40,7 +40,7 @@ jobs:
   lint:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -182,7 +182,7 @@ jobs:
   matrix-smoke:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Matrix Smoke Test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -205,7 +205,7 @@ jobs:
   test-debug-assertions:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Test with Debug Assertions
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -233,7 +233,7 @@ jobs:
   test-release:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Test Release Mode (${{ matrix.features }})
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
@@ -262,7 +262,7 @@ jobs:
   benchmarks:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Benchmark Compilation
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -282,7 +282,7 @@ jobs:
   backend-matrix:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Backend Build Matrix (${{ matrix.backend.name }})
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
@@ -320,7 +320,7 @@ jobs:
   miri:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Advisory / Miri
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     continue-on-error: true   # advisory — nightly miri component can be unavailable
     steps:
       - uses: actions/checkout@v6.0.2
@@ -351,7 +351,7 @@ jobs:
   ts-compat:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Tree-sitter Compatibility API
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -376,7 +376,7 @@ jobs:
   sanitizers:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Advisory / Sanitizers
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     continue-on-error: true   # advisory — nightly + -Zbuild-std can break
     steps:
       - uses: actions/checkout@v6.0.2
@@ -406,7 +406,7 @@ jobs:
   minimal-versions:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Advisory / Minimal Versions
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     continue-on-error: true   # advisory — minimal-versions resolution can lag behind
     steps:
       - uses: actions/checkout@v6.0.2
@@ -423,7 +423,7 @@ jobs:
 
   semver-checks:
     name: API Breaking Change Detection
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v6.0.2
@@ -475,7 +475,7 @@ jobs:
   deterministic-codegen:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Deterministic Codegen
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -505,7 +505,7 @@ jobs:
   feature-matrix:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci || inputs.run_ci_supported_examples)
     name: Feature Matrix (${{ matrix.crate }} / ${{ matrix.name }})
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
@@ -588,7 +588,7 @@ jobs:
   feature-matrix-extras:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci || inputs.run_ci_supported_examples)
     name: Feature Matrix Extras
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -620,7 +620,7 @@ jobs:
   msrv:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: MSRV (1.95.0)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@1.95.0
@@ -642,7 +642,7 @@ jobs:
 
   api-stability:
     name: API Stability
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v6.0.2
@@ -675,7 +675,7 @@ jobs:
   security:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Security & Supply Chain
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -694,7 +694,7 @@ jobs:
   docs:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Documentation
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -726,7 +726,7 @@ jobs:
   adze-python:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: adze-python (Optimized Build)
-    runs-on: ubuntu-22.04
+    runs-on: self-hosted
     timeout-minutes: 45
     env:
       CARGO_TERM_COLOR: always
@@ -757,7 +757,7 @@ jobs:
   cross-compile:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Advisory / Cross Compilation (${{ matrix.target }})
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     continue-on-error: true   # advisory — cross toolchains can drift
     defaults:
       run:
@@ -817,7 +817,7 @@ jobs:
   coverage:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Code Coverage
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -873,7 +873,7 @@ jobs:
   unsafe-audit:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Advisory / Unsafe Audit
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -907,7 +907,7 @@ jobs:
 
   fuzz:
     name: Fuzz Testing
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_full_ci)
     steps:
       - uses: actions/checkout@v6.0.2
@@ -944,7 +944,7 @@ jobs:
   test-connectivity:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_full_ci)
     name: Test Connectivity (Tripwires)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
@@ -1048,7 +1048,7 @@ jobs:
 
   package-validation:
     name: Package Validation
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v6.0.2
@@ -1075,7 +1075,7 @@ jobs:
 
   benches-unstable:
     name: Benches (unstable, opt-in)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event_name == 'workflow_dispatch' && inputs.run_full_ci
     steps:
       - uses: actions/checkout@v6.0.2
@@ -1089,7 +1089,7 @@ jobs:
   # Required PR gate only; other workflow jobs skip PR event
   ci-supported:
     name: ci-supported
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     concurrency:
       group: ci-supported-${{ github.ref }}
       cancel-in-progress: true
@@ -1110,7 +1110,7 @@ jobs:
 
   wasm-check:
     name: Advisory / WASM Build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6.0.2

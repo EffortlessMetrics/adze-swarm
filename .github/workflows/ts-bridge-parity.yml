@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   parity:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     continue-on-error: true # Non-blocking job
     permissions:
       contents: read

@@ -38,7 +38,7 @@ jobs:
       github.event.action != 'labeled' ||
       github.event.label.name == 'full-ci' ||
       github.event.label.name == 'platform-matrix'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 2
     outputs:
       os: ${{ steps.compute.outputs.os }}
@@ -197,7 +197,7 @@ jobs:
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'wasm') ||
       contains(github.event.pull_request.labels.*.name, 'full-ci')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
     - uses: actions/checkout@v6.0.2
@@ -232,7 +232,7 @@ jobs:
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'ci:golden') ||
       contains(github.event.pull_request.labels.*.name, 'full-ci')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
     - uses: actions/checkout@v6.0.2
@@ -261,7 +261,7 @@ jobs:
     name: Integration Tests
     needs: matrix-setup
     if: needs.matrix-setup.outputs.run_rust == 'true'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
     - uses: actions/checkout@v6.0.2
@@ -280,7 +280,7 @@ jobs:
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'ci:perf') ||
       contains(github.event.pull_request.labels.*.name, 'full-ci')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
     - uses: actions/checkout@v6.0.2

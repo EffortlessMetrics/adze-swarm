@@ -16,7 +16,7 @@ permissions:
 jobs:
   route-rust-small:
     name: Route Rust Small
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 5
 
     if: >-
@@ -411,7 +411,7 @@ jobs:
     needs: route-rust-small
     if: needs.route-rust-small.outputs.target == 'github' && needs.route-rust-small.outputs.fallback_allowed == 'true'
 
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 45
 
     steps:
@@ -443,7 +443,7 @@ jobs:
     name: Runner Capacity / Fallback Policy
     needs: route-rust-small
     if: needs.route-rust-small.outputs.target == 'github' && needs.route-rust-small.outputs.fallback_allowed != 'true'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Fail with explicit routing policy message
         run: |
@@ -473,7 +473,7 @@ jobs:
           github.event.pull_request.head.repo.full_name == github.repository
         )
       )
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Check selected lane
