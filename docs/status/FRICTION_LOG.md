@@ -1,6 +1,6 @@
 # Adze Friction Log
 
-**Last updated:** 2026-05-21
+**Last updated:** 2026-05-29
 
 If it happens twice, it's not "user error". It's friction we own until we remove it or document it well enough that it stops recurring.
 
@@ -32,6 +32,7 @@ If it happens twice, it's not "user error". It's friction we own until we remove
 | FR-020 | CI | `just ci-supported` formatting can hit Windows command-line length limits | Blocks the local supported proof on Windows | Resolved | `adze-swarm#157` |
 | FR-021 | CI | `just ci-supported` can flood local logs with per-test names on cold Windows runs | Makes the supported proof look less bounded and can create pipe/timeout artifacts in local runners | Mitigated | `ci-supported` uses quiet test harness output |
 | FR-022 | CI | Pure Rust PR lane can exhaust linker/debug pressure during supported crate tests | Creates noisy red advisory checks after the required gates pass | Mitigated | `.github/workflows/pure-rust-ci.yml` |
+| FR-023 | CI | `Supported Rust Gate` can exceed its 25-minute step timeout without a test failure | Blocks otherwise green source-of-truth PRs when the supported proof is slow | Mitigated | `.github/workflows/pr-gate.yml` |
 
 ---
 
@@ -306,6 +307,27 @@ link resources, the next mitigation is to split supported tests by crate or
 lower test-step build concurrency.
 **Status:** Mitigated
 **Links:** `.github/workflows/pure-rust-ci.yml`
+
+### FR-023 - Supported Rust Gate Timeout Headroom
+
+**Area:** ci
+**Symptom:** `Supported Rust Gate` timed out while `just ci-supported` was still
+running supported crate tests.
+**Expected:** The gate should fail on test, lint, or formatting errors, not on a
+timeout that is below observed successful supported-lane runtime.
+**Actual:** `adze-swarm#557` timed out twice at the 25-minute step cap while
+running `adze-glr-core` parse-table property tests. The same branch had already
+passed local `just ci-supported`, `Rust Small Result`, `Source of Truth`, and
+`Product Proof Result`; the rerun showed the same timeout behavior rather than a
+test assertion failure.
+**Repro:** `adze-swarm#557` on 2026-05-29, run
+`26654542861`, jobs `78561329765` and `78565893569`.
+**Fix:** Increase the `Supported Rust Gate` job timeout to 45 minutes and the
+`Run supported lane` step timeout to 40 minutes. This preserves the supported
+proof surface while giving the self-hosted gate enough headroom to report real
+test failures.
+**Status:** Mitigated
+**Links:** `.github/workflows/pr-gate.yml`
 
 ---
 

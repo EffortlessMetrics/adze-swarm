@@ -27,7 +27,7 @@ jobs:
       always() &&
       (needs.plan.result == 'skipped' || needs.plan.outputs.docs_only != 'true')
     runs-on: self-hosted
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -40,7 +40,7 @@ jobs:
       - name: Install just
         run: cargo install just --locked || true
       - name: Run supported lane
-        timeout-minutes: 25
+        timeout-minutes: 40
         run: just ci-supported
 
   docs-gate:
