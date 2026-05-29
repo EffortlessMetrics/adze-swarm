@@ -11,6 +11,16 @@ PRs in EffortlessMetrics repos.
 > through Rust. Optimize by classifying changes correctly, keeping one active run,
 > one pending replacement slot, and making default PR paths tiny.
 
+Adze-specific boundary:
+
+- `EffortlessMetrics/adze-swarm` is the development, product-proof, and swarm CI
+  repo. Its default PR proof runs on self-hosted runners.
+- Do not add automatic GitHub-hosted fallback to `adze-swarm` default PR proof
+  lanes. Hosted execution requires an explicit recorded exception, such as a
+  scoped label, manual dispatch input, or release/public-safety note.
+- Release, publish, signing, Cargo-token, and public-fork-sensitive workflow
+  surfaces belong in public `EffortlessMetrics/adze`, not in `adze-swarm`.
+
 ## 1) Concurrency semantics (heavy/core workflows)
 
 - Do **not** set `cancel-in-progress: true` for heavy/core PR workflows unless a
@@ -56,14 +66,17 @@ Default light/control-plane surfaces (unless mixed with real code changes):
 Special case:
 
 - `.github/workflows/**` is **not** docs-light. Route workflow edits to minimal
-  hosted workflow validation/safety, not full Rust CI by default.
+  workflow validation/safety, not full Rust CI by default. In `adze-swarm`, that
+  validation must still respect the self-hosted-by-default rule unless the PR
+  records an explicit hosted-runner exception.
 
 ## 3) Default PR routing policy
 
 Classify first, then select the cheapest truthful lane:
 
 - docs/control-plane-only -> no Rust compile.
-- workflow-only -> hosted YAML/workflow validation, no full Rust.
+- workflow-only -> minimal workflow validation, no full Rust; in `adze-swarm`,
+  do not use hosted runners without an explicit exception.
 - Rust/build/test touched -> routed Rust-small.
 - hardware/GPU/receipt-only -> syntax/receipt validation only.
 - unknown/mixed -> Rust-small (not full CI).
@@ -75,8 +88,11 @@ Classify first, then select the cheapest truthful lane:
   lane when runners are busy or unavailable.
 - Fork PRs may use a tiny hosted safety lane.
 - Runner token/readiness/idle issues must not auto-trigger long hosted fallback.
-- Require explicit opt-in for expensive hosted fallback (labels/dispatch inputs),
-  e.g. `full-ci`, `allow-github-hosted`, `ci-budget-ack`.
+- In `adze-swarm`, default PR proof should fail explicitly on unavailable
+  self-hosted capacity instead of falling back to hosted runners.
+- Require explicit opt-in for any hosted fallback in `adze-swarm` and for
+  expensive hosted fallback elsewhere (labels/dispatch inputs), e.g. `full-ci`,
+  `allow-github-hosted`, `ci-budget-ack`.
 
 ## 5) Artifact policy
 
