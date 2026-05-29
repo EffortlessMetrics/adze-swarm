@@ -10,10 +10,11 @@ Use TDD. Red-Green-Refactor, spec driven design. User-story driven design.
 Before changing files for lane work, read:
 
 1. `docs/reference/SPEC_SYSTEM.md`
-2. `.adze/goals/active.toml`
-3. The linked implementation plan
-4. The linked spec for the selected work item
-5. Any linked ADRs
+2. `docs/reference/adze-swarm-operating-model.md`
+3. `.adze/goals/active.toml`
+4. The linked implementation plan
+5. The linked spec for the selected work item
+6. Any linked ADRs
 
 Before opening a PR, refresh the live queue:
 

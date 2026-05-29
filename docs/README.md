@@ -47,6 +47,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Query Compatibility**](./reference/query-compatibility.md) - Supported Tree-sitter query subset, source-aware behavior, and known gaps.
 - [**Tree-sitter Alias Semantics**](./reference/ts-compat-alias-semantics.md) - Draft target contract for alias-visible compatibility behavior.
 - [**Empty Rules Reference**](./reference/empty-rules-reference.md) - Quick reference for handling ε-productions.
+- [**Adze-swarm Operating Model**](./reference/adze-swarm-operating-model.md) - Development/proof forge boundary, self-hosted CI expectations, promotion rules, and release-surface stop conditions.
 
 ---
 

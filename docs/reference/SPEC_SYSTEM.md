@@ -69,19 +69,20 @@ Agents must:
 
 1. Read `AGENTS.md` or `CLAUDE.md`.
 2. Read this file.
-3. Read `.adze/goals/active.toml`.
-4. Read the linked implementation plan.
-5. Read the linked proposal only for why.
-6. Read the linked spec for acceptance.
-7. Read linked ADRs for constraints.
-8. Inspect the current git status.
-9. Refresh the live PR queue with
+3. Read `docs/reference/adze-swarm-operating-model.md`.
+4. Read `.adze/goals/active.toml`.
+5. Read the linked implementation plan.
+6. Read the linked proposal only for why.
+7. Read the linked spec for acceptance.
+8. Read linked ADRs for constraints.
+9. Inspect the current git status.
+10. Refresh the live PR queue with
    `gh pr list --repo EffortlessMetrics/adze-swarm --state open`.
-10. Check for same-title, same-scope, or overlapping PRs.
-11. Pick exactly one ready work item.
-12. Implement only that work item.
-13. Run the proof commands.
-14. Update status, receipts, support tiers, or policy ledgers only when the work
+11. Check for same-title, same-scope, or overlapping PRs.
+12. Pick exactly one ready work item.
+13. Implement only that work item.
+14. Run the proof commands.
+15. Update status, receipts, support tiers, or policy ledgers only when the work
     item requires it.
 
 If no ready work item exists, stop and write a handoff instead of inventing one.
