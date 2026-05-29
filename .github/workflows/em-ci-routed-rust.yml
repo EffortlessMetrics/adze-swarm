@@ -132,6 +132,15 @@ jobs:
           fi
 
           set +e
+          cx33="$(count_idle cx33 rust-small)"
+          parse_exit=$?
+          set -e
+          if [ "$parse_exit" -ne 0 ] || ! printf '%s' "$cx33" | grep -Eq '^[0-9]+$'; then
+            echo "runner JSON parse failed for cx33 (exit=${parse_exit}): ${cx33}"
+            fallback_github "parse_failed"
+          fi
+
+          set +e
           cx53="$(count_idle cx53 rust-small)"
           parse_exit=$?
           set -e
@@ -142,6 +151,7 @@ jobs:
 
           echo "cpx42 idle rust-medium runners: ${cpx42}"
           echo "cx43 idle rust-small runners: ${cx43}"
+          echo "cx33 idle rust-small runners: ${cx33}"
           echo "cx53 idle rust-small runners: ${cx53}"
 
           if [ "$cpx42" -gt 0 ]; then
@@ -157,6 +167,13 @@ jobs:
             echo "router_reason=cx43_idle"
             echo "target=cx43" >> "$GITHUB_OUTPUT"
             echo "target_reason=cx43_idle" >> "$GITHUB_OUTPUT"
+            echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
+          elif [ "$cx33" -gt 0 ]; then
+            echo "router_target=cx33"
+            echo "router_error=false"
+            echo "router_reason=cx33_idle"
+            echo "target=cx33" >> "$GITHUB_OUTPUT"
+            echo "target_reason=cx33_idle" >> "$GITHUB_OUTPUT"
             echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
           elif [ "$cx53" -gt 0 ]; then
             echo "router_target=cx53"
@@ -344,6 +361,101 @@ jobs:
           rmdir "${TMPDIR}" "${CARGO_TARGET_DIR}" 2>/dev/null || true
           df -h / /mnt/docker /mnt/actions /mnt/ci-scratch /mnt/ci-cache /mnt/ci-artifacts || true
 
+  rust-small-cx33:
+    name: Rust Small on CX33
+    needs: route-rust-small
+    if: needs.route-rust-small.outputs.target == 'cx33'
+
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx33, rust-small, trusted-pr]
+
+    timeout-minutes: 45
+
+    env:
+      JOB_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+
+      CARGO_HOME: /mnt/ci-cache/cargo-home
+      SCCACHE_DIR: /mnt/ci-cache/sccache
+      SCCACHE_CACHE_SIZE: 12G
+      RUSTC_WRAPPER: /usr/local/cargo/bin/sccache
+      CARGO_INCREMENTAL: "0"
+
+      TMPDIR: /mnt/ci-scratch/tmp/${{ github.run_id }}-${{ github.run_attempt }}
+      CARGO_TARGET_DIR: /mnt/ci-scratch/target/${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Guard disk
+        run: |
+          set -euo pipefail
+          ci-disk-guard /mnt/ci-scratch 25
+          ci-disk-guard /mnt/docker 5
+          ci-disk-guard /mnt/ci-cache 5
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Prepare scratch
+        run: |
+          set -euo pipefail
+          mkdir -p "$TMPDIR" "$CARGO_TARGET_DIR" "$CARGO_HOME" "$SCCACHE_DIR"
+
+      - name: Run Rust small lane in container
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --label em.ci=true \
+            --cpus="3" \
+            --memory="6g" \
+            --entrypoint /bin/bash \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -v "$CARGO_HOME:/cargo-home" \
+            -v "$SCCACHE_DIR:/sccache" \
+            -v "$CARGO_TARGET_DIR:/target" \
+            -v "$TMPDIR:/tmp/jobtmp" \
+            -w /workspace \
+            -e PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            -e HOME=/workspace \
+            -e CARGO_HOME=/cargo-home \
+            -e SCCACHE_DIR=/sccache \
+            -e SCCACHE_CACHE_SIZE=12G \
+            -e RUSTC_WRAPPER=/usr/local/cargo/bin/sccache \
+            -e CARGO_TARGET_DIR=/target \
+            -e TMPDIR=/tmp/jobtmp \
+            -e CARGO_INCREMENTAL=0 \
+            -e CARGO_BUILD_JOBS=2 \
+            -e RUST_TEST_THREADS=2 \
+            -e RUST_BACKTRACE=1 \
+            -e CARGO_TERM_COLOR=always \
+            em-ci-rust:1.95 \
+            -c 'set -euo pipefail
+                rustc --version
+                cargo --version
+                just --version
+                sccache --version
+
+                if [ -f Cargo.toml ]; then
+                  cargo fetch --locked
+                  cargo check --workspace --locked
+                  sccache --show-stats || true
+                else
+                  echo "No Cargo.toml found; infra smoke only."
+                fi'
+
+      - name: Cleanup scratch
+        if: always()
+        run: |
+          docker run --rm \
+            --entrypoint /bin/bash \
+            -v "$TMPDIR:/tmpdir" \
+            -v "$CARGO_TARGET_DIR:/target" \
+            em-ci-rust:1.95 \
+            -c 'find /tmpdir /target -mindepth 1 -delete 2>/dev/null || true' || true
+          rmdir "${TMPDIR}" "${CARGO_TARGET_DIR}" 2>/dev/null || true
+          df -h / /mnt/docker /mnt/actions /mnt/ci-scratch /mnt/ci-cache /mnt/ci-artifacts || true
+
   rust-small-cx53:
     name: Rust Small on CX53
     needs: route-rust-small
@@ -494,6 +606,7 @@ jobs:
       - route-rust-small
       - rust-small-cpx42
       - rust-small-cx43
+      - rust-small-cx33
       - rust-small-cx53
       - rust-small-github
       - runner-capacity-exhausted
@@ -517,6 +630,7 @@ jobs:
           target="${{ needs.route-rust-small.outputs.target }}"
           cpx42="${{ needs.rust-small-cpx42.result }}"
           cx43="${{ needs.rust-small-cx43.result }}"
+          cx33="${{ needs.rust-small-cx33.result }}"
           cx53="${{ needs.rust-small-cx53.result }}"
           gh="${{ needs.rust-small-github.result }}"
           capacity="${{ needs.runner-capacity-exhausted.result }}"
@@ -524,6 +638,7 @@ jobs:
           echo "target=${target}"
           echo "cpx42=${cpx42}"
           echo "cx43=${cx43}"
+          echo "cx33=${cx33}"
           echo "cx53=${cx53}"
           echo "github=${gh}"
           echo "capacity=${capacity}"
@@ -534,6 +649,9 @@ jobs:
               ;;
             cx43)
               test "$cx43" = "success"
+              ;;
+            cx33)
+              test "$cx33" = "success"
               ;;
             cx53)
               test "$cx53" = "success"

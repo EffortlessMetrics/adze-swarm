@@ -9,13 +9,16 @@ The current durable base lane is:
 - `EM CI Routed Rust`
 - final check: `Rust Small Result`
 
-This lane routes to the CX43 self-hosted runner when idle and falls back to GitHub-hosted when the runner is busy.
+This lane routes to self-hosted Rust Small capacity when idle. If no trusted
+self-hosted runner is idle, ordinary same-repo PRs fail with an explicit
+capacity/policy message instead of silently falling back to GitHub-hosted
+compute.
 
 Runner-class policy is defined in [`runner-classes.md`](./runner-classes.md).
-The short version is: CX43 owns the current `rust-small` base gate,
-GitHub-hosted is scoped fallback plus Windows/macOS/public-fork/release
-surface, and CX53 is registered as the current Rust Small overflow lane. A
-future `rust-large` lane still needs separate wiring and burn-in.
+The short version is: CPX42/CX43 own the preferred `rust-small` base gate,
+CX33 is a small backfill lane, CX53 is overflow capacity, and GitHub-hosted is
+reserved for explicit exceptions plus Windows/macOS/public-fork/release
+surface. A future `rust-large` lane still needs separate wiring and burn-in.
 
 The inherited public `ci.yml` full-CI workflow is retained for scheduled and
 manual verification only. It does not run on ordinary swarm PRs or every merge
