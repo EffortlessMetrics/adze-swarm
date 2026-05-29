@@ -1,6 +1,6 @@
 # Release Candidate Bundle Readiness Plan
 
-Status: active
+Status: complete
 Owner: release/product
 Created: 2026-05-29
 Linked proposal: ../../docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md
@@ -10,6 +10,7 @@ Linked ADRs:
 - ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 Active goal: ../../.adze/goals/active.toml
 Named goal: ../../.adze/goals/release-candidate-bundle.toml
+Closeout: ./closeout.md
 Release authorization tracker: https://github.com/EffortlessMetrics/adze-swarm/issues/325
 Lane selection tracker: https://github.com/EffortlessMetrics/adze-swarm/issues/549
 
@@ -102,7 +103,8 @@ blocked release actions.
 
 ### Work Item: non-publish-preflight-receipts
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#557
 Receipts: ./non-publish-preflight-receipts.md
 
 #### Goal
@@ -125,7 +127,9 @@ The dry-run install verifier is not a crates.io receipt.
 
 ### Work Item: release-candidate-bundle-closeout
 
-Status: ready
+Status: complete
+PR: EffortlessMetrics/adze-swarm#560
+Closeout: ./closeout.md
 
 #### Goal
 
