@@ -9,8 +9,9 @@ layer, not the default Linux build farm.
 | Class | Intended use | Not for |
 | --- | --- | --- |
 | `cx43` / `rust-small` | Required same-repo PR base gate, warm-cache `cargo check`, small bounded Linux checks | Full platform matrix, fuzz, benchmarks, release signing |
+| `cx33` / `rust-small` | Backfill Rust Small capacity when the primary small lane is busy | Default hosted fallback, release signing, heavy matrices |
 | `cx53` / `rust-large` | Larger Linux lanes, parser/golden shards, heavier affected tests, `coverage-lite` if still CPU-heavy | Windows, macOS, public fork PRs, publish/signing tokens |
-| GitHub-hosted | Scoped fallback, Windows/macOS, public-fork-safe checks, release/publish/signing, small receipt jobs | Default Linux compute for high-volume same-repo PRs |
+| GitHub-hosted | Explicitly approved fallback, Windows/macOS, public-fork-safe checks, release/publish/signing, small receipt jobs | Default Linux compute for high-volume same-repo PRs |
 
 ## Required base lane
 
@@ -22,7 +23,8 @@ Product Proof Result
 ```
 
 The result jobs are the branch-protection contracts. Conditional implementation
-jobs such as `Rust Small on CX43`, `Rust Small on CX53`, and
+jobs such as `Rust Small on CPX42`, `Rust Small on CX43`,
+`Rust Small on CX33`, `Rust Small on CX53`, and
 `Rust Small on GitHub Hosted` are not required directly because only one routed
 Rust Small implementation lane is expected to run.
 
@@ -30,9 +32,11 @@ Current route:
 
 ```text
 Rust Small Result
-  -> CX43 when idle
-  -> CX53 when CX43 is unavailable and CX53 is idle
-  -> GitHub-hosted fallback when no trusted runner is idle
+  -> CPX42 when idle
+  -> CX43 when CPX42 is unavailable and CX43 is idle
+  -> CX33 when CPX42/CX43 are unavailable and CX33 is idle
+  -> CX53 when smaller lanes are unavailable and CX53 is idle
+  -> explicit GitHub-hosted fallback only when a recorded exception allows it
 ```
 
 Planned optional `rust-large` route:
@@ -71,13 +75,15 @@ Fallback rules:
 
 ```text
 rust-small:
-  CX43 first
+  CPX42 first
+  CX43 primary small lane
+  CX33 backfill
   CX53 overflow
-  GitHub-hosted fallback
+  explicit GitHub-hosted fallback only by recorded exception
 
 rust-large:
   CX53 first
-  GitHub-hosted fallback
+  explicit GitHub-hosted fallback only by recorded exception
 ```
 
 Burn-in before any branch-protection change:
@@ -139,9 +145,11 @@ Router logs should expose why a target was selected:
 
 ```text
 router_target=cx43
+router_target=cx33
 router_target=cx53
 router_target=github
 router_reason=cx43_idle
+router_reason=cx33_idle
 router_reason=cx53_idle
 router_reason=no_idle_runner
 router_reason=runner_api_failed
