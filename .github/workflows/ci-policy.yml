@@ -22,10 +22,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install Tree-sitter development libraries
+      - name: Verify self-hosted policy tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libtree-sitter-dev pkg-config
+          set -euo pipefail
+          command -v cargo
+          command -v rustc
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: adze-xtask-${{ hashFiles('Cargo.lock') }}
@@ -68,10 +69,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install Tree-sitter development libraries
+      - name: Verify self-hosted policy tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libtree-sitter-dev pkg-config
+          set -euo pipefail
+          command -v cargo
+          command -v rustc
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: adze-xtask-${{ hashFiles('Cargo.lock') }}
@@ -140,11 +142,12 @@ jobs:
           echo "GLR invariant guard selected: $run_invariants"
       - uses: dtolnay/rust-toolchain@stable
         if: steps.paths.outputs.run_invariants == 'true'
-      - name: Install Tree-sitter development libraries
+      - name: Verify self-hosted policy tools
         if: steps.paths.outputs.run_invariants == 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libtree-sitter-dev pkg-config
+          set -euo pipefail
+          command -v cargo
+          command -v rustc
       - uses: Swatinem/rust-cache@v2
         if: steps.paths.outputs.run_invariants == 'true'
         with:

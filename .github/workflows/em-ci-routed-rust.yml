@@ -52,63 +52,86 @@ jobs:
             exit 0
           }
 
+          for tool in curl python3; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "required self-hosted routing tool is missing: $tool"
+              fallback_github "runner_tool_missing_${tool}"
+            fi
+          done
+
           if [ -z "${GH_TOKEN:-}" ]; then
             echo "EM_RUNNER_READ_TOKEN is not set"
             fallback_github "runner_token_missing"
           fi
 
+          runner_json="$(mktemp)"
+          trap 'rm -f "$runner_json"' EXIT
+
           set +e
-          runners="$(gh api "orgs/${ORG}/actions/runners?per_page=100" 2>&1)"
+          runners="$(curl -fsS \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL:-https://api.github.com}/orgs/${ORG}/actions/runners?per_page=100" 2>&1)"
           api_exit=$?
           set -e
 
           if [ "$api_exit" -ne 0 ]; then
-            echo "gh api failed (exit=${api_exit}): ${runners}"
+            echo "runner API request failed (exit=${api_exit}): ${runners}"
             fallback_github "runner_api_failed"
           fi
+          printf '%s' "$runners" > "$runner_json"
 
           count_idle() {
             local runner_class="$1"
             local rust_label="$2"
-            printf '%s' "$runners" | jq --arg runner_class "$runner_class" --arg rust_label "$rust_label" '
-              [
-                .runners[]
-                | select(.status == "online")
-                | select(.busy == false)
-                | (.labels | map(.name | ascii_downcase)) as $have
-                | select($have | index("em-ci"))
-                | select($have | index($runner_class))
-                | select($have | index($rust_label))
-                | select($have | index("trusted-pr"))
-              ]
-              | length
-            ' 2>&1
+            python3 - "$runner_json" "$runner_class" "$rust_label" <<'PY' 2>&1
+          import json
+          import sys
+
+          path, runner_class, rust_label = sys.argv[1:4]
+          with open(path, encoding="utf-8") as handle:
+              data = json.load(handle)
+
+          count = 0
+          for runner in data.get("runners", []):
+              if runner.get("status") != "online" or runner.get("busy") is not False:
+                  continue
+              labels = {
+                  str(label.get("name", "")).lower()
+                  for label in runner.get("labels", [])
+              }
+              if {"em-ci", runner_class, rust_label, "trusted-pr"} <= labels:
+                  count += 1
+
+          print(count)
+          PY
           }
 
           set +e
           cpx42="$(count_idle cpx42 rust-medium)"
-          jq_exit=$?
+          parse_exit=$?
           set -e
-          if [ "$jq_exit" -ne 0 ] || ! printf '%s' "$cpx42" | grep -Eq '^[0-9]+$'; then
-            echo "jq parse failed for cpx42 (exit=${jq_exit}): ${cpx42}"
+          if [ "$parse_exit" -ne 0 ] || ! printf '%s' "$cpx42" | grep -Eq '^[0-9]+$'; then
+            echo "runner JSON parse failed for cpx42 (exit=${parse_exit}): ${cpx42}"
             fallback_github "parse_failed"
           fi
 
           set +e
           cx43="$(count_idle cx43 rust-small)"
-          jq_exit=$?
+          parse_exit=$?
           set -e
-          if [ "$jq_exit" -ne 0 ] || ! printf '%s' "$cx43" | grep -Eq '^[0-9]+$'; then
-            echo "jq parse failed for cx43 (exit=${jq_exit}): ${cx43}"
+          if [ "$parse_exit" -ne 0 ] || ! printf '%s' "$cx43" | grep -Eq '^[0-9]+$'; then
+            echo "runner JSON parse failed for cx43 (exit=${parse_exit}): ${cx43}"
             fallback_github "parse_failed"
           fi
 
           set +e
           cx53="$(count_idle cx53 rust-small)"
-          jq_exit=$?
+          parse_exit=$?
           set -e
-          if [ "$jq_exit" -ne 0 ] || ! printf '%s' "$cx53" | grep -Eq '^[0-9]+$'; then
-            echo "jq parse failed for cx53 (exit=${jq_exit}): ${cx53}"
+          if [ "$parse_exit" -ne 0 ] || ! printf '%s' "$cx53" | grep -Eq '^[0-9]+$'; then
+            echo "runner JSON parse failed for cx53 (exit=${parse_exit}): ${cx53}"
             fallback_github "parse_failed"
           fi
 
@@ -145,7 +168,13 @@ jobs:
             echo "target_reason=no_idle_runner" >> "$GITHUB_OUTPUT"
             if [ "${{ github.event_name }}" = "pull_request" ]; then
               labels='${{ toJson(github.event.pull_request.labels.*.name) }}'
-              if printf '%s' "$labels" | jq -e '. | map(ascii_downcase) | index("allow-github-hosted") != null' >/dev/null; then
+              if LABELS_JSON="$labels" python3 - <<'PY'; then
+          import json
+          import os
+
+          labels = json.loads(os.environ.get("LABELS_JSON", "[]") or "[]")
+          raise SystemExit(0 if "allow-github-hosted" in {str(label).lower() for label in labels} else 1)
+          PY
                 echo "fallback_allowed=true" >> "$GITHUB_OUTPUT"
               else
                 echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"

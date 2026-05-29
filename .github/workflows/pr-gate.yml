@@ -101,10 +101,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@v6.0.2
         if: always()
-      - uses: actions/setup-python@v6
+      - name: Verify self-hosted reporting tools
         if: always()
-        with:
-          python-version: "3.12"
+        run: command -v python3
       - name: Download ci-plan artifact
         if: always()
         continue-on-error: true

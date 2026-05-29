@@ -40,14 +40,13 @@ jobs:
       - uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install Tree-sitter development libraries
+      - name: Verify self-hosted planning tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libtree-sitter-dev pkg-config
+          set -euo pipefail
+          command -v cargo
+          command -v rustc
+          command -v python3
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: adze-xtask-${{ hashFiles('Cargo.lock') }}

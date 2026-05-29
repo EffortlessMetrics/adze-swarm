@@ -14,7 +14,9 @@ jobs:
         uses: actions/checkout@v6.0.2
 
       - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+        run: |
+          set -euo pipefail
+          command -v jq
 
       - name: Show quarantine and count
         id: count

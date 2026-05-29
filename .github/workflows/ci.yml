@@ -52,9 +52,8 @@ jobs:
       
       - name: Install jq
         run: |
-          if ! command -v jq >/dev/null 2>&1; then
-            sudo apt-get update && sudo apt-get install -y jq
-          fi
+          set -euo pipefail
+          command -v jq
       
       - name: Check for bare #[no_mangle]
         run: cargo xtask check-no-mangle
@@ -101,7 +100,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [self-hosted-linux]
         features:
           - ""  # default features
           - "--no-default-features --features tree-sitter-c2rust"
@@ -109,18 +108,15 @@ jobs:
           - "--features incremental_glr"
         toolchain: [stable, beta]
         exclude:
-          # Reduce CI load: only test beta on ubuntu with default features
-          - os: macos-latest
-            toolchain: beta
-          - os: windows-latest
-            toolchain: beta
+          # Reduce CI load: only test beta on the default self-hosted lane
+          # with default features.
           - features: "--no-default-features --features tree-sitter-c2rust"
             toolchain: beta
           - features: "--features external_scanners"
             toolchain: beta
           - features: "--features incremental_glr"
             toolchain: beta
-    runs-on: ${{ matrix.os }}
+    runs-on: self-hosted
     defaults:
       run:
         shell: bash
@@ -192,8 +188,9 @@ jobs:
       
       - name: Install Tree-sitter development libraries
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libtree-sitter-dev pkg-config
+          set -euo pipefail
+          command -v pkg-config
+          pkg-config --exists tree-sitter
       
       - name: Test (workspace, default features)
         run: cargo test --workspace --locked --no-fail-fast -- --test-threads=$RUST_TEST_THREADS
@@ -704,8 +701,9 @@ jobs:
       
       - name: Install Tree-sitter development libraries
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libtree-sitter-dev pkg-config
+          set -euo pipefail
+          command -v pkg-config
+          pkg-config --exists tree-sitter
       
       - name: Build docs (deny warnings)
         env:
@@ -784,10 +782,12 @@ jobs:
       - name: Install cross-compilation tools
         if: matrix.target != 'wasm32-unknown-unknown'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-multilib g++-multilib
+          set -euo pipefail
+          command -v gcc
+          command -v g++
           if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+            command -v aarch64-linux-gnu-gcc
+            command -v aarch64-linux-gnu-g++
           fi
 
       - name: Configure linker for aarch64
@@ -827,8 +827,9 @@ jobs:
       
       - name: Install Tree-sitter development libraries
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libtree-sitter-dev pkg-config
+          set -euo pipefail
+          command -v pkg-config
+          pkg-config --exists tree-sitter
       
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@v2
@@ -958,8 +959,10 @@ jobs:
       
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq libtree-sitter-dev pkg-config
+          set -euo pipefail
+          command -v jq
+          command -v pkg-config
+          pkg-config --exists tree-sitter
 
       # 1) Block silently disabled tests (files renamed to .disabled)
       - name: Fail on disabled test files
@@ -1135,11 +1138,11 @@ jobs:
 
   cross-platform:
     name: Cross-platform (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [self-hosted-linux]
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
