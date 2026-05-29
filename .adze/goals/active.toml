@@ -35,12 +35,13 @@ end_state = [
 
 [[work_item]]
 id = "adoption-hardening-source-of-truth"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
 issues = [325, 549]
+prs = [562]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
@@ -51,12 +52,11 @@ commands = [
 
 [[work_item]]
 id = "starter-project-downstream-fixture"
-status = "blocked"
+status = "ready"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
-blocked_by = ["adoption-hardening-source-of-truth"]
 commands = [
   "cargo test -p adze-cli test_init -- --nocapture",
   "cargo test --manifest-path testing/downstream-starter/Cargo.toml",
@@ -65,12 +65,11 @@ commands = [
 
 [[work_item]]
 id = "api-choice-guide"
-status = "blocked"
+status = "ready"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
-blocked_by = ["adoption-hardening-source-of-truth"]
 commands = [
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",
@@ -78,12 +77,11 @@ commands = [
 
 [[work_item]]
 id = "glr-ambiguity-walkthrough"
-status = "blocked"
+status = "ready"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0003"
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
-blocked_by = ["adoption-hardening-source-of-truth"]
 commands = [
   "cargo run -p adze --features \"pure-rust,glr\" --example glr_ambiguity",
   "cargo test -p adze --features \"pure-rust,glr,ts-compat\" cookbook -- --nocapture",
@@ -91,12 +89,11 @@ commands = [
 
 [[work_item]]
 id = "diagnostics-recovery-walkthrough"
-status = "blocked"
+status = "ready"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
-blocked_by = ["adoption-hardening-source-of-truth"]
 commands = [
   "cargo run -p adze --features \"pure-rust,glr,serialization\" --example diagnostics_recovery",
   "cargo test -p adze --features \"pure-rust,glr,serialization,ts-compat\" --test recovery_matrix -- --nocapture",
@@ -104,12 +101,11 @@ commands = [
 
 [[work_item]]
 id = "query-cookbook"
-status = "blocked"
+status = "ready"
 proposal = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
 spec = "ADZE-SPEC-0013"
 adr = "ADZE-ADR-0001"
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
-blocked_by = ["adoption-hardening-source-of-truth"]
 commands = [
   "cargo run -p adze --features query --example query_highlighting",
   "cargo test -p adze --features query --lib query -- --nocapture",
@@ -117,12 +113,11 @@ commands = [
 
 [[work_item]]
 id = "ts-compat-selected-tree-guide"
-status = "blocked"
+status = "ready"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
-blocked_by = ["adoption-hardening-source-of-truth"]
 commands = [
   "cargo test -p adze --features \"pure-rust,glr,ts-compat\" --test ts_compat_selected_tree -- --nocapture",
   "cargo test -p adze --features \"pure-rust,ts-compat,query\" --test ts_compat_imported_shape_smoke -- --nocapture",
@@ -130,12 +125,11 @@ commands = [
 
 [[work_item]]
 id = "benchmark-receipt-guide"
-status = "blocked"
+status = "ready"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0014"
 adr = ""
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
-blocked_by = ["adoption-hardening-source-of-truth"]
 commands = [
   "cargo run -q -p xtask -- perf-receipt --profile product-smoke",
   "git diff --check",
@@ -143,12 +137,11 @@ commands = [
 
 [[work_item]]
 id = "public-release-boundary-checklist"
-status = "blocked"
+status = "ready"
 proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
-blocked_by = ["adoption-hardening-source-of-truth"]
 issues = [325]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",

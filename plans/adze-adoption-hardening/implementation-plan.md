@@ -48,7 +48,7 @@ non-release `adze-swarm` lane.
 
 ## Work Item: adoption-hardening-source-of-truth
 
-Status: active
+Status: complete
 Linked proposals:
 - ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
@@ -73,6 +73,10 @@ without touching release machinery.
 ### Production Delta
 
 Docs and source-of-truth metadata only.
+
+### Receipt
+
+Lands in PR #562.
 
 ### Non-Goals
 
@@ -109,8 +113,8 @@ Revert the setup PR to restore the paused forge standby manifest.
 
 ## Work Item: starter-project-downstream-fixture
 
-Status: blocked
-Blocked by: adoption-hardening-source-of-truth
+Status: ready
+Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 
@@ -129,8 +133,8 @@ cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse
 
 ## Work Item: api-choice-guide
 
-Status: blocked
-Blocked by: adoption-hardening-source-of-truth
+Status: ready
+Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -143,8 +147,8 @@ advanced projections described as support-tier-bounded views.
 
 ## Work Item: glr-ambiguity-walkthrough
 
-Status: blocked
-Blocked by: adoption-hardening-source-of-truth
+Status: ready
+Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0004-toolkit-excellence.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0003-summary-first-glr-ambiguity.md
@@ -156,8 +160,8 @@ document ambiguity summaries, and experimental/raw forest boundaries.
 
 ## Work Item: diagnostics-recovery-walkthrough
 
-Status: blocked
-Blocked by: adoption-hardening-source-of-truth
+Status: ready
+Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -169,8 +173,8 @@ missing nodes, and JSON diagnostic projections stay useful and claim-bounded.
 
 ## Work Item: query-cookbook
 
-Status: blocked
-Blocked by: adoption-hardening-source-of-truth
+Status: ready
+Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0013-query-compatibility.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -182,8 +186,8 @@ gaps, and proof commands without claiming full Tree-sitter query parity.
 
 ## Work Item: ts-compat-selected-tree-guide
 
-Status: blocked
-Blocked by: adoption-hardening-source-of-truth
+Status: ready
+Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0004-toolkit-excellence.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -195,8 +199,8 @@ Tree-sitter-shaped subset, known gaps, and canary coverage.
 
 ## Work Item: benchmark-receipt-guide
 
-Status: blocked
-Blocked by: adoption-hardening-source-of-truth
+Status: ready
+Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0014-performance-and-regression.md
 
@@ -208,8 +212,8 @@ regression claims.
 
 ## Work Item: public-release-boundary-checklist
 
-Status: blocked
-Blocked by: adoption-hardening-source-of-truth
+Status: ready
+Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
