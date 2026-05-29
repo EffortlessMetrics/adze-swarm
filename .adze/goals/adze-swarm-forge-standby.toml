@@ -18,7 +18,8 @@ self-hosted swarm workflow routing, runner/tooling follow-ups, duplicate queue
 cleanup, and the durable adze-swarm operating-model reference are merged. No
 new non-release implementation lane is selected. Release, publish, signing,
 Cargo-token, and crates.io install-receipt work remain blocked on explicit
-human authorization tracked by EffortlessMetrics/adze-swarm#325.
+human authorization tracked by EffortlessMetrics/adze-swarm#325. Non-release
+lane selection is tracked by EffortlessMetrics/adze-swarm#549.
 """
 
 handoff = """
@@ -89,6 +90,7 @@ proposal = ""
 spec = "docs/reference/SPEC_SYSTEM.md"
 adr = ""
 plan = ""
+issues = [549]
 commands = [
   "gh pr list --repo EffortlessMetrics/adze-swarm --state open --json number,title,url",
   "gh pr list --repo EffortlessMetrics/adze --state open --json number,title,url",
