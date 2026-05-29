@@ -63,8 +63,8 @@ Current standby manifest:
 Current live blockers:
 
 ```text
-release-publish-authorization: blocked
-next-non-release-lane-selection: blocked
+release-publish-authorization: blocked, tracked by #325
+next-non-release-lane-selection: blocked, tracked by #549
 ```
 
 Current live queue at audit time:
@@ -111,5 +111,7 @@ release/publish/install: blocked pending explicit authorization and receipts
 
 The next valid action must be one of:
 
-1. explicit human authorization for a public `adze` promotion/release path; or
-2. explicit selection of a new non-release `adze-swarm` active goal.
+1. explicit human authorization for a public `adze` promotion/release path,
+   tracked by #325; or
+2. explicit selection of a new non-release `adze-swarm` active goal, tracked by
+   #549.
