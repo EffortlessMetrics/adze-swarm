@@ -37,7 +37,8 @@ touch signing, use Cargo tokens, or run a real crates.io install verification.
 
 ### Work Item: release-candidate-bundle-source-of-truth
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#554
 
 #### Goal
 
@@ -61,7 +62,8 @@ git diff --check
 
 ### Work Item: current-candidate-snapshot
 
-Status: ready
+Status: active
+Snapshot: ./current-candidate-snapshot.md
 
 #### Goal
 
