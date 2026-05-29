@@ -1033,7 +1033,7 @@ links_to = [
 id = "plans/release-candidate-bundle/implementation-plan.md"
 kind = "plan"
 path = "plans/release-candidate-bundle/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "release/product"
 milestone = "next public promotion"
 source_of_truth_for = ["release candidate bundle readiness implementation sequence"]
@@ -1069,7 +1069,7 @@ links_to = [
 id = "plans/release-candidate-bundle/non-publish-preflight-receipts.md"
 kind = "plan"
 path = "plans/release-candidate-bundle/non-publish-preflight-receipts.md"
-status = "active"
+status = "complete"
 owner = "release/product"
 milestone = "next public promotion"
 source_of_truth_for = ["non-publish release candidate preflight receipts"]
@@ -1079,6 +1079,27 @@ links_to = [
   "ADZE-ADR-0001",
   "plans/release-candidate-bundle/implementation-plan.md",
   "plans/release-candidate-bundle/current-candidate-snapshot.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/release-candidate-bundle.toml",
+  "docs/reference/RELEASE_CANDIDATE_BUNDLE.md",
+  "docs/reference/PUBLISH_CHECKLIST.md",
+]
+
+[[artifact]]
+id = "plans/release-candidate-bundle/closeout.md"
+kind = "plan"
+path = "plans/release-candidate-bundle/closeout.md"
+status = "complete"
+owner = "release/product"
+milestone = "next public promotion"
+source_of_truth_for = ["release candidate bundle readiness closeout and non-publish handoff"]
+links_to = [
+  "ADZE-PROP-0017",
+  "ADZE-SPEC-0011",
+  "ADZE-ADR-0001",
+  "plans/release-candidate-bundle/implementation-plan.md",
+  "plans/release-candidate-bundle/current-candidate-snapshot.md",
+  "plans/release-candidate-bundle/non-publish-preflight-receipts.md",
   ".adze/goals/active.toml",
   ".adze/goals/release-candidate-bundle.toml",
   "docs/reference/RELEASE_CANDIDATE_BUNDLE.md",
@@ -1445,7 +1466,7 @@ links_to = [
 id = ".adze/goals/release-candidate-bundle.toml"
 kind = "goal"
 path = ".adze/goals/release-candidate-bundle.toml"
-status = "active"
+status = "complete"
 owner = "release/product"
 milestone = "next public promotion"
 source_of_truth_for = ["release candidate bundle readiness agent work queue"]

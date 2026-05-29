@@ -1,8 +1,9 @@
 id = "adze-release-candidate-bundle-readiness"
 title = "Adze Release Candidate Bundle Readiness"
-status = "active"
+status = "complete"
 owner = "release/product"
 created = "2026-05-29"
+archived = "2026-05-29"
 
 objective = """
 Prepare adze-swarm to produce a deliberate, non-publish release-candidate
@@ -83,13 +84,14 @@ commands = [
 
 [[work_item]]
 id = "non-publish-preflight-receipts"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/release-candidate-bundle/non-publish-preflight-receipts.md"
 blocked_by = ["promotion-bundle-checklist"]
 issues = [325]
+prs = [557]
 commands = [
   "just ci-supported",
   "just ci-product-stable",
@@ -99,13 +101,14 @@ commands = [
 
 [[work_item]]
 id = "release-candidate-bundle-closeout"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
-plan = "plans/release-candidate-bundle/implementation-plan.md"
+plan = "plans/release-candidate-bundle/closeout.md"
 blocked_by = ["non-publish-preflight-receipts"]
 issues = [325, 549]
+prs = [560]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
