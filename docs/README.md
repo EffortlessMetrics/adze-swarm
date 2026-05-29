@@ -88,6 +88,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Support Tiers**](./status/SUPPORT_TIERS.md) - Feature claims mapped to proof commands and CI lanes.
 - [**Product Proof Map**](./status/PRODUCT_PROOF_MAP.md) - Release-readable summary of product claims and their representative proof.
 - [**Product Acceptance Matrix**](./product/ACCEPTANCE_MATRIX.md) - User workflows mapped to required proof, claim boundaries, and support-tier impact.
+- [**Adze-swarm Forge Endpoint Audit**](./status/ADZE_SWARM_FORGE_AUDIT.md) - Current evidence for the development/proof forge endpoint and remaining release/install blockers.
 - [**Performance Baselines**](./perf/baselines.md) - Advisory benchmark baseline policy, receipt fields, and non-claims.
 - [**Friction Log**](./status/FRICTION_LOG.md) - Current developer pain points we are burning down.
 - [**Now / Next / Later**](./status/NOW_NEXT_LATER.md) - Rolling execution plan.
