@@ -12,12 +12,12 @@ install receipt.
 
 ## Summary
 
-`adze-swarm` is in a clean paused standby state for development and proof work
-after the non-publish release-candidate bundle closeout. The near-term CI
-governance, repo-boundary, proof-refresh, and release-candidate bundle tasks are
-complete. The broader product/release endpoint is not complete because
-release/publish authorization and a real crates.io `adze-cli` install receipt
-are still absent.
+`adze-swarm` has selected the non-release Adze Adoption Hardening lane after
+the clean paused standby state and non-publish release-candidate bundle
+closeout. The near-term CI governance, repo-boundary, proof-refresh, and
+release-candidate bundle tasks are complete. The broader product/release
+endpoint is not complete because release/publish authorization and a real
+crates.io `adze-cli` install receipt are still absent.
 
 ## Prompt-to-artifact checklist
 
@@ -40,7 +40,7 @@ are still absent.
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
 | Self-hosted-only routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545 merged; PR #547 rerun selected CX43 and hosted skipped. | Complete for current routing. |
 | Duplicate same-scope PRs collapsed. | PR #542 merged; duplicate document SRP PRs were not all merged. | Complete for the observed queue. |
-| Current active goal complete/paused/superseded before new goal. | `active.toml` is now restored to `status = "paused"` for `adze-swarm-forge-standby` after the completed release-candidate bundle lane. | Complete. |
+| Current active goal complete/paused/superseded before new goal. | The previous standby manifest was `status = "paused"` for `adze-swarm-forge-standby`; `active.toml` now selects `adze-adoption-hardening` as the next non-release lane. | Complete. |
 | Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-05-29. | Covered at audit time. |
 
 ## Current evidence snapshot
@@ -64,19 +64,19 @@ Recent merged PRs:
 - #559: `ci: add supported gate timeout headroom`
 - #560: `plans: close release candidate bundle lane`
 
-Current standby manifest:
+Current active manifest:
 
 ```text
 .adze/goals/active.toml
-  id = "adze-swarm-forge-standby"
-  status = "paused"
+  id = "adze-adoption-hardening"
+  status = "active"
 ```
 
 Current live blockers:
 
 ```text
 release-publish-authorization: blocked, tracked by #325
-next-non-release-lane-selection: blocked, tracked by #549
+next-non-release-lane-selection: selected by the adoption hardening lane, tracked by #549
 ```
 
 Current live queue at audit time:
@@ -168,6 +168,7 @@ Remaining incomplete or blocked items:
   signing, Cargo-token, or crates.io install-receipt work;
 - `adze-cli` is not present in crates.io, so `cargo install adze-cli` must not
   be claimed;
+- adoption hardening work items are selected but not complete yet;
 - this audit did not rerun the full product-surface proof matrix for typed CST,
   typed AST, diagnostics, ambiguity summaries, Tree-sitter-compatible output,
   query subset, JSON, CLI, and WASM projections;
@@ -181,14 +182,11 @@ Do not mark the active thread goal complete.
 The safe current state is:
 
 ```text
-adze-swarm: paused development/proof forge standby
+adze-swarm: active non-release adoption hardening lane
 public adze: release/public-intake surface only
 release/publish/install: blocked pending explicit authorization and receipts
 ```
 
-The next valid action must be one of:
-
-1. explicit human authorization for a public `adze` promotion/release path,
-   tracked by #325; or
-2. explicit selection of a new non-release `adze-swarm` active goal, tracked by
-   #549.
+The next valid non-release action is a focused `adze-swarm` PR for one
+adoption-hardening work item. Public promotion or release work remains blocked
+on explicit authorization tracked by #325.
