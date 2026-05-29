@@ -113,7 +113,7 @@ Revert the setup PR to restore the paused forge standby manifest.
 
 ## Work Item: starter-project-downstream-fixture
 
-Status: ready
+Status: complete
 Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
@@ -122,6 +122,10 @@ Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 
 Refresh the generated starter and checked-in downstream fixture so the local
 install/init/build/parse path stays easy to inspect and proof-backed.
+
+### Receipt
+
+Lands in PR #563.
 
 ### Proof Commands
 
