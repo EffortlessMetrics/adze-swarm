@@ -1,89 +1,114 @@
-id = "adze-toolkit-proof-refresh"
-title = "Adze Toolkit Proof Refresh"
-status = "complete"
+id = "adze-swarm-forge-standby"
+title = "Adze-swarm Forge Standby"
+status = "paused"
 owner = "repo-governance"
 created = "2026-05-29"
 
 objective = """
-Refresh the current non-release proof receipts for adze-swarm/main without
-authorizing release, tag, publish, signing, Cargo-token, or crates.io install
-work. Keep adze-swarm as the development/proof forge and public adze as the
-release/public-intake surface while proving the current state remains
-release-promotable.
+Keep adze-swarm in a clean development/proof-forge standby state while no
+non-release implementation lane is selected. Preserve the split where
+adze-swarm is the development, proof, CI, and release-candidate factory, while
+public adze remains the release, public intake, tag, publish, signing,
+Cargo-token, and crates.io receipt surface.
+"""
+
+pause_reason = """
+The near-term CI governance work has landed: CI-efficiency invariants,
+self-hosted swarm workflow routing, runner/tooling follow-ups, duplicate queue
+cleanup, the durable adze-swarm operating-model reference, and the current
+toolkit proof-refresh receipts are merged. No new non-release implementation
+lane is selected. Release, publish, signing, Cargo-token, and crates.io
+install-receipt work remain blocked on explicit human authorization tracked by
+EffortlessMetrics/adze-swarm#325. Non-release lane selection is tracked by
+EffortlessMetrics/adze-swarm#549.
+"""
+
+handoff = """
+For routine development, start a new active goal in adze-swarm before opening
+implementation work. For release or publish work, stop until human
+authorization selects a public adze promotion/release path. Do not infer a new
+public adze implementation lane from this paused manifest.
 """
 
 end_state = [
-  "adze-swarm remains the operating repo for non-release proof refresh work.",
-  "public adze remains untouched unless a separate public promotion or release task is explicitly authorized.",
-  "Rust Small Result remains the normalized base gate for PR proof.",
-  "Stable product proof is refreshed from current adze-swarm/main.",
-  "Supported gate proof is refreshed from current adze-swarm/main when local host conditions allow.",
-  "Publishability preflight may be refreshed, but no tag, publish, signing, Cargo-token, or crates.io install receipt is performed.",
-  "No cargo-install, Tree-sitter parity, query parity, incremental performance, GLR generality, or benchmark performance claim is broadened.",
-  "Any refreshed receipt is recorded with its command, result, scope, and claim boundary.",
+  "adze-swarm remains the operating repo for development, proof, source-of-truth, CI, examples, docs-proof, runtime, tablegen, query, diagnostics, and performance work.",
+  "public adze remains the release, public-intake, promotion, tag, publish, signing, Cargo-token, and crates.io receipt surface.",
+  "No release tag, crate publish, signing, Cargo-token, or crates.io install-receipt work is authorized by this standby state.",
+  "Default adze-swarm PR proof remains self-hosted and normalized through Rust Small Result.",
+  "No GitHub-hosted fallback is introduced without an explicit recorded exception.",
+  "Heavy, advisory, coverage, benchmark, product-proof, and full-matrix lanes remain path-routed, labeled, scheduled, manually dispatched, or explicitly budgeted.",
+  "AdzeDocument remains the canonical parse product; public views remain projections over that document.",
+  "No cargo-install, Tree-sitter parity, query parity, incremental performance, GLR generality, or benchmark performance claim is broadened without a real receipt.",
 ]
 
 [[work_item]]
-id = "proof-refresh-source-of-truth"
+id = "ci-governance-and-routing-cleanup"
+status = "complete"
+proposal = "docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md"
+spec = "docs/reference/SPEC_SYSTEM.md"
+adr = ""
+plan = ""
+prs = [538, 539, 542, 543, 544, 545]
+commands = [
+  "gh pr checks 545 --repo EffortlessMetrics/adze-swarm",
+  "gh pr list --repo EffortlessMetrics/adze-swarm --state open --json number,title,url",
+  "gh pr list --repo EffortlessMetrics/adze --state open --json number,title,url",
+]
+
+[[work_item]]
+id = "forge-operating-model-reference"
 status = "complete"
 proposal = ""
 spec = "docs/reference/SPEC_SYSTEM.md"
-adr = "docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md"
-plan = ""
-issues = [549]
-prs = [551]
-commands = [
-  "cargo run -q -p xtask -- check-active-goal --mode blocking",
-  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
-  "git diff --check",
-]
-
-[[work_item]]
-id = "stable-product-proof-refresh"
-status = "complete"
-proposal = ""
-spec = "docs/status/SUPPORT_TIERS.md"
-adr = "docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md"
-plan = ""
-issues = [549]
-commands = [
-  "just ci-product-stable",
-]
-
-[[work_item]]
-id = "supported-gate-proof-refresh"
-status = "complete"
-proposal = ""
-spec = "docs/status/SUPPORT_TIERS.md"
 adr = ""
 plan = ""
-issues = [549]
-commands = [
-  "just ci-supported",
-]
-
-[[work_item]]
-id = "publishable-preflight-refresh"
-status = "complete"
-proposal = ""
-spec = "docs/reference/PUBLISH_CHECKLIST.md"
-adr = ""
-plan = ""
+prs = [546, 547, 548, 550]
 issues = [325, 549]
 commands = [
+  "git diff --check",
+  "gh pr checks 550 --repo EffortlessMetrics/adze-swarm",
+  "gh pr list --repo EffortlessMetrics/adze-swarm --state open --json number,title,url",
+  "gh pr list --repo EffortlessMetrics/adze --state open --json number,title,url",
+]
+
+[[work_item]]
+id = "toolkit-proof-refresh"
+status = "complete"
+proposal = ""
+spec = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
+adr = "docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md"
+plan = ""
+issues = [549]
+prs = [551, 552]
+commands = [
+  "just ci-product-stable",
+  "just ci-supported",
   "just check-publishable",
 ]
 
 [[work_item]]
-id = "proof-refresh-closeout"
-status = "complete"
+id = "release-publish-authorization"
+status = "blocked"
+proposal = "docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/release-promotion/implementation-plan.md"
+issues = [325]
+commands = [
+  "cargo info --registry crates-io adze-cli",
+  "just check-publishable",
+  "cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version <authorized-version> --locked",
+]
+
+[[work_item]]
+id = "next-non-release-lane-selection"
+status = "blocked"
 proposal = ""
-spec = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
+spec = "docs/reference/SPEC_SYSTEM.md"
 adr = ""
 plan = ""
 issues = [549]
 commands = [
   "gh pr list --repo EffortlessMetrics/adze-swarm --state open --json number,title,url",
   "gh pr list --repo EffortlessMetrics/adze --state open --json number,title,url",
-  "git diff --check",
 ]

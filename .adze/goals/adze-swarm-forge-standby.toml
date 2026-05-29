@@ -15,11 +15,12 @@ Cargo-token, and crates.io receipt surface.
 pause_reason = """
 The near-term CI governance work has landed: CI-efficiency invariants,
 self-hosted swarm workflow routing, runner/tooling follow-ups, duplicate queue
-cleanup, and the durable adze-swarm operating-model reference are merged. No
-new non-release implementation lane is selected. Release, publish, signing,
-Cargo-token, and crates.io install-receipt work remain blocked on explicit
-human authorization tracked by EffortlessMetrics/adze-swarm#325. Non-release
-lane selection is tracked by EffortlessMetrics/adze-swarm#549.
+cleanup, the durable adze-swarm operating-model reference, and the current
+toolkit proof-refresh receipts are merged. No new non-release implementation
+lane is selected. Release, publish, signing, Cargo-token, and crates.io
+install-receipt work remain blocked on explicit human authorization tracked by
+EffortlessMetrics/adze-swarm#325. Non-release lane selection is tracked by
+EffortlessMetrics/adze-swarm#549.
 """
 
 handoff = """
@@ -61,12 +62,28 @@ proposal = ""
 spec = "docs/reference/SPEC_SYSTEM.md"
 adr = ""
 plan = ""
-prs = [546]
+prs = [546, 547, 548, 550]
+issues = [325, 549]
 commands = [
   "git diff --check",
-  "gh pr checks 546 --repo EffortlessMetrics/adze-swarm",
+  "gh pr checks 550 --repo EffortlessMetrics/adze-swarm",
   "gh pr list --repo EffortlessMetrics/adze-swarm --state open --json number,title,url",
   "gh pr list --repo EffortlessMetrics/adze --state open --json number,title,url",
+]
+
+[[work_item]]
+id = "toolkit-proof-refresh"
+status = "complete"
+proposal = ""
+spec = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
+adr = "docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md"
+plan = ""
+issues = [549]
+prs = [551, 552]
+commands = [
+  "just ci-product-stable",
+  "just ci-supported",
+  "just check-publishable",
 ]
 
 [[work_item]]
