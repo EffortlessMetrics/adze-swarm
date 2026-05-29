@@ -1048,6 +1048,24 @@ links_to = [
 ]
 
 [[artifact]]
+id = "plans/release-candidate-bundle/current-candidate-snapshot.md"
+kind = "plan"
+path = "plans/release-candidate-bundle/current-candidate-snapshot.md"
+status = "active"
+owner = "release/product"
+milestone = "next public promotion"
+source_of_truth_for = ["current adze-swarm release candidate snapshot and public drift boundary"]
+links_to = [
+  "ADZE-PROP-0017",
+  "ADZE-SPEC-0011",
+  "ADZE-ADR-0001",
+  "plans/release-candidate-bundle/implementation-plan.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/release-candidate-bundle.toml",
+  "docs/reference/PUBLISH_CHECKLIST.md",
+]
+
+[[artifact]]
 id = "plans/incremental-document-lifecycle/implementation-plan.md"
 kind = "plan"
 path = "plans/incremental-document-lifecycle/implementation-plan.md"

@@ -32,12 +32,13 @@ end_state = [
 
 [[work_item]]
 id = "release-candidate-bundle-source-of-truth"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/release-candidate-bundle/implementation-plan.md"
 issues = [325, 549]
+prs = [554]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
@@ -46,11 +47,11 @@ commands = [
 
 [[work_item]]
 id = "current-candidate-snapshot"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
-plan = "plans/release-candidate-bundle/implementation-plan.md"
+plan = "plans/release-candidate-bundle/current-candidate-snapshot.md"
 blocked_by = ["release-candidate-bundle-source-of-truth"]
 issues = [325]
 commands = [
@@ -58,6 +59,9 @@ commands = [
   "git rev-parse HEAD",
   "gh pr list --repo EffortlessMetrics/adze-swarm --state open --json number,title,url",
   "gh pr list --repo EffortlessMetrics/adze --state open --json number,title,url",
+  "git fetch public --prune",
+  "git rev-list --left-right --count public/main...origin/main",
+  "git diff --shortstat public/main..origin/main",
 ]
 
 [[work_item]]
