@@ -48,6 +48,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Tree-sitter Alias Semantics**](./reference/ts-compat-alias-semantics.md) - Draft target contract for alias-visible compatibility behavior.
 - [**Empty Rules Reference**](./reference/empty-rules-reference.md) - Quick reference for handling ε-productions.
 - [**Adze-swarm Operating Model**](./reference/adze-swarm-operating-model.md) - Development/proof forge boundary, self-hosted CI expectations, promotion rules, and release-surface stop conditions.
+- [**Release Candidate Bundle**](./reference/RELEASE_CANDIDATE_BUNDLE.md) - Pre-promotion checklist for selected swarm commits, proof receipts, public drift, claim boundaries, and blocked release actions.
 
 ---
 
