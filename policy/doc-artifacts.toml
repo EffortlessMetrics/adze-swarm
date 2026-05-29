@@ -1597,3 +1597,21 @@ links_to = [
   "plans/product-gap-burn-down/implementation-plan.md",
   "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
 ]
+
+[[artifact]]
+id = ".adze/goals/adze-swarm-forge-standby.toml"
+kind = "goal"
+path = ".adze/goals/adze-swarm-forge-standby.toml"
+status = "paused"
+owner = "repo-governance"
+milestone = "forge standby"
+source_of_truth_for = ["paused adze-swarm development and proof forge standby state"]
+links_to = [
+  "docs/reference/SPEC_SYSTEM.md",
+  "docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md",
+  "docs/reference/adze-swarm-operating-model.md",
+  "docs/status/ADZE_SWARM_FORGE_AUDIT.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/release-candidate-bundle.toml",
+  "plans/release-candidate-bundle/closeout.md",
+]

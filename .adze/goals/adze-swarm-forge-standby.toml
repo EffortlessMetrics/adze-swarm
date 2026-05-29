@@ -15,10 +15,11 @@ Cargo-token, and crates.io receipt surface.
 pause_reason = """
 The near-term CI governance work has landed: CI-efficiency invariants,
 self-hosted swarm workflow routing, runner/tooling follow-ups, duplicate queue
-cleanup, the durable adze-swarm operating-model reference, and the current
-toolkit proof-refresh receipts are merged. No new non-release implementation
-lane is selected. Release, publish, signing, Cargo-token, and crates.io
-install-receipt work remain blocked on explicit human authorization tracked by
+cleanup, the durable adze-swarm operating-model reference, the current toolkit
+proof-refresh receipts, and the non-publish release-candidate bundle closeout
+are merged. No new non-release implementation lane is selected. Release,
+publish, signing, Cargo-token, public promotion, and crates.io install-receipt
+work remain blocked on explicit human authorization tracked by
 EffortlessMetrics/adze-swarm#325. Non-release lane selection is tracked by
 EffortlessMetrics/adze-swarm#549.
 """
@@ -84,6 +85,25 @@ commands = [
   "just ci-product-stable",
   "just ci-supported",
   "just check-publishable",
+]
+
+[[work_item]]
+id = "release-candidate-bundle-readiness"
+status = "complete"
+proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/release-candidate-bundle/closeout.md"
+issues = [325, 549]
+prs = [554, 555, 556, 557, 558, 559, 560]
+commands = [
+  "just ci-supported",
+  "just ci-product-stable",
+  "just check-publishable",
+  "cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run",
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
+  "git diff --check",
 ]
 
 [[work_item]]
