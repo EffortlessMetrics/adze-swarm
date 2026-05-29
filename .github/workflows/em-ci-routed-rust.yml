@@ -65,6 +65,8 @@ jobs:
           fi
 
           runner_json="$(mktemp)"
+          current_runner="${RUNNER_NAME:-}"
+          echo "route job runner: ${current_runner:-unknown}"
           trap 'rm -f "$runner_json"' EXIT
 
           set +e
@@ -85,23 +87,26 @@ jobs:
           count_idle() {
             local runner_class="$1"
             local rust_label="$2"
-            python3 - "$runner_json" "$runner_class" "$rust_label" <<'PY' 2>&1
+            python3 - "$runner_json" "$runner_class" "$rust_label" "$current_runner" <<'PY' 2>&1
           import json
           import sys
 
-          path, runner_class, rust_label = sys.argv[1:4]
+          path, runner_class, rust_label, current_runner = sys.argv[1:5]
           with open(path, encoding="utf-8") as handle:
               data = json.load(handle)
 
           count = 0
           for runner in data.get("runners", []):
-              if runner.get("status") != "online" or runner.get("busy") is not False:
+              if runner.get("status") != "online":
                   continue
+              runner_name = str(runner.get("name", ""))
               labels = {
                   str(label.get("name", "")).lower()
                   for label in runner.get("labels", [])
               }
-              if {"em-ci", runner_class, rust_label, "trusted-pr"} <= labels:
+              if {"em-ci", runner_class, rust_label, "trusted-pr"} <= labels and (
+                  runner.get("busy") is False or runner_name == current_runner
+              ):
                   count += 1
 
           print(count)
