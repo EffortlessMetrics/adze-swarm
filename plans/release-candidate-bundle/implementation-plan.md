@@ -62,7 +62,8 @@ git diff --check
 
 ### Work Item: current-candidate-snapshot
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#555
 Snapshot: ./current-candidate-snapshot.md
 
 #### Goal
@@ -81,7 +82,8 @@ for both repos, and the current public drift boundary.
 
 ### Work Item: promotion-bundle-checklist
 
-Status: ready
+Status: active
+Reference: ../../docs/reference/RELEASE_CANDIDATE_BUNDLE.md
 
 #### Goal
 
