@@ -113,7 +113,7 @@ Revert the setup PR to restore the paused forge standby manifest.
 
 ## Work Item: starter-project-downstream-fixture
 
-Status: ready
+Status: active
 Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md

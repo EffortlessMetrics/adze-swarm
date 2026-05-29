@@ -52,7 +52,7 @@ commands = [
 
 [[work_item]]
 id = "starter-project-downstream-fixture"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
