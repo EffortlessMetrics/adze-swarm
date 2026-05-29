@@ -142,6 +142,6 @@ jobs:
             fi
             echo ""
             echo "### Artifacts"
-            echo "- `ripr-pr`: `target/ripr/pr/`"
-            echo "- `ripr-review`: `target/ripr/review/`"
+            echo '- `ripr-pr`: `target/ripr/pr/`'
+            echo '- `ripr-review`: `target/ripr/review/`'
           } >> "$GITHUB_STEP_SUMMARY"
