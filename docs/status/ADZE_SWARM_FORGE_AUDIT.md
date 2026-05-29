@@ -81,6 +81,35 @@ cargo info --registry crates-io adze-cli
 error: could not find `adze-cli`
 ```
 
+## Current proof-refresh receipt
+
+On 2026-05-29, the non-release `adze-toolkit-proof-refresh` lane refreshed the
+current local proof receipts from `adze-swarm/main` after PR #551 selected the
+lane:
+
+```text
+just ci-product-stable
+result: passed
+
+just ci-supported
+result: passed on rerun with a longer local timeout after the first invocation
+        timed out during cold-cache Windows supported-crate linking
+
+just check-publishable
+result: passed for adze-common, adze-ir, adze-glr-core, adze-tablegen,
+        adze-macro, adze-tool, adze-cli, and adze
+```
+
+Claim boundary:
+
+```text
+These are non-publish proof receipts.
+They do not authorize a release tag, cargo publish, signing, Cargo-token work,
+or a crates.io install receipt.
+The cargo install adze-cli claim remains incomplete until public release and a
+real post-publish crates.io install verifier pass.
+```
+
 ## Incomplete or weakly verified items
 
 The overall endpoint must not be marked complete yet.

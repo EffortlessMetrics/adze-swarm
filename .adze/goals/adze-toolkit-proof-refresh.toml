@@ -1,6 +1,6 @@
 id = "adze-toolkit-proof-refresh"
 title = "Adze Toolkit Proof Refresh"
-status = "active"
+status = "complete"
 owner = "repo-governance"
 created = "2026-05-29"
 
@@ -25,12 +25,13 @@ end_state = [
 
 [[work_item]]
 id = "proof-refresh-source-of-truth"
-status = "active"
+status = "complete"
 proposal = ""
 spec = "docs/reference/SPEC_SYSTEM.md"
 adr = "docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md"
 plan = ""
 issues = [549]
+prs = [551]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
@@ -39,7 +40,7 @@ commands = [
 
 [[work_item]]
 id = "stable-product-proof-refresh"
-status = "ready"
+status = "complete"
 proposal = ""
 spec = "docs/status/SUPPORT_TIERS.md"
 adr = "docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md"
@@ -51,7 +52,7 @@ commands = [
 
 [[work_item]]
 id = "supported-gate-proof-refresh"
-status = "ready"
+status = "complete"
 proposal = ""
 spec = "docs/status/SUPPORT_TIERS.md"
 adr = ""
@@ -63,7 +64,7 @@ commands = [
 
 [[work_item]]
 id = "publishable-preflight-refresh"
-status = "ready"
+status = "complete"
 proposal = ""
 spec = "docs/reference/PUBLISH_CHECKLIST.md"
 adr = ""
@@ -75,7 +76,7 @@ commands = [
 
 [[work_item]]
 id = "proof-refresh-closeout"
-status = "ready"
+status = "complete"
 proposal = ""
 spec = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
 adr = ""
