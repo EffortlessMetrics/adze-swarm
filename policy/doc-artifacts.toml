@@ -334,6 +334,24 @@ links_to = [
 ]
 
 [[artifact]]
+id = "ADZE-PROP-0017"
+kind = "proposal"
+path = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
+status = "accepted"
+owner = "release/product"
+milestone = "next public promotion"
+source_of_truth_for = ["release candidate bundle readiness rationale", "non-publish promotion-bundle proof campaign"]
+links_to = [
+  "ADZE-SPEC-0011",
+  "ADZE-ADR-0001",
+  "plans/release-candidate-bundle/implementation-plan.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/release-candidate-bundle.toml",
+  "docs/reference/adze-swarm-operating-model.md",
+  "docs/reference/PUBLISH_CHECKLIST.md",
+]
+
+[[artifact]]
 id = "ADZE-SPEC-0001"
 kind = "spec"
 path = "docs/specs/ADZE-SPEC-0001-package-surface-boundary.md"
@@ -1012,6 +1030,24 @@ links_to = [
 ]
 
 [[artifact]]
+id = "plans/release-candidate-bundle/implementation-plan.md"
+kind = "plan"
+path = "plans/release-candidate-bundle/implementation-plan.md"
+status = "active"
+owner = "release/product"
+milestone = "next public promotion"
+source_of_truth_for = ["release candidate bundle readiness implementation sequence"]
+links_to = [
+  "ADZE-PROP-0017",
+  "ADZE-SPEC-0011",
+  "ADZE-ADR-0001",
+  ".adze/goals/active.toml",
+  ".adze/goals/release-candidate-bundle.toml",
+  "docs/reference/adze-swarm-operating-model.md",
+  "docs/reference/PUBLISH_CHECKLIST.md",
+]
+
+[[artifact]]
 id = "plans/incremental-document-lifecycle/implementation-plan.md"
 kind = "plan"
 path = "plans/incremental-document-lifecycle/implementation-plan.md"
@@ -1365,6 +1401,24 @@ links_to = [
   ".adze/goals/active.toml",
   ".adze/goals/archive/2026-05-21-cli-dynamic-parse-boundary.toml",
   "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/release-candidate-bundle.toml"
+kind = "goal"
+path = ".adze/goals/release-candidate-bundle.toml"
+status = "active"
+owner = "release/product"
+milestone = "next public promotion"
+source_of_truth_for = ["release candidate bundle readiness agent work queue"]
+links_to = [
+  "ADZE-PROP-0017",
+  "ADZE-SPEC-0011",
+  "ADZE-ADR-0001",
+  "plans/release-candidate-bundle/implementation-plan.md",
+  ".adze/goals/active.toml",
+  "docs/reference/adze-swarm-operating-model.md",
+  "docs/reference/PUBLISH_CHECKLIST.md",
 ]
 
 [[artifact]]
