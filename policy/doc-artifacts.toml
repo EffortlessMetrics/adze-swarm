@@ -1615,3 +1615,45 @@ links_to = [
   ".adze/goals/release-candidate-bundle.toml",
   "plans/release-candidate-bundle/closeout.md",
 ]
+
+[[artifact]]
+id = "plans/adze-adoption-hardening/implementation-plan.md"
+kind = "plan"
+path = "plans/adze-adoption-hardening/implementation-plan.md"
+status = "active"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["adze adoption hardening implementation sequence"]
+links_to = [
+  "ADZE-PROP-0004",
+  "ADZE-PROP-0006",
+  "ADZE-PROP-0017",
+  "ADZE-SPEC-0011",
+  "ADZE-SPEC-0012",
+  "ADZE-SPEC-0013",
+  "ADZE-SPEC-0014",
+  "ADZE-ADR-0001",
+  "ADZE-ADR-0003",
+  "ADZE-ADR-0004",
+  ".adze/goals/active.toml",
+  ".adze/goals/adze-adoption-hardening.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/adze-adoption-hardening.toml"
+kind = "goal"
+path = ".adze/goals/adze-adoption-hardening.toml"
+status = "active"
+owner = "runtime/product"
+milestone = "post-0.9"
+source_of_truth_for = ["adze adoption hardening agent work queue"]
+links_to = [
+  "ADZE-PROP-0004",
+  "ADZE-PROP-0006",
+  "ADZE-PROP-0017",
+  "plans/adze-adoption-hardening/implementation-plan.md",
+  ".adze/goals/active.toml",
+  "docs/status/SUPPORT_TIERS.md",
+  "docs/status/ADZE_SWARM_FORGE_AUDIT.md",
+]
