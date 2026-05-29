@@ -52,11 +52,12 @@ commands = [
 
 [[work_item]]
 id = "starter-project-downstream-fixture"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0012"
 adr = ""
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
+prs = [563]
 commands = [
   "cargo test -p adze-cli test_init -- --nocapture",
   "cargo test --manifest-path testing/downstream-starter/Cargo.toml",
