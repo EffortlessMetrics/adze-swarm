@@ -1,116 +1,134 @@
-id = "adze-release-candidate-bundle-readiness"
-title = "Adze Release Candidate Bundle Readiness"
-status = "complete"
-owner = "release/product"
+id = "adze-swarm-forge-standby"
+title = "Adze-swarm Forge Standby"
+status = "paused"
+owner = "repo-governance"
 created = "2026-05-29"
-archived = "2026-05-29"
 
 objective = """
-Prepare adze-swarm to produce a deliberate, non-publish release-candidate
-bundle that a maintainer can review before any public adze promotion or release
-authorization. The bundle must make the selected swarm commit, proof receipts,
-claim boundaries, public drift state, rollback path, and blocked release actions
-explicit without tagging, publishing, signing, using Cargo tokens, or claiming
-crates.io install support.
+Keep adze-swarm in a clean development/proof-forge standby state while no
+non-release implementation lane is selected. Preserve the split where
+adze-swarm is the development, proof, CI, and release-candidate factory, while
+public adze remains the release, public intake, tag, publish, signing,
+Cargo-token, and crates.io receipt surface.
+"""
+
+pause_reason = """
+The near-term CI governance work has landed: CI-efficiency invariants,
+self-hosted swarm workflow routing, runner/tooling follow-ups, duplicate queue
+cleanup, the durable adze-swarm operating-model reference, the current toolkit
+proof-refresh receipts, and the non-publish release-candidate bundle closeout
+are merged. No new non-release implementation lane is selected. Release,
+publish, signing, Cargo-token, public promotion, and crates.io install-receipt
+work remain blocked on explicit human authorization tracked by
+EffortlessMetrics/adze-swarm#325. Non-release lane selection is tracked by
+EffortlessMetrics/adze-swarm#549.
 """
 
 handoff = """
-This is a non-release adze-swarm lane selected from the paused forge standby
-state tracked by EffortlessMetrics/adze-swarm#549. Release, publish, signing,
-Cargo-token, public promotion PR, and real crates.io install receipt work remain
-blocked on explicit authorization tracked by EffortlessMetrics/adze-swarm#325.
+For routine development, start a new active goal in adze-swarm before opening
+implementation work. For release or publish work, stop until human
+authorization selects a public adze promotion/release path. Do not infer a new
+public adze implementation lane from this paused manifest.
 """
 
 end_state = [
-  "adze-swarm remains the development, proof, CI, and release-candidate factory.",
-  "public adze remains the public release, intake, promotion, tag, publish, signing, Cargo-token, and crates.io receipt surface.",
-  "A selected adze-swarm release-candidate commit can be reviewed with a concrete bundle of proof commands, claim boundaries, public drift state, and rollback notes.",
-  "The bundle distinguishes non-publish preflight receipts from post-publish crates.io install receipts.",
-  "No public adze promotion PR, release tag, cargo publish, signing workflow, Cargo-token work, or crates.io install command is authorized by this lane.",
-  "No cargo install, Tree-sitter parity, query parity, incremental performance, GLR generality, or benchmark performance claim is broadened without a real receipt.",
+  "adze-swarm remains the operating repo for development, proof, source-of-truth, CI, examples, docs-proof, runtime, tablegen, query, diagnostics, and performance work.",
+  "public adze remains the release, public-intake, promotion, tag, publish, signing, Cargo-token, and crates.io receipt surface.",
+  "No release tag, crate publish, signing, Cargo-token, or crates.io install-receipt work is authorized by this standby state.",
+  "Default adze-swarm PR proof remains self-hosted and normalized through Rust Small Result.",
+  "No GitHub-hosted fallback is introduced without an explicit recorded exception.",
+  "Heavy, advisory, coverage, benchmark, product-proof, and full-matrix lanes remain path-routed, labeled, scheduled, manually dispatched, or explicitly budgeted.",
   "AdzeDocument remains the canonical parse product; public views remain projections over that document.",
+  "No cargo-install, Tree-sitter parity, query parity, incremental performance, GLR generality, or benchmark performance claim is broadened without a real receipt.",
 ]
 
 [[work_item]]
-id = "release-candidate-bundle-source-of-truth"
+id = "ci-governance-and-routing-cleanup"
 status = "complete"
-proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
-spec = "ADZE-SPEC-0011"
-adr = "ADZE-ADR-0001"
-plan = "plans/release-candidate-bundle/implementation-plan.md"
-issues = [325, 549]
-prs = [554]
+proposal = "docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md"
+spec = "docs/reference/SPEC_SYSTEM.md"
+adr = ""
+plan = ""
+prs = [538, 539, 542, 543, 544, 545]
 commands = [
-  "cargo run -q -p xtask -- check-active-goal --mode blocking",
-  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
-  "git diff --check",
-]
-
-[[work_item]]
-id = "current-candidate-snapshot"
-status = "complete"
-proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
-spec = "ADZE-SPEC-0011"
-adr = "ADZE-ADR-0001"
-plan = "plans/release-candidate-bundle/current-candidate-snapshot.md"
-blocked_by = ["release-candidate-bundle-source-of-truth"]
-issues = [325]
-prs = [555]
-commands = [
-  "git status --short --branch",
-  "git rev-parse HEAD",
+  "gh pr checks 545 --repo EffortlessMetrics/adze-swarm",
   "gh pr list --repo EffortlessMetrics/adze-swarm --state open --json number,title,url",
   "gh pr list --repo EffortlessMetrics/adze --state open --json number,title,url",
-  "git fetch public --prune",
-  "git rev-list --left-right --count public/main...origin/main",
-  "git diff --shortstat public/main..origin/main",
 ]
 
 [[work_item]]
-id = "promotion-bundle-checklist"
+id = "forge-operating-model-reference"
 status = "complete"
-proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
-spec = "ADZE-SPEC-0011"
-adr = "ADZE-ADR-0001"
-plan = "docs/reference/RELEASE_CANDIDATE_BUNDLE.md"
-blocked_by = ["current-candidate-snapshot"]
-issues = [325]
-prs = [556]
+proposal = ""
+spec = "docs/reference/SPEC_SYSTEM.md"
+adr = ""
+plan = ""
+prs = [546, 547, 548, 550]
+issues = [325, 549]
 commands = [
-  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
-  "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "git diff --check",
+  "gh pr checks 550 --repo EffortlessMetrics/adze-swarm",
+  "gh pr list --repo EffortlessMetrics/adze-swarm --state open --json number,title,url",
+  "gh pr list --repo EffortlessMetrics/adze --state open --json number,title,url",
 ]
 
 [[work_item]]
-id = "non-publish-preflight-receipts"
+id = "toolkit-proof-refresh"
 status = "complete"
-proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
-spec = "ADZE-SPEC-0011"
-adr = "ADZE-ADR-0001"
-plan = "plans/release-candidate-bundle/non-publish-preflight-receipts.md"
-blocked_by = ["promotion-bundle-checklist"]
-issues = [325]
-prs = [557]
+proposal = ""
+spec = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
+adr = "docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md"
+plan = ""
+issues = [549]
+prs = [551, 552]
 commands = [
-  "just ci-supported",
   "just ci-product-stable",
+  "just ci-supported",
   "just check-publishable",
-  "cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run",
 ]
 
 [[work_item]]
-id = "release-candidate-bundle-closeout"
+id = "release-candidate-bundle-readiness"
 status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/release-candidate-bundle/closeout.md"
-blocked_by = ["non-publish-preflight-receipts"]
 issues = [325, 549]
-prs = [560]
+prs = [554, 555, 556, 557, 558, 559, 560]
 commands = [
+  "just ci-supported",
+  "just ci-product-stable",
+  "just check-publishable",
+  "cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",
+]
+
+[[work_item]]
+id = "release-publish-authorization"
+status = "blocked"
+proposal = "docs/proposals/ADZE-PROP-0005-release-promotion-readiness.md"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/release-promotion/implementation-plan.md"
+issues = [325]
+commands = [
+  "cargo info --registry crates-io adze-cli",
+  "just check-publishable",
+  "cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version <authorized-version> --locked",
+]
+
+[[work_item]]
+id = "next-non-release-lane-selection"
+status = "blocked"
+proposal = ""
+spec = "docs/reference/SPEC_SYSTEM.md"
+adr = ""
+plan = ""
+issues = [549]
+commands = [
+  "gh pr list --repo EffortlessMetrics/adze-swarm --state open --json number,title,url",
+  "gh pr list --repo EffortlessMetrics/adze --state open --json number,title,url",
 ]

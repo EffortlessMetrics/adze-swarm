@@ -12,10 +12,12 @@ install receipt.
 
 ## Summary
 
-`adze-swarm` is in a clean paused standby state for development and proof work.
-The near-term CI governance and repo-boundary tasks are complete. The broader
-product/release endpoint is not complete because release/publish authorization
-and a real crates.io `adze-cli` install receipt are still absent.
+`adze-swarm` is in a clean paused standby state for development and proof work
+after the non-publish release-candidate bundle closeout. The near-term CI
+governance, repo-boundary, proof-refresh, and release-candidate bundle tasks are
+complete. The broader product/release endpoint is not complete because
+release/publish authorization and a real crates.io `adze-cli` install receipt
+are still absent.
 
 ## Prompt-to-artifact checklist
 
@@ -38,7 +40,7 @@ and a real crates.io `adze-cli` install receipt are still absent.
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
 | Self-hosted-only routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545 merged; PR #547 rerun selected CX43 and hosted skipped. | Complete for current routing. |
 | Duplicate same-scope PRs collapsed. | PR #542 merged; duplicate document SRP PRs were not all merged. | Complete for the observed queue. |
-| Current active goal complete/paused/superseded before new goal. | `active.toml` is now `status = "paused"` for `adze-swarm-forge-standby`. | Complete. |
+| Current active goal complete/paused/superseded before new goal. | `active.toml` is now restored to `status = "paused"` for `adze-swarm-forge-standby` after the completed release-candidate bundle lane. | Complete. |
 | Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-05-29. | Covered at audit time. |
 
 ## Current evidence snapshot
@@ -51,6 +53,16 @@ Recent merged PRs:
 - #545: `ci: harden ripr advisory on minimal runners`
 - #546: `docs: record adze-swarm operating model`
 - #547: `docs(goal): pause adze-swarm forge standby`
+- #551: `docs(goal): start toolkit proof refresh`
+- #552: `docs(status): record toolkit proof refresh`
+- #553: `docs(goal): restore forge standby`
+- #554: `docs(goal): start release candidate bundle readiness`
+- #555: `docs(release): record current candidate snapshot`
+- #556: `docs(release): add candidate bundle checklist`
+- #557: `docs(release): record non-publish preflight receipts`
+- #558: `ci: add cx33 rust small routing`
+- #559: `ci: add supported gate timeout headroom`
+- #560: `plans: close release candidate bundle lane`
 
 Current standby manifest:
 
@@ -78,7 +90,7 @@ Current crates.io install receipt state:
 
 ```text
 cargo info --registry crates-io adze-cli
-error: could not find `adze-cli`
+error: could not find `adze-cli` in registry `https://github.com/rust-lang/crates.io-index`
 ```
 
 ## Current proof-refresh receipt
@@ -108,6 +120,42 @@ They do not authorize a release tag, cargo publish, signing, Cargo-token work,
 or a crates.io install receipt.
 The cargo install adze-cli claim remains incomplete until public release and a
 real post-publish crates.io install verifier pass.
+```
+
+## Current release-candidate bundle receipt
+
+On 2026-05-29, PR #560 closed the non-publish release-candidate bundle lane.
+The selected `adze-swarm/main` state at standby restoration time is:
+
+```text
+135ae93c626d9af36a84d6f856c507b2ac931803
+plans: close release candidate bundle lane (#560)
+```
+
+The public release surface remains intentionally separate:
+
+```text
+public adze/main: 6263c6a80046d13fb98e3ad319dfe726f32f1010
+public drift: 386 files changed, 20612 insertions(+), 9816 deletions(-)
+changed paths: 386
+```
+
+The release-candidate bundle lane recorded:
+
+```text
+just ci-supported
+just ci-product-stable
+just check-publishable
+cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run
+```
+
+Claim boundary:
+
+```text
+These are non-publish release-candidate receipts.
+They do not open a public promotion PR, tag a release, publish crates, change
+signing or Cargo-token workflows, run a real crates.io install, or prove
+cargo install adze-cli.
 ```
 
 ## Incomplete or weakly verified items
