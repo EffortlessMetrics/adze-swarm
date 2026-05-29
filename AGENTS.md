@@ -12,6 +12,9 @@ contribution intake surface. Do not open new swarm work against public `adze`
 or `adze-dev` unless the user explicitly asks for a public-repo promotion or
 sync.
 
+For the durable repo-boundary and release-candidate workflow, read
+`docs/reference/adze-swarm-operating-model.md`.
+
 
 ## Repo Source-of-Truth Stack
 
@@ -24,10 +27,11 @@ Roadmap → Proposal → Spec → ADR → Plan → Active goal → PR → Proof
 Before changing files for lane work, read:
 
 1. `docs/reference/SPEC_SYSTEM.md`
-2. `.adze/goals/active.toml`
-3. The linked implementation plan
-4. The linked spec for the selected work item
-5. Linked ADRs
+2. `docs/reference/adze-swarm-operating-model.md`
+3. `.adze/goals/active.toml`
+4. The linked implementation plan
+5. The linked spec for the selected work item
+6. Linked ADRs
 
 Before opening a PR, refresh the live queue:
 
