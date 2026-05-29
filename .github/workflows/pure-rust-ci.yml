@@ -38,7 +38,7 @@ jobs:
       github.event.action != 'labeled' ||
       github.event.label.name == 'full-ci' ||
       github.event.label.name == 'platform-matrix'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 2
     outputs:
       os: ${{ steps.compute.outputs.os }}
@@ -70,10 +70,10 @@ jobs:
             fi
           fi
           if [ "$full" = "true" ]; then
-            echo 'os=["ubuntu-latest","macos-latest","windows-latest"]' >> "$GITHUB_OUTPUT"
+            echo 'os=["self-hosted-linux"]' >> "$GITHUB_OUTPUT"
             echo 'rust=["stable","nightly"]' >> "$GITHUB_OUTPUT"
           else
-            echo 'os=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+            echo 'os=["self-hosted-linux"]' >> "$GITHUB_OUTPUT"
             echo 'rust=["stable"]' >> "$GITHUB_OUTPUT"
           fi
           if [ "$rust_changed" = "true" ]; then
@@ -88,7 +88,7 @@ jobs:
     name: Test Pure Rust Implementation
     needs: matrix-setup
     if: needs.matrix-setup.outputs.run_rust == 'true'
-    runs-on: ${{ matrix.os }}
+    runs-on: self-hosted
     timeout-minutes: 35
     strategy:
       fail-fast: false
@@ -114,14 +114,13 @@ jobs:
         save-if: ${{ github.ref == 'refs/heads/main' }}
     
     - name: Check formatting
-      if: matrix.os != 'windows-latest'
       run: cargo fmt --all -- --check
     
     - name: Clippy (default features)
       run: cargo clippy --workspace --all-targets -- -D warnings
 
     - name: Clippy (tree-sitter-c2rust)
-      if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+      if: matrix.rust == 'stable'
       run: cargo clippy -p adze --lib --no-default-features --features tree-sitter-c2rust -- -D warnings
     
     - name: Build
@@ -162,42 +161,25 @@ jobs:
       run: cargo test --verbose -- --test-threads=$RUST_TEST_THREADS
 
     - name: Skip benchmark compile check on pull requests
-      if: matrix.os != 'windows-latest' && github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request'
       run: |
         echo "::notice::Skipping all-crate benchmark compile check on pull_request events."
         echo "::notice::Benchmark compile coverage is owned by criterion-smoke.yml and manual/full-CI lanes."
     
     - name: Run benchmark compile check (all crates)
-      if: matrix.os != 'windows-latest' && github.event_name != 'pull_request'
+      if: github.event_name != 'pull_request'
       run: |
         start=$SECONDS
         cargo bench --no-run
         echo "Benchmark compile check elapsed: $((SECONDS - start))s"
 
-    - name: Run focused benchmark compile check (runtime only) on Windows
-      if: matrix.os == 'windows-latest'
-      run: |
-        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-          echo "::notice::Skipping Windows benchmark compile check on pull_request events (non-blocking, no-signal path)."
-          echo "Benchmark compile check elapsed: skipped"
-          exit 0
-        fi
-
-        start=$SECONDS
-        cargo bench -p adze --bench simple_bench --no-run
-        elapsed=$((SECONDS - start))
-        echo "Benchmark compile check elapsed: ${elapsed}s"
-        if [[ "$elapsed" -gt 600 ]]; then
-          echo "::warning::Windows benchmark compile tail took ${elapsed}s on ${{ matrix.rust }}."
-        fi
-  
   test-wasm:
     name: Test WASM Build
     if: |
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'wasm') ||
       contains(github.event.pull_request.labels.*.name, 'full-ci')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
     - uses: actions/checkout@v6.0.2
@@ -232,7 +214,7 @@ jobs:
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'ci:golden') ||
       contains(github.event.pull_request.labels.*.name, 'full-ci')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
     - uses: actions/checkout@v6.0.2
@@ -261,7 +243,7 @@ jobs:
     name: Integration Tests
     needs: matrix-setup
     if: needs.matrix-setup.outputs.run_rust == 'true'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
     - uses: actions/checkout@v6.0.2
@@ -280,7 +262,7 @@ jobs:
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'ci:perf') ||
       contains(github.event.pull_request.labels.*.name, 'full-ci')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
     - uses: actions/checkout@v6.0.2

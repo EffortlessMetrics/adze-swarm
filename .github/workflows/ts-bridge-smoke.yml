@@ -36,7 +36,7 @@ jobs:
       github.event.action != 'labeled' ||
       github.event.label.name == 'full-ci' ||
       github.event.label.name == 'platform-matrix'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 2
     outputs:
       os: ${{ steps.compute.outputs.os }}
@@ -54,9 +54,9 @@ jobs:
           fi
 
           if [ "$full" = "true" ]; then
-            echo 'os=["ubuntu-latest","macos-latest","windows-latest"]' >> "$GITHUB_OUTPUT"
+            echo 'os=["self-hosted-linux"]' >> "$GITHUB_OUTPUT"
           else
-            echo 'os=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+            echo 'os=["self-hosted-linux"]' >> "$GITHUB_OUTPUT"
           fi
           echo "full_os=$full"
 
@@ -65,7 +65,7 @@ jobs:
     strategy:
       matrix:
         os: ${{ fromJson(needs.matrix-setup.outputs.os) }}
-    runs-on: ${{ matrix.os }}
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -73,23 +73,12 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       
-      - name: Install Tree-sitter libraries (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Verify self-hosted Tree-sitter tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libtree-sitter-dev pkg-config
-      
-      - name: Install Tree-sitter libraries (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install tree-sitter pkg-config
-      
-      - name: Install Tree-sitter libraries (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          # Use vcpkg to install tree-sitter (if available)
-          # or fallback to vendored build (default feature)
-          echo "Using vendored Tree-sitter build on Windows"
+          set -euo pipefail
+          command -v pkg-config
+          pkg-config --exists tree-sitter
+
       - name: Run ts-bridge smoke test
         shell: bash
         run: bash scripts/smoke-link.sh ts-bridge

@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   parity:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     continue-on-error: true # Non-blocking job
     permissions:
       contents: read
@@ -20,8 +20,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq libtree-sitter-dev pkg-config
+          set -euo pipefail
+          command -v jq
+          command -v pkg-config
+          pkg-config --exists tree-sitter
       - name: Build ts-bridge
         run: cargo build --manifest-path tools/ts-bridge/Cargo.toml --release --target-dir target
       - name: Run parity cases
