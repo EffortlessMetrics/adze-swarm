@@ -67,13 +67,14 @@ commands = [
 
 [[work_item]]
 id = "promotion-bundle-checklist"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "docs/reference/RELEASE_CANDIDATE_BUNDLE.md"
 blocked_by = ["current-candidate-snapshot"]
 issues = [325]
+prs = [556]
 commands = [
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
@@ -82,11 +83,11 @@ commands = [
 
 [[work_item]]
 id = "non-publish-preflight-receipts"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
-plan = "plans/release-candidate-bundle/implementation-plan.md"
+plan = "plans/release-candidate-bundle/non-publish-preflight-receipts.md"
 blocked_by = ["promotion-bundle-checklist"]
 issues = [325]
 commands = [

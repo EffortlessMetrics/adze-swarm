@@ -82,7 +82,8 @@ for both repos, and the current public drift boundary.
 
 ### Work Item: promotion-bundle-checklist
 
-Status: active
+Status: complete
+PR: EffortlessMetrics/adze-swarm#556
 Reference: ../../docs/reference/RELEASE_CANDIDATE_BUNDLE.md
 
 #### Goal
@@ -101,7 +102,8 @@ blocked release actions.
 
 ### Work Item: non-publish-preflight-receipts
 
-Status: ready
+Status: active
+Receipts: ./non-publish-preflight-receipts.md
 
 #### Goal
 
