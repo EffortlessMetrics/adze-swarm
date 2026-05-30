@@ -81,6 +81,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Microcrate To SRP Plan**](../plans/0.9.0/microcrate-collapse.md) - Release-blocking transition from migration-target microcrates to SRP owner submodules.
 - [**API Foundation Plan**](../plans/0.9.0/api-foundation.md) - PR-sized sequence for `AdzeDocument` and its typed, diagnostic, GLR, compatibility, JSON, CLI, and WASM projections.
 - [**Release Promotion Readiness Closeout**](../plans/release-promotion/closeout.md) - Completed campaign for inventorying, auditing, and planning public `adze` promotion from `adze-swarm`.
+- [**Adze Adoption Hardening Closeout**](../plans/adze-adoption-hardening/closeout.md) - Completed non-release lane for starter fixtures, API choice, GLR/query/diagnostics/Tree-sitter guidance, benchmark receipts, and release-boundary discipline.
 - [**User Experience Hardening Closeout**](../plans/user-experience-hardening/closeout.md) - Completed non-release lane for starter, examples, navigation, local proof-loop, and walkthrough polish.
 - [**External Scanner Recovery Hardening Closeout**](../plans/external-scanner-recovery/closeout.md) - Completed non-release lane for parser-generated external-token recovery proof.
 - [**Active Goals**](../.adze/goals/README.md) - Machine-readable Droid/Codex execution state conventions.

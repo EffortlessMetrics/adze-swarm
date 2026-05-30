@@ -2,7 +2,7 @@
 
 Status: current audit
 Owner: repo governance
-Updated: 2026-05-29
+Updated: 2026-05-30
 Scope: `EffortlessMetrics/adze-swarm` development/proof forge endpoint
 Completion: not complete
 
@@ -12,12 +12,12 @@ install receipt.
 
 ## Summary
 
-`adze-swarm` has selected the non-release Adze Adoption Hardening lane after
-the clean paused standby state and non-publish release-candidate bundle
-closeout. The near-term CI governance, repo-boundary, proof-refresh, and
-release-candidate bundle tasks are complete. The broader product/release
-endpoint is not complete because release/publish authorization and a real
-crates.io `adze-cli` install receipt are still absent.
+`adze-swarm` is back in paused forge standby after completing the non-release
+Adze Adoption Hardening lane. The near-term CI governance, repo-boundary,
+proof-refresh, release-candidate bundle, and adoption-hardening tasks are
+complete. The broader product/release endpoint is not complete because
+release/publish authorization and a real crates.io `adze-cli` install receipt
+are still absent.
 
 ## Prompt-to-artifact checklist
 
@@ -40,8 +40,8 @@ crates.io `adze-cli` install receipt are still absent.
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
 | Self-hosted-only routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545 merged; PR #547 rerun selected CX43 and hosted skipped. | Complete for current routing. |
 | Duplicate same-scope PRs collapsed. | PR #542 merged; duplicate document SRP PRs were not all merged. | Complete for the observed queue. |
-| Current active goal complete/paused/superseded before new goal. | The previous standby manifest was `status = "paused"` for `adze-swarm-forge-standby`; `active.toml` now selects `adze-adoption-hardening` as the next non-release lane. | Complete. |
-| Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-05-29. | Covered at audit time. |
+| Current active goal complete/paused/superseded before new goal. | `adze-adoption-hardening` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest. | Complete. |
+| Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-05-30. | Covered at audit time. |
 
 ## Current evidence snapshot
 
@@ -63,20 +63,32 @@ Recent merged PRs:
 - #558: `ci: add cx33 rust small routing`
 - #559: `ci: add supported gate timeout headroom`
 - #560: `plans: close release candidate bundle lane`
+- #561: `docs(goal): restore forge standby after release bundle`
+- #562: `docs(goal): start adoption hardening lane`
+- #563: `test(starter): mirror generated layout in downstream fixture`
+- #564: `docs(api): tie choice guide to starter proof`
+- #567: `docs(glr): clarify ambiguity walkthrough`
+- #568: `docs(diagnostics): clarify recovery walkthrough`
+- #569: `docs(query): clarify cookbook subset`
+- #570: `docs(goal): close query cookbook item`
+- #571: `ci: run cx33 rust small natively`
+- #572: `docs(ts-compat): harden selected-tree adoption guide`
+- #573: `docs(perf): clarify benchmark receipt guidance`
+- #574: `docs(release): clarify swarm promotion boundary`
 
 Current active manifest:
 
 ```text
 .adze/goals/active.toml
-  id = "adze-adoption-hardening"
-  status = "active"
+  id = "adze-swarm-forge-standby"
+  status = "paused"
 ```
 
 Current live blockers:
 
 ```text
 release-publish-authorization: blocked, tracked by #325
-next-non-release-lane-selection: selected by the adoption hardening lane, tracked by #549
+next-non-release-lane-selection: blocked, tracked by #549
 ```
 
 Current live queue at audit time:

@@ -151,6 +151,17 @@ xtask -- check-doc-artifacts --mode blocking`, and `git diff --check`. This is
 still non-release product proof, not a crates.io install receipt or release
 authorization.
 
+Latest Adze Adoption Hardening closeout: PRs #562-#574 completed the
+non-release adoption-hardening lane and archived it in
+[`../../plans/adze-adoption-hardening/closeout.md`](../../plans/adze-adoption-hardening/closeout.md).
+The closeout records downstream starter fixture proof, API choice guidance,
+GLR ambiguity and diagnostics/recovery walkthroughs, query cookbook receipts,
+Tree-sitter selected-tree guidance, advisory benchmark receipt guidance, and
+the public release-boundary checklist. GitHub receipts across the closing PRs
+included `Rust Small Result`, `Product Proof Result`, Source of Truth, CI Lane
+Whitelist, and GLR Invariants. The post-closeout `active.toml` state is paused
+forge standby with release/publish authorization still blocked on #325.
+
 Latest user-experience hardening closeout: PRs #350-#356 completed the
 non-release adoption polish lane and archived it in
 [`../../plans/user-experience-hardening/closeout.md`](../../plans/user-experience-hardening/closeout.md).
@@ -580,10 +591,12 @@ Do not mark the product objective complete while any of these are true:
 
 ## Next Concrete Actions
 
-The routine product-proof, user-experience, external-scanner recovery,
-parser-recovery real-grammar, query/tooling expansion, parser/runtime
-maintainability, CLI parse-surface, CLI static S-expression, CLI static
-JSON/DOT, and CLI dynamic parse boundary lanes are closed out:
+The routine product-proof, Adze adoption hardening, user-experience,
+external-scanner recovery, parser-recovery real-grammar, query/tooling
+expansion, parser/runtime maintainability, CLI parse-surface, CLI static
+S-expression, CLI static JSON/DOT, and CLI dynamic parse boundary lanes are
+closed out:
+[`../../plans/adze-adoption-hardening/closeout.md`](../../plans/adze-adoption-hardening/closeout.md),
 [`../../plans/user-experience-hardening/closeout.md`](../../plans/user-experience-hardening/closeout.md),
 [`../../plans/external-scanner-recovery/closeout.md`](../../plans/external-scanner-recovery/closeout.md),
 [`../../plans/parser-recovery-real-grammar/closeout.md`](../../plans/parser-recovery-real-grammar/closeout.md),
