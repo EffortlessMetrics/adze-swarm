@@ -261,7 +261,7 @@ updates.
 
 ## Work Item: query-cookbook
 
-Status: active
+Status: complete
 Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0013-query-compatibility.md

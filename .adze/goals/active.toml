@@ -107,7 +107,7 @@ commands = [
 
 [[work_item]]
 id = "query-cookbook"
-status = "active"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
 spec = "ADZE-SPEC-0013"
 adr = "ADZE-ADR-0001"
