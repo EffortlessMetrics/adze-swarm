@@ -188,8 +188,8 @@ just ci-supported
 
 - GLR conflict routing is Stabilizing, not broadly Stable for every grammar
   class.
-- `AdzeDocument` is still Experimental even though it is the native parse
-  product boundary.
+- `AdzeDocument` is Stabilizing for the generated `parse_document()` tooling
+  path, but it is not yet a Stable API claim.
 - Tree-sitter compatibility is a selected-tree adapter, not a full
   Tree-sitter runtime parity claim.
 - Query compatibility is a documented subset.

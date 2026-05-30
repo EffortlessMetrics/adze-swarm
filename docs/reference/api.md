@@ -64,8 +64,9 @@ selected tree facts, diagnostics, metadata, and ambiguity summaries. Typed AST,
 typed CST, Tree-sitter-compatible output, query matching, JSON, CLI, and WASM
 views are projections from the same document model.
 
-`AdzeDocument` is still **Experimental**. Its behavior is proof-backed, but it
-is not yet a stable public API contract.
+`AdzeDocument` is **Stabilizing** for the documented generated
+`parse_document()` tooling path. Its behavior is proof-backed, but it is not yet
+a stable public API contract.
 
 ## Grammar Attributes
 
@@ -144,7 +145,7 @@ Use [Query Compatibility](./query-compatibility.md) for the current subset.
 These surfaces are useful but outside the stable product contract unless the
 support-tier row says otherwise:
 
-- CLI project scaffolding and document projection output are **Advisory**.
+- CLI project scaffolding and document projection output are **Stabilizing**.
 - WASM currently has compile-check signal, not browser/runtime certification.
 - `runtime2/` is intentionally excluded from the public-primary runtime
   contract.
