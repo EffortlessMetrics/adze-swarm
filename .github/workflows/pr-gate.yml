@@ -3,6 +3,7 @@ name: PR Gate
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, closed]
   merge_group:
   workflow_dispatch:
 
@@ -12,12 +13,16 @@ permissions:
 
 concurrency:
   group: pr-gate-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request' &&
+        (github.event.action == 'synchronize' || github.event.action == 'closed') }}
 
 jobs:
   plan:
     name: PR Plan
-    if: github.event_name != 'merge_group'
+    if: >-
+      github.event_name != 'merge_group' &&
+      !(github.event_name == 'pull_request' && github.event.action == 'closed')
     uses: ./.github/workflows/pr-plan.yml
 
   supported:
@@ -25,6 +30,7 @@ jobs:
     needs: plan
     if: |
       always() &&
+      !(github.event_name == 'pull_request' && github.event.action == 'closed') &&
       (needs.plan.result == 'skipped' || needs.plan.outputs.docs_only != 'true')
     runs-on: self-hosted
     timeout-minutes: 45
@@ -48,6 +54,7 @@ jobs:
     needs: plan
     if: |
       always() &&
+      !(github.event_name == 'pull_request' && github.event.action == 'closed') &&
       needs.plan.result == 'success' &&
       needs.plan.outputs.docs_only == 'true'
     runs-on: self-hosted
@@ -63,7 +70,9 @@ jobs:
   success:
     name: PR Gate Success
     needs: [plan, supported, docs-gate]
-    if: always()
+    if: >-
+      always() &&
+      !(github.event_name == 'pull_request' && github.event.action == 'closed')
     runs-on: self-hosted
     timeout-minutes: 2
     steps:
