@@ -116,6 +116,7 @@ Recent merged PRs:
 - #609: `docs(goal): keep forge standby paused`
 - #610: `ci: enrich cx53 runner diagnostics`
 - #611: `ci: add cx53 rust-large diagnostic`
+- #612: `docs(status): record cx53 diagnostic receipts`
 
 Current active manifest:
 
@@ -226,6 +227,12 @@ PR #611 adds the manual `CX53 Rust Large Diagnostic` workflow as a
 non-required burn-in path for #598 by probing CX53 `rust-large` candidate
 visibility before running a selected host-smoke job. It does not change Rust
 Small branch protection or re-enable CX53 in the required base gate.
+PR #612 records the first two manual dispatches of that workflow, runs
+26691486937 and 26691594659. Those receipts prove the probe path can see
+`em-ci-hel2-cx53-rust-01` online with both `rust-large` and `rust-small`
+labels. Both runs saw the runner busy (`idle=0`), so the selected `CX53 Rust
+Large Smoke` job correctly skipped and no selected CX53 scheduling proof
+exists yet.
 
 The exact current `adze-swarm/main` commit is intentionally not hardcoded here.
 Every audit refresh changes that commit and would immediately stale this
@@ -343,6 +350,18 @@ PR #577:
   Rust Small Result: success
   Product Proof Result: success
   Rust Small on GitHub Hosted: skipped
+
+Manual CX53 Rust Large Diagnostic, run 26691486937:
+  Probe CX53 Rust Large Capacity: success
+  CX53 candidate: em-ci-hel2-cx53-rust-01 online, busy, rust-large, rust-small
+  idle: 0
+  CX53 Rust Large Smoke: skipped
+
+Manual CX53 Rust Large Diagnostic, run 26691594659:
+  Probe CX53 Rust Large Capacity: success
+  CX53 candidate: em-ci-hel2-cx53-rust-01 online, busy, rust-large, rust-small
+  idle: 0
+  CX53 Rust Large Smoke: skipped
 ```
 
 Claim boundary:
