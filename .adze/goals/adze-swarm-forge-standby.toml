@@ -23,7 +23,8 @@ Rust Small Cargo homes, CPX42 route-label alignment, and issue-tracked active
 goal blockers, plus the Windows check-msrv shell-path fix and the Windows
 `just build` PDB collision fix. The CX53 Rust Small stale-queue follow-up
 remains tracked as a blocked CI investigation, with route candidate
-diagnostics and a temporary Rust Small route quarantine. The legacy PR Gate
+diagnostics, a temporary Rust Small route quarantine, and route-runner
+self-count exclusion. The legacy PR Gate
 stale-queue follow-up is mitigated by PR-close cancellation, with PR body
 guidance preserved for avoiding accidental issue auto-close. No new
 non-release implementation lane is selected.
@@ -156,7 +157,7 @@ spec = "docs/ci/runner-classes.md"
 adr = ""
 plan = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
 issues = [598]
-prs = [599, 600, 603]
+prs = [599, 600, 603, 607]
 commands = [
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 1 --json status,conclusion,url,createdAt,updatedAt,jobs",
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 2 --json status,conclusion,url,createdAt,updatedAt,jobs",

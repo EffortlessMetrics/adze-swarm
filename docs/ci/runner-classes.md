@@ -44,6 +44,11 @@ the runner can be diagnosed, but it must not select CX53 for the normalized
 base gate until runner-group, label, scheduling, and burn-in evidence are
 recorded.
 
+The route job's own runner is excluded from idle counts, even when it has
+matching labels. Candidate summaries still mark it with `current=true`, but the
+router must not treat the scheduler slot currently running the route job as
+immediately available selected-lane capacity.
+
 Planned optional `rust-large` route:
 
 ```text
@@ -163,6 +168,8 @@ router_reason=parse_failed
 
 While `adze-swarm#598` is blocked, CX53 should appear only in candidate
 summaries for the Rust Small router, not as a selected `router_target`.
+Candidate rows with `current=true` are diagnostics only; the current route
+runner is not counted as idle capacity.
 
 Watch fallback counts. If GitHub-hosted fallback dominates a same-repo lane,
 either add capacity or narrow the trigger.
