@@ -7,9 +7,11 @@ parser/runtime maintainability, CLI parse-surface, static S-expression, static
 JSON/DOT, dynamic parse boundary, adoption-hardening, release-candidate bundle,
 and post-adoption standby hygiene lanes are closed out. The current
 `active.toml` is paused as `adze-swarm-forge-standby` with no active or ready
-non-release work items. Release/publish work remains separate and blocked on
-explicit authorization in adze-swarm#325; the next non-release lane selection
-is blocked on adze-swarm#549.
+implementation lane selected. Release/publish work remains separate and
+blocked on explicit authorization in adze-swarm#325; the CX53 runner
+investigation remains blocked on adze-swarm#598; and the current non-release
+research board is tracked by adze-swarm#613, adze-swarm#614, and
+adze-swarm#615.
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
 
