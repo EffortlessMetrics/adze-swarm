@@ -16,6 +16,31 @@ It is a pre-promotion, non-publish checklist. It does not authorize public
 promotion, release tags, crate publishing, signing, Cargo-token work, or real
 crates.io install verification.
 
+## Boundary Checklist
+
+Before opening or reviewing a bundle PR, classify the work:
+
+| Action | Where it belongs | Authorization |
+| --- | --- | --- |
+| collect proof receipts for a selected swarm state | `adze-swarm` | allowed by a non-release active goal |
+| update support tiers, proof maps, and claim boundaries for proven facts | `adze-swarm` | allowed when backed by receipts |
+| freeze a promotion bundle for maintainer review | `adze-swarm` | allowed when it remains non-publish |
+| open a public promotion PR | public `adze` | requires explicit #325 direction |
+| tag, publish, sign, or use Cargo tokens | public `adze` release path | requires explicit #325 direction |
+| verify a real crates.io install after publish | public `adze` release path | requires explicit #325 direction |
+
+Stop the swarm bundle if any answer below is "no":
+
+- Is this PR confined to `EffortlessMetrics/adze-swarm`?
+- Is the selected state an `adze-swarm/main` commit?
+- Are release, publish, signing, Cargo-token, and real crates.io install steps
+  still blocked on #325?
+- Does every public-facing claim point to a support-tier row, proof map row, or
+  named limitation?
+- Is any `cargo install adze-cli` wording explicitly described as blocked until
+  a post-publish crates.io receipt exists?
+- Is rollback a normal revert of the swarm bundle, not a release incident path?
+
 ## Required Bundle Fields
 
 Each candidate bundle must include:

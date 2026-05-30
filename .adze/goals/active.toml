@@ -146,12 +146,13 @@ commands = [
 
 [[work_item]]
 id = "public-release-boundary-checklist"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0001"
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
 issues = [325]
+prs = [574]
 commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
