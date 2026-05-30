@@ -27,7 +27,7 @@ are still absent.
 | Work starts from `adze-swarm/main`. | `AGENTS.md`; `docs/reference/adze-swarm-operating-model.md`; `active.toml` standby state. | Covered. |
 | Public `adze` is not the implementation/productization/CI/docs-proof target. | `AGENTS.md`; `docs/reference/adze-swarm-operating-model.md`; `docs/reference/PUBLISH_CHECKLIST.md`; `active.toml` end state. | Covered. |
 | One work item per branch and PR. | `docs/reference/SPEC_SYSTEM.md`; PR template queue/scope fields; `active.toml` standby handoff. | Covered by policy. |
-| PRs link source-of-truth artifacts. | `docs/reference/SPEC_SYSTEM.md`; PR template source-of-truth fields; `docs/reference/adze-swarm-operating-model.md`. | Covered by policy. |
+| PRs link source-of-truth artifacts. | `docs/reference/SPEC_SYSTEM.md`; PR template source-of-truth fields for proposal, spec, ADR, plan item, active goal, support-tier row, and policy ledger; `docs/reference/adze-swarm-operating-model.md`. | Covered by policy. |
 | PRs state claim boundary, proof, CI cost, and rollback. | `.github/pull_request_template.md`. | Covered by policy. |
 | Default CI is self-hosted; no silent hosted fallback. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; `docs/reference/adze-swarm-operating-model.md`; PRs #539, #577, and #580; PRs #572-#582 check receipts where `Rust Small on GitHub Hosted` stayed skipped and routed self-hosted lanes passed. | Covered for current routing policy. |
 | `Rust Small Result` remains the normalized base gate. | `AGENTS.md`; `docs/reference/adze-swarm-operating-model.md`; live branch-protection API on 2026-05-30 required `Rust Small Result` and `Product Proof Result` with `strict = true`; PRs #579-#583 checks: `Route Rust Small`, selected self-hosted Rust Small lane, and `Rust Small Result` succeeded. | Covered. |
@@ -85,6 +85,7 @@ Recent merged PRs:
 - #581: `docs(status): refresh standby verifier evidence`
 - #582: `docs(status): avoid self-staling forge audit snapshot`
 - #583: `docs(status): record branch protection receipt`
+- #584: `docs(pr): require support-tier source links`
 
 Current active manifest:
 

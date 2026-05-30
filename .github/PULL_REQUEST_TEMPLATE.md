@@ -9,6 +9,8 @@ Spec:
 ADR:
 Plan item:
 Active goal:
+Support-tier row:
+Policy ledger:
 
 ## Queue check
 
