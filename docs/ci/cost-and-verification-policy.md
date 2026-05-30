@@ -81,7 +81,7 @@ See `docs/ci/adze-rollout-plan.md` for the per-PR breakdown.
 ## Related
 
 - `docs/ci/lem-budgeting.md` – how LEM is computed and budgeted
-- `docs/ci/runner-classes.md` – CX43, CX53, and GitHub-hosted runner roles
+- `docs/ci/runner-classes.md` – CPX42, CX43, CX33, CX53, and fallback runner roles
 - `docs/ci/verification-ladder.md` – tiers and what they prove
 - `docs/ci/adze-rollout-plan.md` – per-PR rollout plan and status
 - `docs/ci/labels.md` – label vocabulary used by routing

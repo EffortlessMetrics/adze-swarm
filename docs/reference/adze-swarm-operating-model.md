@@ -85,8 +85,9 @@ Do not require implementation lanes directly:
 
 ```text
 Rust Small on CX43
-Rust Small on CX53
 Rust Small on CPX42
+Rust Small on CX33
+Rust Small on CX53 (dormant while adze-swarm#598 is blocked)
 Rust Small on GitHub Hosted
 ```
 

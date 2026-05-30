@@ -146,9 +146,10 @@ cargo insta review         # Review snapshots
 For `EffortlessMetrics/adze-swarm`, the required hosted merge gate is
 `Rust Small Result` from `.github/workflows/em-ci-routed-rust.yml`.
 
-`Rust Small on CX43`, `Rust Small on CX53`, and
-`Rust Small on GitHub Hosted` are routed implementation lanes. Do not treat
-them as separate required branch-protection contexts.
+`Rust Small on CPX42`, `Rust Small on CX43`, `Rust Small on CX33`, and
+`Rust Small on GitHub Hosted` are routed implementation lanes. `Rust Small on
+CX53` is dormant while adze-swarm#598 is blocked. Do not treat any
+implementation lane as a separate required branch-protection context.
 
 Use `just ci-supported` for local supported/release-facing proof. It is not the
 normal hosted merge gate for swarm PRs.

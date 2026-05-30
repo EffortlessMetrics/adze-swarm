@@ -10,7 +10,9 @@ Product Proof Result
 ```
 
 `Rust Small Result` is emitted by `.github/workflows/em-ci-routed-rust.yml`
-after the routed Rust Small lane runs on CX43, CX53, or GitHub-hosted fallback.
+after the routed Rust Small lane runs on CPX42, CX43, CX33, or explicit
+fallback. CX53 is logged but not selected for this required base route while
+`adze-swarm#598` remains blocked.
 
 `Product Proof Result` is emitted by `.github/workflows/product-proof.yml`.
 It is always present on Product Proof PR events, passes when no Stable product
