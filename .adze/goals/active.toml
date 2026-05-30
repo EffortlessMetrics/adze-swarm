@@ -107,11 +107,12 @@ commands = [
 
 [[work_item]]
 id = "query-cookbook"
-status = "ready"
+status = "active"
 proposal = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
 spec = "ADZE-SPEC-0013"
 adr = "ADZE-ADR-0001"
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
+prs = [569]
 commands = [
   "cargo run -p adze --features query --example query_highlighting",
   "cargo test -p adze --features query --lib query -- --nocapture",

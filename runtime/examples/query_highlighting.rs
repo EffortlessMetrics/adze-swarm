@@ -21,6 +21,9 @@ fn main() {
 struct QueryHighlightingReceipt {
     highlight_ranges: Vec<(usize, usize)>,
     source_aware_capture_ranges: Vec<(usize, usize)>,
+    source_aware_literal_capture_ranges: Vec<(usize, usize)>,
+    source_free_literal_matches: usize,
+    source_free_predicate_matches: usize,
     byte_range_number_capture: Vec<(usize, usize)>,
     out_of_range_number_matches: usize,
     cleared_byte_range_number_matches: usize,
@@ -58,8 +61,26 @@ fn run_demo() -> QueryHighlightingReceipt {
         QueryMatcher::new(&source_aware_query, source, &metadata).matches(&tree);
     assert_eq!(source_aware_matches.len(), 1);
     let source_aware_capture_ranges =
-        source_aware_capture_ranges(&source_aware_matches[0].captures);
+        source_aware_capture_byte_ranges(&source_aware_matches[0].captures);
     assert_eq!(source_aware_capture_ranges, vec![(0, 3), (4, 5)]);
+
+    let literal_query = compile_query("(root (identifier) \"+\" (number @number))", &grammar)
+        .expect("source-aware literal token query should compile");
+    let literal_matches = QueryMatcher::new(&literal_query, source, &metadata).matches(&tree);
+    assert_eq!(literal_matches.len(), 1);
+    let source_aware_literal_capture_ranges =
+        source_aware_capture_byte_ranges(&literal_matches[0].captures);
+    assert_eq!(source_aware_literal_capture_ranges, vec![(4, 5)]);
+
+    let mut source_free_cursor = QueryCursor::new();
+    let source_free_literal_matches = source_free_cursor
+        .collect_matches(&literal_query, &tree)
+        .len();
+    assert_eq!(source_free_literal_matches, 0);
+    let source_free_predicate_matches = source_free_cursor
+        .collect_matches(&source_aware_query, &tree)
+        .len();
+    assert_eq!(source_free_predicate_matches, 0);
 
     let number_query =
         compile_query("(number @number)", &grammar).expect("number query should compile");
@@ -94,6 +115,9 @@ fn run_demo() -> QueryHighlightingReceipt {
     QueryHighlightingReceipt {
         highlight_ranges,
         source_aware_capture_ranges,
+        source_aware_literal_capture_ranges,
+        source_free_literal_matches,
+        source_free_predicate_matches,
         byte_range_number_capture,
         out_of_range_number_matches,
         cleared_byte_range_number_matches,
@@ -199,7 +223,7 @@ fn highlight_ranges(highlights: &[adze::query::Highlight]) -> Vec<(usize, usize)
         .collect()
 }
 
-fn source_aware_capture_ranges(
+fn source_aware_capture_byte_ranges(
     captures: &[adze::query::matcher_v2::QueryCapture],
 ) -> Vec<(usize, usize)> {
     captures
@@ -226,6 +250,9 @@ mod tests {
             QueryHighlightingReceipt {
                 highlight_ranges: vec![(0, 3), (3, 4), (4, 5)],
                 source_aware_capture_ranges: vec![(0, 3), (4, 5)],
+                source_aware_literal_capture_ranges: vec![(4, 5)],
+                source_free_literal_matches: 0,
+                source_free_predicate_matches: 0,
                 byte_range_number_capture: vec![(4, 5)],
                 out_of_range_number_matches: 0,
                 cleared_byte_range_number_matches: 1,

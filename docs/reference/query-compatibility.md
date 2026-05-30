@@ -72,6 +72,10 @@ match.
 Byte-range filtering may keep a match when either the candidate node or its
 captures overlap the configured range.
 
+Use cursor filtering for structural matches that do not need source text. If a
+pattern relies on text-sensitive predicates or anonymous token literals, use the
+source-aware matcher instead.
+
 ## Source-Aware Behavior
 
 Text-sensitive features require source text:
@@ -94,6 +98,18 @@ Covered source-aware predicates:
 When source text is unavailable, text predicates and literal token patterns must
 fail closed. Missing captures, invalid regexes, and invalid source ranges also
 fail closed.
+
+The source-aware path is:
+
+```rust
+let query = adze::query::compile_query(
+    "(root (identifier @name))\n(#match? @name \"^[a-z]+$\")",
+    &grammar,
+)?;
+let matches =
+    adze::query::matcher_v2::QueryMatcher::new(&query, source, &metadata)
+        .matches(&tree);
+```
 
 ## Field Constraints And Anchors
 
@@ -121,7 +137,8 @@ small hand-built parse tree:
 - capture-based highlight ranges;
 - field constraints;
 - first/adjacent/last anchor behavior;
-- source-aware `#match?` predicates;
+- source-aware `#match?` predicates and anonymous token literals;
+- source-free fail-closed behavior for text-sensitive patterns;
 - byte-range filtering;
 - root-only matching.
 
@@ -146,6 +163,7 @@ These features are not product claims yet:
 Representative local proof:
 
 ```bash
+cargo run -p adze --features query --example query_highlighting
 cargo test -p adze --features query --lib query -- --nocapture
 cargo test -p adze --features query --lib query::matcher_v2 -- --nocapture
 cargo test -p adze --features query --example query_highlighting -- --nocapture

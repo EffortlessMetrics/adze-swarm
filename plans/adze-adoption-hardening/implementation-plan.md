@@ -261,7 +261,7 @@ updates.
 
 ## Work Item: query-cookbook
 
-Status: ready
+Status: active
 Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0013-query-compatibility.md
@@ -271,6 +271,36 @@ Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 
 Refresh query cookbook guidance for the documented subset, examples, known
 gaps, and proof commands without claiming full Tree-sitter query parity.
+
+### Receipt
+
+Lands in PR #569.
+
+### Production Delta
+
+Docs and focused runnable example proof only.
+
+### Claim Boundary
+
+This work may document selected-tree query matching, named-node captures, field
+constraints, anchors, source-aware predicates, source-aware anonymous tokens,
+byte-range filtering, root-only matching, and source-free fail-closed behavior.
+It must not claim full Tree-sitter query parity, directive-driven highlighting
+or injection semantics, query matching over every GLR forest alternative,
+Stable query JSON schemas, imported grammar corpus parity, or release
+availability.
+
+### Proof Commands
+
+```bash
+cargo run -p adze --features query --example query_highlighting
+cargo test -p adze --features query --lib query -- --nocapture
+```
+
+### Rollback
+
+Revert the query cookbook, runnable example, and source-of-truth metadata
+updates.
 
 ## Work Item: ts-compat-selected-tree-guide
 
