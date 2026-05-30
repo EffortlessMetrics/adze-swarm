@@ -304,16 +304,51 @@ updates.
 
 ## Work Item: ts-compat-selected-tree-guide
 
-Status: ready
+Status: complete
 Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0004-toolkit-excellence.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
+Receipt: #572
 
 ### Goal
 
 Refresh selected-tree compatibility guidance so users understand the supported
 Tree-sitter-shaped subset, known gaps, and canary coverage.
+
+### Production Delta
+
+Clarify that `AdzeDocument` remains the native parse truth, while
+`Tree::from_document` is the preferred selected-tree compatibility projection
+when a caller already has document facts. Keep `ts_compat::Parser` positioned
+as the entry point for integrations already shaped around Tree-sitter parser
+objects.
+
+Add the document-backed projection entry to the selected-tree compatibility
+matrix so the primary proof command covers the documented `Tree::from_document`
+adoption path directly.
+
+### Claim Boundary
+
+This work only supports the documented selected-tree subset: document-backed
+tree creation, traversal, ranges, fields, identity, error/missing facts where
+native facts exist, and representative imported-shape smoke coverage. It does
+not claim full Tree-sitter API parity, full query parity, alias-visible
+`node-types.json` parity, parse-state metadata, incremental changed-range
+parity, raw GLR forest exposure through `ts_compat`, public release readiness,
+or Cargo/crates.io install support.
+
+### Proof Commands
+
+```bash
+cargo test -p adze --features "pure-rust,glr,ts-compat" --test ts_compat_selected_tree -- --nocapture
+cargo test -p adze --features "pure-rust,ts-compat,query" --test ts_compat_imported_shape_smoke -- --nocapture
+```
+
+### Rollback
+
+Revert the selected-tree guide edits, the selected-tree matrix canary, and the
+source-of-truth metadata update.
 
 ## Work Item: benchmark-receipt-guide
 
