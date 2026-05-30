@@ -12,6 +12,10 @@ workspace, an AST-first grammar toolchain for Rust.
 
 ## Common Commands
 
+These commands assume an `adze` binary built from this checkout or a local
+package. Published `cargo install adze-cli` usage remains a release-surface
+claim blocked on the post-publish install receipt tracked in #325.
+
 ```bash
 adze init calc
 cd calc

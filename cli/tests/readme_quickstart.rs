@@ -494,6 +494,32 @@ fn cargo_install_adze_cli_claims_stay_release_surface_bounded() {
 }
 
 #[test]
+fn cli_readme_adze_init_commands_stay_release_surface_bounded() {
+    let readme = include_str!("../README.md");
+    let mut saw_init_command = false;
+
+    for (idx, line) in readme.lines().enumerate() {
+        if !line.contains("adze init") {
+            continue;
+        }
+
+        saw_init_command = true;
+        let context = surrounding_context(readme, idx, 6).to_ascii_lowercase();
+        assert!(
+            adze_init_context_is_bounded(&context),
+            "`adze init` first-use snippets must stay bounded to checkout-built/local CLI proof until the crates.io install receipt exists.\nline: {}\ncontext:\n{}",
+            idx + 1,
+            surrounding_context(readme, idx, 6)
+        );
+    }
+
+    assert!(
+        saw_init_command,
+        "cli/README.md should keep documenting the `adze init` first-use command"
+    );
+}
+
+#[test]
 fn co_release_dependency_snippets_stay_release_surface_bounded() {
     let docs = [
         ("README.md", include_str!("../../README.md")),
@@ -898,6 +924,27 @@ fn dependency_claim_context_is_bounded(context: &str) -> bool {
     ]
     .iter()
     .any(|marker| context.contains(marker))
+}
+
+fn adze_init_context_is_bounded(context: &str) -> bool {
+    let local_boundary = [
+        "built from this checkout",
+        "local package",
+        "repo-built",
+        "current proof",
+    ]
+    .iter()
+    .any(|marker| context.contains(marker));
+    let release_boundary = [
+        "#325",
+        "release-surface",
+        "crates.io install",
+        "post-publish install receipt",
+    ]
+    .iter()
+    .any(|marker| context.contains(marker));
+
+    local_boundary && release_boundary
 }
 
 fn surrounding_context(text: &str, line_idx: usize, radius: usize) -> String {
