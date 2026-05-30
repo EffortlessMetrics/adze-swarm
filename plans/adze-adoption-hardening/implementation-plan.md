@@ -393,11 +393,12 @@ Revert the benchmark receipt docs and source-of-truth metadata update.
 
 ## Work Item: public-release-boundary-checklist
 
-Status: ready
+Status: complete
 Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0017-release-candidate-bundle.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
+Receipt: #574
 
 ### Goal
 
@@ -405,3 +406,29 @@ Keep public release-boundary guidance obvious while adoption hardening runs:
 `adze-swarm` may produce promotion-ready proof, but public `adze` release,
 publish, signing, Cargo-token, and crates.io install receipts require explicit
 authorization through #325.
+
+### Production Delta
+
+Refresh the release-candidate bundle checklist so agents can separate
+`adze-swarm` proof-bundle work from public `adze` promotion, release, tag,
+publish, signing, Cargo-token, and real crates.io install receipt work before
+opening or reviewing a PR.
+
+### Claim Boundary
+
+This work is documentation and source-of-truth boundary hardening only. It does
+not authorize a public promotion PR, touch public `adze`, run release preflight,
+tag, publish, sign, mutate Cargo-token surfaces, or claim crates.io install
+availability.
+
+### Proof Commands
+
+```bash
+cargo run -q -p xtask -- check-active-goal --mode blocking
+cargo run -q -p xtask -- check-doc-artifacts --mode blocking
+git diff --check
+```
+
+### Rollback
+
+Revert the release-boundary checklist docs and source-of-truth metadata update.

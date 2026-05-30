@@ -144,6 +144,10 @@ Normal development and product proof happen in `EffortlessMetrics/adze-swarm`.
 Actual release execution happens from public `EffortlessMetrics/adze` after the
 candidate state has been explicitly promoted.
 
+Use [`RELEASE_CANDIDATE_BUNDLE.md`](./reference/RELEASE_CANDIDATE_BUNDLE.md)
+for the swarm-side pre-promotion checklist. A green bundle is evidence for a
+maintainer decision; it is not release authorization by itself.
+
 1. **Authorize**: record the human release/publish decision in the release
    tracker before touching tag, publish, signing, or Cargo-token paths.
 2. **Promote**: move the selected `adze-swarm` release candidate into public
