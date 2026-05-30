@@ -43,6 +43,22 @@ The typed parser path is the beginner and library-author front door. The
 document path is the tooling front door. Compatibility, query, JSON, CLI, WASM,
 and performance surfaces stay bounded by their support-tier rows.
 
+## Adoption Proof Ladder
+
+The beginner path and tooling path are both backed by starter-shaped proof:
+
+| User step | API surface | Local proof |
+| --- | --- | --- |
+| Generate starter project | `adze init` output | `cargo test -p adze-cli test_init -- --nocapture` |
+| Use typed values | `grammar::parse(source)` | `cargo test --manifest-path testing/downstream-starter/Cargo.toml` |
+| Run the generated parse example | generated `examples/parse.rs` | `cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse -- "1 + 2 * 3"` |
+| Inspect diagnostics and document facts | `grammar::parse_document(source)` / `AdzeDocument` | `cargo test --manifest-path testing/downstream-starter/Cargo.toml` |
+
+These commands prove local checkout and path-dependency starter behavior. They
+do not prove `cargo install adze-cli`, crates.io dependency resolution, or
+public release availability; those remain release-surface receipts tracked
+separately.
+
 ## Quick Choice Table
 
 | Need | Use | Why | Claim boundary |
@@ -57,7 +73,7 @@ and performance surfaces stay bounded by their support-tier rows.
 | Query matching | `adze::query` with the documented subset | Matches the selected tree and language metadata. | Source-aware predicates need source text; unsupported query features remain known gaps. |
 | GLR ambiguity information | `document.ambiguities()` | Uses native ambiguity summaries while selected-tree projections expose one chosen tree. | Raw forest exposure and typed extraction from alternatives are not stable product claims. |
 | JSON output | Document JSON projection or CLI `document-json` / `tree-json` / `diagnostics-json` modes | Provides schema-versioned transport for tooling experiments. | JSON schemas and CLI output remain tiered separately from the typed parser front door. |
-| CLI scaffolding and smoke use | `adze init`, `adze check`, `adze parse` | Good for getting started and for examples. | CLI surfaces are useful but not the Stable parser API unless support tiers say so. |
+| CLI scaffolding and smoke use | `adze init`, `adze check`, `adze parse`, and `testing/downstream-starter` | Good for getting started and for examples; the checked-in fixture mirrors generated starter layout. | CLI surfaces are useful but not the Stable parser API unless support tiers say so. |
 | Incremental/editor lifecycle | Document lifecycle and fallback metadata | Lets tools integrate with explicit fallback behavior. | Incremental reuse and changed-range precision are Experimental. |
 
 ## Recommended Path

@@ -66,13 +66,16 @@ commands = [
 
 [[work_item]]
 id = "api-choice-guide"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
+prs = [564]
 commands = [
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
+  "cargo test --manifest-path testing/downstream-starter/Cargo.toml",
+  "cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse -- \"1 + 2 * 3\"",
   "git diff --check",
 ]
 

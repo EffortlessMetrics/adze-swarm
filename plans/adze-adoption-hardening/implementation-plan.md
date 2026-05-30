@@ -137,7 +137,7 @@ cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse
 
 ## Work Item: api-choice-guide
 
-Status: ready
+Status: complete
 Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
@@ -148,6 +148,34 @@ Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 Keep `grammar::parse(source)` as the beginner path and
 `grammar::parse_document(source)` / `AdzeDocument` as the tooling path, with
 advanced projections described as support-tier-bounded views.
+
+### Receipt
+
+Lands in PR #564.
+
+### Production Delta
+
+Docs and source-of-truth metadata only.
+
+### Claim Boundary
+
+The guide may point to local checkout and path-dependency starter proof. It must
+not claim crates.io install availability, public release availability, full
+Tree-sitter parity, full query parity, stable JSON schemas, or stable raw GLR
+forest APIs.
+
+### Proof Commands
+
+```bash
+cargo run -q -p xtask -- check-doc-artifacts --mode blocking
+cargo test --manifest-path testing/downstream-starter/Cargo.toml
+cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse -- "1 + 2 * 3"
+git diff --check
+```
+
+### Rollback
+
+Revert the guide and source-of-truth metadata changes.
 
 ## Work Item: glr-ambiguity-walkthrough
 
