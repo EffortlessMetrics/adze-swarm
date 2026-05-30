@@ -122,8 +122,7 @@ runtime parse product.
 Runtime users should inspect GLR behavior through:
 
 ```rust
-let report = grammar::parse_document(source);
-let document = report.document();
+let document = grammar::parse_document(source)?;
 
 let ambiguities = document.ambiguities();
 let selected_tree = document.root();

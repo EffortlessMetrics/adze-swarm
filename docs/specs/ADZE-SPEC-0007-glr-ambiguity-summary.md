@@ -73,7 +73,7 @@ remain an Adze-native capability.
 ## Acceptance Examples
 
 ```rust
-let doc = grammar::parse_document(ambiguous_source).document();
+let doc = grammar::parse_document(ambiguous_source)?;
 let ambiguities = doc.ambiguities();
 assert!(!ambiguities.is_empty());
 assert!(ambiguities[0].selected().is_some());

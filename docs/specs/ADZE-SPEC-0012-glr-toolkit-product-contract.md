@@ -281,8 +281,7 @@ after the CLI is published and the install path has a receipt.
 ### Accepted: Tooling path
 
 ```rust
-let report = grammar::parse_document("1 +");
-let doc = report.document();
+let doc = grammar::parse_document("1 +")?;
 assert!(!doc.diagnostics().is_empty());
 ```
 
@@ -292,7 +291,7 @@ facts.
 ### Accepted: Compatibility path
 
 ```rust
-let doc = grammar::parse_document(source).document();
+let doc = grammar::parse_document(source)?;
 let tree = doc.as_tree_sitter();
 assert_eq!(tree.root_node().to_sexp(), "(source_file ...)");
 ```

@@ -63,8 +63,7 @@ Adze should expose one parse product and several views:
 ```rust
 let ast: ast::Module = grammar::parse(source)?;
 
-let report = grammar::parse_document(source);
-let doc = report.document();
+let doc = grammar::parse_document(source)?;
 
 let tree = doc.tree();
 let syntax: syntax::SourceFile = doc.syntax()?;

@@ -22,8 +22,7 @@ Use the generated parser APIs first:
 
 ```rust
 let ast = grammar::parse(source)?;
-let report = grammar::parse_document(source);
-let document = report.document();
+let document = grammar::parse_document(source)?;
 ```
 
 Reach for incremental lifecycle APIs only when you are building an editor,
@@ -58,7 +57,7 @@ A conservative editor integration should follow this shape:
 ```text
 open file:
   source = file contents
-  document = grammar::parse_document(source).document
+  document = grammar::parse_document(source) -> AdzeDocument
 
 on edit:
   next_source = apply edit to source

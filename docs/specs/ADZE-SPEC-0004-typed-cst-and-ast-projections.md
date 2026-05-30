@@ -62,7 +62,7 @@ let ast: ast::Module = grammar::parse(source)?;
 The document-backed path is:
 
 ```rust
-let ast: ast::Module = grammar::parse_document(source).document().ast()?;
+let ast: ast::Module = grammar::parse_document(source)?.ast()?;
 ```
 
 ### B6. Provenance is sidecar-based
@@ -90,7 +90,7 @@ forcing user AST structs to store node IDs.
 ## Acceptance Examples
 
 ```rust
-let doc = grammar::parse_document(source).document();
+let doc = grammar::parse_document(source)?;
 let syntax: syntax::SourceFile = doc.syntax()?;
 let first = syntax.functions().next().unwrap();
 assert_eq!(first.name().unwrap().syntax().text(), "main");
@@ -98,7 +98,7 @@ assert_eq!(first.name().unwrap().syntax().text(), "main");
 
 ```rust
 let via_parse = grammar::parse(source)?;
-let via_doc: ast::Module = grammar::parse_document(source).document().ast()?;
+let via_doc: ast::Module = grammar::parse_document(source)?.ast()?;
 assert_eq!(via_parse, via_doc);
 ```
 

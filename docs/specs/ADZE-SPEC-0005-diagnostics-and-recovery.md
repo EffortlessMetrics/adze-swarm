@@ -73,14 +73,14 @@ allow recovered or partial ASTs.
 ## Acceptance Examples
 
 ```rust
-let report = grammar::parse_document("1 +");
-assert!(!report.diagnostics().is_empty());
-assert!(report.diagnostics()[0].byte_range().start <= report.diagnostics()[0].byte_range().end);
+let document = grammar::parse_document("1 +")?;
+assert!(!document.diagnostics().is_empty());
+assert!(document.diagnostics()[0].byte_range().start <= document.diagnostics()[0].byte_range().end);
 ```
 
 ```rust
-let report = grammar::parse_document("é +");
-assert!(report.diagnostics().iter().all(|d| d.point_range().start.column <= d.point_range().end.column));
+let document = grammar::parse_document("é +")?;
+assert!(document.diagnostics().iter().all(|d| d.point_range().start.column <= d.point_range().end.column));
 ```
 
 ## Test Mapping

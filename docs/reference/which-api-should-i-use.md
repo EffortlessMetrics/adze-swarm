@@ -32,8 +32,7 @@ Use this ladder before reaching for lower-level runtime types:
 ```rust
 let ast = grammar::parse(source)?;
 
-let report = grammar::parse_document(source)?;
-let document = report.document();
+let document = grammar::parse_document(source)?;
 let diagnostics = document.diagnostics();
 let tree = document.as_tree_sitter();
 let ambiguities = document.ambiguities();

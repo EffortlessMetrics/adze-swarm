@@ -50,8 +50,7 @@ the public shortcut remains.
 Generated grammars expose document parsing:
 
 ```rust
-let report = grammar::parse_document(source);
-let doc = report.document();
+let doc = grammar::parse_document(source)?;
 ```
 
 Syntax errors, recovery, missing nodes, bad tokens, and ambiguity should usually
@@ -113,19 +112,19 @@ forest data should be lazy where possible.
 ## Acceptance Examples
 
 ```rust
-let report = grammar::parse_document("1 +");
-assert!(!report.diagnostics().is_empty());
-assert!(report.document().root().is_some());
+let doc = grammar::parse_document("1 +")?;
+assert!(!doc.diagnostics().is_empty());
+assert!(doc.root().is_some());
 ```
 
 ```rust
 let fast_ast = grammar::parse("1 + 2")?;
-let doc_ast: ast::Expr = grammar::parse_document("1 + 2").document().ast()?;
+let doc_ast: ast::Expr = grammar::parse_document("1 + 2")?.ast()?;
 assert_eq!(fast_ast, doc_ast);
 ```
 
 ```rust
-let doc = grammar::parse_document("1 + 2").document();
+let doc = grammar::parse_document("1 + 2")?;
 let syntax: syntax::SourceFile = doc.syntax()?;
 assert_eq!(syntax.syntax().text(), "1 + 2");
 ```

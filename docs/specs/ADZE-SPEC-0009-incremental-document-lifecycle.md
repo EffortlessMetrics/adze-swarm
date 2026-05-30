@@ -32,7 +32,7 @@ fingerprint.
 The target lifecycle is:
 
 ```rust
-let old = grammar::parse_document(old_source).document();
+let old = grammar::parse_document(old_source)?;
 let new = old.reparse(new_source, edits, options)?;
 let changed = old.changed_ranges(&new);
 ```

@@ -82,7 +82,7 @@ compatibility spec, reference docs, support tiers, or known gaps.
 ## Acceptance Examples
 
 ```rust
-let doc = grammar::parse_document("1 + 2").document();
+let doc = grammar::parse_document("1 + 2")?;
 let ts = doc.as_tree_sitter();
 assert_eq!(ts.root_node().kind(), doc.root().kind());
 ```
