@@ -44,7 +44,8 @@ pre-warn:
 
 # Build everything
 build:
-    cargo build --all
+    cargo build --workspace --exclude adze-cli
+    cargo build -p adze-cli
 
 # Build with release optimizations
 release:
