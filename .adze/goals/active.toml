@@ -81,11 +81,12 @@ commands = [
 
 [[work_item]]
 id = "glr-ambiguity-walkthrough"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0004-toolkit-excellence.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0003"
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
+prs = [567]
 commands = [
   "cargo run -p adze --features \"pure-rust,glr\" --example glr_ambiguity",
   "cargo test -p adze --features \"pure-rust,glr,ts-compat\" cookbook -- --nocapture",
