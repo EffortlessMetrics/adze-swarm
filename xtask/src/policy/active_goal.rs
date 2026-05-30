@@ -5,7 +5,7 @@
 //! - top-level id/title/status/owner exist
 //! - work_item IDs are unique
 //! - ready items have commands
-//! - blocked items have blocked_by
+//! - blocked items have blocked_by or issue trackers
 //! - complete items have PR references
 //! - referenced paths exist
 
@@ -58,9 +58,15 @@ struct WorkItem {
     #[serde(default)]
     blocked_by: Vec<String>,
     #[serde(default)]
+    issues: Vec<u64>,
+    #[serde(default)]
     prs: Vec<u64>,
     #[serde(default)]
     commands: Vec<String>,
+}
+
+fn has_blocking_reason(item: &WorkItem) -> bool {
+    !item.blocked_by.is_empty() || !item.issues.is_empty()
 }
 
 pub fn run(mode: &str) -> Result<()> {
@@ -141,10 +147,10 @@ pub fn run(mode: &str) -> Result<()> {
             ));
         }
 
-        // Blocked items must have blocked_by
-        if item.status == "blocked" && item.blocked_by.is_empty() {
+        // Blocked items must name either an internal dependency or an external issue.
+        if item.status == "blocked" && !has_blocking_reason(item) {
             warnings.push(format!(
-                "work_item {} is 'blocked' but has no blocked_by",
+                "work_item {} is 'blocked' but has no blocked_by or issues",
                 item.id
             ));
         }
@@ -252,5 +258,46 @@ pub fn run(mode: &str) -> Result<()> {
             errors.len(),
             GOAL_PATH
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{WorkItem, has_blocking_reason};
+
+    fn blocked_item(blocked_by: Vec<&str>, issues: Vec<u64>) -> WorkItem {
+        WorkItem {
+            id: "blocked".to_string(),
+            status: "blocked".to_string(),
+            proposal: String::new(),
+            spec: String::new(),
+            adr: String::new(),
+            plan: String::new(),
+            blocked_by: blocked_by
+                .into_iter()
+                .map(|value| value.to_string())
+                .collect(),
+            issues,
+            prs: Vec::new(),
+            commands: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn blocked_item_with_internal_dependency_has_blocking_reason() {
+        let item = blocked_item(vec!["source-of-truth"], Vec::new());
+        assert!(has_blocking_reason(&item));
+    }
+
+    #[test]
+    fn blocked_item_with_issue_tracker_has_blocking_reason() {
+        let item = blocked_item(Vec::new(), vec![325]);
+        assert!(has_blocking_reason(&item));
+    }
+
+    #[test]
+    fn blocked_item_without_dependency_or_issue_lacks_blocking_reason() {
+        let item = blocked_item(Vec::new(), Vec::new());
+        assert!(!has_blocking_reason(&item));
     }
 }
