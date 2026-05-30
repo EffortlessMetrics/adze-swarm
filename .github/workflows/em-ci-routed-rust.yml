@@ -73,12 +73,13 @@ jobs:
           fi
 
           runner_json="$(mktemp)"
+          runner_groups_json="$(mktemp)"
           current_runner="${RUNNER_NAME:-}"
           echo "route job runner: ${current_runner:-unknown}"
           if [ -n "$current_runner" ]; then
             echo "route job runner is excluded from idle counts"
           fi
-          trap 'rm -f "$runner_json"' EXIT
+          trap 'rm -f "$runner_json" "$runner_groups_json"' EXIT
 
           set +e
           runners="$(curl -fsS \
@@ -94,6 +95,22 @@ jobs:
             fallback_github "runner_api_failed"
           fi
           printf '%s' "$runners" > "$runner_json"
+
+          set +e
+          runner_groups="$(curl -fsS \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL:-https://api.github.com}/orgs/${ORG}/actions/runner-groups?per_page=100" 2>&1)"
+          group_api_exit=$?
+          set -e
+
+          if [ "$group_api_exit" -ne 0 ]; then
+            echo "runner group API request failed for diagnostics (exit=${group_api_exit}): ${runner_groups}"
+            printf '{"runner_groups":[]}' > "$runner_groups_json"
+          else
+            printf '%s' "$runner_groups" > "$runner_groups_json"
+          fi
 
           count_idle() {
             local runner_class="$1"
@@ -135,13 +152,20 @@ jobs:
             local runner_class="$1"
             local rust_label="$2"
             local extra_label="${3:-}"
-            if ! python3 - "$runner_json" "$runner_class" "$rust_label" "$extra_label" "$current_runner" <<'PY' 2>&1
+            if ! python3 - "$runner_json" "$runner_groups_json" "$runner_class" "$rust_label" "$extra_label" "$current_runner" <<'PY' 2>&1
           import json
           import sys
 
-          path, runner_class, rust_label, extra_label, current_runner = sys.argv[1:6]
+          path, groups_path, runner_class, rust_label, extra_label, current_runner = sys.argv[1:7]
           with open(path, encoding="utf-8") as handle:
               data = json.load(handle)
+          with open(groups_path, encoding="utf-8") as handle:
+              group_data = json.load(handle)
+
+          groups = {
+              str(group.get("id", "")): str(group.get("name", ""))
+              for group in group_data.get("runner_groups", [])
+          }
 
           required = {"em-ci", runner_class, rust_label, "trusted-pr"}
           if extra_label:
@@ -158,8 +182,12 @@ jobs:
                   status = str(runner.get("status", "unknown"))
                   busy = runner.get("busy")
                   current = ",current=true" if runner_name == current_runner else ""
+                  group_id = runner.get("runner_group_id")
+                  group_name = groups.get(str(group_id), "")
+                  group = group_name or str(group_id or "unknown")
+                  label_list = ",".join(sorted(labels))
                   rows.append(
-                      f"{runner_name}:status={status},busy={busy}{current}"
+                      f"{runner_name}:status={status},busy={busy},group={group},labels=[{label_list}]{current}"
                   )
 
           descriptor = f"{runner_class}/{rust_label}"
@@ -219,6 +247,7 @@ jobs:
           summarize_candidates cx43 rust-small
           summarize_candidates cx33 rust-small
           summarize_candidates cx53 rust-small
+          summarize_candidates cx53 rust-large
           if [ "$cx53" -gt 0 ]; then
             echo "cx53 rust-small candidates are visible but not selected while adze-swarm#598 is blocked"
           fi

@@ -43,7 +43,7 @@ Required branch protection contexts: `Rust Small Result`, `Product Proof Result`
 
 | Workflow | Job name | Trigger | Lane | Notes |
 |----------|----------|---------|------|-------|
-| `em-ci-routed-rust.yml` | `Route Rust Small` | PR + merge_group | PR-only | Selects CPX42, CX43, CX33, or explicit fallback; the current route runner is diagnostics-only and excluded from idle counts; CX53 is logged but quarantined while #598 is blocked |
+| `em-ci-routed-rust.yml` | `Route Rust Small` | PR + merge_group | PR-only | Selects CPX42, CX43, CX33, or explicit fallback; the current route runner is diagnostics-only and excluded from idle counts; CX53 rust-small and planned rust-large candidates are logged with label/group diagnostics but quarantined from selection while #598 is blocked |
 | `em-ci-routed-rust.yml` | `Rust Small on CPX42` | PR + merge_group | PR-only | Runs when the trusted CPX42 runner is idle |
 | `em-ci-routed-rust.yml` | `Rust Small on CX43` | PR + merge_group | PR-only | Runs when the trusted CX43 runner is idle |
 | `em-ci-routed-rust.yml` | `Rust Small on CX33` | PR + merge_group | PR-only | Runs when CPX42 and CX43 are unavailable and trusted CX33 capacity is idle |

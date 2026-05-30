@@ -39,10 +39,11 @@ Rust Small Result
 ```
 
 CX53 is quarantined from the required Rust Small route while
-`adze-swarm#598` remains blocked. The router still logs CX53 candidate state so
-the runner can be diagnosed, but it must not select CX53 for the normalized
-base gate until runner-group, label, scheduling, and burn-in evidence are
-recorded.
+`adze-swarm#598` remains blocked. The router still logs CX53 `rust-small`
+candidate state and planned `rust-large` candidate matches, including exact
+labels and runner-group ID/name when the runner-group API exposes them. It
+must not select CX53 for the normalized base gate until runner-group, label,
+scheduling, and burn-in evidence are recorded.
 
 The route job's own runner is excluded from idle counts, even when it has
 matching labels. Candidate summaries still mark it with `current=true`, but the
@@ -168,8 +169,9 @@ router_reason=parse_failed
 
 While `adze-swarm#598` is blocked, CX53 should appear only in candidate
 summaries for the Rust Small router, not as a selected `router_target`.
-Candidate rows with `current=true` are diagnostics only; the current route
-runner is not counted as idle capacity.
+Candidate rows include exact labels plus runner-group ID/name when available;
+rows with `current=true` are diagnostics only. The current route runner is not
+counted as idle capacity.
 
 Watch fallback counts. If GitHub-hosted fallback dominates a same-repo lane,
 either add capacity or narrow the trigger.
