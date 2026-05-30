@@ -98,6 +98,7 @@ Recent merged PRs:
 - #595: `fix(tooling): avoid just build PDB collision`
 - #597: `docs(status): record just build standby receipt`
 - #599: `docs(status): record CX53 runner tracker`
+- #600: `ci: log routed runner candidates`
 
 Current active manifest:
 
@@ -173,6 +174,10 @@ rerun selected CPX42 and passed. Issue #598 tracks the runner scheduling or
 configuration investigation without adding hosted fallback.
 PR #599 records #598 in the paused standby manifest and this forge audit
 without changing runner routing or resolving the blocked investigation.
+PR #600 adds route-log diagnostics for matching runner candidates by class so
+future stale selected-lane incidents include the runner name, online status,
+busy state, and current-runner marker without changing route priority or
+hosted fallback policy.
 
 The exact current `adze-swarm/main` commit is intentionally not hardcoded here.
 Every audit refresh changes that commit and would immediately stale this

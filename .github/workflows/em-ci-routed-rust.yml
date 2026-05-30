@@ -126,6 +126,50 @@ jobs:
           PY
           }
 
+          summarize_candidates() {
+            local runner_class="$1"
+            local rust_label="$2"
+            local extra_label="${3:-}"
+            if ! python3 - "$runner_json" "$runner_class" "$rust_label" "$extra_label" "$current_runner" <<'PY' 2>&1
+          import json
+          import sys
+
+          path, runner_class, rust_label, extra_label, current_runner = sys.argv[1:6]
+          with open(path, encoding="utf-8") as handle:
+              data = json.load(handle)
+
+          required = {"em-ci", runner_class, rust_label, "trusted-pr"}
+          if extra_label:
+              required.add(extra_label)
+
+          rows = []
+          for runner in data.get("runners", []):
+              runner_name = str(runner.get("name", ""))
+              labels = {
+                  str(label.get("name", "")).lower()
+                  for label in runner.get("labels", [])
+              }
+              if required <= labels:
+                  status = str(runner.get("status", "unknown"))
+                  busy = runner.get("busy")
+                  current = ",current=true" if runner_name == current_runner else ""
+                  rows.append(
+                      f"{runner_name}:status={status},busy={busy}{current}"
+                  )
+
+          descriptor = f"{runner_class}/{rust_label}"
+          if extra_label:
+              descriptor = f"{descriptor}/{extra_label}"
+          if rows:
+              print(f"{descriptor} candidate runners: {'; '.join(sorted(rows))}")
+          else:
+              print(f"{descriptor} candidate runners: none")
+          PY
+            then
+              echo "runner candidate summary failed for ${runner_class}/${rust_label}"
+            fi
+          }
+
           set +e
           cpx42="$(count_idle cpx42 rust-medium rust-16gb)"
           parse_exit=$?
@@ -166,6 +210,10 @@ jobs:
           echo "cx43 idle rust-small runners: ${cx43}"
           echo "cx33 idle rust-small runners: ${cx33}"
           echo "cx53 idle rust-small runners: ${cx53}"
+          summarize_candidates cpx42 rust-medium rust-16gb
+          summarize_candidates cx43 rust-small
+          summarize_candidates cx33 rust-small
+          summarize_candidates cx53 rust-small
 
           if [ "$cpx42" -gt 0 ]; then
             echo "router_target=cpx42"
