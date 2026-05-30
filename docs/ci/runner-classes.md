@@ -58,8 +58,10 @@ rust-large:
   GitHub-hosted fallback
 ```
 
-`rust-large` must be introduced as an optional result lane first. Do not make it
-branch-protection-required until it has burn-in receipts.
+`rust-large` starts as a manual diagnostic workflow:
+`.github/workflows/cx53-rust-large-diagnostic.yml`. It probes CX53
+`rust-large` candidate visibility before running a selected host-smoke job. Do
+not make it branch-protection-required until it has burn-in receipts.
 
 ## CX53 rust-large prep
 
@@ -100,7 +102,7 @@ Burn-in before any branch-protection change:
 - [ ] Runner group access is limited to the intended repos.
 - [ ] Workflows target `cx53` / `rust-large`, not generic `self-hosted`.
 - [ ] Public fork PRs cannot select the self-hosted runner.
-- [ ] Manual dispatch succeeds.
+- [ ] Manual `CX53 Rust Large Diagnostic` dispatch succeeds.
 - [ ] Same-repo PR smoke succeeds.
 - [ ] GitHub-hosted fallback succeeds for the same scoped lane.
 - [ ] Router logs show CX53 candidate state while Rust Small selection remains

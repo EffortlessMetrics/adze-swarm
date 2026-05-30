@@ -1,0 +1,164 @@
+name: CX53 Rust Large Diagnostic
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: cx53-rust-large-diagnostic-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  probe-cx53-rust-large:
+    name: Probe CX53 Rust Large Capacity
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
+    timeout-minutes: 5
+
+    outputs:
+      should_run: ${{ steps.probe.outputs.should_run }}
+      reason: ${{ steps.probe.outputs.reason }}
+
+    steps:
+      - name: Probe CX53 rust-large candidate state
+        id: probe
+        env:
+          GH_TOKEN: ${{ secrets.EM_RUNNER_READ_TOKEN }}
+          ORG: EffortlessMetrics
+        run: |
+          set -uo pipefail
+
+          set_output() {
+            name="$1"
+            value="$2"
+            echo "${name}=${value}" >> "$GITHUB_OUTPUT"
+          }
+
+          for tool in curl python3; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "required diagnostic tool is missing: $tool"
+              set_output should_run false
+              set_output reason "tool_missing_${tool}"
+              exit 0
+            fi
+          done
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "EM_RUNNER_READ_TOKEN is not set"
+            set_output should_run false
+            set_output reason runner_token_missing
+            exit 0
+          fi
+
+          runner_json="$(mktemp)"
+          current_runner="${RUNNER_NAME:-}"
+          echo "probe runner: ${current_runner:-unknown}"
+          echo "probe runner is excluded from candidate idle counts"
+          trap 'rm -f "$runner_json"' EXIT
+
+          set +e
+          runners="$(curl -fsS \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL:-https://api.github.com}/orgs/${ORG}/actions/runners?per_page=100" 2>&1)"
+          api_exit=$?
+          set -e
+
+          if [ "$api_exit" -ne 0 ]; then
+            echo "runner API request failed (exit=${api_exit}): ${runners}"
+            set_output should_run false
+            set_output reason runner_api_failed
+            exit 0
+          fi
+          printf '%s' "$runners" > "$runner_json"
+
+          probe_result="$(python3 - "$runner_json" "$current_runner" <<'PY' 2>&1
+          import json
+          import sys
+
+          path, current_runner = sys.argv[1:3]
+          with open(path, encoding="utf-8") as handle:
+              data = json.load(handle)
+
+          required = {"em-ci", "cx53", "rust-large", "trusted-pr"}
+          idle = 0
+          rows = []
+          for runner in data.get("runners", []):
+              runner_name = str(runner.get("name", ""))
+              labels = {
+                  str(label.get("name", "")).lower()
+                  for label in runner.get("labels", [])
+              }
+              if required <= labels:
+                  status = str(runner.get("status", "unknown"))
+                  busy = runner.get("busy")
+                  current = ",current=true" if runner_name == current_runner else ""
+                  rows.append(
+                      f"{runner_name}:status={status},busy={busy},labels=[{','.join(sorted(labels))}]{current}"
+                  )
+                  if (
+                      status == "online"
+                      and busy is False
+                      and runner_name != current_runner
+                  ):
+                      idle += 1
+
+          if rows:
+              print(f"cx53/rust-large candidate runners: {'; '.join(sorted(rows))}")
+          else:
+              print("cx53/rust-large candidate runners: none")
+          print(f"idle={idle}")
+          PY
+          )"
+          probe_exit=$?
+          printf '%s\n' "$probe_result"
+
+          if [ "$probe_exit" -ne 0 ]; then
+            set_output should_run false
+            set_output reason parse_failed
+            exit 0
+          fi
+
+          idle="$(printf '%s\n' "$probe_result" | awk -F= '/^idle=/{print $2}' | tail -n1)"
+          if [ -z "$idle" ] || ! printf '%s' "$idle" | grep -Eq '^[0-9]+$'; then
+            echo "could not parse idle count from probe output"
+            set_output should_run false
+            set_output reason parse_failed
+            exit 0
+          fi
+
+          if [ "$idle" -gt 0 ]; then
+            set_output should_run true
+            set_output reason cx53_rust_large_idle
+          else
+            set_output should_run false
+            set_output reason no_idle_cx53_rust_large
+          fi
+
+  cx53-rust-large-smoke:
+    name: CX53 Rust Large Smoke
+    needs: probe-cx53-rust-large
+    if: needs.probe-cx53-rust-large.outputs.should_run == 'true'
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx53, rust-large, trusted-pr]
+    timeout-minutes: 10
+
+    steps:
+      - name: Print runner identity
+        run: |
+          set -euo pipefail
+          echo "runner_name=${RUNNER_NAME:-unknown}"
+          echo "runner_os=${RUNNER_OS:-unknown}"
+          echo "runner_arch=${RUNNER_ARCH:-unknown}"
+          uname -a
+          nproc || true
+          free -h || true
+          df -h / /mnt/ci-scratch /mnt/ci-cache 2>/dev/null || df -h /
+          if command -v docker >/dev/null 2>&1; then docker --version; fi
+          if command -v rustc >/dev/null 2>&1; then rustc --version; fi
+          if command -v cargo >/dev/null 2>&1; then cargo --version; fi

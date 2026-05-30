@@ -97,6 +97,8 @@ In `adze-swarm`, the legacy `ci.yml` jobs run on schedule or via `workflow_dispa
 | `coverage.yml` | `Detect Coverage Paths` | PR + dispatch | Advisory | Cheap path/label detector for coverage-lite/full routing |
 | `coverage.yml` | `Coverage Lite` | Path/labeled PR + dispatch | Advisory | Core-package LCOV artifact; Codecov upload non-blocking |
 | `coverage.yml` | `Coverage Full` | `full-ci` PR + dispatch | Advisory | Broader workspace/features LCOV artifact; Codecov upload non-blocking |
+| `cx53-rust-large-diagnostic.yml` | `Probe CX53 Rust Large Capacity` | Dispatch only | Manual | Logs CX53 `rust-large` runner visibility and runs the smoke job only when idle capacity exists |
+| `cx53-rust-large-diagnostic.yml` | `CX53 Rust Large Smoke` | Dispatch only | Manual | Selected host-smoke proof for the planned CX53 `rust-large` lane; not a PR or branch-protection gate |
 | `product-proof.yml` | `Detect Product Proof Paths` | PR + scheduled + dispatch | PR-only/manual | Cheap detector that decides whether Stable product canaries are selected |
 | `product-proof.yml` | `ci-product stable canaries` | Selected PR + scheduled + dispatch | PR-only/manual | Bounded Stable README/support-tier and claim-boundary docs proof lane; manual dispatch defaults to this lane |
 | `core-tests.yml` | `core` | Scheduled (nightly) + dispatch | Scheduled | Full nightly canary: clippy, doc, all-features |

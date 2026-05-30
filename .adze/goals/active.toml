@@ -159,7 +159,7 @@ spec = "docs/ci/runner-classes.md"
 adr = ""
 plan = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
 issues = [598]
-prs = [599, 600, 603, 607, 608, 610]
+prs = [599, 600, 603, 607, 608, 610, 611]
 commands = [
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 1 --json status,conclusion,url,createdAt,updatedAt,jobs",
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 2 --json status,conclusion,url,createdAt,updatedAt,jobs",

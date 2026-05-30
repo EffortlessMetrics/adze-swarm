@@ -20,6 +20,7 @@ See `adze-rollout-status.md` for status of each item.
 | File | Role | State |
 | --- | --- | --- |
 | `em-ci-routed-rust.yml` | Routed `Rust Small Result` base gate for `adze-swarm` PRs and merge groups | Active required context |
+| `cx53-rust-large-diagnostic.yml` | Manual CX53 `rust-large` probe and selected host-smoke diagnostic for #598 | Active dispatch |
 | `pr-plan.yml` | Reusable; computes LEM/band/docs_only from `xtask ci-plan` | Active |
 | `pr-gate.yml` | Aggregates Supported + Docs Gate → `PR Gate Success` | Active |
 | `ci.yml` | Legacy public full-CI support lane; schedule/dispatch in swarm | Active scheduled/manual |

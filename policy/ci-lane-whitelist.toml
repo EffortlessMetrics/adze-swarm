@@ -273,6 +273,48 @@ review_after = "2026-06-15"
 expires = "2026-11-15"
 
 [[lane]]
+id = "cx53-rust-large-diagnostic-probe"
+workflow = ".github/workflows/cx53-rust-large-diagnostic.yml"
+job = "probe-cx53-rust-large"
+display_name = "Probe CX53 Rust Large Capacity"
+kind = "control"
+tier = "manual"
+default_pr = false
+blocking = false
+runner = "mixed"
+base_lem = 1
+owner = "release/ci"
+intent = "Manually inspect CX53 rust-large candidate visibility before running a selected smoke job."
+failure_mode = "CX53 rust-large burn-in cannot distinguish missing capacity from missing labels."
+proof_obligation = "Log matching CX53 rust-large runner labels and emit whether an idle candidate exists."
+evidence = ["job logs", "GitHub job outputs"]
+allowed_triggers = ["workflow_dispatch"]
+duplicate_of = []
+review_after = "2026-06-30"
+expires = "2026-11-30"
+
+[[lane]]
+id = "cx53-rust-large-diagnostic-smoke"
+workflow = ".github/workflows/cx53-rust-large-diagnostic.yml"
+job = "cx53-rust-large-smoke"
+display_name = "CX53 Rust Large Smoke"
+kind = "control"
+tier = "manual"
+default_pr = false
+blocking = false
+runner = "mixed"
+base_lem = 1
+owner = "release/ci"
+intent = "Manually prove that a CX53 rust-large selected job can start and run basic host diagnostics."
+failure_mode = "CX53 appears eligible in runner inventory but cannot schedule a selected job."
+proof_obligation = "Run only after the probe sees idle CX53 rust-large capacity, then print runner identity and host basics."
+evidence = ["job logs"]
+allowed_triggers = ["workflow_dispatch"]
+duplicate_of = []
+review_after = "2026-06-30"
+expires = "2026-11-30"
+
+[[lane]]
 id = "ci-lane-whitelist-lint"
 workflow = ".github/workflows/ci-policy.yml"
 job = "ci-lane-whitelist"
