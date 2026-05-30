@@ -43,7 +43,7 @@ but they are not stable identities across edits.
 The target shape is:
 
 ```rust
-let old = grammar::parse_document(old_source).document();
+let old = grammar::parse_document(old_source)?;
 let newer = old.reparse(new_source, &[edit], ParseOptions::default())?;
 let changed = old.changed_ranges(&newer);
 ```

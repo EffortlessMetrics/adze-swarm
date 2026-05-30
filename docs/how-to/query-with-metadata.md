@@ -7,8 +7,7 @@ For application parsing, prefer the generated APIs:
 
 ```rust
 let ast = grammar::parse(source)?;
-let report = grammar::parse_document(source);
-let document = report.document();
+let document = grammar::parse_document(source)?;
 ```
 
 Use the query layer when you need Tree-sitter-like pattern matching over a
