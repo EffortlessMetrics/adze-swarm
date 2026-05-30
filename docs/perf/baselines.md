@@ -24,6 +24,12 @@ cargo run -q -p xtask -- perf-receipt --profile product-smoke
 It prints advisory proof commands; it does not execute a benchmark run by
 itself and does not create a performance claim.
 
+Use the receipt as an index in PRs, active-goal closeouts, and
+release-candidate bundles. A valid closeout says which receipt profile was
+printed, which commit or PR it belongs to, which follow-up commands were run,
+and whether the evidence is advisory or blocking. For `product-smoke`, the
+answer is advisory.
+
 ## Baseline Surfaces
 
 | Surface | Status | Current evidence | Default PR behavior |
@@ -125,6 +131,12 @@ Fixture-family inventory guard:
 
 ```bash
 cargo test -p adze-benchmarks --test verify_fixture_parsing verify_benchmark_fixture_families_are_documented -- --exact --nocapture
+```
+
+Benchmark inventory guard:
+
+```bash
+cargo test -p adze-benchmarks --test verify_fixture_parsing verify_benchmark_inventory_is_exhaustive -- --exact --nocapture
 ```
 
 Source-of-truth guard:

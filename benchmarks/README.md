@@ -42,11 +42,24 @@ cover the current product benchmark slices:
 - `parse_document`, typed AST projection, and JSON projection fixture health
   through `document_projection --no-run`;
 - benchmark fixture-family and inventory consistency through
-  `verify_fixture_parsing`.
+  focused `verify_fixture_parsing` canaries.
 
 This profile does not run Criterion measurement to completion and does not
 define throughput, memory, Tree-sitter parity, incremental parsing, or
 release-blocking regression claims.
+
+When using the receipt in a PR, active-goal closeout, or release-candidate
+bundle, record:
+
+- the `perf-receipt` command and output profile;
+- the commit or PR;
+- the runner class or local machine used for any follow-up benchmark command;
+- the fixture family and benchmark slice;
+- whether evidence is advisory or blocking.
+
+Do not summarize `product-smoke` as a speed, memory, parity, incremental, or
+regression-threshold result. It is a receipt index for proof commands and
+claim boundaries.
 
 ## CI Coverage
 

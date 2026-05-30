@@ -352,16 +352,44 @@ source-of-truth metadata update.
 
 ## Work Item: benchmark-receipt-guide
 
-Status: ready
+Status: complete
 Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0014-performance-and-regression.md
+Receipt: #573
 
 ### Goal
 
 Refresh benchmark receipt guidance without creating stable throughput, memory,
 Tree-sitter performance parity, incremental performance, or release-blocking
 regression claims.
+
+### Production Delta
+
+Refresh benchmark receipt guidance so PR and release-candidate reviewers can
+use `product-smoke` as a proof index without treating it as a benchmark result.
+The docs should name the exact command, the receipt fields to record, the
+compile-only benchmark slices it indexes, and the non-claims that keep
+performance evidence advisory.
+
+### Claim Boundary
+
+This work records and clarifies advisory benchmark receipt guidance only. It
+does not run Criterion measurement to completion, add a default PR benchmark
+gate, define stable throughput or memory claims, claim Tree-sitter performance
+parity, claim incremental parsing performance, define release-blocking
+regression thresholds, or authorize public release/publish/install receipts.
+
+### Proof Commands
+
+```bash
+cargo run -q -p xtask -- perf-receipt --profile product-smoke
+git diff --check
+```
+
+### Rollback
+
+Revert the benchmark receipt docs and source-of-truth metadata update.
 
 ## Work Item: public-release-boundary-checklist
 
