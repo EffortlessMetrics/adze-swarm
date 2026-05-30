@@ -28,9 +28,9 @@ are still absent.
 | One work item per branch and PR. | `docs/reference/SPEC_SYSTEM.md`; PR template queue/scope fields; `active.toml` standby handoff. | Covered by policy. |
 | PRs link source-of-truth artifacts. | `docs/reference/SPEC_SYSTEM.md`; PR template source-of-truth fields; `docs/reference/adze-swarm-operating-model.md`. | Covered by policy. |
 | PRs state claim boundary, proof, CI cost, and rollback. | `.github/pull_request_template.md`. | Covered by policy. |
-| Default CI is self-hosted; no silent hosted fallback. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; `docs/reference/adze-swarm-operating-model.md`; PR #539; PR #547 rerun evidence where hosted stayed skipped and CX43 passed. | Covered for current routing policy. |
-| `Rust Small Result` remains the normalized base gate. | `AGENTS.md`; `docs/reference/adze-swarm-operating-model.md`; PR #546 and #547 checks. | Covered. |
-| Heavy/advisory/coverage/benchmark/product/full-matrix lanes are scoped. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; PR #546 and #547 check summaries show broad implementation lanes skipped for docs/status changes. | Covered for observed recent PRs. |
+| Default CI is self-hosted; no silent hosted fallback. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; `docs/reference/adze-swarm-operating-model.md`; PR #539; PRs #572-#575 check receipts where `Rust Small on GitHub Hosted` stayed skipped and routed self-hosted lanes passed. | Covered for current routing policy. |
+| `Rust Small Result` remains the normalized base gate. | `AGENTS.md`; `docs/reference/adze-swarm-operating-model.md`; PR #575 checks: `Route Rust Small`, `Rust Small on CPX42`, and `Rust Small Result` succeeded. | Covered. |
+| Heavy/advisory/coverage/benchmark/product/full-matrix lanes are scoped. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; PRs #572-#575 check summaries show broad implementation lanes skipped or cancelled for docs/status changes while required source-of-truth, product-proof, and Rust Small result checks stayed green. | Covered for observed recent PRs. |
 | Public `adze` receives promotion only intentionally. | `docs/reference/PUBLISH_CHECKLIST.md`; `docs/reference/adze-swarm-operating-model.md`; `active.toml` release blocker. | Covered by policy; no current promotion PR. |
 | `AdzeDocument` is the canonical parse product. | `docs/reference/adze-swarm-operating-model.md`; `docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md`; support-tier/product docs. | Covered by architecture docs. |
 | Public views are projections over the document. | `docs/reference/adze-swarm-operating-model.md`; `ADZE-ADR-0001`; projection docs and support-tier rows. | Covered by architecture docs; not re-proven in this audit. |
@@ -75,6 +75,7 @@ Recent merged PRs:
 - #572: `docs(ts-compat): harden selected-tree adoption guide`
 - #573: `docs(perf): clarify benchmark receipt guidance`
 - #574: `docs(release): clarify swarm promotion boundary`
+- #575: `docs(goal): close adoption hardening lane`
 
 Current active manifest:
 
@@ -103,6 +104,37 @@ Current crates.io install receipt state:
 ```text
 cargo info --registry crates-io adze-cli
 error: could not find `adze-cli` in registry `https://github.com/rust-lang/crates.io-index`
+```
+
+## Current standby restoration receipt
+
+On 2026-05-30, PR #575 closed the non-release Adze Adoption Hardening lane and
+restored the paused forge standby manifest. The current selected
+`adze-swarm/main` state is:
+
+```text
+c7deff6426780b7657c5e2ad45118644cd2ca9d1
+docs(goal): close adoption hardening lane (#575)
+```
+
+The PR #575 check receipt kept the current routing and claim boundary intact:
+
+```text
+CI Lane Whitelist: success
+Route Rust Small: success
+Source of Truth: success
+Rust Small on CPX42: success
+Rust Small Result: success
+Product Proof Result: success
+Rust Small on GitHub Hosted: skipped
+```
+
+Claim boundary:
+
+```text
+This is a non-release standby restoration receipt.
+It does not authorize a public promotion PR, release tag, cargo publish,
+signing, Cargo-token work, or real crates.io install receipt.
 ```
 
 ## Current proof-refresh receipt
@@ -180,7 +212,8 @@ Remaining incomplete or blocked items:
   signing, Cargo-token, or crates.io install-receipt work;
 - `adze-cli` is not present in crates.io, so `cargo install adze-cli` must not
   be claimed;
-- adoption hardening work items are selected but not complete yet;
+- no new active non-release lane has been selected after the completed and
+  archived Adze Adoption Hardening lane;
 - this audit did not rerun the full product-surface proof matrix for typed CST,
   typed AST, diagnostics, ambiguity summaries, Tree-sitter-compatible output,
   query subset, JSON, CLI, and WASM projections;
@@ -194,11 +227,11 @@ Do not mark the active thread goal complete.
 The safe current state is:
 
 ```text
-adze-swarm: active non-release adoption hardening lane
+adze-swarm: paused forge standby after the completed adoption-hardening lane
 public adze: release/public-intake surface only
 release/publish/install: blocked pending explicit authorization and receipts
 ```
 
-The next valid non-release action is a focused `adze-swarm` PR for one
-adoption-hardening work item. Public promotion or release work remains blocked
+The next valid non-release action is to select a focused lane from the paused
+standby state tracked by #549. Public promotion or release work remains blocked
 on explicit authorization tracked by #325.
