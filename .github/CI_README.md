@@ -22,8 +22,8 @@ Jobs are classified into three visibility tiers:
 
 1. **Rust Small Result** - Required routed Rust Small aggregate check for ordinary swarm PRs.
 2. **Product Proof Result** - Required aggregate Stable-claim proof gate.
-3. **Route Rust Small** - Chooses CPX42, CX43, CX33, or explicit fallback; CX53 candidate state is logged but not selected while #598 is blocked.
-4. **Rust Small implementation lanes** - Conditional implementation lanes; one selected lane runs, while the others usually skip.
+3. **Route Rust Small** - Chooses CPX42, CX43, CX33, or explicit fallback; the route job runner is logged with `current=true` but excluded from idle counts, and CX53 candidate state is logged but not selected while #598 is blocked.
+4. **Rust Small implementation lanes** - Conditional implementation lanes; one selected lane runs when eligible capacity exists, while the others usually skip.
 5. **ci-supported** - Legacy public full-CI support lane; retained for schedule/manual dispatch in `ci.yml`.
 6. **Policy checks** - Source-of-truth and lane-whitelist guardrails.
 7. **Deep lanes** - Feature matrix, OS matrix, coverage, benchmarks, fuzzing, security, docs, and advisory product proof; scheduled, manual, label, or path-routed unless explicitly promoted.
@@ -149,7 +149,8 @@ cargo llvm-cov --workspace \
 
 The first Codecov integration is advisory. Codecov checks and comments should not be required in branch protection until the baseline has stabilized on `main`.
 
-Required `adze-swarm` branch protection remains `Rust Small Result`.
+Required `adze-swarm` branch protection remains `Rust Small Result` and
+`Product Proof Result`.
 
 ## Maintenance
 

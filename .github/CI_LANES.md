@@ -43,12 +43,13 @@ Required branch protection contexts: `Rust Small Result`, `Product Proof Result`
 
 | Workflow | Job name | Trigger | Lane | Notes |
 |----------|----------|---------|------|-------|
-| `em-ci-routed-rust.yml` | `Route Rust Small` | PR + merge_group | PR-only | Selects CPX42, CX43, CX33, or explicit fallback; CX53 is logged but quarantined while #598 is blocked |
+| `em-ci-routed-rust.yml` | `Route Rust Small` | PR + merge_group | PR-only | Selects CPX42, CX43, CX33, or explicit fallback; the current route runner is diagnostics-only and excluded from idle counts; CX53 is logged but quarantined while #598 is blocked |
 | `em-ci-routed-rust.yml` | `Rust Small on CPX42` | PR + merge_group | PR-only | Runs when the trusted CPX42 runner is idle |
 | `em-ci-routed-rust.yml` | `Rust Small on CX43` | PR + merge_group | PR-only | Runs when the trusted CX43 runner is idle |
 | `em-ci-routed-rust.yml` | `Rust Small on CX33` | PR + merge_group | PR-only | Runs when CPX42 and CX43 are unavailable and trusted CX33 capacity is idle |
 | `em-ci-routed-rust.yml` | `Rust Small on CX53` | PR + merge_group | PR-only | Dormant while #598 is blocked; do not select for the required Rust Small route |
-| `em-ci-routed-rust.yml` | `Rust Small on GitHub Hosted` | PR + merge_group | PR-only | Fallback when no trusted Rust Small runner is idle |
+| `em-ci-routed-rust.yml` | `Rust Small on GitHub Hosted` | PR + merge_group | PR-only | Runs only when the route target is `github` and explicit fallback is allowed; skipped by default |
+| `em-ci-routed-rust.yml` | `Runner Capacity / Fallback Policy` | PR + merge_group | PR-only | Fails intentionally when no trusted runner is idle and hosted fallback is not allowed; the aggregate `Rust Small Result` records that policy outcome |
 | `pr-gate.yml` | `Supported Rust Gate` | PR + merge_group | PR-only | Legacy public gate signal; not the swarm required context; `pull_request.closed` only cancels stale same-PR runs |
 | `pr-gate.yml` | `PR Gate Success` | PR + merge_group | PR-only | Aggregate: plan + supported/docs gate; skipped on `pull_request.closed` |
 | `pr-gate.yml` | `PR Plan` | PR | PR-only | Computes docs_only, estimated LEM, budget band; skipped on `pull_request.closed` |
@@ -172,9 +173,12 @@ promoted later.
    Product Proof routing failure before merge.
 3. **`PR Gate / PR Gate Success` red?** — Inspect, but do not block the swarm
    base lane on it unless it is explicitly promoted again.
-4. **Any `Advisory / *` red?** — Inspect when convenient. May be nightly drift.
-5. **Scheduled/manual jobs red?** — Create a follow-up issue. Not a PR blocker.
-6. **PR-only signal red?** — Worth reviewing, but not a merge blocker.
+4. **`Runner Capacity / Fallback Policy` red while `Rust Small Result` is
+   green?** — No trusted runner was idle and hosted fallback stayed blocked;
+   inspect the route log, but the required aggregate context is the merge gate.
+5. **Any `Advisory / *` red?** — Inspect when convenient. May be nightly drift.
+6. **Scheduled/manual jobs red?** — Create a follow-up issue. Not a PR blocker.
+7. **PR-only signal red?** — Worth reviewing, but not a merge blocker.
 
 ---
 
