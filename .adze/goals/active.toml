@@ -20,11 +20,12 @@ receipts, the non-publish release-candidate bundle closeout, and the Adze
 Adoption Hardening closeout are merged. Post-closeout audit, CI routing, and
 verifier hygiene are also merged, including standby audit refreshes, job-scoped
 Rust Small Cargo homes, CPX42 route-label alignment, and issue-tracked active
-goal blockers, plus the Windows check-msrv shell-path fix. No new non-release
-implementation lane is selected. Release, publish, signing, Cargo-token,
-public promotion, and crates.io install-receipt work remain blocked on
-explicit human authorization tracked by EffortlessMetrics/adze-swarm#325.
-Non-release lane selection is tracked by EffortlessMetrics/adze-swarm#549.
+goal blockers, plus the Windows check-msrv shell-path fix and the Windows
+`just build` PDB collision fix. No new non-release implementation lane is
+selected. Release, publish, signing, Cargo-token, public promotion, and
+crates.io install-receipt work remain blocked on explicit human authorization
+tracked by EffortlessMetrics/adze-swarm#325. Non-release lane selection is
+tracked by EffortlessMetrics/adze-swarm#549.
 """
 
 handoff = """
@@ -131,11 +132,12 @@ proposal = ""
 spec = "docs/reference/SPEC_SYSTEM.md"
 adr = ""
 plan = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
-issues = [325, 549, 590]
-prs = [576, 577, 578, 579, 580, 581, 582, 583, 584, 585, 586, 587, 588, 589, 591]
+issues = [325, 549, 590, 594, 596]
+prs = [576, 577, 578, 579, 580, 581, 582, 583, 584, 585, 586, 587, 588, 589, 591, 593, 595]
 commands = [
   "cargo test -p xtask active_goal -- --nocapture",
   "just check-msrv",
+  "just build",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",
