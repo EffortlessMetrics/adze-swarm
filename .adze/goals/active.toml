@@ -132,7 +132,7 @@ spec = "docs/reference/SPEC_SYSTEM.md"
 adr = ""
 plan = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
 issues = [325, 549]
-prs = [576, 577, 578, 579, 580]
+prs = [576, 577, 578, 579, 580, 581, 582]
 commands = [
   "cargo test -p xtask active_goal -- --nocapture",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",

@@ -29,9 +29,9 @@ are still absent.
 | One work item per branch and PR. | `docs/reference/SPEC_SYSTEM.md`; PR template queue/scope fields; `active.toml` standby handoff. | Covered by policy. |
 | PRs link source-of-truth artifacts. | `docs/reference/SPEC_SYSTEM.md`; PR template source-of-truth fields; `docs/reference/adze-swarm-operating-model.md`. | Covered by policy. |
 | PRs state claim boundary, proof, CI cost, and rollback. | `.github/pull_request_template.md`. | Covered by policy. |
-| Default CI is self-hosted; no silent hosted fallback. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; `docs/reference/adze-swarm-operating-model.md`; PRs #539, #577, and #580; PRs #572-#580 check receipts where `Rust Small on GitHub Hosted` stayed skipped and routed self-hosted lanes passed. | Covered for current routing policy. |
-| `Rust Small Result` remains the normalized base gate. | `AGENTS.md`; `docs/reference/adze-swarm-operating-model.md`; PR #579 and #580 checks: `Route Rust Small`, selected self-hosted Rust Small lane, and `Rust Small Result` succeeded. | Covered. |
-| Heavy/advisory/coverage/benchmark/product/full-matrix lanes are scoped. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; PRs #572-#580 check summaries show broad implementation lanes skipped or cancelled for docs/status/CI-routing/verifier changes while required source-of-truth, product-proof, and Rust Small result checks stayed green. | Covered for observed recent PRs. |
+| Default CI is self-hosted; no silent hosted fallback. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; `docs/reference/adze-swarm-operating-model.md`; PRs #539, #577, and #580; PRs #572-#582 check receipts where `Rust Small on GitHub Hosted` stayed skipped and routed self-hosted lanes passed. | Covered for current routing policy. |
+| `Rust Small Result` remains the normalized base gate. | `AGENTS.md`; `docs/reference/adze-swarm-operating-model.md`; PR #579, #580, #581, and #582 checks: `Route Rust Small`, selected self-hosted Rust Small lane, and `Rust Small Result` succeeded. | Covered. |
+| Heavy/advisory/coverage/benchmark/product/full-matrix lanes are scoped. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; PRs #572-#582 check summaries show broad implementation lanes skipped or cancelled for docs/status/CI-routing/verifier changes while required source-of-truth, product-proof, and Rust Small result checks stayed green. | Covered for observed recent PRs. |
 | Public `adze` receives promotion only intentionally. | `docs/reference/PUBLISH_CHECKLIST.md`; `docs/reference/adze-swarm-operating-model.md`; `active.toml` release blocker. | Covered by policy; no current promotion PR. |
 | `AdzeDocument` is the canonical parse product. | `docs/reference/adze-swarm-operating-model.md`; `docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md`; support-tier/product docs. | Covered by architecture docs. |
 | Public views are projections over the document. | `docs/reference/adze-swarm-operating-model.md`; `ADZE-ADR-0001`; projection docs and support-tier rows. | Covered by architecture docs; not re-proven in this audit. |
@@ -41,7 +41,7 @@ are still absent.
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
 | Self-hosted-only routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, and #580 merged; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, and hosted stayed skipped. | Complete for current routing. |
 | Duplicate same-scope PRs collapsed. | PR #542 merged; duplicate document SRP PRs were not all merged. | Complete for the observed queue. |
-| Current active goal complete/paused/superseded before new goal. | `adze-adoption-hardening` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest; PR #579 made issue-tracked blocked items verifier-clean. | Complete. |
+| Current active goal complete/paused/superseded before new goal. | `adze-adoption-hardening` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest; PR #579 made issue-tracked blocked items verifier-clean; PRs #581 and #582 refreshed the standby evidence after #576-#580. | Complete. |
 | Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-05-30. | Covered at audit time. |
 
 ## Current evidence snapshot
@@ -82,6 +82,8 @@ Recent merged PRs:
 - #578: `docs(status): record post-ci audit evidence`
 - #580: `ci: align cpx42 route labels`
 - #579: `xtask: accept issue-tracked active-goal blockers`
+- #581: `docs(status): refresh standby verifier evidence`
+- #582: `docs(status): avoid self-staling forge audit snapshot`
 
 Current active manifest:
 
@@ -120,13 +122,18 @@ permission assumption exposed by the next audit PR by moving routed Rust Small
 Cargo homes to job-scoped scratch paths. PR #578 refreshed the audit after that
 CI hardening. PR #580 fixed the CPX42 route-label assumption exposed by the
 active-goal verifier PR. PR #579 then made issue-tracked blocked items
-verifier-clean while preserving #325 and #549 as live blockers.
+verifier-clean while preserving #325 and #549 as live blockers. PR #581
+refreshed the paused standby evidence after those verifier and routing fixes.
 
-The current selected `adze-swarm/main` state is:
+The exact current `adze-swarm/main` commit is intentionally not hardcoded here.
+Every audit refresh changes that commit and would immediately stale this
+document. Verify the live selected state with:
 
 ```text
-20aab0dc8d3e5f312fa899cbdefe1069ca3b3fa7
-xtask: accept issue-tracked active-goal blockers (#579)
+git fetch origin main --prune
+git rev-parse origin/main
+gh pr list --repo EffortlessMetrics/adze-swarm --state open --json number,title,url
+gh pr list --repo EffortlessMetrics/adze --state open --json number,title,url
 ```
 
 The latest relevant check receipts kept the current routing and claim boundary
@@ -142,6 +149,17 @@ PR #579:
   Rust Small Result: success
   Product Proof Result: success
   Rust Small on GitHub Hosted: skipped
+
+PR #581:
+  CI Lane Whitelist: success
+  Source of Truth: success
+  GLR Invariants: success
+  Route Rust Small: success
+  Rust Small on CX33: success
+  Rust Small Result: success
+  Product Proof Result: success
+  Rust Small on GitHub Hosted: skipped
+  Broad optional PR Gate workflow: force-cancelled after required gates passed
 
 PR #580:
   CI Lane Whitelist: success
