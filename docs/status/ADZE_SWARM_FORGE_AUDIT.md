@@ -16,9 +16,9 @@ install receipt.
 Adze Adoption Hardening lane. The near-term CI governance, repo-boundary,
 proof-refresh, release-candidate bundle, and adoption-hardening tasks are
 complete. Post-closeout audit, CI-routing, and active-goal verifier hygiene are
-also complete. The broader product/release endpoint is not complete because
-release/publish authorization and a real crates.io `adze-cli` install receipt
-are still absent.
+also complete, including the Windows `check-msrv` shell-path tooling fix. The
+broader product/release endpoint is not complete because release/publish
+authorization and a real crates.io `adze-cli` install receipt are still absent.
 
 ## Prompt-to-artifact checklist
 
@@ -39,9 +39,9 @@ are still absent.
 | `cargo install adze-cli` claim has a real crates.io receipt. | Live `cargo info --registry crates-io adze-cli` on 2026-05-30 returned not found. | Not complete. |
 | No unsupported parity/performance claims. | `docs/reference/adze-swarm-operating-model.md`; `SUPPORT_TIERS.md`; `PRODUCT_OBJECTIVE_AUDIT.md`. | Covered by policy; not exhaustively re-verified here. |
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
-| Self-hosted-only routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, and #580 merged; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, and hosted stayed skipped. | Complete for current routing. |
+| Self-hosted-only routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, #580, and #591 merged; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, #591 removed the Windows `cygpath` dependency from `just check-msrv`, and hosted stayed skipped. | Complete for current routing. |
 | Duplicate same-scope PRs collapsed. | PR #542 merged; duplicate document SRP PRs were not all merged. | Complete for the observed queue. |
-| Current active goal complete/paused/superseded before new goal. | `adze-adoption-hardening` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest; PR #579 made issue-tracked blocked items verifier-clean; PRs #581, #582, and #585-#587 refreshed the standby evidence after #576-#584. | Complete. |
+| Current active goal complete/paused/superseded before new goal. | `adze-adoption-hardening` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest; PR #579 made issue-tracked blocked items verifier-clean; PRs #581, #582, #585-#587, and #591 refreshed the standby evidence after #576-#584. | Complete. |
 | Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-05-30. | Covered at audit time. |
 
 ## Current evidence snapshot
@@ -91,6 +91,7 @@ Recent merged PRs:
 - #587: `docs(status): refresh forge audit receipt ranges`
 - #588: `docs(cli): keep source build path local`
 - #589: `docs(status): refresh product audit standby state`
+- #591: `fix(tooling): make check-msrv Windows-compatible`
 
 Current active manifest:
 
@@ -149,6 +150,9 @@ checkout under test instead of implying public `adze` already carries the
 current swarm proof state.
 PR #589 refreshed the product objective audit front matter to the current
 paused standby state and recorded the #588 stable-product receipt.
+PR #591 removed the Windows `cygpath` dependency from `just check-msrv` by
+moving the check body out of a just shebang recipe and into
+`scripts/check-msrv.sh`.
 
 The exact current `adze-swarm/main` commit is intentionally not hardcoded here.
 Every audit refresh changes that commit and would immediately stale this
@@ -185,6 +189,19 @@ PR #581:
   Product Proof Result: success
   Rust Small on GitHub Hosted: skipped
   Broad optional PR Gate workflow: force-cancelled after required gates passed
+
+PR #591:
+  CI Lane Whitelist: success
+  Source of Truth: success
+  GLR Invariants: success
+  Route Rust Small: success
+  Rust Small on CPX42: success
+  Rust Small Result: success
+  Product Proof Result: success
+  Supported Rust Gate: success
+  PR Gate Success: success
+  Rust Small on GitHub Hosted: skipped
+  Post-merge CI Policy push run 26682375507: success
 
 PR #580:
   CI Lane Whitelist: success
