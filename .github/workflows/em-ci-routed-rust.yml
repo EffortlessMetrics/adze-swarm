@@ -378,10 +378,8 @@ jobs:
       JOB_ID: ${{ github.run_id }}-${{ github.run_attempt }}
 
       CARGO_HOME: /mnt/ci-cache/cargo-home
-      SCCACHE_DIR: /mnt/ci-cache/sccache
-      SCCACHE_CACHE_SIZE: 12G
-      RUSTC_WRAPPER: /usr/local/cargo/bin/sccache
       CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "2"
 
       TMPDIR: /mnt/ci-scratch/tmp/${{ github.run_id }}-${{ github.run_attempt }}
       CARGO_TARGET_DIR: /mnt/ci-scratch/target/${{ github.run_id }}-${{ github.run_attempt }}
@@ -401,61 +399,32 @@ jobs:
       - name: Prepare scratch
         run: |
           set -euo pipefail
-          mkdir -p "$TMPDIR" "$CARGO_TARGET_DIR" "$CARGO_HOME" "$SCCACHE_DIR"
+          mkdir -p "$TMPDIR" "$CARGO_TARGET_DIR" "$CARGO_HOME"
 
-      - name: Run Rust small lane in container
+      - name: Install Rust 1.95.0
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: 1.95.0
+          components: rustfmt, clippy
+
+      - name: Preflight disk and toolchain
         run: |
           set -euo pipefail
+          df -h /mnt/ci-scratch /mnt/docker /mnt/ci-cache || true
+          rustc --version
+          cargo --version
+          if command -v python3 >/dev/null 2>&1; then python3 --version; fi
 
-          docker run --rm \
-            --label em.ci=true \
-            --cpus="3" \
-            --memory="6g" \
-            --entrypoint /bin/bash \
-            -v "$GITHUB_WORKSPACE:/workspace" \
-            -v "$CARGO_HOME:/cargo-home" \
-            -v "$SCCACHE_DIR:/sccache" \
-            -v "$CARGO_TARGET_DIR:/target" \
-            -v "$TMPDIR:/tmp/jobtmp" \
-            -w /workspace \
-            -e PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-            -e HOME=/workspace \
-            -e CARGO_HOME=/cargo-home \
-            -e SCCACHE_DIR=/sccache \
-            -e SCCACHE_CACHE_SIZE=12G \
-            -e RUSTC_WRAPPER=/usr/local/cargo/bin/sccache \
-            -e CARGO_TARGET_DIR=/target \
-            -e TMPDIR=/tmp/jobtmp \
-            -e CARGO_INCREMENTAL=0 \
-            -e CARGO_BUILD_JOBS=2 \
-            -e RUST_TEST_THREADS=2 \
-            -e RUST_BACKTRACE=1 \
-            -e CARGO_TERM_COLOR=always \
-            em-ci-rust:1.95 \
-            -c 'set -euo pipefail
-                rustc --version
-                cargo --version
-                just --version
-                sccache --version
-
-                if [ -f Cargo.toml ]; then
-                  cargo fetch --locked
-                  cargo check --workspace --locked
-                  sccache --show-stats || true
-                else
-                  echo "No Cargo.toml found; infra smoke only."
-                fi'
+      - name: Run Rust small gate
+        run: |
+          set -euo pipefail
+          cargo fetch --locked
+          cargo check --workspace --locked
 
       - name: Cleanup scratch
         if: always()
         run: |
-          docker run --rm \
-            --entrypoint /bin/bash \
-            -v "$TMPDIR:/tmpdir" \
-            -v "$CARGO_TARGET_DIR:/target" \
-            em-ci-rust:1.95 \
-            -c 'find /tmpdir /target -mindepth 1 -delete 2>/dev/null || true' || true
-          rmdir "${TMPDIR}" "${CARGO_TARGET_DIR}" 2>/dev/null || true
+          rm -rf "$TMPDIR" "$CARGO_TARGET_DIR"
           df -h / /mnt/docker /mnt/actions /mnt/ci-scratch /mnt/ci-cache /mnt/ci-artifacts || true
 
   rust-small-cx53:
