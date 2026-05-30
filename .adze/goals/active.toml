@@ -94,11 +94,12 @@ commands = [
 
 [[work_item]]
 id = "diagnostics-recovery-walkthrough"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 plan = "plans/adze-adoption-hardening/implementation-plan.md"
+prs = [568]
 commands = [
   "cargo run -p adze --features \"pure-rust,glr,serialization\" --example diagnostics_recovery",
   "cargo test -p adze --features \"pure-rust,glr,serialization,ts-compat\" --test recovery_matrix -- --nocapture",

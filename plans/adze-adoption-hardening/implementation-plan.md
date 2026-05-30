@@ -219,7 +219,7 @@ Revert the walkthrough and cookbook-proof updates.
 
 ## Work Item: diagnostics-recovery-walkthrough
 
-Status: ready
+Status: complete
 Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
@@ -229,6 +229,35 @@ Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 
 Refresh diagnostics and recovery guidance so parse failures, spans, bad input,
 missing nodes, and JSON diagnostic projections stay useful and claim-bounded.
+
+### Receipt
+
+Lands in PR #568.
+
+### Production Delta
+
+Docs and runnable diagnostics example proof only.
+
+### Claim Boundary
+
+This work may document typed parser errors, `parse_document()` diagnostics,
+selected-tree error facts, representative byte/point span proof, and
+experimental document JSON diagnostic projection. It must not claim frozen
+diagnostic wording, Stable JSON schemas, full external-scanner recovery, full
+Tree-sitter error/missing-node parity, recovery from every malformed input
+shape, or release availability.
+
+### Proof Commands
+
+```bash
+cargo run -p adze --features "pure-rust,glr,serialization" --example diagnostics_recovery
+cargo test -p adze --features "pure-rust,glr,serialization,ts-compat" --test recovery_matrix -- --nocapture
+```
+
+### Rollback
+
+Revert the diagnostics guide, runnable example, and source-of-truth metadata
+updates.
 
 ## Work Item: query-cookbook
 
