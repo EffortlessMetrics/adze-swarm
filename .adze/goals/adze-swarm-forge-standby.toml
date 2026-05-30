@@ -27,16 +27,18 @@ diagnostics, a temporary Rust Small route quarantine, and route-runner
 self-count exclusion. The legacy PR Gate
 stale-queue follow-up is mitigated by PR-close cancellation, with PR body
 guidance preserved for avoiding accidental issue auto-close. No new
-non-release implementation lane is selected.
+non-release implementation lane is selected; EffortlessMetrics/adze-swarm#549
+is resolved by explicitly keeping this paused standby state until a future
+maintainer selects and records a fresh non-release lane.
 Release, publish, signing, Cargo-token, public promotion, and
 crates.io install-receipt work remain blocked on explicit human authorization
-tracked by EffortlessMetrics/adze-swarm#325. Non-release lane selection is
-tracked by EffortlessMetrics/adze-swarm#549.
+tracked by EffortlessMetrics/adze-swarm#325.
 """
 
 handoff = """
-For routine development, start a new active goal in adze-swarm before opening
-implementation work. For release or publish work, stop until human
+For routine development, replace this paused standby manifest with a fresh
+non-release lane in adze-swarm before opening implementation work. For release
+or publish work, stop until human
 authorization selects a public adze promotion/release path. Do not infer a new
 public adze implementation lane from this paused manifest.
 """
@@ -198,13 +200,15 @@ commands = [
 
 [[work_item]]
 id = "next-non-release-lane-selection"
-status = "blocked"
+status = "complete"
 proposal = ""
 spec = "docs/reference/SPEC_SYSTEM.md"
 adr = ""
-plan = ""
+plan = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
 issues = [549]
+prs = [609]
 commands = [
-  "gh pr list --repo EffortlessMetrics/adze-swarm --state open --json number,title,url",
-  "gh pr list --repo EffortlessMetrics/adze --state open --json number,title,url",
+  "gh api 'repos/EffortlessMetrics/adze-swarm/pulls?state=open&per_page=100'",
+  "gh api 'repos/EffortlessMetrics/adze/pulls?state=open&per_page=100'",
+  "gh api 'repos/EffortlessMetrics/adze-swarm/issues?state=open&per_page=100'",
 ]
