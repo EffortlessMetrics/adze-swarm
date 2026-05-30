@@ -89,6 +89,7 @@ Recent merged PRs:
 - #585: `docs(policy): fix PR template path casing`
 - #586: `ci(status): record casing receipt and harden router output path`
 - #587: `docs(status): refresh forge audit receipt ranges`
+- #588: `docs(cli): keep source build path local`
 
 Current active manifest:
 
@@ -142,6 +143,9 @@ PR #586 recorded that casing cleanup in the paused standby ledger and hardened
 the routed Rust Small target-selection job against a missing
 `$GITHUB_OUTPUT` directory on self-hosted runners.
 PR #587 refreshed the audit table receipt ranges through #586.
+PR #588 kept the CLI reference's current source-build path scoped to the
+checkout under test instead of implying public `adze` already carries the
+current swarm proof state.
 
 The exact current `adze-swarm/main` commit is intentionally not hardcoded here.
 Every audit refresh changes that commit and would immediately stale this

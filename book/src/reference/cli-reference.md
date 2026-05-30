@@ -11,7 +11,7 @@ Complete reference for the adze command-line interface.
 
 The crates.io install command is a release-surface target until the release
 checklist records a crates.io install receipt for `adze-cli`. For the current
-proved path, build the CLI from this checkout.
+proved path, build the CLI from the checkout under test.
 
 Intended published install command:
 
@@ -19,11 +19,9 @@ Intended published install command:
 cargo install adze-cli
 ```
 
-Or build from source:
+From this checkout:
 
 ```bash
-git clone https://github.com/EffortlessMetrics/adze
-cd adze
 cargo build --release -p adze-cli
 ```
 
