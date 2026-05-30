@@ -135,7 +135,8 @@ This is a selected-tree subset. It does not claim full Tree-sitter parity.
 
 ## Query Captures
 
-The supported query subset can match named nodes and captures:
+The supported query subset matches the selected tree. Use it for editor and
+tooling recipes that can live inside the documented subset:
 
 ```rust
 let query = adze::query::compile_query("(root (identifier @name))", &grammar)?;
@@ -143,8 +144,10 @@ let matches = adze::query::matcher_v2::QueryMatcher::new(&query, source, &metada
     .matches(&tree);
 ```
 
-See [Query Compatibility](./query-compatibility.md) for the supported subset and
-known gaps.
+Use the source-aware matcher when a query has text predicates or anonymous token
+literals. Source-free matching intentionally fails closed for those patterns.
+See [Query Compatibility](./query-compatibility.md) for the supported subset,
+known gaps, and promotion rule.
 
 For a runnable query/highlighting walkthrough:
 
