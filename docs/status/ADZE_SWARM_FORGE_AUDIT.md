@@ -17,9 +17,10 @@ Adze Adoption Hardening lane. The near-term CI governance, repo-boundary,
 proof-refresh, release-candidate bundle, and adoption-hardening tasks are
 complete. Post-closeout audit, CI-routing, and active-goal verifier hygiene are
 also complete, including the Windows `check-msrv` shell-path tooling fix and
-the Windows `just build` PDB collision fix. The broader product/release
-endpoint is not complete because release/publish authorization and a real
-crates.io `adze-cli` install receipt are still absent.
+the Windows `just build` PDB collision fix. A CX53 Rust Small stale-queue
+receipt is now tracked as a blocked runner investigation. The broader
+product/release endpoint is not complete because release/publish authorization
+and a real crates.io `adze-cli` install receipt are still absent.
 
 ## Prompt-to-artifact checklist
 
@@ -30,7 +31,7 @@ crates.io `adze-cli` install receipt are still absent.
 | One work item per branch and PR. | `docs/reference/SPEC_SYSTEM.md`; PR template queue/scope fields; `active.toml` standby handoff. | Covered by policy. |
 | PRs link source-of-truth artifacts. | `docs/reference/SPEC_SYSTEM.md`; PR template source-of-truth fields for proposal, spec, ADR, plan item, active goal, support-tier row, and policy ledger; `docs/reference/adze-swarm-operating-model.md`. | Covered by policy. |
 | PRs state claim boundary, proof, CI cost, and rollback. | `.github/PULL_REQUEST_TEMPLATE.md`. | Covered by policy. |
-| Default CI is self-hosted; no silent hosted fallback. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; `docs/reference/adze-swarm-operating-model.md`; PRs #539, #577, #580, and #586; PRs #572-#586 check receipts where `Rust Small on GitHub Hosted` stayed skipped and routed self-hosted lanes passed. | Covered for current routing policy. |
+| Default CI is self-hosted; no silent hosted fallback. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; `docs/reference/adze-swarm-operating-model.md`; PRs #539, #577, #580, and #586; PRs #572-#597 check receipts where `Rust Small on GitHub Hosted` stayed skipped; issue #598 tracks a CX53 stale-queue runner investigation from #597. | Covered for current routing policy; #598 remains a blocked runner follow-up. |
 | `Rust Small Result` remains the normalized base gate. | `AGENTS.md`; `docs/reference/adze-swarm-operating-model.md`; live branch-protection API on 2026-05-30 required `Rust Small Result` and `Product Proof Result` with `strict = true`; PRs #579-#583 checks: `Route Rust Small`, selected self-hosted Rust Small lane, and `Rust Small Result` succeeded. | Covered. |
 | Heavy/advisory/coverage/benchmark/product/full-matrix lanes are scoped. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; PRs #572-#586 check summaries show broad implementation lanes skipped or cancelled for docs/status/CI-routing/verifier changes while required source-of-truth, product-proof, and Rust Small result checks stayed green. | Covered for observed recent PRs. |
 | Public `adze` receives promotion only intentionally. | `docs/reference/PUBLISH_CHECKLIST.md`; `docs/reference/adze-swarm-operating-model.md`; `active.toml` release blocker. | Covered by policy; no current promotion PR. |
@@ -40,7 +41,7 @@ crates.io `adze-cli` install receipt are still absent.
 | `cargo install adze-cli` claim has a real crates.io receipt. | Live `cargo info --registry crates-io adze-cli` on 2026-05-30 returned not found. | Not complete. |
 | No unsupported parity/performance claims. | `docs/reference/adze-swarm-operating-model.md`; `SUPPORT_TIERS.md`; `PRODUCT_OBJECTIVE_AUDIT.md`. | Covered by policy; not exhaustively re-verified here. |
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
-| Self-hosted-only routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, #580, #591, and #595 merged; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, #591 removed the Windows `cygpath` dependency from `just check-msrv`, #595 removed the Windows `just build` PDB collision warning, and hosted stayed skipped. | Complete for current routing/tooling assumptions. |
+| Self-hosted-only routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, #580, #591, and #595 merged; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, #591 removed the Windows `cygpath` dependency from `just check-msrv`, #595 removed the Windows `just build` PDB collision warning, and hosted stayed skipped. Issue #598 tracks whether CX53 should remain eligible for Rust Small after a stale selected-lane queue in #597. | Complete for current routing/tooling assumptions; #598 is blocked on runner evidence. |
 | Duplicate same-scope PRs collapsed. | PR #542 merged; duplicate document SRP PRs were not all merged. | Complete for the observed queue. |
 | Current active goal complete/paused/superseded before new goal. | `adze-adoption-hardening` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest; PR #579 made issue-tracked blocked items verifier-clean; PRs #581, #582, #585-#587, #591, #593, and #595 refreshed the standby evidence after #576-#584. | Complete. |
 | Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-05-30. | Covered at audit time. |
@@ -95,6 +96,8 @@ Recent merged PRs:
 - #591: `fix(tooling): make check-msrv Windows-compatible`
 - #593: `docs(status): record check-msrv standby receipt`
 - #595: `fix(tooling): avoid just build PDB collision`
+- #597: `docs(status): record just build standby receipt`
+- #599: `docs(status): record CX53 runner tracker`
 
 Current active manifest:
 
@@ -109,6 +112,7 @@ Current live blockers:
 ```text
 release-publish-authorization: blocked, tracked by #325
 next-non-release-lane-selection: blocked, tracked by #549
+cx53-rust-small-stale-queue-investigation: blocked, tracked by #598
 ```
 
 Current live queue at audit time:
@@ -162,6 +166,13 @@ PR #595 split `just build` into a workspace build excluding `adze-cli`,
 followed by `cargo build -p adze-cli`, so Windows no longer emits the
 `adze.pdb` output filename collision warning between the runtime lib target
 and the CLI bin target.
+PR #597 recorded the #593 and #595 standby receipts in the checked-in
+source-of-truth files. During #597, the first routed Rust Small attempt
+selected CX53 and stayed with no job steps until cancellation; the unchanged
+rerun selected CPX42 and passed. Issue #598 tracks the runner scheduling or
+configuration investigation without adding hosted fallback.
+PR #599 records #598 in the paused standby manifest and this forge audit
+without changing runner routing or resolving the blocked investigation.
 
 The exact current `adze-swarm/main` commit is intentionally not hardcoded here.
 Every audit refresh changes that commit and would immediately stale this
@@ -234,6 +245,22 @@ PR #595:
   PR Gate Success: success
   Rust Small on GitHub Hosted: skipped
   Post-merge CI Policy push run 26683508220: success
+
+PR #597:
+  CI Lane Whitelist: success
+  Source of Truth: success
+  GLR Invariants: success
+  Docs Gate: success
+  Product Proof Result: success
+  PR Gate Success: success
+  Attempt 1 Route Rust Small: success, selected CX53 with cx53_idle
+  Attempt 1 Rust Small on CX53: cancelled after no job steps
+  Attempt 1 Rust Small Result: failure from cancelled selected lane
+  Attempt 2 Route Rust Small: success, selected CPX42 with cpx42_idle
+  Attempt 2 Rust Small on CPX42: success
+  Attempt 2 Rust Small Result: success
+  Rust Small on GitHub Hosted: skipped
+  Post-merge CI Policy push run 26684617220: success
 
 PR #580:
   CI Lane Whitelist: success
@@ -350,6 +377,8 @@ Remaining incomplete or blocked items:
   be claimed;
 - no new active non-release lane has been selected after the completed and
   archived Adze Adoption Hardening lane;
+- CX53 Rust Small stale-queue behavior remains a blocked runner investigation
+  tracked by #598;
 - this audit did not rerun the full product-surface proof matrix for typed CST,
   typed AST, diagnostics, ambiguity summaries, Tree-sitter-compatible output,
   query subset, JSON, CLI, and WASM projections;

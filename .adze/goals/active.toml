@@ -21,8 +21,9 @@ Adoption Hardening closeout are merged. Post-closeout audit, CI routing, and
 verifier hygiene are also merged, including standby audit refreshes, job-scoped
 Rust Small Cargo homes, CPX42 route-label alignment, and issue-tracked active
 goal blockers, plus the Windows check-msrv shell-path fix and the Windows
-`just build` PDB collision fix. No new non-release implementation lane is
-selected. Release, publish, signing, Cargo-token, public promotion, and
+`just build` PDB collision fix. A CX53 Rust Small stale-queue follow-up is
+tracked as a blocked runner investigation. No new non-release implementation
+lane is selected. Release, publish, signing, Cargo-token, public promotion, and
 crates.io install-receipt work remain blocked on explicit human authorization
 tracked by EffortlessMetrics/adze-swarm#325. Non-release lane selection is
 tracked by EffortlessMetrics/adze-swarm#549.
@@ -133,7 +134,7 @@ spec = "docs/reference/SPEC_SYSTEM.md"
 adr = ""
 plan = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
 issues = [325, 549, 590, 594, 596]
-prs = [576, 577, 578, 579, 580, 581, 582, 583, 584, 585, 586, 587, 588, 589, 591, 593, 595]
+prs = [576, 577, 578, 579, 580, 581, 582, 583, 584, 585, 586, 587, 588, 589, 591, 593, 595, 597]
 commands = [
   "cargo test -p xtask active_goal -- --nocapture",
   "just check-msrv",
@@ -141,6 +142,22 @@ commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",
+]
+
+[[work_item]]
+id = "cx53-rust-small-stale-queue-investigation"
+status = "blocked"
+proposal = "docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md"
+spec = "docs/ci/runner-classes.md"
+adr = ""
+plan = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
+issues = [598]
+prs = [599]
+commands = [
+  "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 1 --json status,conclusion,url,createdAt,updatedAt,jobs",
+  "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 2 --json status,conclusion,url,createdAt,updatedAt,jobs",
+  "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 1 --job 78648771377 --log",
+  "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 2 --job 78650477316 --log",
 ]
 
 [[work_item]]
