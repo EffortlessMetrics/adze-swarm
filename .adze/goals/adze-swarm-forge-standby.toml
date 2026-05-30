@@ -15,13 +15,13 @@ Cargo-token, and crates.io receipt surface.
 pause_reason = """
 The near-term CI governance work has landed: CI-efficiency invariants,
 self-hosted swarm workflow routing, runner/tooling follow-ups, duplicate queue
-cleanup, the durable adze-swarm operating-model reference, the current toolkit
-proof-refresh receipts, and the non-publish release-candidate bundle closeout
-are merged. No new non-release implementation lane is selected. Release,
-publish, signing, Cargo-token, public promotion, and crates.io install-receipt
-work remain blocked on explicit human authorization tracked by
-EffortlessMetrics/adze-swarm#325. Non-release lane selection is tracked by
-EffortlessMetrics/adze-swarm#549.
+cleanup, the durable adze-swarm operating-model reference, toolkit proof-refresh
+receipts, the non-publish release-candidate bundle closeout, and the Adze
+Adoption Hardening closeout are merged. No new non-release implementation lane
+is selected. Release, publish, signing, Cargo-token, public promotion, and
+crates.io install-receipt work remain blocked on explicit human authorization
+tracked by EffortlessMetrics/adze-swarm#325. Non-release lane selection is
+tracked by EffortlessMetrics/adze-swarm#549.
 """
 
 handoff = """
@@ -101,6 +101,21 @@ commands = [
   "just ci-product-stable",
   "just check-publishable",
   "cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version X.Y.Z --locked --dry-run",
+  "cargo run -q -p xtask -- check-active-goal --mode blocking",
+  "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
+  "git diff --check",
+]
+
+[[work_item]]
+id = "adze-adoption-hardening"
+status = "complete"
+proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
+spec = "ADZE-SPEC-0011"
+adr = "ADZE-ADR-0001"
+plan = "plans/adze-adoption-hardening/closeout.md"
+issues = [325, 549]
+prs = [562, 563, 564, 567, 568, 569, 570, 571, 572, 573, 574, 575]
+commands = [
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",
