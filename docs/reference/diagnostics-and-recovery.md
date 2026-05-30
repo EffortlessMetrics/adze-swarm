@@ -73,6 +73,38 @@ The document is the parse truth. Diagnostics, selected tree error facts,
 Tree-sitter-compatible error flags, JSON projection, and typed-AST projection
 must all come from the same document facts instead of separate reparses.
 
+## Walkthrough: One Error, Several Views
+
+The useful mental model is to start from the smallest API that answers the
+question:
+
+1. Use `grammar::parse(source)` when a typed parser should either return a
+   typed value or structured parse errors.
+2. Use `grammar::parse_document(source)` when tooling needs recovered document
+   facts from the same parse.
+3. Compare `diagnostic.byte_span()` and `diagnostic.point_range` before
+   rendering text. Rendered diagnostic wording is helpful, but it is not the
+   stable contract.
+4. Inspect `document.tree().has_errors()` and related nodes when a selected
+   tree exists. Missing/error-node parity is still support-tier-bounded.
+5. Use document JSON only as an experimental projection of the same diagnostic
+   facts.
+
+The runnable example checks this ladder for generated parser EOF, multibyte bad
+tokens, GLR bad input, and document JSON bytes:
+
+```bash
+cargo run -p adze --features "pure-rust,glr,serialization" --example diagnostics_recovery
+```
+
+That command is a walkthrough receipt, not a Stable schema or wording promise.
+The broader recovery matrix remains the stronger proof for representative bad
+input classes:
+
+```bash
+cargo test -p adze --features "pure-rust,glr,serialization,ts-compat" --test recovery_matrix -- --nocapture
+```
+
 ## UTF-8 And Multiline Spans
 
 Diagnostic spans are byte ranges, but they must stay aligned to source text
@@ -120,9 +152,9 @@ rows.
 
 ## Runnable Example
 
-The diagnostics walkthrough prints generated-parser EOF diagnostics, multibyte
-bad-token diagnostics, GLR bad-input diagnostics, and document JSON diagnostic
-bytes:
+The diagnostics walkthrough prints and asserts generated-parser EOF
+diagnostics, multibyte bad-token diagnostics, GLR bad-input diagnostics, and
+document JSON diagnostic bytes:
 
 ```bash
 cargo run -p adze --features "pure-rust,glr,serialization" --example diagnostics_recovery
