@@ -9,10 +9,15 @@ The current durable base lane is:
 - `EM CI Routed Rust`
 - final check: `Rust Small Result`
 
-This lane routes to self-hosted Rust Small capacity when idle. If no trusted
-self-hosted runner is idle, ordinary same-repo PRs fail with an explicit
-capacity/policy message instead of silently falling back to GitHub-hosted
-compute.
+This lane routes to self-hosted Rust Small capacity when idle. The route job's
+own runner is diagnostics-only and excluded from idle counts, so a busy runner
+that is currently running the router cannot select itself as immediate
+selected-lane capacity.
+
+If no trusted self-hosted runner is idle, ordinary same-repo PRs get an
+explicit non-required `Runner Capacity / Fallback Policy` failure instead of
+silently falling back to GitHub-hosted compute. The required aggregate
+`Rust Small Result` records the selected policy outcome.
 
 Runner-class policy is defined in [`runner-classes.md`](./runner-classes.md).
 The short version is: CPX42/CX43 own the preferred `rust-small` base gate,
