@@ -1,6 +1,6 @@
 # Support Tiers and Proof Surface
 
-**Last updated:** 2026-05-21
+**Last updated:** 2026-05-30
 **Source of truth for:** README feature claims, `docs/status/KNOWN_RED.md`, and CI expectations.
 
 For a release-readable summary of the most common product claims, see

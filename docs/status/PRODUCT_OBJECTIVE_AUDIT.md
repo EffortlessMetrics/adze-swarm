@@ -10,8 +10,10 @@ and post-adoption standby hygiene lanes are closed out. The current
 implementation lane selected. Release/publish work remains separate and
 blocked on explicit authorization in adze-swarm#325; the CX53 runner
 investigation remains blocked on adze-swarm#598; and the current non-release
-research board is tracked by adze-swarm#613, adze-swarm#614, and
-adze-swarm#615.
+research board is tracked by adze-swarm#617, with open adoption and
+performance lanes in adze-swarm#614 and adze-swarm#613. The query
+compatibility research lane in adze-swarm#615 closed via adze-swarm#619 after
+the fixture-canary boundary was clarified.
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
 
@@ -589,11 +591,11 @@ Do not mark the product objective complete while any of these are true:
 - The root README dependency block is release-surface-bounded because
   `adze-tool` does not yet have a crates.io metadata receipt.
 - Public `adze/main` is not tree-identical to current `adze-swarm/main`; after
-  the post-promotion claim-boundary cleanup, `origin/main` is
-  `81db54aa4986a36bf4c24d545cffc877e749f01f` and `public/main` is
-  `6263c6a80046d13fb98e3ad319dfe726f32f1010` as of the 2026-05-22 refresh.
-  An explicit public promotion PR is required before any authorized publish
-  from the public release surface.
+  the 2026-05-30 post-query-boundary refresh, `origin/main` is
+  `d3669602c812519ef6a6e4a7d84055f4817bcf6e` and `public/main` is
+  `6263c6a80046d13fb98e3ad319dfe726f32f1010`, with 409 changed paths between
+  them. An explicit public promotion PR is required before any authorized
+  publish from the public release surface.
 - Corpus-wide external-scanner recovery parity remains future work and is not
   a Stable claim.
 - GLR conflict routing, structured parse errors, Tree-sitter compatibility,
