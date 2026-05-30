@@ -28,17 +28,17 @@ are still absent.
 | One work item per branch and PR. | `docs/reference/SPEC_SYSTEM.md`; PR template queue/scope fields; `active.toml` standby handoff. | Covered by policy. |
 | PRs link source-of-truth artifacts. | `docs/reference/SPEC_SYSTEM.md`; PR template source-of-truth fields; `docs/reference/adze-swarm-operating-model.md`. | Covered by policy. |
 | PRs state claim boundary, proof, CI cost, and rollback. | `.github/pull_request_template.md`. | Covered by policy. |
-| Default CI is self-hosted; no silent hosted fallback. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; `docs/reference/adze-swarm-operating-model.md`; PR #539; PRs #572-#575 check receipts where `Rust Small on GitHub Hosted` stayed skipped and routed self-hosted lanes passed. | Covered for current routing policy. |
-| `Rust Small Result` remains the normalized base gate. | `AGENTS.md`; `docs/reference/adze-swarm-operating-model.md`; PR #575 checks: `Route Rust Small`, `Rust Small on CPX42`, and `Rust Small Result` succeeded. | Covered. |
-| Heavy/advisory/coverage/benchmark/product/full-matrix lanes are scoped. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; PRs #572-#575 check summaries show broad implementation lanes skipped or cancelled for docs/status changes while required source-of-truth, product-proof, and Rust Small result checks stayed green. | Covered for observed recent PRs. |
+| Default CI is self-hosted; no silent hosted fallback. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; `docs/reference/adze-swarm-operating-model.md`; PR #539; PRs #572-#577 check receipts where `Rust Small on GitHub Hosted` stayed skipped and routed self-hosted lanes passed. | Covered for current routing policy. |
+| `Rust Small Result` remains the normalized base gate. | `AGENTS.md`; `docs/reference/adze-swarm-operating-model.md`; PR #576 and #577 checks: `Route Rust Small`, selected self-hosted Rust Small lane, and `Rust Small Result` succeeded. | Covered. |
+| Heavy/advisory/coverage/benchmark/product/full-matrix lanes are scoped. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; PRs #572-#577 check summaries show broad implementation lanes skipped or cancelled for docs/status/CI-routing changes while required source-of-truth, product-proof, and Rust Small result checks stayed green. | Covered for observed recent PRs. |
 | Public `adze` receives promotion only intentionally. | `docs/reference/PUBLISH_CHECKLIST.md`; `docs/reference/adze-swarm-operating-model.md`; `active.toml` release blocker. | Covered by policy; no current promotion PR. |
 | `AdzeDocument` is the canonical parse product. | `docs/reference/adze-swarm-operating-model.md`; `docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md`; support-tier/product docs. | Covered by architecture docs. |
 | Public views are projections over the document. | `docs/reference/adze-swarm-operating-model.md`; `ADZE-ADR-0001`; projection docs and support-tier rows. | Covered by architecture docs; not re-proven in this audit. |
 | Stable claims require README/support-tier/proof/CI/examples/limitations alignment. | `docs/status/SUPPORT_TIERS.md`; `docs/status/PRODUCT_OBJECTIVE_AUDIT.md`; `docs/reference/adze-swarm-operating-model.md`. | Covered by policy; not exhaustively re-verified here. |
-| `cargo install adze-cli` claim has a real crates.io receipt. | Live `cargo info --registry crates-io adze-cli` on 2026-05-29 returned not found. | Not complete. |
+| `cargo install adze-cli` claim has a real crates.io receipt. | Live `cargo info --registry crates-io adze-cli` on 2026-05-30 returned not found. | Not complete. |
 | No unsupported parity/performance claims. | `docs/reference/adze-swarm-operating-model.md`; `SUPPORT_TIERS.md`; `PRODUCT_OBJECTIVE_AUDIT.md`. | Covered by policy; not exhaustively re-verified here. |
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
-| Self-hosted-only routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545 merged; PR #547 rerun selected CX43 and hosted skipped. | Complete for current routing. |
+| Self-hosted-only routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, and #577 merged; PR #576 rerun selected CX53 after #577 isolated Cargo homes, and hosted stayed skipped. | Complete for current routing. |
 | Duplicate same-scope PRs collapsed. | PR #542 merged; duplicate document SRP PRs were not all merged. | Complete for the observed queue. |
 | Current active goal complete/paused/superseded before new goal. | `adze-adoption-hardening` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest. | Complete. |
 | Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-05-30. | Covered at audit time. |
@@ -76,6 +76,8 @@ Recent merged PRs:
 - #573: `docs(perf): clarify benchmark receipt guidance`
 - #574: `docs(release): clarify swarm promotion boundary`
 - #575: `docs(goal): close adoption hardening lane`
+- #576: `docs(status): refresh forge audit standby evidence`
+- #577: `ci: isolate rust small cargo homes`
 
 Current active manifest:
 
@@ -99,34 +101,49 @@ EffortlessMetrics/adze-swarm open PRs: none
 EffortlessMetrics/adze open PRs: none
 ```
 
-Current crates.io install receipt state:
+Current crates.io install receipt state on 2026-05-30:
 
 ```text
 cargo info --registry crates-io adze-cli
 error: could not find `adze-cli` in registry `https://github.com/rust-lang/crates.io-index`
 ```
 
-## Current standby restoration receipt
+## Current standby and routing receipt
 
 On 2026-05-30, PR #575 closed the non-release Adze Adoption Hardening lane and
-restored the paused forge standby manifest. The current selected
-`adze-swarm/main` state is:
+restored the paused forge standby manifest. PR #577 then fixed the runner cache
+permission assumption exposed by the next audit PR by moving routed Rust Small
+Cargo homes to job-scoped scratch paths. PR #576 refreshed this audit on top of
+that CI hardening.
+
+The current selected `adze-swarm/main` state is:
 
 ```text
-c7deff6426780b7657c5e2ad45118644cd2ca9d1
-docs(goal): close adoption hardening lane (#575)
+24151f69a0f22490f7b885892c2143dd1f4b8a0e
+docs(status): refresh forge audit standby evidence (#576)
 ```
 
-The PR #575 check receipt kept the current routing and claim boundary intact:
+The latest relevant check receipts kept the current routing and claim boundary
+intact:
 
 ```text
-CI Lane Whitelist: success
-Route Rust Small: success
-Source of Truth: success
-Rust Small on CPX42: success
-Rust Small Result: success
-Product Proof Result: success
-Rust Small on GitHub Hosted: skipped
+PR #577:
+  CI Lane Whitelist: success
+  Source of Truth: success
+  GLR Invariants: success
+  Rust Small on CX43: success
+  Rust Small Result: success
+  Product Proof Result: success
+  Rust Small on GitHub Hosted: skipped
+
+PR #576:
+  CI Lane Whitelist: success
+  Source of Truth: success
+  GLR Invariants: success
+  Rust Small on CX53: success
+  Rust Small Result: success
+  Product Proof Result: success
+  Rust Small on GitHub Hosted: skipped
 ```
 
 Claim boundary:
