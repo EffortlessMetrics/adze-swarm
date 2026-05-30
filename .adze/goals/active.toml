@@ -21,11 +21,12 @@ Adoption Hardening closeout are merged. Post-closeout audit, CI routing, and
 verifier hygiene are also merged, including standby audit refreshes, job-scoped
 Rust Small Cargo homes, CPX42 route-label alignment, and issue-tracked active
 goal blockers, plus the Windows check-msrv shell-path fix and the Windows
-`just build` PDB collision fix. A CX53 Rust Small stale-queue follow-up is
-tracked as a blocked runner investigation, with route candidate diagnostics, a
-temporary Rust Small route quarantine, and PR body guidance for avoiding
-accidental issue auto-close. No new non-release
-implementation lane is selected. Release, publish, signing, Cargo-token, public promotion, and
+`just build` PDB collision fix. CX53 Rust Small and legacy PR Gate
+stale-queue follow-ups are tracked as blocked CI investigations, with route
+candidate diagnostics, a temporary Rust Small route quarantine, PR body
+guidance for avoiding accidental issue auto-close, and stale PR Gate
+cancellation receipts. No new non-release implementation lane is selected.
+Release, publish, signing, Cargo-token, public promotion, and
 crates.io install-receipt work remain blocked on explicit human authorization
 tracked by EffortlessMetrics/adze-swarm#325. Non-release lane selection is
 tracked by EffortlessMetrics/adze-swarm#549.
@@ -160,6 +161,20 @@ commands = [
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 2 --json status,conclusion,url,createdAt,updatedAt,jobs",
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 1 --job 78648771377 --log",
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 2 --job 78650477316 --log",
+]
+
+[[work_item]]
+id = "pr-gate-stale-queue-investigation"
+status = "blocked"
+proposal = "docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md"
+spec = ".github/CI_LANES.md"
+adr = ""
+plan = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
+issues = [604]
+commands = [
+  "gh run view 26686105597 --repo EffortlessMetrics/adze-swarm --json databaseId,displayTitle,event,status,conclusion,headBranch,headSha,jobs,url",
+  "gh run view 26686785491 --repo EffortlessMetrics/adze-swarm --json databaseId,displayTitle,event,status,conclusion,headBranch,headSha,jobs,url",
+  "gh run list --repo EffortlessMetrics/adze-swarm --status queued --limit 20 --json databaseId,displayTitle,workflowName,headBranch,event,status,conclusion,createdAt,updatedAt,url",
 ]
 
 [[work_item]]
