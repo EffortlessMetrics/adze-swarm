@@ -157,7 +157,9 @@ errors where available.
 - Source-aware predicate canaries for literal and capture comparisons.
 - Source-free negative canaries proving text predicates and literal token
   patterns fail closed.
-- Differential fixtures for the supported subset against Tree-sitter behavior.
+- Local fixture canaries for the supported subset.
+- Future upstream differential fixtures for the supported subset against
+  Tree-sitter behavior.
 
 ## Acceptance Examples
 
@@ -193,7 +195,10 @@ consumer behavior and fixture proof exist.
 - `runtime/src/query/matcher.rs` source-free matcher tests;
 - `runtime/src/query/matcher_v2.rs` source-aware matcher tests;
 - `runtime/src/query/cursor.rs` cursor option tests;
-- future `query_differential` fixtures for supported-subset comparison.
+- `runtime/tests/query_differential.rs` supported-subset fixture canary.
+
+The current `query_differential` target uses local Tree-sitter-shaped fixtures.
+It is not an upstream Tree-sitter differential corpus.
 
 ## Implementation Mapping
 
@@ -220,11 +225,16 @@ The query surface remains advisory until the supported subset has:
 - documented feature status;
 - parser and matcher canaries;
 - source-aware and source-free predicate proof;
-- Tree-sitter differential fixtures for supported syntax;
+- local fixture canaries for supported syntax;
+- future Tree-sitter differential fixtures for supported syntax before any
+  broader parity promotion;
 - support-tier rows with proof commands and explicit known gaps.
 
-The planned differential proof command is:
+The current supported-subset fixture canary command is:
 
 ```bash
 cargo test -p adze --features "pure-rust,ts-compat,query" --test query_differential -- --nocapture
 ```
+
+A future upstream differential proof must name the compared grammar, source
+input, query pattern set, and expected Tree-sitter behavior.

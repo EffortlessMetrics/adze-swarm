@@ -127,7 +127,8 @@ Field constraints and anchors are part of the covered subset:
 ```
 
 These are covered behavior, not a Stable support-tier claim. They still need
-differential fixtures before broader Tree-sitter query parity promotion.
+upstream Tree-sitter differential fixtures before broader Tree-sitter query
+parity promotion.
 
 ## Runnable Cookbook Example
 
@@ -169,11 +170,16 @@ cargo test -p adze --features query --lib query::matcher_v2 -- --nocapture
 cargo test -p adze --features query --example query_highlighting -- --nocapture
 ```
 
-Future promotion requires a supported-subset differential corpus:
+Current supported-subset fixture canary:
 
 ```bash
 cargo test -p adze --features "pure-rust,ts-compat,query" --test query_differential -- --nocapture
 ```
+
+Despite the test target name, this is a local fixture canary over
+Tree-sitter-shaped `ParseNode` fixtures. A future upstream Tree-sitter
+differential corpus must compare an explicit grammar, input, and query slice
+against upstream Tree-sitter behavior before broader parity promotion.
 
 See [`ADZE-SPEC-0013`](../specs/ADZE-SPEC-0013-query-compatibility.md) for the
 behavior contract and promotion rule.
