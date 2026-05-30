@@ -23,8 +23,10 @@ diagnostics, a temporary Rust Small route quarantine, route-runner self-count
 exclusion, and PR body guidance for avoiding accidental issue auto-close.
 Legacy PR Gate queued runs left behind
 after #602 and #603 merged are tracked separately by issue #604 and mitigated
-by PR-close cancellation in #606. The
-broader product/release endpoint is not complete because release/publish
+by PR-close cancellation in #606. PR #609 resolves issue #549 by explicitly
+keeping the paused forge standby state instead of selecting a new
+implementation lane. The broader product/release endpoint is not complete
+because release/publish
 authorization and a real crates.io `adze-cli` install receipt are still absent.
 
 ## Prompt-to-artifact checklist
@@ -48,7 +50,7 @@ authorization and a real crates.io `adze-cli` install receipt are still absent.
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
 | Self-hosted-only routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, #580, #591, #595, #603, #607, and #608 merged; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, #591 removed the Windows `cygpath` dependency from `just check-msrv`, #595 removed the Windows `just build` PDB collision warning, #603 quarantined CX53 from Rust Small route selection while preserving candidate diagnostics, #607 excludes the routed Rust Small router's current route runner from idle counts, #608 aligns contributor-facing CI docs with the current capacity-policy behavior, and hosted stayed skipped. Issue #598 tracks whether CX53 should regain Rust Small eligibility after a stale selected-lane queue in #597. | Complete for current routing/tooling assumptions; #598 is blocked on runner evidence. |
 | Duplicate same-scope PRs collapsed. | PR #542 merged; duplicate document SRP PRs were not all merged. | Complete for the observed queue. |
-| Current active goal complete/paused/superseded before new goal. | `adze-adoption-hardening` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest; PR #579 made issue-tracked blocked items verifier-clean; PRs #581, #582, #585-#587, #591, #593, and #595 refreshed the standby evidence after #576-#584. | Complete. |
+| Current active goal complete/paused/superseded before new goal. | `adze-adoption-hardening` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest; PR #579 made issue-tracked blocked items verifier-clean; PRs #581, #582, #585-#587, #591, #593, and #595 refreshed the standby evidence after #576-#584; PR #609 resolves issue #549 by explicitly keeping the paused standby state until a future non-release lane is selected. | Complete. |
 | Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-05-30. | Covered at audit time. |
 
 ## Current evidence snapshot
@@ -110,6 +112,7 @@ Recent merged PRs:
 - #606: `ci: cancel PR Gate on PR close`
 - #607: `ci: exclude route runner from idle counts`
 - #608: `docs(ci): clarify rust small capacity policy`
+- #609: `docs(goal): keep forge standby paused`
 
 Current active manifest:
 
@@ -123,7 +126,6 @@ Current live blockers:
 
 ```text
 release-publish-authorization: blocked, tracked by #325
-next-non-release-lane-selection: blocked, tracked by #549
 cx53-rust-small-stale-queue-investigation: blocked, tracked by #598
 ```
 
@@ -416,8 +418,6 @@ Remaining incomplete or blocked items:
   signing, Cargo-token, or crates.io install-receipt work;
 - `adze-cli` is not present in crates.io, so `cargo install adze-cli` must not
   be claimed;
-- no new active non-release lane has been selected after the completed and
-  archived Adze Adoption Hardening lane;
 - CX53 Rust Small stale-queue behavior remains a blocked runner investigation
   tracked by #598; the required Rust Small route no longer selects CX53 while
   that evidence is absent, and route selection no longer counts the route
@@ -440,6 +440,6 @@ public adze: release/public-intake surface only
 release/publish/install: blocked pending explicit authorization and receipts
 ```
 
-The next valid non-release action is to select a focused lane from the paused
-standby state tracked by #549. Public promotion or release work remains blocked
-on explicit authorization tracked by #325.
+The next valid non-release action is to replace this paused standby state with
+a focused active lane before opening implementation work. Public promotion or
+release work remains blocked on explicit authorization tracked by #325.
