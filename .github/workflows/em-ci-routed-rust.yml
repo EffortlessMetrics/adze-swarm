@@ -16,7 +16,9 @@ permissions:
 jobs:
   route-rust-small:
     name: Route Rust Small
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
     timeout-minutes: 5
 
     if: >-
@@ -589,7 +591,9 @@ jobs:
     name: Runner Capacity / Fallback Policy
     needs: route-rust-small
     if: needs.route-rust-small.outputs.target == 'github' && needs.route-rust-small.outputs.fallback_allowed != 'true'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
     steps:
       - name: Fail with explicit routing policy message
         run: |
@@ -620,7 +624,9 @@ jobs:
           github.event.pull_request.head.repo.full_name == github.repository
         )
       )
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
 
     steps:
       - name: Check selected lane
