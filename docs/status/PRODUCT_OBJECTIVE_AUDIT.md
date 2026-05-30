@@ -1,13 +1,15 @@
 # Product Objective Audit
 
-**Last updated:** 2026-05-22
+**Last updated:** 2026-05-30
 **Status:** incomplete; use this as an audit checklist, not as a support-tier
 promotion. Routine product-proof, query/tooling, recovery, user-experience,
 parser/runtime maintainability, CLI parse-surface, static S-expression, static
-JSON/DOT, and dynamic parse boundary lanes are closed out. The current
-`active.toml` records the CLI dynamic parse boundary lane as complete with no
-active, ready, or blocked non-release work items. Release/publish work remains
-separate and blocked on explicit authorization.
+JSON/DOT, dynamic parse boundary, adoption-hardening, release-candidate bundle,
+and post-adoption standby hygiene lanes are closed out. The current
+`active.toml` is paused as `adze-swarm-forge-standby` with no active or ready
+non-release work items. Release/publish work remains separate and blocked on
+explicit authorization in adze-swarm#325; the next non-release lane selection
+is blocked on adze-swarm#549.
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
 
@@ -71,6 +73,14 @@ Receipt-era note: the older `ci-product-stable` receipts below predate the
 later `Product Proof Result` required-gate promotion. Current branch protection
 requires `Product Proof Result`; the path-selected `ci-product stable canaries`
 implementation job remains selected by path, schedule, or manual dispatch.
+
+Latest current receipt after CLI reference source-build boundary PR #588:
+`Product Proof` run 26680325962 passed on 2026-05-30 from `adze-swarm/main`.
+The path-selected `ci-product stable canaries` job passed in 3m38s after the
+book CLI reference changed. This receipt keeps the current source-build path
+scoped to the checkout under test. Published `cargo install adze-cli` remains a
+release-surface target until a crates.io install receipt exists, and this
+receipt does not prove public `adze` source builds from the current swarm state.
 
 GitHub workflow dispatch
 [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
