@@ -113,7 +113,7 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Refresh live PR state with `gh pr list --state open --limit 20 --json number,title,isDraft,headRefName,updatedAt,url`.
 - [x] Confirm the live PR queue is empty after the tablegen/runtime correctness fixes landed.
 - [x] Keep the historical queue closed; do not revive stale PR numbers from handoffs unless GitHub shows them open again.
-- [ ] For any new correctness PR, keep the one-PR loop: rebase on current `main`, run focused proof, require hosted `Rust Small Result`, and report red checks before merge.
+- [ ] For any new correctness PR, keep the one-PR loop: rebase on current `main`, run focused proof, require the self-hosted-backed `Rust Small Result` aggregate, and report red checks before merge.
 
 ### Product proof alignment
 - [x] Keep `just ci-supported` as the fast local supported proof. `adze-swarm`
