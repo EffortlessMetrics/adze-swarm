@@ -27,6 +27,7 @@ Jobs are classified into three visibility tiers:
 5. **ci-supported** - Legacy public full-CI support lane; retained for schedule/manual dispatch in `ci.yml`.
 6. **Policy checks** - Source-of-truth and lane-whitelist guardrails.
 7. **Deep lanes** - Feature matrix, OS matrix, coverage, benchmarks, fuzzing, security, docs, and advisory product proof; scheduled, manual, label, or path-routed unless explicitly promoted.
+8. **CX53 Rust Large Diagnostic** - Manual-only runner burn-in probe for #598; it checks CX53 `rust-large` candidate visibility before running a selected host-smoke job.
 
 ## Manual CI triggers
 
@@ -36,6 +37,9 @@ The `CI` workflow supports manual dispatch with two toggles:
 - `run_ci_supported_examples` (workflow_dispatch only): Enable experimental examples in `feature-matrix`.
   If `run_full_ci` is false, this is the only non-PR lane that runs on manual dispatch.
   Outside manual dispatch, experimental examples in `feature-matrix` only run when commit message includes `[test-examples]`.
+
+`CX53 Rust Large Diagnostic` is a separate manual workflow for runner evidence.
+It is not a PR gate and does not change Rust Small branch protection.
 
 ## Required GitHub Settings
 
