@@ -86,6 +86,8 @@ Recent merged PRs:
 - #582: `docs(status): avoid self-staling forge audit snapshot`
 - #583: `docs(status): record branch protection receipt`
 - #584: `docs(pr): require support-tier source links`
+- #585: `docs(policy): fix PR template path casing`
+- #586: `ci(status): record casing receipt and harden router output path`
 
 Current active manifest:
 
@@ -134,6 +136,10 @@ CI hardening. PR #580 fixed the CPX42 route-label assumption exposed by the
 active-goal verifier PR. PR #579 then made issue-tracked blocked items
 verifier-clean while preserving #325 and #549 as live blockers. PR #581
 refreshed the paused standby evidence after those verifier and routing fixes.
+PR #585 corrected PR template path casing in the CI policy and forge audit.
+PR #586 recorded that casing cleanup in the paused standby ledger and hardened
+the routed Rust Small target-selection job against a missing
+`$GITHUB_OUTPUT` directory on self-hosted runners.
 
 The exact current `adze-swarm/main` commit is intentionally not hardcoded here.
 Every audit refresh changes that commit and would immediately stale this
