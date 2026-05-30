@@ -43,6 +43,12 @@ jobs:
         run: |
           set -uo pipefail
 
+          if [ -z "${GITHUB_OUTPUT:-}" ]; then
+            echo "GITHUB_OUTPUT is not set"
+            exit 1
+          fi
+          mkdir -p "$(dirname "$GITHUB_OUTPUT")"
+
           fallback_github() {
             reason="$1"
             echo "router_target=github"
