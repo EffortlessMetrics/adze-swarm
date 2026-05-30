@@ -44,7 +44,7 @@ views expose the selected tree only.
 |---|---|---|
 | Typed Rust values | `grammar::parse(source)` | Stable front door |
 | Diagnostics, ranges, ambiguity, JSON, compatibility views | `grammar::parse_document(source)` | Experimental/Stabilizing by surface |
-| Tree-sitter-shaped selected-tree traversal | `adze::ts_compat::Tree::from_document(...)` | Advisory selected-tree subset |
+| Tree-sitter-shaped selected-tree traversal | `adze::ts_compat::Tree::from_document(...)` | Stabilizing selected-tree subset |
 | Serialized parse table ABI proof | tablegen/parsetable tests | Stabilizing proof surface |
 | Dynamic `.parsetable` loading in an application | implementation-specific integration | Advisory |
 

@@ -117,7 +117,7 @@ documented generated grammar matrix. The structured parse-error surface is
 | `pure-rust` | Pure-Rust parser backend. Default stable front door. | Stable |
 | `glr` | Enables GLR parsing for ambiguous grammars. | Stabilizing |
 | `serialization` | Enables core table serialization and experimental document JSON. | Stable for core tables; document JSON experimental |
-| `ts-compat` | Tree-sitter-compatible selected-tree adapter. | Advisory |
+| `ts-compat` | Tree-sitter-compatible selected-tree adapter. | Stabilizing selected-tree subset |
 | `incremental_glr` | Incremental parsing and fallback metadata. | Experimental |
 | `wasm` | WASM build support. | Advisory compile signal |
 
