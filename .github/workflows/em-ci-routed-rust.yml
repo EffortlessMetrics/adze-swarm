@@ -75,6 +75,9 @@ jobs:
           runner_json="$(mktemp)"
           current_runner="${RUNNER_NAME:-}"
           echo "route job runner: ${current_runner:-unknown}"
+          if [ -n "$current_runner" ]; then
+            echo "route job runner is excluded from idle counts"
+          fi
           trap 'rm -f "$runner_json"' EXIT
 
           set +e
@@ -117,8 +120,10 @@ jobs:
                   str(label.get("name", "")).lower()
                   for label in runner.get("labels", [])
               }
-              if required <= labels and (
-                  runner.get("busy") is False or runner_name == current_runner
+              if (
+                  required <= labels
+                  and runner.get("busy") is False
+                  and runner_name != current_runner
               ):
                   count += 1
 
