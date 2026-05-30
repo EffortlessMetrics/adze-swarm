@@ -30,7 +30,7 @@ are still absent.
 | PRs link source-of-truth artifacts. | `docs/reference/SPEC_SYSTEM.md`; PR template source-of-truth fields; `docs/reference/adze-swarm-operating-model.md`. | Covered by policy. |
 | PRs state claim boundary, proof, CI cost, and rollback. | `.github/pull_request_template.md`. | Covered by policy. |
 | Default CI is self-hosted; no silent hosted fallback. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; `docs/reference/adze-swarm-operating-model.md`; PRs #539, #577, and #580; PRs #572-#582 check receipts where `Rust Small on GitHub Hosted` stayed skipped and routed self-hosted lanes passed. | Covered for current routing policy. |
-| `Rust Small Result` remains the normalized base gate. | `AGENTS.md`; `docs/reference/adze-swarm-operating-model.md`; PR #579, #580, #581, and #582 checks: `Route Rust Small`, selected self-hosted Rust Small lane, and `Rust Small Result` succeeded. | Covered. |
+| `Rust Small Result` remains the normalized base gate. | `AGENTS.md`; `docs/reference/adze-swarm-operating-model.md`; live branch-protection API on 2026-05-30 required `Rust Small Result` and `Product Proof Result` with `strict = true`; PRs #579-#583 checks: `Route Rust Small`, selected self-hosted Rust Small lane, and `Rust Small Result` succeeded. | Covered. |
 | Heavy/advisory/coverage/benchmark/product/full-matrix lanes are scoped. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; PRs #572-#582 check summaries show broad implementation lanes skipped or cancelled for docs/status/CI-routing/verifier changes while required source-of-truth, product-proof, and Rust Small result checks stayed green. | Covered for observed recent PRs. |
 | Public `adze` receives promotion only intentionally. | `docs/reference/PUBLISH_CHECKLIST.md`; `docs/reference/adze-swarm-operating-model.md`; `active.toml` release blocker. | Covered by policy; no current promotion PR. |
 | `AdzeDocument` is the canonical parse product. | `docs/reference/adze-swarm-operating-model.md`; `docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md`; support-tier/product docs. | Covered by architecture docs. |
@@ -84,6 +84,7 @@ Recent merged PRs:
 - #579: `xtask: accept issue-tracked active-goal blockers`
 - #581: `docs(status): refresh standby verifier evidence`
 - #582: `docs(status): avoid self-staling forge audit snapshot`
+- #583: `docs(status): record branch protection receipt`
 
 Current active manifest:
 
@@ -105,6 +106,14 @@ Current live queue at audit time:
 ```text
 EffortlessMetrics/adze-swarm open PRs: none
 EffortlessMetrics/adze open PRs: none
+```
+
+Current branch-protection receipt on 2026-05-30:
+
+```text
+gh api repos/EffortlessMetrics/adze-swarm/branches/main/protection/required_status_checks
+strict: true
+required contexts: Rust Small Result, Product Proof Result
 ```
 
 Current crates.io install receipt state on 2026-05-30:
