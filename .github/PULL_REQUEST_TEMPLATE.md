@@ -40,6 +40,10 @@ gh pr list --repo EffortlessMetrics/adze-swarm --state open
 
 What this PR explicitly does not do.
 
+When an issue must remain open, avoid GitHub closing keywords next to that
+issue number. Prefer wording such as `leaves issue #123 open` or
+`issue #123 remains blocked`.
+
 ## Proof
 
 ```bash
@@ -53,6 +57,9 @@ What passed? What failed? What could not run?
 ## Claim boundary
 
 What may be claimed after this PR? What may not be claimed yet?
+
+Use `closes`, `fixes`, `resolves`, and related GitHub auto-close keywords only
+when this PR should close the referenced issue after merge.
 
 ## Rollback
 
