@@ -22,7 +22,7 @@ Jobs are classified into three visibility tiers:
 
 1. **Rust Small Result** - Required routed Rust Small aggregate check for ordinary swarm PRs.
 2. **Product Proof Result** - Required aggregate Stable-claim proof gate.
-3. **Route Rust Small** - Chooses CX43, CX53/CPX-class capacity, or GitHub-hosted execution.
+3. **Route Rust Small** - Chooses CPX42, CX43, CX33, or explicit fallback; CX53 candidate state is logged but not selected while #598 is blocked.
 4. **Rust Small implementation lanes** - Conditional implementation lanes; one selected lane runs, while the others usually skip.
 5. **ci-supported** - Legacy public full-CI support lane; retained for schedule/manual dispatch in `ci.yml`.
 6. **Policy checks** - Source-of-truth and lane-whitelist guardrails.

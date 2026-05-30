@@ -50,8 +50,9 @@ These crates are useful but may break during major refactors.
 
 The required hosted merge gate for ordinary `adze-swarm` PRs is
 `Rust Small Result` from `.github/workflows/em-ci-routed-rust.yml`. The routed
-implementation jobs (`Rust Small on CX43`, `Rust Small on CX53`, and
-`Rust Small on GitHub Hosted`) are not independent required contexts.
+implementation jobs (`Rust Small on CPX42`, `Rust Small on CX43`, `Rust Small
+on CX33`, and `Rust Small on GitHub Hosted`) are not independent required
+contexts. `Rust Small on CX53` is dormant while adze-swarm#598 is blocked.
 
 To run the supported proof locally:
 ```bash

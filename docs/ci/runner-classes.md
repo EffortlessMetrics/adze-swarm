@@ -35,9 +35,14 @@ Rust Small Result
   -> CPX42 when idle
   -> CX43 when CPX42 is unavailable and CX43 is idle
   -> CX33 when CPX42/CX43 are unavailable and CX33 is idle
-  -> CX53 when smaller lanes are unavailable and CX53 is idle
   -> explicit GitHub-hosted fallback only when a recorded exception allows it
 ```
+
+CX53 is quarantined from the required Rust Small route while
+`adze-swarm#598` remains blocked. The router still logs CX53 candidate state so
+the runner can be diagnosed, but it must not select CX53 for the normalized
+base gate until runner-group, label, scheduling, and burn-in evidence are
+recorded.
 
 Planned optional `rust-large` route:
 
@@ -62,7 +67,6 @@ x64
 em-ci
 cx53
 rust-large
-rust-small
 trusted-pr
 ```
 
@@ -78,7 +82,6 @@ rust-small:
   CPX42 first
   CX43 primary small lane
   CX33 backfill
-  CX53 overflow
   explicit GitHub-hosted fallback only by recorded exception
 
 rust-large:
@@ -94,7 +97,8 @@ Burn-in before any branch-protection change:
 - [ ] Manual dispatch succeeds.
 - [ ] Same-repo PR smoke succeeds.
 - [ ] GitHub-hosted fallback succeeds for the same scoped lane.
-- [ ] Router logs distinguish `cx53_idle`, `no_idle_runner`, and fallback.
+- [ ] Router logs show CX53 candidate state while Rust Small selection remains
+      quarantined.
 - [ ] At least three clean PRs prove the optional result lane.
 - [ ] Branch protection does not require `rust-large` directly; required
       contexts remain the aggregate `Rust Small Result` and
@@ -144,18 +148,21 @@ coverage-full:
 Router logs should expose why a target was selected:
 
 ```text
+router_target=cpx42
 router_target=cx43
 router_target=cx33
-router_target=cx53
 router_target=github
+router_reason=cpx42_idle
 router_reason=cx43_idle
 router_reason=cx33_idle
-router_reason=cx53_idle
 router_reason=no_idle_runner
 router_reason=runner_api_failed
 router_reason=token_missing
 router_reason=parse_failed
 ```
+
+While `adze-swarm#598` is blocked, CX53 should appear only in candidate
+summaries for the Rust Small router, not as a selected `router_target`.
 
 Watch fallback counts. If GitHub-hosted fallback dominates a same-repo lane,
 either add capacity or narrow the trigger.

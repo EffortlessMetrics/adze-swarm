@@ -16,9 +16,11 @@ compute.
 
 Runner-class policy is defined in [`runner-classes.md`](./runner-classes.md).
 The short version is: CPX42/CX43 own the preferred `rust-small` base gate,
-CX33 is a small backfill lane, CX53 is overflow capacity, and GitHub-hosted is
-reserved for explicit exceptions plus Windows/macOS/public-fork/release
-surface. A future `rust-large` lane still needs separate wiring and burn-in.
+CX33 is a small backfill lane, and GitHub-hosted is reserved for explicit
+exceptions plus Windows/macOS/public-fork/release surface. CX53 is reserved for
+future `rust-large` work and is quarantined from the required Rust Small route
+while `adze-swarm#598` remains blocked. A future `rust-large` lane still needs
+separate wiring and burn-in.
 
 The inherited public `ci.yml` full-CI workflow is retained for scheduled and
 manual verification only. It does not run on ordinary swarm PRs or every merge

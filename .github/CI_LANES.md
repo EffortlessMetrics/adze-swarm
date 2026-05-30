@@ -43,9 +43,11 @@ Required branch protection contexts: `Rust Small Result`, `Product Proof Result`
 
 | Workflow | Job name | Trigger | Lane | Notes |
 |----------|----------|---------|------|-------|
-| `em-ci-routed-rust.yml` | `Route Rust Small` | PR + merge_group | PR-only | Selects CX43 or GitHub-hosted Rust small execution |
+| `em-ci-routed-rust.yml` | `Route Rust Small` | PR + merge_group | PR-only | Selects CPX42, CX43, CX33, or explicit fallback; CX53 is logged but quarantined while #598 is blocked |
+| `em-ci-routed-rust.yml` | `Rust Small on CPX42` | PR + merge_group | PR-only | Runs when the trusted CPX42 runner is idle |
 | `em-ci-routed-rust.yml` | `Rust Small on CX43` | PR + merge_group | PR-only | Runs when the trusted CX43 runner is idle |
-| `em-ci-routed-rust.yml` | `Rust Small on CX53` | PR + merge_group | PR-only | Runs when CX43 is unavailable and the trusted CX53 runner is idle |
+| `em-ci-routed-rust.yml` | `Rust Small on CX33` | PR + merge_group | PR-only | Runs when CPX42 and CX43 are unavailable and trusted CX33 capacity is idle |
+| `em-ci-routed-rust.yml` | `Rust Small on CX53` | PR + merge_group | PR-only | Dormant while #598 is blocked; do not select for the required Rust Small route |
 | `em-ci-routed-rust.yml` | `Rust Small on GitHub Hosted` | PR + merge_group | PR-only | Fallback when no trusted Rust Small runner is idle |
 | `pr-gate.yml` | `Supported Rust Gate` | PR + merge_group | PR-only | Legacy public gate signal; not the swarm required context |
 | `pr-gate.yml` | `PR Gate Success` | PR + merge_group | PR-only | Aggregate: plan + supported/docs gate |

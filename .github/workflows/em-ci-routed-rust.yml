@@ -209,11 +209,14 @@ jobs:
           echo "cpx42 idle rust-medium rust-16gb runners: ${cpx42}"
           echo "cx43 idle rust-small runners: ${cx43}"
           echo "cx33 idle rust-small runners: ${cx33}"
-          echo "cx53 idle rust-small runners: ${cx53}"
+          echo "cx53 idle rust-small runners (quarantined): ${cx53}"
           summarize_candidates cpx42 rust-medium rust-16gb
           summarize_candidates cx43 rust-small
           summarize_candidates cx33 rust-small
           summarize_candidates cx53 rust-small
+          if [ "$cx53" -gt 0 ]; then
+            echo "cx53 rust-small candidates are visible but not selected while adze-swarm#598 is blocked"
+          fi
 
           if [ "$cpx42" -gt 0 ]; then
             echo "router_target=cpx42"
@@ -235,13 +238,6 @@ jobs:
             echo "router_reason=cx33_idle"
             echo "target=cx33" >> "$GITHUB_OUTPUT"
             echo "target_reason=cx33_idle" >> "$GITHUB_OUTPUT"
-            echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
-          elif [ "$cx53" -gt 0 ]; then
-            echo "router_target=cx53"
-            echo "router_error=false"
-            echo "router_reason=cx53_idle"
-            echo "target=cx53" >> "$GITHUB_OUTPUT"
-            echo "target_reason=cx53_idle" >> "$GITHUB_OUTPUT"
             echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
           else
             echo "router_target=github"

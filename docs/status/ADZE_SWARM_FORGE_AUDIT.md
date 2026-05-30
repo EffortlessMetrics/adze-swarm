@@ -19,7 +19,8 @@ complete. Post-closeout audit, CI-routing, and active-goal verifier hygiene are
 also complete, including the Windows `check-msrv` shell-path tooling fix and
 the Windows `just build` PDB collision fix. A CX53 Rust Small stale-queue
 receipt is now tracked as a blocked runner investigation, with route candidate
-diagnostics and PR body guidance for avoiding accidental issue auto-close. The
+diagnostics, a temporary Rust Small route quarantine, and PR body guidance for
+avoiding accidental issue auto-close. The
 broader product/release endpoint is not complete because release/publish
 authorization and a real crates.io `adze-cli` install receipt are still absent.
 
@@ -32,7 +33,7 @@ authorization and a real crates.io `adze-cli` install receipt are still absent.
 | One work item per branch and PR. | `docs/reference/SPEC_SYSTEM.md`; PR template queue/scope fields; `active.toml` standby handoff. | Covered by policy. |
 | PRs link source-of-truth artifacts. | `docs/reference/SPEC_SYSTEM.md`; PR template source-of-truth fields for proposal, spec, ADR, plan item, active goal, support-tier row, and policy ledger; `docs/reference/adze-swarm-operating-model.md`. | Covered by policy. |
 | PRs state claim boundary, proof, CI cost, and rollback. | `.github/PULL_REQUEST_TEMPLATE.md`. | Covered by policy. |
-| Default CI is self-hosted; no silent hosted fallback. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; `docs/reference/adze-swarm-operating-model.md`; PRs #539, #577, #580, and #586; PRs #572-#597 check receipts where `Rust Small on GitHub Hosted` stayed skipped; issue #598 tracks a CX53 stale-queue runner investigation from #597. | Covered for current routing policy; #598 remains a blocked runner follow-up. |
+| Default CI is self-hosted; no silent hosted fallback. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; `docs/reference/adze-swarm-operating-model.md`; PRs #539, #577, #580, #586, and #603; PRs #572-#597 check receipts where `Rust Small on GitHub Hosted` stayed skipped; issue #598 tracks a CX53 stale-queue runner investigation from #597. | Covered for current routing policy; #598 remains a blocked runner follow-up and CX53 is quarantined from Rust Small selection. |
 | `Rust Small Result` remains the normalized base gate. | `AGENTS.md`; `docs/reference/adze-swarm-operating-model.md`; live branch-protection API on 2026-05-30 required `Rust Small Result` and `Product Proof Result` with `strict = true`; PRs #579-#583 checks: `Route Rust Small`, selected self-hosted Rust Small lane, and `Rust Small Result` succeeded. | Covered. |
 | Heavy/advisory/coverage/benchmark/product/full-matrix lanes are scoped. | `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`; PRs #572-#586 check summaries show broad implementation lanes skipped or cancelled for docs/status/CI-routing/verifier changes while required source-of-truth, product-proof, and Rust Small result checks stayed green. | Covered for observed recent PRs. |
 | Public `adze` receives promotion only intentionally. | `docs/reference/PUBLISH_CHECKLIST.md`; `docs/reference/adze-swarm-operating-model.md`; `active.toml` release blocker. | Covered by policy; no current promotion PR. |
@@ -42,7 +43,7 @@ authorization and a real crates.io `adze-cli` install receipt are still absent.
 | `cargo install adze-cli` claim has a real crates.io receipt. | Live `cargo info --registry crates-io adze-cli` on 2026-05-30 returned not found. | Not complete. |
 | No unsupported parity/performance claims. | `docs/reference/adze-swarm-operating-model.md`; `SUPPORT_TIERS.md`; `PRODUCT_OBJECTIVE_AUDIT.md`. | Covered by policy; not exhaustively re-verified here. |
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
-| Self-hosted-only routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, #580, #591, and #595 merged; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, #591 removed the Windows `cygpath` dependency from `just check-msrv`, #595 removed the Windows `just build` PDB collision warning, and hosted stayed skipped. Issue #598 tracks whether CX53 should remain eligible for Rust Small after a stale selected-lane queue in #597. | Complete for current routing/tooling assumptions; #598 is blocked on runner evidence. |
+| Self-hosted-only routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, #580, #591, #595, and #603 merged; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, #591 removed the Windows `cygpath` dependency from `just check-msrv`, #595 removed the Windows `just build` PDB collision warning, #603 quarantined CX53 from Rust Small route selection while preserving candidate diagnostics, and hosted stayed skipped. Issue #598 tracks whether CX53 should regain Rust Small eligibility after a stale selected-lane queue in #597. | Complete for current routing/tooling assumptions; #598 is blocked on runner evidence. |
 | Duplicate same-scope PRs collapsed. | PR #542 merged; duplicate document SRP PRs were not all merged. | Complete for the observed queue. |
 | Current active goal complete/paused/superseded before new goal. | `adze-adoption-hardening` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest; PR #579 made issue-tracked blocked items verifier-clean; PRs #581, #582, #585-#587, #591, #593, and #595 refreshed the standby evidence after #576-#584. | Complete. |
 | Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-05-30. | Covered at audit time. |
@@ -101,6 +102,7 @@ Recent merged PRs:
 - #599: `docs(status): record CX53 runner tracker`
 - #600: `ci: log routed runner candidates`
 - #602: `docs(pr): avoid accidental issue auto-close`
+- #603: `ci: quarantine cx53 from rust-small route`
 
 Current active manifest:
 
@@ -183,6 +185,10 @@ hosted fallback policy.
 PR #602 updates the PR template and friction log after #599 and #600 showed
 that negative PR wording can still trigger GitHub issue auto-close keywords
 when the keyword is placed next to an issue number.
+PR #603 temporarily quarantines CX53 from required Rust Small route selection
+while #598 remains blocked. The router still logs CX53 candidate state for
+future evidence, but selected Rust Small capacity now remains CPX42, CX43,
+CX33, or explicit fallback by recorded exception.
 
 The exact current `adze-swarm/main` commit is intentionally not hardcoded here.
 Every audit refresh changes that commit and would immediately stale this
@@ -388,7 +394,8 @@ Remaining incomplete or blocked items:
 - no new active non-release lane has been selected after the completed and
   archived Adze Adoption Hardening lane;
 - CX53 Rust Small stale-queue behavior remains a blocked runner investigation
-  tracked by #598;
+  tracked by #598; the required Rust Small route no longer selects CX53 while
+  that evidence is absent;
 - this audit did not rerun the full product-surface proof matrix for typed CST,
   typed AST, diagnostics, ambiguity summaries, Tree-sitter-compatible output,
   query subset, JSON, CLI, and WASM projections;
