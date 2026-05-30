@@ -70,6 +70,10 @@ The public-era rollout also defines an aggregated check called
 
 In `adze-swarm`, this remains optional signal unless a later PR explicitly
 updates both `.github/settings.yml` and [CI_LANES.md](../../.github/CI_LANES.md).
+`pull_request.closed` events are cancellation-only for this workflow: they
+share the same PR-number concurrency group, cancel older same-PR PR Gate runs,
+and skip the plan, supported, docs, and success jobs. Closed-event runs do not
+count toward future promotion burn-in receipts.
 
 ## PR 17 — promotion criteria
 
