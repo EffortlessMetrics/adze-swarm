@@ -223,6 +223,9 @@ jobs:
 
     env:
       CARGO_BUILD_JOBS: "7"
+      # Keep Cargo registry/source downloads job-scoped. Shared Cargo homes can
+      # be poisoned by mixed native/container ownership on self-hosted runners.
+      CARGO_HOME: /mnt/ci-scratch/cargo-home/${{ github.run_id }}-${{ github.run_attempt }}
       CARGO_INCREMENTAL: "0"
       TMPDIR: /mnt/ci-scratch/tmp/${{ github.run_id }}-${{ github.run_attempt }}
       CARGO_TARGET_DIR: /mnt/ci-scratch/adze-swarm/${{ github.run_id }}-${{ github.run_attempt }}
@@ -237,7 +240,7 @@ jobs:
           set -euo pipefail
           ci-disk-guard /mnt/ci-scratch 45
           ci-disk-guard /mnt/ci-cache 10
-          mkdir -p "$TMPDIR" "$CARGO_TARGET_DIR"
+          mkdir -p "$TMPDIR" "$CARGO_TARGET_DIR" "$CARGO_HOME"
 
       - name: Install Rust 1.95.0
         uses: dtolnay/rust-toolchain@v1
@@ -265,7 +268,7 @@ jobs:
         run: |
           set +e
           if command -v sccache >/dev/null 2>&1; then sccache --show-stats || true; fi
-          rm -rf "$TMPDIR" "$CARGO_TARGET_DIR"
+          rm -rf "$TMPDIR" "$CARGO_TARGET_DIR" "$CARGO_HOME"
           df -h /mnt/ci-scratch /mnt/ci-cache || true
 
   rust-small-cx43:
@@ -282,7 +285,9 @@ jobs:
     env:
       JOB_ID: ${{ github.run_id }}-${{ github.run_attempt }}
 
-      CARGO_HOME: /mnt/ci-cache/cargo-home
+      # Keep Cargo registry/source downloads job-scoped. Shared Cargo homes can
+      # be poisoned by mixed native/container ownership on self-hosted runners.
+      CARGO_HOME: /mnt/ci-scratch/cargo-home/${{ github.run_id }}-${{ github.run_attempt }}
       SCCACHE_DIR: /mnt/ci-cache/sccache
       SCCACHE_CACHE_SIZE: 20G
       RUSTC_WRAPPER: /usr/local/cargo/bin/sccache
@@ -358,9 +363,10 @@ jobs:
             --entrypoint /bin/bash \
             -v "$TMPDIR:/tmpdir" \
             -v "$CARGO_TARGET_DIR:/target" \
+            -v "$CARGO_HOME:/cargo-home" \
             em-ci-rust:1.95 \
-            -c 'find /tmpdir /target -mindepth 1 -delete 2>/dev/null || true' || true
-          rmdir "${TMPDIR}" "${CARGO_TARGET_DIR}" 2>/dev/null || true
+            -c 'find /tmpdir /target /cargo-home -mindepth 1 -delete 2>/dev/null || true' || true
+          rmdir "${TMPDIR}" "${CARGO_TARGET_DIR}" "${CARGO_HOME}" 2>/dev/null || true
           df -h / /mnt/docker /mnt/actions /mnt/ci-scratch /mnt/ci-cache /mnt/ci-artifacts || true
 
   rust-small-cx33:
@@ -377,7 +383,9 @@ jobs:
     env:
       JOB_ID: ${{ github.run_id }}-${{ github.run_attempt }}
 
-      CARGO_HOME: /mnt/ci-cache/cargo-home
+      # Keep Cargo registry/source downloads job-scoped. Shared Cargo homes can
+      # be poisoned by mixed native/container ownership on self-hosted runners.
+      CARGO_HOME: /mnt/ci-scratch/cargo-home/${{ github.run_id }}-${{ github.run_attempt }}
       CARGO_INCREMENTAL: "0"
       CARGO_BUILD_JOBS: "2"
 
@@ -424,7 +432,7 @@ jobs:
       - name: Cleanup scratch
         if: always()
         run: |
-          rm -rf "$TMPDIR" "$CARGO_TARGET_DIR"
+          rm -rf "$TMPDIR" "$CARGO_TARGET_DIR" "$CARGO_HOME"
           df -h / /mnt/docker /mnt/actions /mnt/ci-scratch /mnt/ci-cache /mnt/ci-artifacts || true
 
   rust-small-cx53:
@@ -441,7 +449,9 @@ jobs:
     env:
       JOB_ID: ${{ github.run_id }}-${{ github.run_attempt }}
 
-      CARGO_HOME: /mnt/ci-cache/cargo-home
+      # Keep Cargo registry/source downloads job-scoped. Shared Cargo homes can
+      # be poisoned by mixed native/container ownership on self-hosted runners.
+      CARGO_HOME: /mnt/ci-scratch/cargo-home/${{ github.run_id }}-${{ github.run_attempt }}
       SCCACHE_DIR: /mnt/ci-cache/sccache
       SCCACHE_CACHE_SIZE: 60G
       RUSTC_WRAPPER: /usr/local/cargo/bin/sccache
@@ -518,9 +528,10 @@ jobs:
             --entrypoint /bin/bash \
             -v "$TMPDIR:/tmpdir" \
             -v "$CARGO_TARGET_DIR:/target" \
+            -v "$CARGO_HOME:/cargo-home" \
             em-ci-rust:1.95 \
-            -c 'find /tmpdir /target -mindepth 1 -delete 2>/dev/null || true' || true
-          rmdir "${TMPDIR}" "${CARGO_TARGET_DIR}" 2>/dev/null || true
+            -c 'find /tmpdir /target /cargo-home -mindepth 1 -delete 2>/dev/null || true' || true
+          rmdir "${TMPDIR}" "${CARGO_TARGET_DIR}" "${CARGO_HOME}" 2>/dev/null || true
           df -h / /mnt/docker /mnt/actions /mnt/ci-scratch /mnt/ci-cache /mnt/ci-artifacts || true
 
   rust-small-github:
