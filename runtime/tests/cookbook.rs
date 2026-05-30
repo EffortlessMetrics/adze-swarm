@@ -71,11 +71,28 @@ fn cookbook_document_and_diagnostic_recipes_cover_tooling_path() {
 
 #[test]
 fn cookbook_glr_and_ts_compat_recipes_cover_selected_tree_and_ambiguity() {
-    let document = adze_example::ambiguous_expr::grammar::parse_document("1 + 2 + 3")
+    use adze_example::ambiguous_expr::grammar::{self, Expr};
+
+    let source = "1 + 2 + 3";
+    let selected_ast =
+        grammar::parse(source).expect("ambiguous GLR recipe should produce a selected typed AST");
+    let document = grammar::parse_document(source)
         .expect("ambiguous GLR recipe should return a selected document");
+    let document_ast: Expr = document
+        .ast()
+        .expect("selected document tree should extract the same typed AST");
+    assert_eq!(
+        selected_ast, document_ast,
+        "parse() and parse_document().ast() should agree on the selected tree"
+    );
+
+    let ambiguity = document
+        .ambiguities()
+        .first()
+        .expect("ambiguous GLR recipe should expose an ambiguity summary");
     assert!(
-        !document.ambiguities().is_empty(),
-        "ambiguous GLR recipe should expose ambiguity summaries"
+        ambiguity.alternatives.len() > 1,
+        "ambiguity summary should retain multiple alternatives: {ambiguity:?}"
     );
 
     let mut parser = TsParser::new();

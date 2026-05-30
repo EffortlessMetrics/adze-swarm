@@ -99,6 +99,37 @@ println!("ambiguities: {}", document.ambiguities().len());
 println!("root: {:?}", document.tree().root().kind_name());
 ```
 
+## Ambiguity Walkthrough
+
+The runnable walkthrough is:
+
+```bash
+cargo run -p adze --features "pure-rust,glr" --example glr_ambiguity
+```
+
+It uses the generated `ambiguous_expr` grammar and demonstrates the supported
+product boundary:
+
+1. `grammar::parse(source)` returns the selected typed AST.
+2. `grammar::parse_document(source)` returns an `AdzeDocument` backed by the
+   same selected tree.
+3. `document.ambiguities()` reports where the GLR runtime retained multiple
+   alternatives, which alternative was selected, and the summary-level reason.
+4. Diagnostics for bad ambiguous input remain document facts.
+5. Tree-sitter-shaped projections expose the selected tree only.
+
+The selected typed AST and `document.ast()` should agree for the same source.
+That is the main adoption rule: use `parse()` for the ordinary typed value, and
+use `parse_document()` when a tool needs diagnostics, ranges, selected-tree
+metadata, JSON, or ambiguity summaries.
+
+Ambiguity summaries are intentionally not a stable raw-forest API. They tell a
+tool enough to explain that more than one parse existed at a span without
+requiring users to depend on GLR forest internals. Full forest export, matching
+queries over every alternative, and typed extraction from non-selected
+alternatives remain outside the stable product claim until they get separate
+specification and proof.
+
 ## .parsetable Files
 
 `.parsetable` files are an advanced distribution format for pre-generated parse
@@ -140,6 +171,8 @@ If an integration stores `.parsetable` artifacts, keep these receipts:
 Use focused GLR and tablegen proof before relying on serialized table behavior:
 
 ```bash
+cargo run -p adze --features "pure-rust,glr" --example glr_ambiguity
+cargo test -p adze --features "pure-rust,glr,ts-compat" cookbook -- --nocapture
 cargo test -p adze-glr-core conflict ambiguity -- --nocapture
 cargo test -p adze-tablegen --all-features
 cargo test -p adze --features "pure-rust,glr,runtime-e2e" --test test_e2e_ambiguous_grammar_glr -- --nocapture

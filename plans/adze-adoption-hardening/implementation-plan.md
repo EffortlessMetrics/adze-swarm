@@ -179,7 +179,7 @@ Revert the guide and source-of-truth metadata changes.
 
 ## Work Item: glr-ambiguity-walkthrough
 
-Status: ready
+Status: complete
 Blocked by: n/a
 Linked proposal: ../../docs/proposals/ADZE-PROP-0004-toolkit-excellence.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
@@ -189,6 +189,33 @@ Linked ADR: ../../docs/adr/ADZE-ADR-0003-summary-first-glr-ambiguity.md
 
 Refresh GLR ambiguity guidance so users can distinguish selected AST behavior,
 document ambiguity summaries, and experimental/raw forest boundaries.
+
+### Receipt
+
+Lands in PR #567.
+
+### Production Delta
+
+Docs and focused cookbook proof only.
+
+### Claim Boundary
+
+This work may document the generated `parse()` selected typed AST path,
+`parse_document()` ambiguity summaries, and Tree-sitter-shaped selected-tree
+projection. It must not claim Stable raw GLR forest export, typed extraction
+from ambiguity alternatives, full Tree-sitter parity, full query parity,
+general GLR coverage beyond the support-tier row, or release availability.
+
+### Proof Commands
+
+```bash
+cargo run -p adze --features "pure-rust,glr" --example glr_ambiguity
+cargo test -p adze --features "pure-rust,glr,ts-compat" cookbook -- --nocapture
+```
+
+### Rollback
+
+Revert the walkthrough and cookbook-proof updates.
 
 ## Work Item: diagnostics-recovery-walkthrough
 
