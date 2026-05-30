@@ -92,30 +92,7 @@ mutate-all:
 
 # Verify MSRV is consistent across all Cargo.toml files
 check-msrv:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    MSRV=$(grep '^channel' rust-toolchain.toml | sed 's/.*"\(.*\)"/\1/')
-    echo "MSRV from rust-toolchain.toml: $MSRV"
-    errors=0
-    while IFS= read -r line; do
-      file="${line%%:*}"
-      # skip target/ directory
-      [[ "$file" == target/* ]] && continue
-      value=$(grep '^rust-version' "$file" | head -1)
-      if echo "$value" | grep -q 'workspace = true'; then
-        echo "  ✓ $file (inherits workspace)"
-      elif echo "$value" | grep -q "\"$MSRV\""; then
-        echo "  ✓ $file (explicit $MSRV)"
-      else
-        echo "  ✗ $file — $value (expected $MSRV)"
-        errors=$((errors + 1))
-      fi
-    done < <(grep -rl '^rust-version' --include='Cargo.toml' .)
-    if [ "$errors" -gt 0 ]; then
-      echo "FAIL: $errors Cargo.toml file(s) have mismatched rust-version"
-      exit 1
-    fi
-    echo "OK: all rust-version fields match MSRV $MSRV"
+    ./scripts/check-msrv.sh
 
 # Show crates.io publish order
 publish-order:
