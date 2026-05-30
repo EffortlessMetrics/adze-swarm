@@ -25,7 +25,9 @@ CX33 is a small backfill lane, and GitHub-hosted is reserved for explicit
 exceptions plus Windows/macOS/public-fork/release surface. CX53 is reserved for
 future `rust-large` work and is quarantined from the required Rust Small route
 while `adze-swarm#598` remains blocked. A future `rust-large` lane still needs
-separate wiring and burn-in.
+separate wiring and burn-in. The Rust Small router logs both quarantined CX53
+`rust-small` candidates and planned CX53 `rust-large` candidate matches with
+label/group diagnostics to support that investigation.
 
 The inherited public `ci.yml` full-CI workflow is retained for scheduled and
 manual verification only. It does not run on ordinary swarm PRs or every merge
