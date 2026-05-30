@@ -18,9 +18,10 @@ proof-refresh, release-candidate bundle, and adoption-hardening tasks are
 complete. Post-closeout audit, CI-routing, and active-goal verifier hygiene are
 also complete, including the Windows `check-msrv` shell-path tooling fix and
 the Windows `just build` PDB collision fix. A CX53 Rust Small stale-queue
-receipt is now tracked as a blocked runner investigation. The broader
-product/release endpoint is not complete because release/publish authorization
-and a real crates.io `adze-cli` install receipt are still absent.
+receipt is now tracked as a blocked runner investigation, with route candidate
+diagnostics and PR body guidance for avoiding accidental issue auto-close. The
+broader product/release endpoint is not complete because release/publish
+authorization and a real crates.io `adze-cli` install receipt are still absent.
 
 ## Prompt-to-artifact checklist
 
@@ -99,6 +100,7 @@ Recent merged PRs:
 - #597: `docs(status): record just build standby receipt`
 - #599: `docs(status): record CX53 runner tracker`
 - #600: `ci: log routed runner candidates`
+- #602: `docs(pr): avoid accidental issue auto-close`
 
 Current active manifest:
 
@@ -178,6 +180,9 @@ PR #600 adds route-log diagnostics for matching runner candidates by class so
 future stale selected-lane incidents include the runner name, online status,
 busy state, and current-runner marker without changing route priority or
 hosted fallback policy.
+PR #602 updates the PR template and friction log after #599 and #600 showed
+that negative PR wording can still trigger GitHub issue auto-close keywords
+when the keyword is placed next to an issue number.
 
 The exact current `adze-swarm/main` commit is intentionally not hardcoded here.
 Every audit refresh changes that commit and would immediately stale this

@@ -1,6 +1,6 @@
 # Adze Friction Log
 
-**Last updated:** 2026-05-29
+**Last updated:** 2026-05-30
 
 If it happens twice, it's not "user error". It's friction we own until we remove it or document it well enough that it stops recurring.
 
@@ -33,6 +33,7 @@ If it happens twice, it's not "user error". It's friction we own until we remove
 | FR-021 | CI | `just ci-supported` can flood local logs with per-test names on cold Windows runs | Makes the supported proof look less bounded and can create pipe/timeout artifacts in local runners | Mitigated | `ci-supported` uses quiet test harness output |
 | FR-022 | CI | Pure Rust PR lane can exhaust linker/debug pressure during supported crate tests | Creates noisy red advisory checks after the required gates pass | Mitigated | `.github/workflows/pure-rust-ci.yml` |
 | FR-023 | CI | `Supported Rust Gate` can exceed its 25-minute step timeout without a test failure | Blocks otherwise green source-of-truth PRs when the supported proof is slow | Mitigated | `.github/workflows/pr-gate.yml` |
+| FR-024 | PR process | Negative PR wording can still trigger GitHub issue auto-close keywords | Blocked trackers drift closed after merge and must be reopened manually | Mitigated | `.github/PULL_REQUEST_TEMPLATE.md`; `adze-swarm#601` |
 
 ---
 
@@ -328,6 +329,23 @@ proof surface while giving the self-hosted gate enough headroom to report real
 test failures.
 **Status:** Mitigated
 **Links:** `.github/workflows/pr-gate.yml`
+
+### FR-024 - PR Body Auto-Close Keyword Drift
+
+**Area:** PR process
+**Symptom:** A PR that says a blocker remains unfinished can still close the
+linked issue after merge.
+**Expected:** Non-goal and claim-boundary wording should leave blocked trackers
+open unless the PR intentionally completes the issue.
+**Actual:** `adze-swarm#598` had to be reopened after #599 and #600 because
+the PR text used a GitHub auto-close keyword next to the issue number while
+describing what the PR did not finish.
+**Repro:** Merge a PR whose body includes a GitHub closing keyword adjacent to
+an issue reference, even in a negative sentence.
+**Fix:** The pull request template now warns agents to avoid GitHub auto-close
+keywords next to issue numbers unless the PR should close that issue.
+**Status:** Mitigated
+**Links:** `.github/PULL_REQUEST_TEMPLATE.md`; `adze-swarm#601`
 
 ---
 
