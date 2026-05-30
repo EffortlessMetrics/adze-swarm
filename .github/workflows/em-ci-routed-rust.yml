@@ -89,13 +89,18 @@ jobs:
           count_idle() {
             local runner_class="$1"
             local rust_label="$2"
-            python3 - "$runner_json" "$runner_class" "$rust_label" "$current_runner" <<'PY' 2>&1
+            local extra_label="${3:-}"
+            python3 - "$runner_json" "$runner_class" "$rust_label" "$extra_label" "$current_runner" <<'PY' 2>&1
           import json
           import sys
 
-          path, runner_class, rust_label, current_runner = sys.argv[1:5]
+          path, runner_class, rust_label, extra_label, current_runner = sys.argv[1:6]
           with open(path, encoding="utf-8") as handle:
               data = json.load(handle)
+
+          required = {"em-ci", runner_class, rust_label, "trusted-pr"}
+          if extra_label:
+              required.add(extra_label)
 
           count = 0
           for runner in data.get("runners", []):
@@ -106,7 +111,7 @@ jobs:
                   str(label.get("name", "")).lower()
                   for label in runner.get("labels", [])
               }
-              if {"em-ci", runner_class, rust_label, "trusted-pr"} <= labels and (
+              if required <= labels and (
                   runner.get("busy") is False or runner_name == current_runner
               ):
                   count += 1
@@ -116,7 +121,7 @@ jobs:
           }
 
           set +e
-          cpx42="$(count_idle cpx42 rust-medium)"
+          cpx42="$(count_idle cpx42 rust-medium rust-16gb)"
           parse_exit=$?
           set -e
           if [ "$parse_exit" -ne 0 ] || ! printf '%s' "$cpx42" | grep -Eq '^[0-9]+$'; then
@@ -151,7 +156,7 @@ jobs:
             fallback_github "parse_failed"
           fi
 
-          echo "cpx42 idle rust-medium runners: ${cpx42}"
+          echo "cpx42 idle rust-medium rust-16gb runners: ${cpx42}"
           echo "cx43 idle rust-small runners: ${cx43}"
           echo "cx33 idle rust-small runners: ${cx33}"
           echo "cx53 idle rust-small runners: ${cx53}"
