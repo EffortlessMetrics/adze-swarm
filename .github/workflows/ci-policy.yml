@@ -17,7 +17,9 @@ concurrency:
 jobs:
   ci-lane-whitelist:
     name: CI Lane Whitelist
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6.0.2
@@ -64,7 +66,9 @@ jobs:
 
   source-of-truth:
     name: Source of Truth
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6.0.2
@@ -117,7 +121,9 @@ jobs:
 
   glr-invariants:
     name: GLR Invariants
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6.0.2

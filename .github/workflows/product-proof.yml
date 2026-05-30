@@ -69,7 +69,9 @@ concurrency:
 jobs:
   detect-stable-product-paths:
     name: Detect Product Proof Paths
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
     outputs:
       run_stable: ${{ steps.detect.outputs.run_stable }}
       reason: ${{ steps.detect.outputs.reason }}
@@ -117,7 +119,9 @@ jobs:
     name: ci-product stable canaries
     needs: detect-stable-product-paths
     if: needs.detect-stable-product-paths.outputs.run_stable == 'true'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
     steps:
       - uses: actions/checkout@v6.0.2
 
@@ -138,7 +142,9 @@ jobs:
     name: Product Proof Result
     needs: [detect-stable-product-paths, ci-product-stable]
     if: always()
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
     steps:
       - name: Aggregate Product Proof result
         shell: bash
@@ -173,7 +179,9 @@ jobs:
   ci-product:
     name: ci-product advisory canaries
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.lane == 'all')
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6.0.2
