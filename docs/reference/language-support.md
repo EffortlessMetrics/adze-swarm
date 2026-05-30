@@ -44,7 +44,7 @@ cargo run --manifest-path tools/ts-bridge/Cargo.toml -- /path/to/tree-sitter-rus
 |---------|--------|-------|
 | **External Scanners** | Experimental | Python indentation scanner exists, but the scanner API is not a stable product contract. |
 | **GLR (Ambiguity)** | Stabilizing | Conflict routing and ambiguity summaries have proof for documented classes; full policy is still maturing. |
-| **Query System** | Advisory subset | Tree-sitter query compatibility is documented and proof-backed for a subset, not full parity. |
+| **Query System** | Stabilizing subset | Tree-sitter query compatibility is documented and proof-backed for a subset, not full parity. |
 | **LSP Generation** | Experimental | Prototype available in `lsp-generator` crate. |
 
 ## Contributing New Languages
