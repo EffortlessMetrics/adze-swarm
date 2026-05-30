@@ -90,6 +90,7 @@ Recent merged PRs:
 - #586: `ci(status): record casing receipt and harden router output path`
 - #587: `docs(status): refresh forge audit receipt ranges`
 - #588: `docs(cli): keep source build path local`
+- #589: `docs(status): refresh product audit standby state`
 
 Current active manifest:
 
@@ -146,6 +147,8 @@ PR #587 refreshed the audit table receipt ranges through #586.
 PR #588 kept the CLI reference's current source-build path scoped to the
 checkout under test instead of implying public `adze` already carries the
 current swarm proof state.
+PR #589 refreshed the product objective audit front matter to the current
+paused standby state and recorded the #588 stable-product receipt.
 
 The exact current `adze-swarm/main` commit is intentionally not hardcoded here.
 Every audit refresh changes that commit and would immediately stale this
