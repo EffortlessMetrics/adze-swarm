@@ -51,6 +51,20 @@ The second shape is the preferred product model for Adze-native tooling:
 parse once into `AdzeDocument`, then project the selected Tree-sitter-shaped
 view from that document.
 
+Keep the native document when the workflow needs diagnostics, ambiguity
+summaries, JSON projection, typed CST, or typed AST extraction. The
+Tree-sitter-shaped `Tree` is a view over one selected document tree; it is not a
+replacement owner for every Adze parse fact.
+
+Use this decision rule:
+
+| If the caller needs... | Prefer... |
+| --- | --- |
+| Typed Rust values only | `grammar::parse(source)` |
+| Diagnostics, ambiguity summaries, JSON, or multiple projections | `grammar::parse_document(source)` |
+| Tree-sitter-shaped traversal from an existing document | `Tree::from_document(language, &document)` |
+| Drop-in Tree-sitter-style parser integration | `ts_compat::Parser` |
+
 ## Concept Map
 
 | Tree-sitter concept | Adze source |

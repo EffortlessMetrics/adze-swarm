@@ -5,7 +5,8 @@
 use adze::{
     adze_glr_core::SymbolMetadata,
     adze_ir::{RuleId, SymbolId},
-    ts_compat::{Language, Node, Parser, Point},
+    parser_v4::Parser as CoreParser,
+    ts_compat::{Language, Node, Parser, Point, Tree},
 };
 use std::sync::Arc;
 
@@ -275,6 +276,53 @@ fn selected_tree_matrix_covers_traversal_fields_ranges_identity_and_sexp() {
     assert_eq!(cursor.field_name(), Some("right"));
     assert_eq!(cursor.node().text(source.as_bytes()), "2");
     assert!(!cursor.goto_next_sibling());
+}
+
+#[test]
+fn selected_tree_matrix_covers_document_backed_projection_entry() {
+    let lang = Arc::new(arithmetic_with_fields());
+    let mut parser = CoreParser::new(lang.grammar.clone(), lang.table.clone(), lang.name.clone());
+
+    let source = "1-2";
+    let document = parser
+        .parse_document(source)
+        .expect("core parser should return an AdzeDocument for clean arithmetic input");
+    let tree = Tree::from_document(Arc::clone(&lang), &document);
+    let root = tree.root_node();
+    let expression = root
+        .child(0)
+        .expect("document-backed selected tree should expose expression child");
+
+    assert_eq!(tree.language().name, lang.name);
+    assert_eq!(tree.error_count(), document.metadata().error_count);
+    assert!(!tree.has_errors());
+    assert_eq!(root.kind(), "source_file");
+    assert_eq!(
+        root.to_sexp(),
+        "(source_file (expression left: (expression) right: (expression)))"
+    );
+    assert_eq!(expression.text(source.as_bytes()), source);
+    assert_eq!(
+        expression
+            .child_by_field_name("left")
+            .expect("left field should project from document edges")
+            .text(source.as_bytes()),
+        "1"
+    );
+    assert_eq!(
+        expression
+            .child_by_field_name("operator")
+            .expect("operator field should project from document edges")
+            .text(source.as_bytes()),
+        "-"
+    );
+    assert_eq!(
+        expression
+            .child_by_field_name("right")
+            .expect("right field should project from document edges")
+            .text(source.as_bytes()),
+        "2"
+    );
 }
 
 #[test]
