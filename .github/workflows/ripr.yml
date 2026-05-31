@@ -3,6 +3,7 @@ name: ripr advisory
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
 permissions:
@@ -11,12 +12,16 @@ permissions:
 
 concurrency:
   group: ripr-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request' &&
+        (github.event.action == 'synchronize' || github.event.action == 'closed') }}
 
 jobs:
   plan:
     name: PR Plan
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action != 'closed'
     uses: ./.github/workflows/pr-plan.yml
 
   ripr:
@@ -25,6 +30,8 @@ jobs:
     # Skip on docs-only PRs and on workflow_dispatch with no diff context.
     if: |
       always() &&
+      !(github.event_name == 'pull_request' && github.event.action == 'closed') &&
+      needs.plan.result != 'cancelled' &&
       (needs.plan.result == 'skipped' || needs.plan.outputs.docs_only != 'true')
     runs-on: self-hosted
     timeout-minutes: 20

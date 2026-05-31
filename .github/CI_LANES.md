@@ -35,7 +35,7 @@ Runner capacity classes are defined in
 | Workflow | Job name | Trigger | Meaning |
 |----------|----------|---------|---------|
 | `em-ci-routed-rust.yml` | `Rust Small Result` | PR + merge_group | Aggregate check for the selected routed Rust small lane |
-| `product-proof.yml` | `Product Proof Result` | PR + scheduled + dispatch | Aggregate Stable-claim proof gate for Product Proof path detection and selected stable canaries |
+| `product-proof.yml` | `Product Proof Result` | PR + scheduled + dispatch | Aggregate Stable-claim proof gate for Product Proof path detection and selected stable canaries; skipped after cancelled upstream jobs so superseded PR runs do not queue stale result work |
 
 Required branch protection contexts: `Rust Small Result`, `Product Proof Result`.
 
@@ -49,9 +49,10 @@ Required branch protection contexts: `Rust Small Result`, `Product Proof Result`
 | `em-ci-routed-rust.yml` | `Rust Small on CX33` | PR + merge_group | PR-only | Runs when CPX42 and CX43 are unavailable and trusted CX33 capacity is idle |
 | `em-ci-routed-rust.yml` | `Rust Small on CX53` | PR + merge_group | PR-only | Dormant while #598 is blocked; do not select for the required Rust Small route |
 | `em-ci-routed-rust.yml` | `Rust Small on GitHub Hosted` | PR + merge_group | PR-only | Runs only when the route target is `github` and explicit fallback is allowed; skipped by default |
+| `em-ci-routed-rust.yml` | `Rust Small Result` | PR + merge_group | Required | Aggregate required base gate; skipped after cancelled upstream route/lane jobs so superseded PR runs do not queue stale result work |
 | `em-ci-routed-rust.yml` | `Runner Capacity / Fallback Policy` | PR + merge_group | PR-only | Fails intentionally when no trusted runner is idle and hosted fallback is not allowed; the aggregate `Rust Small Result` records that policy outcome |
-| `pr-gate.yml` | `Supported Rust Gate` | PR + merge_group | PR-only | Legacy public gate signal; not the swarm required context; `pull_request.closed` only cancels stale same-PR runs |
-| `pr-gate.yml` | `PR Gate Success` | PR + merge_group | PR-only | Aggregate: plan + supported/docs gate; skipped on `pull_request.closed` |
+| `pr-gate.yml` | `Supported Rust Gate` | PR + merge_group | PR-only | Legacy public gate signal; not the swarm required context; `pull_request.closed` cancels stale same-PR runs, and cancelled plan jobs do not schedule the supported lane |
+| `pr-gate.yml` | `PR Gate Success` | PR + merge_group | PR-only | Aggregate: plan + supported/docs gate; skipped on `pull_request.closed` and after cancelled upstream advisory jobs |
 | `pr-gate.yml` | `PR Plan` | PR | PR-only | Computes docs_only, estimated LEM, budget band; skipped on `pull_request.closed` |
 | `ci.yml` | `ci-supported` | Schedule + dispatch | Scheduled/manual | Legacy public full-CI support lane; routed swarm PRs use `Rust Small Result` |
 | `ci.yml` | `semver-checks` | PR only | PR-only | Detects breaking API changes |
@@ -59,7 +60,7 @@ Required branch protection contexts: `Rust Small Result`, `Product Proof Result`
 | `ci.yml` | `package-validation` | PR only | PR-only | Validates package manifests for release surface |
 | `ci-policy.yml` | `CI Lane Whitelist` | PR + push | Advisory | xtask lane whitelist lint |
 | `ci-policy.yml` | `Source of Truth` | PR + push | Advisory | doc-artifacts and active-goal ledger checks |
-| `ripr.yml` | `ripr advisory` | PR | PR-only | Advisory report; non-blocking |
+| `ripr.yml` | `ripr advisory` | PR | PR-only | Advisory report; non-blocking; `pull_request.closed` cancels stale same-PR runs and skips advisory work |
 
 ### Push / scheduled (main health, not PR-blocking)
 
