@@ -22,14 +22,12 @@ receipt is now tracked as a blocked runner investigation, with route candidate
 diagnostics, a temporary Rust Small route quarantine, label/group diagnostics,
 route-runner self-count exclusion, and PR body guidance for avoiding accidental
 issue auto-close.
-Legacy PR Gate queued runs left behind
-after #602 and #603 merged are tracked separately by issue #604 and mitigated
-by PR-close cancellation in #606. PR #629 records the explicit hosted
-control-plane exception for routing, path detection, capacity diagnostics, and
-aggregate result reporting while keeping Rust/product execution self-hosted by
-default. PR #630 moves serialized CI Policy source-of-truth checks
-into the same hosted control-plane exception. PR #609 resolves issue #549 by
-explicitly
+Legacy PR Gate queued runs left behind after #602 and #603 merged were tracked
+separately by issue #604 and are resolved by #606, #628, #629, and #630:
+closed/cancelled advisory work no longer fans out stale self-hosted jobs,
+required aggregate reporting no longer waits on optional capacity diagnostics,
+and serialized CI Policy source-of-truth checks now run in the hosted
+control-plane exception. PR #609 resolves issue #549 by explicitly
 keeping the paused forge standby state instead of selecting a new
 implementation lane. The broader product/release endpoint is not complete
 because release/publish authorization and a real crates.io `adze-cli` install
@@ -54,7 +52,7 @@ receipt are still absent.
 | `cargo install adze-cli` claim has a real crates.io receipt. | Live `cargo info --registry crates-io adze-cli` on 2026-05-30 returned not found. | Not complete. |
 | No unsupported parity/performance claims. | `docs/reference/adze-swarm-operating-model.md`; `SUPPORT_TIERS.md`; `PRODUCT_OBJECTIVE_AUDIT.md`. | Covered by policy; not exhaustively re-verified here. |
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
-| Self-hosted implementation routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, #580, #591, #595, #603, #607, #608, #610, #611, #628, and #629 merged; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, #591 removed the Windows `cygpath` dependency from `just check-msrv`, #595 removed the Windows `just build` PDB collision warning, #603 quarantined CX53 from Rust Small route selection while preserving candidate diagnostics, #607 excludes the routed Rust Small router's current route runner from idle counts when relevant, #608 aligns contributor-facing CI docs with the current capacity-policy behavior, #610 records CX53 label/group and planned rust-large diagnostics, #611 adds a manual CX53 rust-large diagnostic workflow, #628 hardens stale advisory and aggregate cancellation guards, and #629 moves routing/result control-plane work off self-hosted capacity while keeping implementation lanes self-hosted by default. The CI Policy source-of-truth checks are also moved to hosted control-plane runners as the remaining #604 follow-up. Issue #598 tracks whether CX53 should regain Rust Small eligibility after a stale selected-lane queue in #597; issue #604 tracks the remaining post-merge CI Policy capacity/control-plane receipt. | Complete for current routing/tooling assumptions once the CI Policy hosted-control-plane follow-up lands; #598 and #604 are blocked on runner/control-plane evidence. |
+| Self-hosted implementation routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, #580, #591, #595, #603, #607, #608, #610, #611, #628, #629, #630, and #631 merged or proposed; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, #591 removed the Windows `cygpath` dependency from `just check-msrv`, #595 removed the Windows `just build` PDB collision warning, #603 quarantined CX53 from Rust Small route selection while preserving candidate diagnostics, #607 excludes the routed Rust Small router's current route runner from idle counts when relevant, #608 aligns contributor-facing CI docs with the current capacity-policy behavior, #610 records CX53 label/group and planned rust-large diagnostics, #611 adds a manual CX53 rust-large diagnostic workflow, #628 hardens stale advisory and aggregate cancellation guards, #629 moves routing/result control-plane work off self-hosted capacity while keeping implementation lanes self-hosted by default, #630 moves serialized CI Policy source-of-truth checks to hosted control-plane runners, and #631 records the closeout. Issue #598 tracks whether CX53 should regain Rust Small eligibility after a stale selected-lane queue in #597; issue #604 is complete after post-merge CI Policy run `26705001774` passed on `main`. | Complete for current routing/tooling assumptions once #631 lands; #598 remains blocked on runner/control-plane evidence. |
 | Duplicate same-scope PRs collapsed. | PR #542 merged; duplicate document SRP PRs were not all merged. | Complete for the observed queue. |
 | Current active goal complete/paused/superseded before new goal. | `adze-adoption-hardening` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest; PR #579 made issue-tracked blocked items verifier-clean; PRs #581, #582, #585-#587, #591, #593, and #595 refreshed the standby evidence after #576-#584; PR #609 resolves issue #549 by explicitly keeping the paused standby state until a future non-release lane is selected. | Complete. |
 | Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-05-30. | Covered at audit time. |
@@ -241,9 +239,11 @@ records that policy outcome directly, while Rust Small implementation work and
 selected Product Proof canaries remain self-hosted unless explicit
 GitHub-hosted fallback is allowed by label or manual dispatch. After #629
 merged, post-merge `CI Policy` run `26704822871` still left the first
-serialized `CI Lane Whitelist` job queued with zero steps, so the remaining
-PR #630 moves the serialized CI Policy source-of-truth jobs to hosted
-control-plane runners as well.
+serialized `CI Lane Whitelist` job queued with zero steps. PR #630 then moved
+the serialized CI Policy source-of-truth jobs to hosted control-plane runners
+as well. After #630 merged, post-merge `CI Policy` run
+`26705001774` passed `CI Lane Whitelist`, `Source of Truth`, and
+`GLR Invariants` on `main` with no queued runs left, completing #604.
 PR #607 excludes the routed Rust Small route job's own runner from idle counts.
 Candidate diagnostics still mark that runner with `current=true`, but it no
 longer contributes to the selected-lane count for CPX42, CX43, CX33, or the
