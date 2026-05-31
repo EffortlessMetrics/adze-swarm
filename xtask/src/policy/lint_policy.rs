@@ -19,7 +19,6 @@ use std::path::Path;
 use super::{Mode, ensure_report_dir, workspace_root};
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 struct PolicyFile {
     msrv: String,
     #[serde(default)]
@@ -29,7 +28,6 @@ struct PolicyFile {
 }
 
 #[derive(Debug, Default, Deserialize)]
-#[allow(dead_code)]
 struct Active {
     #[serde(default)]
     rust: BTreeMap<String, String>,
@@ -38,7 +36,10 @@ struct Active {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "schema fields are deserialized for policy validation, not all are read directly"
+)]
 struct Planned {
     name: String,
     level: String,
