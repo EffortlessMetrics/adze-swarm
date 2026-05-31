@@ -86,7 +86,7 @@ Revert the setup PR to restore the previous paused forge-standby manifest.
 
 ## Work Item: upstream-query-differential-canary
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0013-query-compatibility.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -101,8 +101,17 @@ shape. Prefer an existing optional upstream grammar dependency such as
 
 ### Production Delta
 
-Expected future PR adds one focused test target or fixture and updates only the
-minimal proof surface needed to name the receipt.
+Adds one focused `tree-sitter-json` differential test for the supported query
+subset and accepts Tree-sitter's postfix capture placement, for example
+`(string) @key`, while preserving the older internal capture placement.
+
+Receipt slice:
+- Upstream grammar: `tree-sitter-json`
+- Upstream crate version: `tree-sitter-json 0.24.8`
+- Input: `{"answer": 42}`
+- Query shape: `document` -> `object` -> `pair` with `key: (string) @key`
+  and `value: (number) @value`
+- Expected captures: `key` over `"answer"` and `value` over `42`
 
 ### Non-Goals
 
@@ -125,6 +134,7 @@ minimal proof surface needed to name the receipt.
 ### Proof Commands
 
 ```bash
+cargo test -p adze --features query --lib query::compiler::tests::test_query_with_tree_sitter_postfix_capture -- --exact --nocapture
 cargo test -p adze --features "pure-rust,ts-compat,query,with-grammars" --test upstream_query_differential -- --nocapture
 cargo test -p adze --features "pure-rust,ts-compat,query" --test query_differential -- --nocapture
 git diff --check
