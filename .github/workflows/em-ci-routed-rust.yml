@@ -70,14 +70,18 @@ jobs:
             fallback_github "runner_token_missing"
           fi
 
+          required_runner_group="em-ci-small"
           runner_json="$(mktemp)"
           runner_groups_json="$(mktemp)"
+          eligible_runner_json="$(mktemp)"
+          group_eligibility_reason=""
           current_runner="${RUNNER_NAME:-}"
           echo "control-plane route runner: ${current_runner:-unknown}"
+          echo "required selected-lane runner group: ${required_runner_group}"
           if [ -n "$current_runner" ]; then
             echo "route runner is excluded from idle counts if it appears in the self-hosted runner list"
           fi
-          trap 'rm -f "$runner_json" "$runner_groups_json"' EXIT
+          trap 'rm -f "$runner_json" "$runner_groups_json" "$eligible_runner_json"' EXIT
 
           set +e
           runners="$(curl -fsS \
@@ -106,15 +110,55 @@ jobs:
           if [ "$group_api_exit" -ne 0 ]; then
             echo "runner group API request failed for diagnostics (exit=${group_api_exit}): ${runner_groups}"
             printf '{"runner_groups":[]}' > "$runner_groups_json"
+            printf '{"runners":[]}' > "$eligible_runner_json"
+            group_eligibility_reason="runner_group_api_failed"
           else
             printf '%s' "$runner_groups" > "$runner_groups_json"
+            group_id="$(python3 - "$runner_groups_json" "$required_runner_group" <<'PY'
+          import json
+          import sys
+
+          path, required_group = sys.argv[1:3]
+          with open(path, encoding="utf-8") as handle:
+              data = json.load(handle)
+
+          for group in data.get("runner_groups", []):
+              if str(group.get("name", "")) == required_group:
+                  print(group.get("id", ""))
+                  break
+          PY
+          )"
+            if [ -z "$group_id" ]; then
+              echo "runner group '${required_runner_group}' was not visible in runner group API response"
+              printf '{"runners":[]}' > "$eligible_runner_json"
+              group_eligibility_reason="runner_group_not_visible"
+            else
+              echo "eligible selected-lane runner group id: ${group_id}"
+              set +e
+              eligible_runners="$(curl -fsS \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "${GITHUB_API_URL:-https://api.github.com}/orgs/${ORG}/actions/runner-groups/${group_id}/runners?per_page=100" 2>&1)"
+              group_runners_exit=$?
+              set -e
+
+              if [ "$group_runners_exit" -ne 0 ]; then
+                echo "runner group '${required_runner_group}' runner API request failed (exit=${group_runners_exit}): ${eligible_runners}"
+                printf '{"runners":[]}' > "$eligible_runner_json"
+                group_eligibility_reason="runner_group_runners_api_failed"
+              else
+                printf '%s' "$eligible_runners" > "$eligible_runner_json"
+              fi
+            fi
           fi
 
           count_idle() {
-            local runner_class="$1"
-            local rust_label="$2"
-            local extra_label="${3:-}"
-            python3 - "$runner_json" "$runner_class" "$rust_label" "$extra_label" "$current_runner" <<'PY' 2>&1
+            local source_json="$1"
+            local runner_class="$2"
+            local rust_label="$3"
+            local extra_label="${4:-}"
+            python3 - "$source_json" "$runner_class" "$rust_label" "$extra_label" "$current_runner" <<'PY' 2>&1
           import json
           import sys
 
@@ -201,8 +245,53 @@ jobs:
             fi
           }
 
+          summarize_eligible_candidates() {
+            local runner_class="$1"
+            local rust_label="$2"
+            local extra_label="${3:-}"
+            if ! python3 - "$eligible_runner_json" "$required_runner_group" "$runner_class" "$rust_label" "$extra_label" "$current_runner" <<'PY' 2>&1
+          import json
+          import sys
+
+          path, required_group, runner_class, rust_label, extra_label, current_runner = sys.argv[1:7]
+          with open(path, encoding="utf-8") as handle:
+              data = json.load(handle)
+
+          required = {"em-ci", runner_class, rust_label, "trusted-pr"}
+          if extra_label:
+              required.add(extra_label)
+
+          rows = []
+          for runner in data.get("runners", []):
+              runner_name = str(runner.get("name", ""))
+              labels = {
+                  str(label.get("name", "")).lower()
+                  for label in runner.get("labels", [])
+              }
+              if required <= labels:
+                  status = str(runner.get("status", "unknown"))
+                  busy = runner.get("busy")
+                  current = ",current=true" if runner_name == current_runner else ""
+                  label_list = ",".join(sorted(labels))
+                  rows.append(
+                      f"{runner_name}:status={status},busy={busy},group={required_group},labels=[{label_list}]{current}"
+                  )
+
+          descriptor = f"{runner_class}/{rust_label}"
+          if extra_label:
+              descriptor = f"{descriptor}/{extra_label}"
+          if rows:
+              print(f"{descriptor} eligible runners in {required_group}: {'; '.join(sorted(rows))}")
+          else:
+              print(f"{descriptor} eligible runners in {required_group}: none")
+          PY
+            then
+              echo "eligible runner summary failed for ${runner_class}/${rust_label}"
+            fi
+          }
+
           set +e
-          cpx42="$(count_idle cpx42 rust-medium rust-16gb)"
+          cpx42="$(count_idle "$eligible_runner_json" cpx42 rust-medium rust-16gb)"
           parse_exit=$?
           set -e
           if [ "$parse_exit" -ne 0 ] || ! printf '%s' "$cpx42" | grep -Eq '^[0-9]+$'; then
@@ -211,7 +300,7 @@ jobs:
           fi
 
           set +e
-          cx43="$(count_idle cx43 rust-small)"
+          cx43="$(count_idle "$eligible_runner_json" cx43 rust-small)"
           parse_exit=$?
           set -e
           if [ "$parse_exit" -ne 0 ] || ! printf '%s' "$cx43" | grep -Eq '^[0-9]+$'; then
@@ -220,7 +309,7 @@ jobs:
           fi
 
           set +e
-          cx33="$(count_idle cx33 rust-small)"
+          cx33="$(count_idle "$eligible_runner_json" cx33 rust-small)"
           parse_exit=$?
           set -e
           if [ "$parse_exit" -ne 0 ] || ! printf '%s' "$cx33" | grep -Eq '^[0-9]+$'; then
@@ -229,7 +318,7 @@ jobs:
           fi
 
           set +e
-          cx53="$(count_idle cx53 rust-small)"
+          cx53="$(count_idle "$eligible_runner_json" cx53 rust-small)"
           parse_exit=$?
           set -e
           if [ "$parse_exit" -ne 0 ] || ! printf '%s' "$cx53" | grep -Eq '^[0-9]+$'; then
@@ -237,15 +326,23 @@ jobs:
             fallback_github "parse_failed"
           fi
 
-          echo "cpx42 idle rust-medium rust-16gb runners: ${cpx42}"
-          echo "cx43 idle rust-small runners: ${cx43}"
-          echo "cx33 idle rust-small runners: ${cx33}"
-          echo "cx53 idle rust-small runners (quarantined): ${cx53}"
+          if [ -n "$group_eligibility_reason" ]; then
+            echo "selected-lane group eligibility unresolved: ${group_eligibility_reason}"
+          fi
+          echo "cpx42 idle rust-medium rust-16gb runners in ${required_runner_group}: ${cpx42}"
+          echo "cx43 idle rust-small runners in ${required_runner_group}: ${cx43}"
+          echo "cx33 idle rust-small runners in ${required_runner_group}: ${cx33}"
+          echo "cx53 idle rust-small runners in ${required_runner_group} (quarantined): ${cx53}"
           summarize_candidates cpx42 rust-medium rust-16gb
           summarize_candidates cx43 rust-small
           summarize_candidates cx33 rust-small
           summarize_candidates cx53 rust-small
           summarize_candidates cx53 rust-large
+          summarize_eligible_candidates cpx42 rust-medium rust-16gb
+          summarize_eligible_candidates cx43 rust-small
+          summarize_eligible_candidates cx33 rust-small
+          summarize_eligible_candidates cx53 rust-small
+          summarize_eligible_candidates cx53 rust-large
           if [ "$cx53" -gt 0 ]; then
             echo "cx53 rust-small candidates are visible but not selected while adze-swarm#598 is blocked"
           fi
@@ -274,9 +371,10 @@ jobs:
           else
             echo "router_target=github"
             echo "router_error=false"
-            echo "router_reason=no_idle_runner"
+            reason="${group_eligibility_reason:-no_idle_runner}"
+            echo "router_reason=${reason}"
             echo "target=github" >> "$GITHUB_OUTPUT"
-            echo "target_reason=no_idle_runner" >> "$GITHUB_OUTPUT"
+            echo "target_reason=${reason}" >> "$GITHUB_OUTPUT"
             if [ "${{ github.event_name }}" = "pull_request" ]; then
               labels='${{ toJson(github.event.pull_request.labels.*.name) }}'
               if LABELS_JSON="$labels" python3 - <<'PY'; then
