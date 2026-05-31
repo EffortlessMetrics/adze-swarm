@@ -1,6 +1,6 @@
 # Query Upstream Differential Plan
 
-Status: active
+Status: complete
 Owner: runtime/query
 Created: 2026-05-31
 Linked proposal: ../../docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md
@@ -10,6 +10,7 @@ Linked ADRs:
 - ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 Active goal: ../../.adze/goals/active.toml
 Named goal: ../../.adze/goals/query-upstream-differential.toml
+Closeout: ./closeout.md
 Linked issues:
 - EffortlessMetrics/adze-swarm#617
 - EffortlessMetrics/adze-swarm#643
@@ -22,6 +23,13 @@ Add the first upstream Tree-sitter query differential canary for the documented
 Adze query subset. The lane answers one research-board question from #643: can
 one explicit upstream grammar/input/query slice compare upstream Tree-sitter
 captures with Adze captures without broadening the query compatibility claim?
+
+## Closeout State
+
+This plan is complete. The source-of-truth setup landed through #644, and the
+upstream differential canary landed through #645. No ready implementation items
+remain in this lane. The active manifest is paused until #617 or a successor
+board selects a new bounded lane.
 
 ## Operating Rules
 

@@ -1703,7 +1703,7 @@ links_to = [
 id = "plans/query-upstream-differential/implementation-plan.md"
 kind = "plan"
 path = "plans/query-upstream-differential/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "runtime/query"
 milestone = "post-0.9"
 source_of_truth_for = ["upstream Tree-sitter query differential proof spike"]
@@ -1713,6 +1713,25 @@ links_to = [
   "ADZE-ADR-0001",
   ".adze/goals/active.toml",
   ".adze/goals/query-upstream-differential.toml",
+  ".adze/goals/archive/2026-05-31-query-upstream-differential.toml",
+  "plans/query-upstream-differential/closeout.md",
+  "docs/reference/query-compatibility.md",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = "plans/query-upstream-differential/closeout.md"
+kind = "plan"
+path = "plans/query-upstream-differential/closeout.md"
+status = "complete"
+owner = "runtime/query"
+milestone = "post-0.9"
+source_of_truth_for = ["upstream Tree-sitter query differential closeout receipts and claim boundaries"]
+links_to = [
+  "plans/query-upstream-differential/implementation-plan.md",
+  ".adze/goals/active.toml",
+  ".adze/goals/query-upstream-differential.toml",
+  ".adze/goals/archive/2026-05-31-query-upstream-differential.toml",
   "docs/reference/query-compatibility.md",
   "docs/status/SUPPORT_TIERS.md",
 ]
@@ -1721,7 +1740,7 @@ links_to = [
 id = ".adze/goals/query-upstream-differential.toml"
 kind = "goal"
 path = ".adze/goals/query-upstream-differential.toml"
-status = "active"
+status = "complete"
 owner = "runtime/query"
 milestone = "post-0.9"
 source_of_truth_for = ["upstream Tree-sitter query differential agent work queue"]
@@ -1730,7 +1749,23 @@ links_to = [
   "ADZE-SPEC-0013",
   "ADZE-ADR-0001",
   "plans/query-upstream-differential/implementation-plan.md",
+  "plans/query-upstream-differential/closeout.md",
   ".adze/goals/active.toml",
+  ".adze/goals/archive/2026-05-31-query-upstream-differential.toml",
   "docs/reference/query-compatibility.md",
   "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/archive/2026-05-31-query-upstream-differential.toml"
+kind = "goal"
+path = ".adze/goals/archive/2026-05-31-query-upstream-differential.toml"
+status = "complete"
+owner = "runtime/query"
+milestone = "post-0.9"
+source_of_truth_for = ["archived upstream Tree-sitter query differential agent work queue"]
+links_to = [
+  ".adze/goals/query-upstream-differential.toml",
+  "plans/query-upstream-differential/implementation-plan.md",
+  "plans/query-upstream-differential/closeout.md",
 ]
