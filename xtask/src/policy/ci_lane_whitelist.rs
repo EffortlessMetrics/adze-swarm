@@ -16,7 +16,10 @@ use std::path::Path;
 use super::{Mode, ensure_report_dir, workspace_root};
 
 #[derive(Debug, Default, Deserialize)]
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "schema fields are deserialized for whitelist validation, not all are read directly"
+)]
 struct WhitelistFile {
     #[serde(default)]
     schema_version: Option<String>,
@@ -37,7 +40,10 @@ struct WhitelistFile {
 }
 
 #[derive(Debug, Default, Deserialize)]
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "schema fields are deserialized for whitelist validation, not all are read directly"
+)]
 struct Budget {
     preferred_default_lem: Option<u32>,
     default_limit_lem: Option<u32>,
@@ -46,7 +52,10 @@ struct Budget {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "schema fields are deserialized for whitelist validation, not all are read directly"
+)]
 pub struct Lane {
     pub id: String,
     pub workflow: String,
@@ -87,7 +96,10 @@ struct ExceptionsFile {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "schema fields are deserialized for whitelist validation, not all are read directly"
+)]
 pub struct Exception {
     pub id: String,
     pub kind: String,
