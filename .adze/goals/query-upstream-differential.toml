@@ -48,13 +48,14 @@ commands = [
 
 [[work_item]]
 id = "upstream-query-differential-canary"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
 spec = "ADZE-SPEC-0013"
 adr = "ADZE-ADR-0001"
 plan = "plans/query-upstream-differential/implementation-plan.md"
 issues = [643]
 commands = [
+  "cargo test -p adze --features query --lib query::compiler::tests::test_query_with_tree_sitter_postfix_capture -- --exact --nocapture",
   "cargo test -p adze --features \"pure-rust,ts-compat,query,with-grammars\" --test upstream_query_differential -- --nocapture",
   "cargo test -p adze --features \"pure-rust,ts-compat,query\" --test query_differential -- --nocapture",
   "git diff --check",

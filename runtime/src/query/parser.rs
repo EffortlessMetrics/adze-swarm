@@ -43,12 +43,13 @@ impl<'a> QueryParser<'a> {
             }
 
             // Parse the pattern - the opening paren was already consumed
-            let root = self.parse_pattern_node_no_paren()?;
+            let mut root = self.parse_pattern_node_no_paren()?;
 
             // Consume closing paren of pattern
             if !self.consume_char(')') {
                 return Err(self.syntax_error("Expected ')' to close pattern"));
             }
+            self.parse_postfix_modifiers(&mut root)?;
 
             let mut predicates = Vec::new();
 
@@ -219,23 +220,7 @@ impl<'a> QueryParser<'a> {
                 return Err(self.syntax_error("Expected ')' to close node"));
             }
 
-            // Parse quantifier after closing paren
-            self.skip_whitespace();
-            match self.peek_char() {
-                Some('?') => {
-                    self.advance();
-                    node.quantifier = Quantifier::Optional;
-                }
-                Some('+') => {
-                    self.advance();
-                    node.quantifier = Quantifier::Plus;
-                }
-                Some('*') => {
-                    self.advance();
-                    node.quantifier = Quantifier::Star;
-                }
-                _ => {}
-            }
+            self.parse_postfix_modifiers(&mut node)?;
 
             Ok(node)
         } else {
@@ -276,6 +261,50 @@ impl<'a> QueryParser<'a> {
             }
 
             Ok(node)
+        }
+    }
+
+    fn parse_postfix_modifiers(&mut self, node: &mut PatternNode) -> Result<(), QueryError> {
+        let mut saw_modifier = true;
+
+        while saw_modifier {
+            saw_modifier = false;
+            self.skip_whitespace();
+
+            if let Some(quantifier) = self.parse_quantifier() {
+                node.quantifier = quantifier;
+                saw_modifier = true;
+            }
+
+            self.skip_whitespace();
+
+            if self.peek_char() == Some('@') {
+                self.consume_char('@');
+                let capture_name = self.parse_identifier()?;
+                let capture_id = self.get_or_create_capture(&capture_name);
+                node.capture = Some(capture_id);
+                saw_modifier = true;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn parse_quantifier(&mut self) -> Option<Quantifier> {
+        match self.peek_char() {
+            Some('?') => {
+                self.advance();
+                Some(Quantifier::Optional)
+            }
+            Some('+') => {
+                self.advance();
+                Some(Quantifier::Plus)
+            }
+            Some('*') => {
+                self.advance();
+                Some(Quantifier::Star)
+            }
+            _ => None,
         }
     }
 

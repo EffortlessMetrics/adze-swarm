@@ -105,6 +105,17 @@ mod tests {
     }
 
     #[test]
+    fn test_query_with_tree_sitter_postfix_capture() {
+        let grammar = create_test_grammar();
+        let query_str = r#"(expression) @expr"#;
+
+        let query = compile_query(query_str, &grammar).unwrap();
+        assert_eq!(query.patterns.len(), 1);
+        assert_eq!(query.capture_count(), 1);
+        assert_eq!(query.capture_index("expr"), Some(0));
+    }
+
+    #[test]
     fn test_query_with_field() {
         let grammar = create_test_grammar();
         let query_str = r#"(statement value: (expression))"#;
