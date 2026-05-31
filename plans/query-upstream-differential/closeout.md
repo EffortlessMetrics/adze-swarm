@@ -26,6 +26,7 @@ crates.io receipt surface.
 | --- | --- | --- |
 | Source-of-truth setup | #644 | Selected the non-release query differential lane, added the named goal and implementation plan, and registered doc artifacts. |
 | Upstream query differential canary | #645 | Added one `tree-sitter-json 0.24.8` capture differential receipt and Tree-sitter postfix capture syntax support. |
+| Lane closeout | #646 | Marked the plan complete, archived the named goal, and returned the active manifest to paused forge standby. |
 
 ## Proof Receipts
 
@@ -49,8 +50,8 @@ GitHub proof on #645 included:
 - `Source of Truth`: pass.
 - `GLR Invariants`: pass.
 
-Post-merge main CI Policy run `26710155810` passed on
-`db1417424506ae8dc356576327aa0882b5d88051`.
+Post-merge main CI Policy run `26710608995` passed on
+`f45a366b3c9087d2f335ddcc79960bd8ea4b54e8` after #646.
 
 ## Claim Boundaries
 
