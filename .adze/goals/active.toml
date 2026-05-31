@@ -24,13 +24,17 @@ goal blockers, plus the Windows check-msrv shell-path fix and the Windows
 `just build` PDB collision fix. The CX53 Rust Small stale-queue follow-up
 remains tracked as a blocked CI investigation, with route candidate
 diagnostics, a temporary Rust Small route quarantine, label/group diagnostics,
-and route-runner self-count exclusion. The legacy PR Gate, advisory aggregate,
-and post-merge CI Policy stale-queue follow-up is resolved by #606, #628,
-#629, and #630: cancelled/superseded advisory jobs no longer fan out stale
-self-hosted work, CI Policy jobs are serialized, and routing, path detection,
-source-of-truth policy checks, capacity diagnostics, and aggregate result
-reporting use hosted control-plane runners while Rust/product execution remains
-the self-hosted capacity consumer. No new
+route-runner self-count exclusion, and selected-lane runner-group eligibility
+hardening. The #636 Rust Small selected-lane stale queue is mitigated by #637:
+the router now counts only runners proven by the `em-ci-small` runner-group
+runner list and leaves hosted fallback disabled when no eligible runner is
+idle. The legacy PR Gate, advisory aggregate, and post-merge CI Policy
+stale-queue follow-up is resolved by #606, #628, #629, and #630:
+cancelled/superseded advisory jobs no longer fan out stale self-hosted work, CI
+Policy jobs are serialized, and routing, path detection, source-of-truth policy
+checks, capacity diagnostics, and aggregate result reporting use hosted
+control-plane runners while Rust/product execution remains the self-hosted
+capacity consumer. No new
 non-release implementation lane is selected; EffortlessMetrics/adze-swarm#549
 is resolved by explicitly keeping this paused standby state until a future
 maintainer selects and records a fresh non-release lane.
@@ -162,13 +166,21 @@ proposal = "docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md"
 spec = "docs/ci/runner-classes.md"
 adr = ""
 plan = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
-issues = [598]
-prs = [599, 600, 603, 607, 608, 610, 611]
+issues = [598, 636]
+prs = [599, 600, 603, 607, 608, 610, 611, 637]
 commands = [
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 1 --json status,conclusion,url,createdAt,updatedAt,jobs",
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 2 --json status,conclusion,url,createdAt,updatedAt,jobs",
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 1 --job 78648771377 --log",
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 2 --job 78650477316 --log",
+  "gh run view 26706477535 --repo EffortlessMetrics/adze-swarm --json databaseId,workflowName,event,headBranch,headSha,status,conclusion,createdAt,updatedAt,jobs,url",
+  "gh run view 26706477535 --repo EffortlessMetrics/adze-swarm --job 78708609308 --log",
+  "gh api repos/EffortlessMetrics/adze/actions/jobs/78695940562",
+  "gh issue view 598 --repo EffortlessMetrics/adze-swarm --json number,title,body,updatedAt,url",
+  "gh pr view 637 --repo EffortlessMetrics/adze-swarm --json number,state,mergedAt,mergeCommit,url,title",
+  "gh run view 26707858270 --repo EffortlessMetrics/adze-swarm --job 78712439668 --log",
+  "gh run view 26707858270 --repo EffortlessMetrics/adze-swarm --json databaseId,status,conclusion,jobs,url",
+  "gh run view 26707920474 --repo EffortlessMetrics/adze-swarm --json databaseId,status,conclusion,jobs,url",
 ]
 
 [[work_item]]
