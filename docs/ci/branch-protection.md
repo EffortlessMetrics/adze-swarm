@@ -74,6 +74,9 @@ updates both `.github/settings.yml` and [CI_LANES.md](../../.github/CI_LANES.md)
 share the same PR-number concurrency group, cancel older same-PR PR Gate runs,
 and skip the plan, supported, docs, and success jobs. Closed-event runs do not
 count toward future promotion burn-in receipts.
+Downstream PR Gate jobs also skip when an upstream advisory job is cancelled,
+so force-cancelling a stale optional PR Gate run does not enqueue replacement
+self-hosted work.
 
 ## PR 17 — promotion criteria
 

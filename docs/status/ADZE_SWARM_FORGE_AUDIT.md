@@ -213,6 +213,15 @@ PR #606 changes PR Gate so `pull_request.closed` events share the same
 PR-number concurrency group, cancel older same-PR PR Gate runs, and skip every
 PR Gate job on the closed event. This preserves PR Gate as optional signal
 without scheduling extra self-hosted work after a PR is merged or closed.
+PR #627 reproduced #604 for manually cancelled advisory runs: the original
+`PR Gate` run queued `Supported Rust Gate` after `PR Plan` was cancelled, and
+the `ripr advisory` workflow queued its advisory job after its `PR Plan` was
+cancelled. PR #628 keeps closed-event cancellation, adds
+cancelled-upstream guards to those advisory jobs, gives `ripr advisory`
+the same `pull_request.closed` cancellation path, and applies the same stale
+cancelled-upstream guard to routed Rust Small's aggregate `Rust Small Result`
+and Product Proof's aggregate `Product Proof Result` jobs so superseded
+required-gate runs do not hold the PR concurrency group.
 PR #607 excludes the routed Rust Small route job's own runner from idle counts.
 Candidate diagnostics still mark that runner with `current=true`, but it no
 longer contributes to the selected-lane count for CPX42, CX43, CX33, or the

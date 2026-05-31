@@ -141,7 +141,10 @@ jobs:
   product-proof-result:
     name: Product Proof Result
     needs: [detect-stable-product-paths, ci-product-stable]
-    if: always()
+    if: >-
+      always() &&
+      needs.detect-stable-product-paths.result != 'cancelled' &&
+      needs.ci-product-stable.result != 'cancelled'
     runs-on:
       group: em-ci-small
       labels: [self-hosted, linux, x64, em-ci, trusted-pr]

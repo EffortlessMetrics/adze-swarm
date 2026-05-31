@@ -31,7 +31,8 @@ jobs:
     if: |
       always() &&
       !(github.event_name == 'pull_request' && github.event.action == 'closed') &&
-      (needs.plan.result == 'skipped' || needs.plan.outputs.docs_only != 'true')
+      (needs.plan.result == 'skipped' ||
+        (needs.plan.result == 'success' && needs.plan.outputs.docs_only != 'true'))
     runs-on: self-hosted
     timeout-minutes: 45
     steps:
@@ -72,7 +73,10 @@ jobs:
     needs: [plan, supported, docs-gate]
     if: >-
       always() &&
-      !(github.event_name == 'pull_request' && github.event.action == 'closed')
+      !(github.event_name == 'pull_request' && github.event.action == 'closed') &&
+      needs.plan.result != 'cancelled' &&
+      needs.supported.result != 'cancelled' &&
+      needs.docs-gate.result != 'cancelled'
     runs-on: self-hosted
     timeout-minutes: 2
     steps:

@@ -685,6 +685,13 @@ jobs:
       - runner-capacity-exhausted
     if: >-
       always() &&
+      needs.route-rust-small.result != 'cancelled' &&
+      needs.rust-small-cpx42.result != 'cancelled' &&
+      needs.rust-small-cx43.result != 'cancelled' &&
+      needs.rust-small-cx33.result != 'cancelled' &&
+      needs.rust-small-cx53.result != 'cancelled' &&
+      needs.rust-small-github.result != 'cancelled' &&
+      needs.runner-capacity-exhausted.result != 'cancelled' &&
       (
         github.event_name == 'workflow_dispatch' ||
         github.event_name == 'merge_group' ||
