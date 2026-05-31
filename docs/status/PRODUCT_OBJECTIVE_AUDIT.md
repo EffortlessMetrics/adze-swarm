@@ -1,19 +1,20 @@
 # Product Objective Audit
 
-**Last updated:** 2026-05-30
+**Last updated:** 2026-05-31
 **Status:** incomplete; use this as an audit checklist, not as a support-tier
 promotion. Routine product-proof, query/tooling, recovery, user-experience,
 parser/runtime maintainability, CLI parse-surface, static S-expression, static
 JSON/DOT, dynamic parse boundary, adoption-hardening, release-candidate bundle,
-and post-adoption standby hygiene lanes are closed out. The current
+post-adoption standby hygiene, and stale-queue control-plane follow-up lanes
+are closed out. The current
 `active.toml` is paused as `adze-swarm-forge-standby` with no active or ready
 implementation lane selected. Release/publish work remains separate and
 blocked on explicit authorization in adze-swarm#325; the CX53 runner
-investigation remains blocked on adze-swarm#598; and the current non-release
-research board is tracked by adze-swarm#617, with open adoption and
-performance lanes in adze-swarm#614 and adze-swarm#613. The query
-compatibility research lane in adze-swarm#615 closed via adze-swarm#619 after
-the fixture-canary boundary was clarified.
+investigation remains blocked on adze-swarm#598; and the current research
+board is tracked by adze-swarm#617 with no unblocked implementation lane.
+The adoption backlog in adze-swarm#614, performance strategy and first
+advisory receipt in adze-swarm#613/#622, and query compatibility research in
+adze-swarm#615 are closed.
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
 
