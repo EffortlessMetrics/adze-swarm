@@ -1,74 +1,76 @@
-id = "query-upstream-differential"
-title = "Query Upstream Differential Canary"
+id = "adze-swarm-forge-standby"
+title = "Adze-swarm Forge Standby"
 status = "paused"
-owner = "runtime/query"
+owner = "repo-governance"
 created = "2026-05-31"
 
 pause_reason = """
-The #643 upstream query differential proof spike completed through #645 and no
-query-differential work items remain ready or active. The campaign closeout is
-recorded in plans/query-upstream-differential/closeout.md, and future work
-should be selected from the #617 research board or a fresh bounded issue. This
-paused state does not authorize public adze work, release, publish, signing,
-Cargo-token, or crates.io install receipt work. Release remains blocked on
-#325, and CX53 runner readiness remains blocked on #598.
+The #643 upstream query differential proof spike completed through #645 and
+the #646 closeout archived that lane. No non-release implementation work item
+is currently active or ready. The current operating board is #617, release
+authorization and crates.io install receipt work remain blocked on #325, and
+CX53 runner readiness remains blocked on #598. This paused state does not
+authorize public adze work, release, publish, signing, Cargo-token, hosted
+fallback restoration, or crates.io install receipt work.
 """
 
 objective = """
-Add the first upstream Tree-sitter query differential canary for the documented
-Adze query subset. Keep this as a proof spike selected from the research board:
-one grammar, one source input, one supported-subset query shape, and one
-explicit comparison between upstream Tree-sitter captures and Adze captures.
+Keep adze-swarm in a clean research-board standby state while no bounded
+implementation lane is selected. Preserve the split where adze-swarm is the
+development, research, proof, CI, and release-candidate factory, while public
+adze remains the release, public intake, promotion, tag, publish, signing,
+Cargo-token, and crates.io receipt surface.
 """
 
 handoff = """
-This is a non-release adze-swarm lane selected from the research board in
-EffortlessMetrics/adze-swarm#617 and the bounded proof issue
-EffortlessMetrics/adze-swarm#643. It does not authorize full query parity,
-support-tier promotion, public adze development, release, publish, signing,
-Cargo-token, or crates.io install receipt work.
+Start from #617 before opening any new PR. If a future non-release task is
+selected, create or refresh a bounded issue and source-of-truth lane before
+implementation. If release, promotion, tag, publish, signing, Cargo-token, or
+crates.io install work is requested, stop unless #325 explicitly authorizes the
+public adze release path.
 """
 
 end_state = [
-  "adze-swarm remains the operating repo for this proof spike.",
-  "public adze remains release, public intake, promotion, tag, publish, signing, Cargo-token, and crates.io receipt surface.",
-  "A single upstream Tree-sitter grammar/input/query slice compares upstream captures with Adze captures.",
-  "The chosen query stays inside the documented supported subset in ADZE-SPEC-0013.",
-  "The canary records upstream crate/version, source input, query pattern, expected captures, and Adze captures.",
-  "No full Tree-sitter query parity, directive/highlighting/injection, GLR-forest-wide query matching, or broad imported grammar corpus claim is made.",
-  "Release, publish, signing, Cargo-token, public promotion, and crates.io install-receipt work remain blocked on #325.",
+  "adze-swarm remains the operating repo for development, proof, source-of-truth, CI, examples, docs-proof, runtime, tablegen, query, diagnostics, and performance work.",
+  "public adze remains the release, public-intake, promotion, tag, publish, signing, Cargo-token, and crates.io receipt surface.",
+  "No release tag, crate publish, signing, Cargo-token, or crates.io install-receipt work is authorized by this standby state.",
+  "Default adze-swarm Rust/product execution remains self-hosted and normalized through Rust Small Result.",
+  "Hosted control-plane routing, path detection, source-of-truth policy checks, capacity diagnostics, and aggregate result reporting remain explicit exceptions; no GitHub-hosted Rust/product fallback is introduced without an explicit recorded exception.",
+  "Heavy, advisory, coverage, benchmark, product-proof, and full-matrix lanes remain path-routed, labeled, scheduled, manually dispatched, or explicitly budgeted.",
+  "AdzeDocument remains the canonical parse product; public views remain projections over that document.",
+  "No cargo-install, Tree-sitter parity, query parity, incremental performance, GLR generality, or benchmark performance claim is broadened without a real receipt.",
 ]
 
 [[work_item]]
-id = "query-upstream-differential-source-of-truth"
+id = "research-board-standby"
 status = "complete"
-proposal = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
-spec = "ADZE-SPEC-0013"
-adr = "ADZE-ADR-0001"
-plan = "plans/query-upstream-differential/implementation-plan.md"
-issues = [617, 643]
+proposal = ""
+spec = "docs/reference/SPEC_SYSTEM.md"
+adr = "docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md"
+plan = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
+issues = [617, 638, 639, 640, 641, 643]
+prs = [642, 644, 645, 646]
 commands = [
-  "python -c \"import tomllib; tomllib.load(open('.adze/goals/active.toml', 'rb')); tomllib.load(open('.adze/goals/query-upstream-differential.toml', 'rb')); tomllib.load(open('policy/doc-artifacts.toml', 'rb'))\"",
+  "gh pr list --repo EffortlessMetrics/adze-swarm --state open",
+  "gh pr list --repo EffortlessMetrics/adze --state open",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
   "cargo run -q -p xtask -- check-doc-artifacts --mode blocking",
   "git diff --check",
-  "gh pr list --repo EffortlessMetrics/adze-swarm --state open --json number,title,url",
-  "gh pr list --repo EffortlessMetrics/adze --state open --json number,title,url",
 ]
 
 [[work_item]]
-id = "upstream-query-differential-canary"
-status = "complete"
-proposal = "docs/proposals/ADZE-PROP-0008-query-tooling-expansion.md"
-spec = "ADZE-SPEC-0013"
-adr = "ADZE-ADR-0001"
-plan = "plans/query-upstream-differential/implementation-plan.md"
-issues = [643]
+id = "cx53-rust-small-stale-queue-investigation"
+status = "blocked"
+proposal = "docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md"
+spec = "docs/ci/runner-classes.md"
+adr = ""
+plan = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
+issues = [598]
+prs = [599, 600, 603, 607, 608, 610, 611, 635, 637]
 commands = [
-  "cargo test -p adze --features query --lib query::compiler::tests::test_query_with_tree_sitter_postfix_capture -- --exact --nocapture",
-  "cargo test -p adze --features \"pure-rust,ts-compat,query,with-grammars\" --test upstream_query_differential -- --nocapture",
-  "cargo test -p adze --features \"pure-rust,ts-compat,query\" --test query_differential -- --nocapture",
-  "git diff --check",
+  "gh issue view 598 --repo EffortlessMetrics/adze-swarm --json number,title,state,labels,updatedAt,url",
+  "gh run list --repo EffortlessMetrics/adze-swarm --status queued --limit 20 --json databaseId,workflowName,headBranch,status,url",
+  "gh run list --repo EffortlessMetrics/adze-swarm --status in_progress --limit 20 --json databaseId,workflowName,headBranch,status,url",
 ]
 
 [[work_item]]

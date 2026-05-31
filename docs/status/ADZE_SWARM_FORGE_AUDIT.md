@@ -12,26 +12,22 @@ install receipt.
 
 ## Summary
 
-`adze-swarm` is back in paused forge standby after completing the non-release
-Adze Adoption Hardening lane. The near-term CI governance, repo-boundary,
-proof-refresh, release-candidate bundle, and adoption-hardening tasks are
-complete. Post-closeout audit, CI-routing, and active-goal verifier hygiene are
-also complete, including the Windows `check-msrv` shell-path tooling fix and
-the Windows `just build` PDB collision fix. A CX53 Rust Small stale-queue
-receipt is now tracked as a blocked runner investigation, with route candidate
-diagnostics, a temporary Rust Small route quarantine, label/group diagnostics,
-route-runner self-count exclusion, and PR body guidance for avoiding accidental
-issue auto-close.
-Legacy PR Gate queued runs left behind after #602 and #603 merged were tracked
-separately by issue #604 and are resolved by #606, #628, #629, #630, and #631:
-closed/cancelled advisory work no longer fans out stale self-hosted jobs,
-required aggregate reporting no longer waits on optional capacity diagnostics,
-and serialized CI Policy source-of-truth checks now run in the hosted
-control-plane exception. PR #609 resolves issue #549 by explicitly
-keeping the paused forge standby state instead of selecting a new
-implementation lane. The broader product/release endpoint is not complete
-because release/publish authorization and a real crates.io `adze-cli` install
-receipt are still absent.
+`adze-swarm` is back in paused forge standby after the #617 research-board pass
+and the #643 query differential proof spike. The adoption-hardening,
+Tree-sitter/query gap-ranking, and performance-receipt research issues
+produced bounded outputs; #642 handled the selected first-use route-map task;
+#645 added the first upstream `tree-sitter-json` query differential canary; and
+#646 closed out the query lane and archived it. The active manifest is now the
+forge-standby manifest again, with no active or ready implementation work.
+
+The near-term CI governance, repo-boundary, proof-refresh, release-candidate
+bundle, adoption-hardening, post-closeout audit, CI-routing, and active-goal
+verifier hygiene tasks are complete. The CX53 Rust Small stale-queue receipt
+remains tracked as issue #598, with route candidate diagnostics, Rust Small
+quarantine, label/group diagnostics, route-runner self-count exclusion,
+runner-group eligibility proof, and a no-repeat-diagnostic rule. The broader
+product/release endpoint is not complete because release/publish authorization
+and a real crates.io `adze-cli` install receipt are still absent.
 
 ## Prompt-to-artifact checklist
 
@@ -54,8 +50,8 @@ receipt are still absent.
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
 | Self-hosted implementation routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, #580, #591, #595, #603, #607, #608, #610, #611, #628, #629, #630, and #631 merged; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, #591 removed the Windows `cygpath` dependency from `just check-msrv`, #595 removed the Windows `just build` PDB collision warning, #603 quarantined CX53 from Rust Small route selection while preserving candidate diagnostics, #607 excludes the routed Rust Small router's current route runner from idle counts when relevant, #608 aligns contributor-facing CI docs with the current capacity-policy behavior, #610 records CX53 label/group and planned rust-large diagnostics, #611 adds a manual CX53 rust-large diagnostic workflow, #628 hardens stale advisory and aggregate cancellation guards, #629 moves routing/result control-plane work off self-hosted capacity while keeping implementation lanes self-hosted by default, #630 moves serialized CI Policy source-of-truth checks to hosted control-plane runners, and #631 records the closeout. Issue #598 tracks whether CX53 should regain Rust Small eligibility after a stale selected-lane queue in #597; issue #604 is complete after post-merge CI Policy runs `26705001774` and `26705164480` passed on `main`. | Complete for current routing/tooling assumptions; #598 remains blocked on runner/control-plane evidence. |
 | Duplicate same-scope PRs collapsed. | PR #542 merged; duplicate document SRP PRs were not all merged. | Complete for the observed queue. |
-| Current active goal complete/paused/superseded before new goal. | `adze-adoption-hardening` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest; PR #579 made issue-tracked blocked items verifier-clean; PRs #581, #582, #585-#587, #591, #593, and #595 refreshed the standby evidence after #576-#584; PR #609 resolves issue #549 by explicitly keeping the paused standby state until a future non-release lane is selected. | Complete. |
-| Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-05-30. | Covered at audit time. |
+| Current active goal complete/paused/superseded before new goal. | `query-upstream-differential` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest; #617 is the current research board; #598 and #325 are the only blocked decision/evidence lanes. | Complete. |
+| Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-05-31. | Covered at audit time. |
 
 ## Current evidence snapshot
 
@@ -119,6 +115,10 @@ Recent merged PRs:
 - #609: `docs(goal): keep forge standby paused`
 - #610: `ci: enrich cx53 runner diagnostics`
 - #611: `ci: add cx53 rust-large diagnostic`
+- #642: `docs(adoption): add first-use route map`
+- #644: `docs(governance): select query differential lane`
+- #645: `test(query): add upstream differential canary`
+- #646: `docs(governance): close query differential lane`
 
 Current active manifest:
 
@@ -126,6 +126,7 @@ Current active manifest:
 .adze/goals/active.toml
   id = "adze-swarm-forge-standby"
   status = "paused"
+  board = "adze-swarm#617"
 ```
 
 Current live blockers:
@@ -142,7 +143,7 @@ EffortlessMetrics/adze-swarm open PRs: none
 EffortlessMetrics/adze open PRs: none
 ```
 
-Current branch-protection receipt on 2026-05-30:
+Current branch-protection receipt on 2026-05-31:
 
 ```text
 gh api repos/EffortlessMetrics/adze-swarm/branches/main/protection/required_status_checks
