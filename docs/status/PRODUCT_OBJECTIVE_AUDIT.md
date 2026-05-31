@@ -591,12 +591,12 @@ Do not mark the product objective complete while any of these are true:
 - `cargo install adze-cli` has no crates.io install receipt.
 - The root README dependency block is release-surface-bounded because
   `adze-tool` does not yet have a crates.io metadata receipt.
-- Public `adze/main` is not tree-identical to current `adze-swarm/main`; after
-  the 2026-05-30 post-query-boundary refresh, `origin/main` is
-  `d3669602c812519ef6a6e4a7d84055f4817bcf6e` and `public/main` is
-  `6263c6a80046d13fb98e3ad319dfe726f32f1010`, with 409 changed paths between
-  them. An explicit public promotion PR is required before any authorized
-  publish from the public release surface.
+- Public `adze/main` is not tree-identical to current `adze-swarm/main`.
+  Latest live drift receipts are tracked on
+  [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325)
+  because a status PR that records a concrete comparison changes
+  `adze-swarm/main` as soon as it merges. An explicit public promotion PR is
+  required before any authorized publish from the public release surface.
 - Corpus-wide external-scanner recovery parity remains future work and is not
   a Stable claim.
 - GLR conflict routing, structured parse errors, Tree-sitter compatibility,
