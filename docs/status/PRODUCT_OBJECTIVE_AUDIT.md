@@ -7,18 +7,20 @@ parser/runtime maintainability, CLI parse-surface, static S-expression, static
 JSON/DOT, dynamic parse boundary, adoption-hardening, release-candidate bundle,
 post-adoption standby hygiene, and stale-queue control-plane follow-up lanes
 are closed out. The latest #617 research-board pass is also closed out through
-the #646 query differential lane closeout plus the #647/#651 standby/policy
-refreshes, and `active.toml` is paused as `adze-swarm-forge-standby` with no
-active or ready implementation lane selected. Release/publish work remains
-separate and blocked on explicit
+the #646 query differential lane closeout plus the #647/#651/#652
+standby/policy refreshes, and `active.toml` is paused as
+`adze-swarm-forge-standby` with no active or ready implementation lane
+selected. Release/publish work remains separate and blocked on explicit
 authorization in adze-swarm#325; the CX53 runner investigation remains blocked
-on adze-swarm#598; and the current research board is tracked by
+on adze-swarm#598 pending admin/runner context; and the current research board is tracked by
 adze-swarm#617 with no unblocked implementation lane. The adoption hardening
 research in adze-swarm#638, Tree-sitter/query gap research in #639,
 performance receipt strategy in #640, and self-hosted routing guard research
 in #649 are closed; #641 was implemented by #642, #643 was implemented by #645
-with #646 closeout, #647 restored forge standby status, and #651 aligned
-route-runner policy text without changing routing behavior.
+with #646 closeout, #647 restored forge standby status, #651 aligned
+route-runner policy text without changing routing behavior, and #652 refreshed
+checked-in standby state after those receipts. The latest #325 packet records
+current drift and missing crates.io metadata without authorizing release.
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
 
