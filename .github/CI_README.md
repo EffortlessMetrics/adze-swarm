@@ -29,11 +29,11 @@ Jobs are classified into three visibility tiers:
 7. **Deep lanes** - Feature matrix, OS matrix, coverage, benchmarks, fuzzing, security, docs, and advisory product proof; scheduled, manual, label, or path-routed unless explicitly promoted.
 8. **CX53 Rust Large Diagnostic** - Manual-only runner burn-in probe for #598; it checks CX53 `rust-large` candidate visibility before running a selected host-smoke job.
 
-Routing, path detection, no-capacity diagnostics, and aggregate result checks
-are allowed to use hosted control-plane runners so branch protection does not
-consume scarce self-hosted slots before selecting real work. Rust and product
-canary execution remains self-hosted unless the existing explicit fallback path
-is selected.
+Routing, path detection, source-of-truth policy checks, no-capacity diagnostics,
+and aggregate result checks are allowed to use hosted control-plane runners so
+branch protection and advisory policy checks do not consume scarce self-hosted
+slots before selecting real work. Rust and product canary execution remains
+self-hosted unless the existing explicit fallback path is selected.
 
 ## Manual CI triggers
 
