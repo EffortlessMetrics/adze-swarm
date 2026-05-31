@@ -10,7 +10,9 @@ concurrency:
 
 jobs:
   parity:
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx53, rust-large, trusted-pr]
     continue-on-error: true # Non-blocking job
     permissions:
       contents: read

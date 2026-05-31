@@ -119,7 +119,7 @@ jobs:
     if: needs.detect-stable-product-paths.outputs.run_stable == 'true'
     runs-on:
       group: em-ci-small
-      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     steps:
       - uses: actions/checkout@v6.0.2
 
@@ -180,7 +180,7 @@ jobs:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.lane == 'all')
     runs-on:
       group: em-ci-small
-      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6.0.2

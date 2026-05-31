@@ -62,9 +62,20 @@ jobs:
             echo '```';
           } >> "$GITHUB_STEP_SUMMARY"
 
+  self-hosted-routing-policy:
+    name: Self-hosted Routing Policy
+    needs: ci-lane-whitelist
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Check self-hosted runner routing
+        run: scripts/ci/check-self-hosted-routing.sh
+
   source-of-truth:
     name: Source of Truth
-    needs: ci-lane-whitelist
+    needs: [ci-lane-whitelist, self-hosted-routing-policy]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10

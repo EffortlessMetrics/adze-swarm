@@ -36,7 +36,9 @@ jobs:
       github.event.action != 'labeled' ||
       github.event.label.name == 'full-ci' ||
       github.event.label.name == 'platform-matrix'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     timeout-minutes: 2
     outputs:
       os: ${{ steps.compute.outputs.os }}
@@ -65,7 +67,9 @@ jobs:
     strategy:
       matrix:
         os: ${{ fromJson(needs.matrix-setup.outputs.os) }}
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable

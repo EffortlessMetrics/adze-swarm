@@ -28,7 +28,9 @@ jobs:
       github.event.label.name == 'ci:golden' ||
       github.event.label.name == 'full-ci' ||
       github.event.label.name == 'skip-golden'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     timeout-minutes: 3
     outputs:
       grammar_changed: ${{ steps.detect.outputs.grammar_changed }}
@@ -63,7 +65,9 @@ jobs:
         needs.paths.outputs.grammar_changed == 'true' &&
         !contains(github.event.pull_request.labels.*.name, 'skip-golden')
       )
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     strategy:
       matrix:
         language: [python, javascript]

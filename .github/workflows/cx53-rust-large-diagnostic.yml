@@ -15,7 +15,7 @@ jobs:
     name: Probe CX53 Rust Large Capacity
     runs-on:
       group: em-ci-small
-      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
+      labels: [self-hosted, linux, x64, em-ci, cx53, rust-large, trusted-pr]
     timeout-minutes: 5
 
     outputs:

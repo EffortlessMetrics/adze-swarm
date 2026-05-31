@@ -291,6 +291,15 @@ jobs:
           }
 
           set +e
+          cx43="$(count_idle "$eligible_runner_json" cx43 rust-medium)"
+          parse_exit=$?
+          set -e
+          if [ "$parse_exit" -ne 0 ] || ! printf '%s' "$cx43" | grep -Eq '^[0-9]+$'; then
+            echo "runner JSON parse failed for cx43 (exit=${parse_exit}): ${cx43}"
+            fallback_github "parse_failed"
+          fi
+
+          set +e
           cpx42="$(count_idle "$eligible_runner_json" cpx42 rust-medium rust-16gb)"
           parse_exit=$?
           set -e
@@ -300,25 +309,7 @@ jobs:
           fi
 
           set +e
-          cx43="$(count_idle "$eligible_runner_json" cx43 rust-small)"
-          parse_exit=$?
-          set -e
-          if [ "$parse_exit" -ne 0 ] || ! printf '%s' "$cx43" | grep -Eq '^[0-9]+$'; then
-            echo "runner JSON parse failed for cx43 (exit=${parse_exit}): ${cx43}"
-            fallback_github "parse_failed"
-          fi
-
-          set +e
-          cx33="$(count_idle "$eligible_runner_json" cx33 rust-small)"
-          parse_exit=$?
-          set -e
-          if [ "$parse_exit" -ne 0 ] || ! printf '%s' "$cx33" | grep -Eq '^[0-9]+$'; then
-            echo "runner JSON parse failed for cx33 (exit=${parse_exit}): ${cx33}"
-            fallback_github "parse_failed"
-          fi
-
-          set +e
-          cx53="$(count_idle "$eligible_runner_json" cx53 rust-small)"
+          cx53="$(count_idle "$eligible_runner_json" cx53 rust-large)"
           parse_exit=$?
           set -e
           if [ "$parse_exit" -ne 0 ] || ! printf '%s' "$cx53" | grep -Eq '^[0-9]+$'; then
@@ -329,44 +320,36 @@ jobs:
           if [ -n "$group_eligibility_reason" ]; then
             echo "selected-lane group eligibility unresolved: ${group_eligibility_reason}"
           fi
+          echo "cx43 idle rust-medium runners in ${required_runner_group}: ${cx43}"
           echo "cpx42 idle rust-medium rust-16gb runners in ${required_runner_group}: ${cpx42}"
-          echo "cx43 idle rust-small runners in ${required_runner_group}: ${cx43}"
-          echo "cx33 idle rust-small runners in ${required_runner_group}: ${cx33}"
-          echo "cx53 idle rust-small runners in ${required_runner_group} (quarantined): ${cx53}"
+          echo "cx53 idle rust-large runners in ${required_runner_group}: ${cx53}"
+          summarize_candidates cx43 rust-medium
           summarize_candidates cpx42 rust-medium rust-16gb
-          summarize_candidates cx43 rust-small
-          summarize_candidates cx33 rust-small
-          summarize_candidates cx53 rust-small
           summarize_candidates cx53 rust-large
+          summarize_eligible_candidates cx43 rust-medium
           summarize_eligible_candidates cpx42 rust-medium rust-16gb
-          summarize_eligible_candidates cx43 rust-small
-          summarize_eligible_candidates cx33 rust-small
-          summarize_eligible_candidates cx53 rust-small
           summarize_eligible_candidates cx53 rust-large
-          if [ "$cx53" -gt 0 ]; then
-            echo "cx53 rust-small candidates are visible but not selected while adze-swarm#598 is blocked"
-          fi
 
-          if [ "$cpx42" -gt 0 ]; then
-            echo "router_target=cpx42"
-            echo "router_error=false"
-            echo "router_reason=cpx42_idle"
-            echo "target=cpx42" >> "$GITHUB_OUTPUT"
-            echo "target_reason=cpx42_idle" >> "$GITHUB_OUTPUT"
-            echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
-          elif [ "$cx43" -gt 0 ]; then
+          if [ "$cx43" -gt 0 ]; then
             echo "router_target=cx43"
             echo "router_error=false"
             echo "router_reason=cx43_idle"
             echo "target=cx43" >> "$GITHUB_OUTPUT"
             echo "target_reason=cx43_idle" >> "$GITHUB_OUTPUT"
             echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
-          elif [ "$cx33" -gt 0 ]; then
-            echo "router_target=cx33"
+          elif [ "$cpx42" -gt 0 ]; then
+            echo "router_target=cpx42"
             echo "router_error=false"
-            echo "router_reason=cx33_idle"
-            echo "target=cx33" >> "$GITHUB_OUTPUT"
-            echo "target_reason=cx33_idle" >> "$GITHUB_OUTPUT"
+            echo "router_reason=cpx42_idle"
+            echo "target=cpx42" >> "$GITHUB_OUTPUT"
+            echo "target_reason=cpx42_idle" >> "$GITHUB_OUTPUT"
+            echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
+          elif [ "$cx53" -gt 0 ]; then
+            echo "router_target=cx53"
+            echo "router_error=false"
+            echo "router_reason=cx53_idle"
+            echo "target=cx53" >> "$GITHUB_OUTPUT"
+            echo "target_reason=cx53_idle" >> "$GITHUB_OUTPUT"
             echo "fallback_allowed=false" >> "$GITHUB_OUTPUT"
           else
             echo "router_target=github"
@@ -463,7 +446,7 @@ jobs:
 
     runs-on:
       group: em-ci-small
-      labels: [self-hosted, linux, x64, em-ci, cx43, rust-small, trusted-pr]
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
 
     timeout-minutes: 45
 
@@ -554,72 +537,6 @@ jobs:
           rmdir "${TMPDIR}" "${CARGO_TARGET_DIR}" "${CARGO_HOME}" 2>/dev/null || true
           df -h / /mnt/docker /mnt/actions /mnt/ci-scratch /mnt/ci-cache /mnt/ci-artifacts || true
 
-  rust-small-cx33:
-    name: Rust Small on CX33
-    needs: route-rust-small
-    if: needs.route-rust-small.outputs.target == 'cx33'
-
-    runs-on:
-      group: em-ci-small
-      labels: [self-hosted, linux, x64, em-ci, cx33, rust-small, trusted-pr]
-
-    timeout-minutes: 45
-
-    env:
-      JOB_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-
-      # Keep Cargo registry/source downloads job-scoped. Shared Cargo homes can
-      # be poisoned by mixed native/container ownership on self-hosted runners.
-      CARGO_HOME: /mnt/ci-scratch/cargo-home/${{ github.run_id }}-${{ github.run_attempt }}
-      CARGO_INCREMENTAL: "0"
-      CARGO_BUILD_JOBS: "2"
-
-      TMPDIR: /mnt/ci-scratch/tmp/${{ github.run_id }}-${{ github.run_attempt }}
-      CARGO_TARGET_DIR: /mnt/ci-scratch/target/${{ github.run_id }}-${{ github.run_attempt }}
-
-    steps:
-      - name: Guard disk
-        run: |
-          set -euo pipefail
-          ci-disk-guard /mnt/ci-scratch 25
-          ci-disk-guard /mnt/docker 5
-          ci-disk-guard /mnt/ci-cache 5
-
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 1
-
-      - name: Prepare scratch
-        run: |
-          set -euo pipefail
-          mkdir -p "$TMPDIR" "$CARGO_TARGET_DIR" "$CARGO_HOME"
-
-      - name: Install Rust 1.95.0
-        uses: dtolnay/rust-toolchain@v1
-        with:
-          toolchain: 1.95.0
-          components: rustfmt, clippy
-
-      - name: Preflight disk and toolchain
-        run: |
-          set -euo pipefail
-          df -h /mnt/ci-scratch /mnt/docker /mnt/ci-cache || true
-          rustc --version
-          cargo --version
-          if command -v python3 >/dev/null 2>&1; then python3 --version; fi
-
-      - name: Run Rust small gate
-        run: |
-          set -euo pipefail
-          cargo fetch --locked
-          cargo check --workspace --locked
-
-      - name: Cleanup scratch
-        if: always()
-        run: |
-          rm -rf "$TMPDIR" "$CARGO_TARGET_DIR" "$CARGO_HOME"
-          df -h / /mnt/docker /mnt/actions /mnt/ci-scratch /mnt/ci-cache /mnt/ci-artifacts || true
-
   rust-small-cx53:
     name: Rust Small on CX53
     needs: route-rust-small
@@ -627,7 +544,7 @@ jobs:
 
     runs-on:
       group: em-ci-small
-      labels: [self-hosted, linux, x64, em-ci, cx53, rust-small, trusted-pr]
+      labels: [self-hosted, linux, x64, em-ci, cx53, rust-large, trusted-pr]
 
     timeout-minutes: 45
 
@@ -773,7 +690,6 @@ jobs:
       - route-rust-small
       - rust-small-cpx42
       - rust-small-cx43
-      - rust-small-cx33
       - rust-small-cx53
       - rust-small-github
     if: >-
@@ -781,7 +697,6 @@ jobs:
       needs.route-rust-small.result != 'cancelled' &&
       needs.rust-small-cpx42.result != 'cancelled' &&
       needs.rust-small-cx43.result != 'cancelled' &&
-      needs.rust-small-cx33.result != 'cancelled' &&
       needs.rust-small-cx53.result != 'cancelled' &&
       needs.rust-small-github.result != 'cancelled' &&
       (
@@ -802,7 +717,6 @@ jobs:
           target="${{ needs.route-rust-small.outputs.target }}"
           cpx42="${{ needs.rust-small-cpx42.result }}"
           cx43="${{ needs.rust-small-cx43.result }}"
-          cx33="${{ needs.rust-small-cx33.result }}"
           cx53="${{ needs.rust-small-cx53.result }}"
           gh="${{ needs.rust-small-github.result }}"
           fallback_allowed="${{ needs.route-rust-small.outputs.fallback_allowed }}"
@@ -813,7 +727,6 @@ jobs:
           echo "fallback_allowed=${fallback_allowed}"
           echo "cpx42=${cpx42}"
           echo "cx43=${cx43}"
-          echo "cx33=${cx33}"
           echo "cx53=${cx53}"
           echo "github=${gh}"
 
@@ -823,9 +736,6 @@ jobs:
               ;;
             cx43)
               test "$cx43" = "success"
-              ;;
-            cx33)
-              test "$cx33" = "success"
               ;;
             cx53)
               test "$cx53" = "success"

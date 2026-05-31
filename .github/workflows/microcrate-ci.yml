@@ -28,7 +28,9 @@ jobs:
       github.event.action != 'labeled' ||
       github.event.label.name == 'full-ci' ||
       github.event.label.name == 'ci:microcrate'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     timeout-minutes: 3
     outputs:
       run_all: ${{ steps.detect.outputs.run_all }}
@@ -117,7 +119,9 @@ jobs:
     name: Formatting
     needs: changes
     if: needs.changes.outputs.fmt == 'true'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -130,7 +134,9 @@ jobs:
     name: Docs Build
     needs: changes
     if: needs.changes.outputs.docs == 'true'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -147,7 +153,9 @@ jobs:
     name: WASM Build (core crates)
     needs: changes
     if: needs.changes.outputs.wasm == 'true'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -172,7 +180,9 @@ jobs:
     name: Strict Features (${{ matrix.features }})
     needs: changes
     if: needs.changes.outputs.strict == 'true'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     strategy:
       fail-fast: false
       matrix:
@@ -233,7 +243,9 @@ jobs:
     name: Test Concurrency Crates
     needs: changes
     if: needs.changes.outputs.concurrency == 'true'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -248,7 +260,9 @@ jobs:
     name: Test Governance Crates
     needs: changes
     if: needs.changes.outputs.governance == 'true'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -265,7 +279,9 @@ jobs:
     name: Test BDD Crates
     needs: changes
     if: needs.changes.outputs.bdd == 'true'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -283,7 +299,9 @@ jobs:
     name: Test Parser Crates
     needs: changes
     if: needs.changes.outputs.parser == 'true'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -301,7 +319,9 @@ jobs:
     name: Test Core Crates (ir, glr-core, tablegen)
     needs: changes
     if: needs.changes.outputs.core == 'true'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
@@ -321,7 +341,9 @@ jobs:
     name: Test Runtime Crates
     needs: changes
     if: needs.changes.outputs.runtime == 'true'
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, cx43, rust-medium, trusted-pr]
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
