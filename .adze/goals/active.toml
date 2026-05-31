@@ -1,8 +1,18 @@
 id = "query-upstream-differential"
 title = "Query Upstream Differential Canary"
-status = "active"
+status = "paused"
 owner = "runtime/query"
 created = "2026-05-31"
+
+pause_reason = """
+The #643 upstream query differential proof spike completed through #645 and no
+query-differential work items remain ready or active. The campaign closeout is
+recorded in plans/query-upstream-differential/closeout.md, and future work
+should be selected from the #617 research board or a fresh bounded issue. This
+paused state does not authorize public adze work, release, publish, signing,
+Cargo-token, or crates.io install receipt work. Release remains blocked on
+#325, and CX53 runner readiness remains blocked on #598.
+"""
 
 objective = """
 Add the first upstream Tree-sitter query differential canary for the documented

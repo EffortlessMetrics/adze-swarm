@@ -13,7 +13,7 @@ explicit comparison between upstream Tree-sitter captures and Adze captures.
 """
 
 handoff = """
-This is a non-release adze-swarm lane selected from the research board in
+This non-release adze-swarm lane was selected from the research board in
 EffortlessMetrics/adze-swarm#617 and the bounded proof issue
 EffortlessMetrics/adze-swarm#643. It does not authorize full query parity,
 support-tier promotion, public adze development, release, publish, signing,
@@ -38,6 +38,7 @@ spec = "ADZE-SPEC-0013"
 adr = "ADZE-ADR-0001"
 plan = "plans/query-upstream-differential/implementation-plan.md"
 issues = [617, 643]
+prs = [644]
 commands = [
   "python -c \"import tomllib; tomllib.load(open('.adze/goals/active.toml', 'rb')); tomllib.load(open('.adze/goals/query-upstream-differential.toml', 'rb')); tomllib.load(open('policy/doc-artifacts.toml', 'rb'))\"",
   "cargo run -q -p xtask -- check-active-goal --mode blocking",
@@ -55,6 +56,7 @@ spec = "ADZE-SPEC-0013"
 adr = "ADZE-ADR-0001"
 plan = "plans/query-upstream-differential/implementation-plan.md"
 issues = [643]
+prs = [645]
 commands = [
   "cargo test -p adze --features query --lib query::compiler::tests::test_query_with_tree_sitter_postfix_capture -- --exact --nocapture",
   "cargo test -p adze --features \"pure-rust,ts-compat,query,with-grammars\" --test upstream_query_differential -- --nocapture",
