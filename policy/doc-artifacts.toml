@@ -1698,3 +1698,39 @@ links_to = [
   "plans/adze-adoption-hardening/implementation-plan.md",
   "plans/adze-adoption-hardening/closeout.md",
 ]
+
+[[artifact]]
+id = "plans/query-upstream-differential/implementation-plan.md"
+kind = "plan"
+path = "plans/query-upstream-differential/implementation-plan.md"
+status = "active"
+owner = "runtime/query"
+milestone = "post-0.9"
+source_of_truth_for = ["upstream Tree-sitter query differential proof spike"]
+links_to = [
+  "ADZE-PROP-0008",
+  "ADZE-SPEC-0013",
+  "ADZE-ADR-0001",
+  ".adze/goals/active.toml",
+  ".adze/goals/query-upstream-differential.toml",
+  "docs/reference/query-compatibility.md",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/query-upstream-differential.toml"
+kind = "goal"
+path = ".adze/goals/query-upstream-differential.toml"
+status = "active"
+owner = "runtime/query"
+milestone = "post-0.9"
+source_of_truth_for = ["upstream Tree-sitter query differential agent work queue"]
+links_to = [
+  "ADZE-PROP-0008",
+  "ADZE-SPEC-0013",
+  "ADZE-ADR-0001",
+  "plans/query-upstream-differential/implementation-plan.md",
+  ".adze/goals/active.toml",
+  "docs/reference/query-compatibility.md",
+  "docs/status/SUPPORT_TIERS.md",
+]
