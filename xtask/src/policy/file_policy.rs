@@ -14,7 +14,10 @@ use std::path::Path;
 use super::{Mode, ensure_report_dir, workspace_root};
 
 #[derive(Debug, Default, Deserialize)]
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "schema_version is deserialized to keep the allowlist schema explicit"
+)]
 struct AllowlistFile {
     #[serde(default)]
     schema_version: Option<String>,
