@@ -74,11 +74,12 @@ Each PR must:
 
 `adze-swarm` defaults to self-hosted execution. GitHub Actions remains the
 orchestrator, but default PR proof should run on project-controlled runners.
-Hosted control-plane jobs that only route work, detect changed paths, report
-no-capacity policy, or aggregate required contexts are an explicit exception so
-branch protection does not spend scarce self-hosted slots before actual work is
-selected. Rust and product-canary execution remains self-hosted unless an
-explicit fallback exception is selected.
+Hosted control-plane jobs that only route work, detect changed paths, check
+source-of-truth policy, report no-capacity policy, or aggregate required
+contexts are an explicit exception so branch protection and advisory policy
+checks do not spend scarce self-hosted slots before actual work is selected.
+Rust and product-canary execution remains self-hosted unless an explicit
+fallback exception is selected.
 
 Required base gate:
 

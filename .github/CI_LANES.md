@@ -59,9 +59,9 @@ Required branch protection contexts: `Rust Small Result`, `Product Proof Result`
 | `ci.yml` | `semver-checks` | PR only | PR-only | Detects breaking API changes |
 | `ci.yml` | `api-stability` | PR only | PR-only | `cargo-public-api` diff; `continue-on-error` |
 | `ci.yml` | `package-validation` | PR only | PR-only | Validates package manifests for release surface |
-| `ci-policy.yml` | `CI Lane Whitelist` | PR + push | Advisory | xtask lane whitelist lint; first serialized policy job |
-| `ci-policy.yml` | `Source of Truth` | PR + push | Advisory | doc-artifacts and active-goal ledger checks; waits for `CI Lane Whitelist` and skips after cancellation |
-| `ci-policy.yml` | `GLR Invariants` | PR + push | Advisory | GOTO indexing guard; waits for `Source of Truth` and skips after cancellation |
+| `ci-policy.yml` | `CI Lane Whitelist` | PR + push | Advisory | Hosted control-plane xtask lane whitelist lint; first serialized policy job |
+| `ci-policy.yml` | `Source of Truth` | PR + push | Advisory | Hosted control-plane doc-artifacts and active-goal ledger checks; waits for `CI Lane Whitelist` and skips after cancellation |
+| `ci-policy.yml` | `GLR Invariants` | PR + push | Advisory | Hosted control-plane GOTO indexing guard; waits for `Source of Truth` and skips after cancellation |
 | `ripr.yml` | `ripr advisory` | PR | PR-only | Advisory report; non-blocking; `pull_request.closed` cancels stale same-PR runs and skips advisory work |
 
 ### Push / scheduled (main health, not PR-blocking)
