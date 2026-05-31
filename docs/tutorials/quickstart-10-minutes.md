@@ -100,6 +100,17 @@ assert!(!document.diagnostics().is_empty());
 
 ## What To Read Next
 
+Choose the next page by the job you are doing:
+
+| Goal | Next page | Boundary |
+| --- | --- | --- |
+| Build an application around typed Rust values | [Which API Should I Use?](../reference/which-api-should-i-use.md) | Start with `grammar::parse(source)` for the Stable typed-parser path. |
+| Add tooling diagnostics, ranges, or projection data | [Diagnostics And Recovery](../reference/diagnostics-and-recovery.md) | Use `grammar::parse_document(source)` so diagnostics and projections come from the same `AdzeDocument`. |
+| Bring Tree-sitter-shaped tooling to Adze | [Migrating From Tree-sitter](../reference/migrating-from-tree-sitter.md) | Tree-sitter compatibility is a selected-tree adapter, not a full parity claim. |
+| Match syntax with Tree-sitter-style queries | [Query Compatibility](../reference/query-compatibility.md) | Query support is a documented subset with explicit known gaps. |
+| Use CLI commands beyond the starter | [`adze-cli` README](../../cli/README.md) | CLI flows are scoped to the current support-tier rows; release-surface `cargo install adze-cli` still needs the #325 crates.io install receipt. |
+| Check whether a surface is Stable | [Support Tiers](../status/SUPPORT_TIERS.md) | Do not broaden claims without a proof command and limitations row. |
+
 - [Mental Model](../explanations/mental-model.md) explains how Rust types,
   generated parsers, `parse()`, and `parse_document()` fit together.
 - [GLR Quickstart](./glr-quickstart.md) introduces ambiguous grammars.
