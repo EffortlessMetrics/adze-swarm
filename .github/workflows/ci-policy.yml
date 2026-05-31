@@ -66,6 +66,8 @@ jobs:
 
   source-of-truth:
     name: Source of Truth
+    needs: ci-lane-whitelist
+    if: ${{ !cancelled() }}
     runs-on:
       group: em-ci-small
       labels: [self-hosted, linux, x64, em-ci, trusted-pr]
@@ -121,6 +123,8 @@ jobs:
 
   glr-invariants:
     name: GLR Invariants
+    needs: source-of-truth
+    if: ${{ !cancelled() }}
     runs-on:
       group: em-ci-small
       labels: [self-hosted, linux, x64, em-ci, trusted-pr]

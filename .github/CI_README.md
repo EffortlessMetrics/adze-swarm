@@ -22,12 +22,18 @@ Jobs are classified into three visibility tiers:
 
 1. **Rust Small Result** - Required routed Rust Small aggregate check for ordinary swarm PRs.
 2. **Product Proof Result** - Required aggregate Stable-claim proof gate.
-3. **Route Rust Small** - Chooses CPX42, CX43, CX33, or explicit fallback; the route job runner is logged with `current=true` but excluded from idle counts, and CX53 rust-small plus planned rust-large candidate state is logged with label/group diagnostics but not selected while #598 is blocked.
+3. **Route Rust Small** - Hosted control-plane router that chooses CPX42, CX43, CX33, or explicit fallback; the route job runner is logged with `current=true` when it appears in the self-hosted runner list, and CX53 rust-small plus planned rust-large candidate state is logged with label/group diagnostics but not selected while #598 is blocked.
 4. **Rust Small implementation lanes** - Conditional implementation lanes; one selected lane runs when eligible capacity exists, while the others usually skip.
 5. **ci-supported** - Legacy public full-CI support lane; retained for schedule/manual dispatch in `ci.yml`.
 6. **Policy checks** - Source-of-truth and lane-whitelist guardrails.
 7. **Deep lanes** - Feature matrix, OS matrix, coverage, benchmarks, fuzzing, security, docs, and advisory product proof; scheduled, manual, label, or path-routed unless explicitly promoted.
 8. **CX53 Rust Large Diagnostic** - Manual-only runner burn-in probe for #598; it checks CX53 `rust-large` candidate visibility before running a selected host-smoke job.
+
+Routing, path detection, no-capacity diagnostics, and aggregate result checks
+are allowed to use hosted control-plane runners so branch protection does not
+consume scarce self-hosted slots before selecting real work. Rust and product
+canary execution remains self-hosted unless the existing explicit fallback path
+is selected.
 
 ## Manual CI triggers
 

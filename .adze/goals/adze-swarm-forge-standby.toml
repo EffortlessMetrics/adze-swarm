@@ -24,9 +24,15 @@ goal blockers, plus the Windows check-msrv shell-path fix and the Windows
 `just build` PDB collision fix. The CX53 Rust Small stale-queue follow-up
 remains tracked as a blocked CI investigation, with route candidate
 diagnostics, a temporary Rust Small route quarantine, label/group diagnostics,
-and route-runner self-count exclusion. The legacy PR Gate
-stale-queue follow-up is mitigated by PR-close cancellation, with PR body
-guidance preserved for avoiding accidental issue auto-close. No new
+and route-runner self-count exclusion. The legacy PR Gate and advisory
+aggregate stale-queue follow-up is reopened after #627/#628 receipts and
+remains tracked as a blocked CI investigation while post-merge CI Policy
+capacity is incomplete; CI Policy jobs are serialized to reduce self-hosted
+fan-out, and Rust Small Result records no-idle/no-fallback directly without
+waiting on the optional capacity diagnostic. Required routing, path detection,
+capacity diagnostics, and aggregate result reporting are recorded as hosted
+control-plane exceptions so Rust/product execution remains the self-hosted
+capacity consumer. No new
 non-release implementation lane is selected; EffortlessMetrics/adze-swarm#549
 is resolved by explicitly keeping this paused standby state until a future
 maintainer selects and records a fresh non-release lane.
@@ -47,8 +53,8 @@ end_state = [
   "adze-swarm remains the operating repo for development, proof, source-of-truth, CI, examples, docs-proof, runtime, tablegen, query, diagnostics, and performance work.",
   "public adze remains the release, public-intake, promotion, tag, publish, signing, Cargo-token, and crates.io receipt surface.",
   "No release tag, crate publish, signing, Cargo-token, or crates.io install-receipt work is authorized by this standby state.",
-  "Default adze-swarm PR proof remains self-hosted and normalized through Rust Small Result.",
-  "No GitHub-hosted fallback is introduced without an explicit recorded exception.",
+  "Default adze-swarm Rust/product execution remains self-hosted and normalized through Rust Small Result.",
+  "Hosted control-plane routing, path detection, capacity diagnostics, and aggregate result reporting are explicit exceptions; no GitHub-hosted Rust/product fallback is introduced without an explicit recorded exception.",
   "Heavy, advisory, coverage, benchmark, product-proof, and full-matrix lanes remain path-routed, labeled, scheduled, manually dispatched, or explicitly budgeted.",
   "AdzeDocument remains the canonical parse product; public views remain projections over that document.",
   "No cargo-install, Tree-sitter parity, query parity, incremental performance, GLR generality, or benchmark performance claim is broadened without a real receipt.",
@@ -169,18 +175,20 @@ commands = [
 
 [[work_item]]
 id = "pr-gate-stale-queue-investigation"
-status = "complete"
+status = "blocked"
 proposal = "docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md"
 spec = ".github/CI_LANES.md"
 adr = ""
 plan = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
 issues = [604]
-prs = [605, 606, 628]
+prs = [605, 606, 628, 629]
 commands = [
   "gh run view 26686105597 --repo EffortlessMetrics/adze-swarm --json databaseId,displayTitle,event,status,conclusion,headBranch,headSha,jobs,url",
   "gh run view 26686785491 --repo EffortlessMetrics/adze-swarm --json databaseId,displayTitle,event,status,conclusion,headBranch,headSha,jobs,url",
   "gh run view 26688146110 --repo EffortlessMetrics/adze-swarm --json databaseId,displayTitle,event,status,conclusion,headBranch,headSha,jobs,url",
   "gh pr checks 606 --repo EffortlessMetrics/adze-swarm",
+  "gh pr checks 628 --repo EffortlessMetrics/adze-swarm",
+  "gh run view 26703643323 --repo EffortlessMetrics/adze-swarm --json status,conclusion,jobs",
   "gh run list --repo EffortlessMetrics/adze-swarm --status queued --limit 20 --json databaseId,displayTitle,workflowName,headBranch,event,status,conclusion,createdAt,updatedAt,url",
 ]
 
