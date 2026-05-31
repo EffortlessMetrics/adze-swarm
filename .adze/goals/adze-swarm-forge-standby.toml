@@ -6,12 +6,15 @@ created = "2026-05-31"
 
 pause_reason = """
 The #643 upstream query differential proof spike completed through #645 and
-the #646 closeout archived that lane. No non-release implementation work item
-is currently active or ready. The current operating board is #617, release
-authorization and crates.io install receipt work remain blocked on #325, and
-CX53 runner readiness remains blocked on #598. This paused state does not
-authorize public adze work, release, publish, signing, Cargo-token, hosted
-fallback restoration, or crates.io install receipt work.
+the #646 closeout archived that lane. #647 restored checked-in forge standby
+status, #649 researched the self-hosted routing guard question from the closed
+broad #648 proposal, and #651 aligned the route-runner policy text with the
+current #598/#607 quarantine behavior without changing routing. No non-release
+implementation work item is currently active or ready. The current operating
+board is #617, release authorization and crates.io install receipt work remain
+blocked on #325, and CX53 runner readiness remains blocked on #598. This
+paused state does not authorize public adze work, release, publish, signing,
+Cargo-token, hosted fallback restoration, or crates.io install receipt work.
 """
 
 objective = """
@@ -48,8 +51,8 @@ proposal = ""
 spec = "docs/reference/SPEC_SYSTEM.md"
 adr = "docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md"
 plan = "docs/status/ADZE_SWARM_FORGE_AUDIT.md"
-issues = [617, 638, 639, 640, 641, 643]
-prs = [642, 644, 645, 646]
+issues = [617, 638, 639, 640, 641, 643, 649]
+prs = [642, 644, 645, 646, 647, 651]
 commands = [
   "gh pr list --repo EffortlessMetrics/adze-swarm --state open",
   "gh pr list --repo EffortlessMetrics/adze --state open",
