@@ -169,6 +169,10 @@ commands = [
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 2 --json status,conclusion,url,createdAt,updatedAt,jobs",
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 1 --job 78648771377 --log",
   "gh run view 26683902530 --repo EffortlessMetrics/adze-swarm --attempt 2 --job 78650477316 --log",
+  "gh run view 26706477535 --repo EffortlessMetrics/adze-swarm --json databaseId,workflowName,event,headBranch,headSha,status,conclusion,createdAt,updatedAt,jobs,url",
+  "gh run view 26706477535 --repo EffortlessMetrics/adze-swarm --job 78708609308 --log",
+  "gh api repos/EffortlessMetrics/adze/actions/jobs/78695940562",
+  "gh issue view 598 --repo EffortlessMetrics/adze-swarm --json number,title,body,updatedAt,url",
 ]
 
 [[work_item]]
