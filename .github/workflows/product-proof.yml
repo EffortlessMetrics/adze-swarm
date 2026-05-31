@@ -69,9 +69,7 @@ concurrency:
 jobs:
   detect-stable-product-paths:
     name: Detect Product Proof Paths
-    runs-on:
-      group: em-ci-small
-      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
+    runs-on: ubuntu-latest
     outputs:
       run_stable: ${{ steps.detect.outputs.run_stable }}
       reason: ${{ steps.detect.outputs.reason }}
@@ -145,9 +143,7 @@ jobs:
       always() &&
       needs.detect-stable-product-paths.result != 'cancelled' &&
       needs.ci-product-stable.result != 'cancelled'
-    runs-on:
-      group: em-ci-small
-      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
+    runs-on: ubuntu-latest
     steps:
       - name: Aggregate Product Proof result
         shell: bash

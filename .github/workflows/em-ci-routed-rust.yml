@@ -16,9 +16,7 @@ permissions:
 jobs:
   route-rust-small:
     name: Route Rust Small
-    runs-on:
-      group: em-ci-small
-      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
 
     if: >-
@@ -62,7 +60,7 @@ jobs:
 
           for tool in curl python3; do
             if ! command -v "$tool" >/dev/null 2>&1; then
-              echo "required self-hosted routing tool is missing: $tool"
+              echo "required routing tool is missing: $tool"
               fallback_github "runner_tool_missing_${tool}"
             fi
           done
@@ -75,9 +73,9 @@ jobs:
           runner_json="$(mktemp)"
           runner_groups_json="$(mktemp)"
           current_runner="${RUNNER_NAME:-}"
-          echo "route job runner: ${current_runner:-unknown}"
+          echo "control-plane route runner: ${current_runner:-unknown}"
           if [ -n "$current_runner" ]; then
-            echo "route job runner is excluded from idle counts"
+            echo "route runner is excluded from idle counts if it appears in the self-hosted runner list"
           fi
           trap 'rm -f "$runner_json" "$runner_groups_json"' EXIT
 
@@ -628,7 +626,7 @@ jobs:
     needs: route-rust-small
     if: needs.route-rust-small.outputs.target == 'github' && needs.route-rust-small.outputs.fallback_allowed == 'true'
 
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
@@ -660,9 +658,7 @@ jobs:
     name: Runner Capacity / Fallback Policy
     needs: route-rust-small
     if: needs.route-rust-small.outputs.target == 'github' && needs.route-rust-small.outputs.fallback_allowed != 'true'
-    runs-on:
-      group: em-ci-small
-      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
+    runs-on: ubuntu-latest
     steps:
       - name: Fail with explicit routing policy message
         run: |
@@ -682,7 +678,6 @@ jobs:
       - rust-small-cx33
       - rust-small-cx53
       - rust-small-github
-      - runner-capacity-exhausted
     if: >-
       always() &&
       needs.route-rust-small.result != 'cancelled' &&
@@ -691,7 +686,6 @@ jobs:
       needs.rust-small-cx33.result != 'cancelled' &&
       needs.rust-small-cx53.result != 'cancelled' &&
       needs.rust-small-github.result != 'cancelled' &&
-      needs.runner-capacity-exhausted.result != 'cancelled' &&
       (
         github.event_name == 'workflow_dispatch' ||
         github.event_name == 'merge_group' ||
@@ -700,9 +694,7 @@ jobs:
           github.event.pull_request.head.repo.full_name == github.repository
         )
       )
-    runs-on:
-      group: em-ci-small
-      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Check selected lane
@@ -715,15 +707,17 @@ jobs:
           cx33="${{ needs.rust-small-cx33.result }}"
           cx53="${{ needs.rust-small-cx53.result }}"
           gh="${{ needs.rust-small-github.result }}"
-          capacity="${{ needs.runner-capacity-exhausted.result }}"
+          fallback_allowed="${{ needs.route-rust-small.outputs.fallback_allowed }}"
+          target_reason="${{ needs.route-rust-small.outputs.target_reason }}"
 
           echo "target=${target}"
+          echo "target_reason=${target_reason}"
+          echo "fallback_allowed=${fallback_allowed}"
           echo "cpx42=${cpx42}"
           echo "cx43=${cx43}"
           echo "cx33=${cx33}"
           echo "cx53=${cx53}"
           echo "github=${gh}"
-          echo "capacity=${capacity}"
 
           case "$target" in
             cpx42)
@@ -739,10 +733,12 @@ jobs:
               test "$cx53" = "success"
               ;;
             github)
-              if [ "${{ needs.route-rust-small.outputs.fallback_allowed }}" = "true" ]; then
+              if [ "$fallback_allowed" = "true" ]; then
                 test "$gh" = "success"
               else
-                test "$capacity" = "failure"
+                echo "::notice::No trusted Rust Small runner was idle and GitHub-hosted fallback was not allowed."
+                echo "::notice::target_reason=${target_reason}"
+                exit 0
               fi
               ;;
             *)
