@@ -1,0 +1,62 @@
+name: Droid PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: droid-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  droid-review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Configure MiniMax M3 for Droid BYOK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.factory"
+
+          cat > "$HOME/.factory/settings.json" <<'JSON'
+          {
+            "customModels": [
+              {
+                "model": "MiniMax-M3",
+                "displayName": "MiniMax-M3",
+                "baseUrl": "https://api.minimax.io/anthropic",
+                "apiKey": "${MINIMAX_API_KEY}",
+                "provider": "anthropic",
+                "maxOutputTokens": 64000
+              }
+            ]
+          }
+          JSON
+
+      - name: Run Droid Auto Review
+        uses: EffortlessMetrics/droid-action-safe@01e76b659e4b1e5f23feedc8cfabf8dc14c7485f
+        env:
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          ANTHROPIC_AUTH_TOKEN: ""
+          ANTHROPIC_BASE_URL: ""
+        with:
+          factory_api_key: ${{ secrets.FACTORY_API_KEY }}
+          automatic_review: true
+          review_model: custom:MiniMax-M3-0
+          automatic_security_review: true
+          security_model: custom:MiniMax-M3-0
+          upload_debug_artifacts: false

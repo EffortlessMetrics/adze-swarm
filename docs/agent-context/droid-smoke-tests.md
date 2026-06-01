@@ -42,7 +42,7 @@ Expected: Every Droid action use pinned to safe ref with artifacts disabled.
    - No skipped steps due to missing FACTORY_API_KEY
 
 3. **Verify MiniMax model execution**
-   - Logs show "custom:MiniMax-M2.7-0" in model selection
+   - Logs show "custom:MiniMax-M3-0" in model selection
    - No Factory default model fallback
 
 4. **Confirm no raw artifacts uploaded**
@@ -99,18 +99,18 @@ Expected: Every Droid action use pinned to safe ref with artifacts disabled.
 2. **BYOK settings file structure**:
    ```bash
    # Verify in workflow logs during Configure step
-   grep -A 10 "customModels" "$HOME/.factory/settings.local.json"
+   grep -A 10 "customModels" "$HOME/.factory/settings.json"
    ```
    Expected:
    - `apiKey: ${MINIMAX_API_KEY}` (literal dollar-brace, not expanded)
    - `baseUrl: https://api.minimax.io/anthropic`
    - `provider: anthropic`
-   - `model: MiniMax-M2.7`
+   - `model: MiniMax-M3`
 
 ## Post-Smoke Sign-Off Checklist
 
 - [ ] Auto-review works on same-repo PR
-- [ ] Review uses MiniMax M2.7 model
+- [ ] Review uses MiniMax M3 model
 - [ ] No raw Droid debug artifacts uploaded
 - [ ] Clean review uses inspection-record format
 - [ ] Finding format is [P0|P1|P2] structured
