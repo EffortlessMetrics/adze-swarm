@@ -10,7 +10,9 @@ concurrency:
 
 jobs:
   core:
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr, rust, rust-heavy-medium]
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable

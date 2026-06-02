@@ -31,7 +31,9 @@ env:
 jobs:
   test-policy:
     name: Enforce Test Policy
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-small
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr, rust, rust-medium]
 
     steps:
       - uses: actions/checkout@v6.0.2

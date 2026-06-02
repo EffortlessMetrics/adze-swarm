@@ -30,7 +30,9 @@ concurrency:
 jobs:
   plan:
     name: PR Plan
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-tiny
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr, rust, rust-tiny]
     timeout-minutes: 15
     outputs:
       docs_only: ${{ steps.classify.outputs.docs_only }}

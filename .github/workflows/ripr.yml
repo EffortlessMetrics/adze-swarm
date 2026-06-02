@@ -33,7 +33,9 @@ jobs:
       !(github.event_name == 'pull_request' && github.event.action == 'closed') &&
       needs.plan.result != 'cancelled' &&
       (needs.plan.result == 'skipped' || needs.plan.outputs.docs_only != 'true')
-    runs-on: self-hosted
+    runs-on:
+      group: em-ci-tiny
+      labels: [self-hosted, linux, x64, em-ci, trusted-pr, rust, rust-tiny]
     timeout-minutes: 20
     continue-on-error: true
     steps:
