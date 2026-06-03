@@ -76,4 +76,5 @@ See `adze-rollout-status.md` for status of each item.
 | `pr-plan.md` | PR Plan docs |
 | `risk-packs.md` | Risk pack documentation |
 | `ripr.md` | ripr advisory docs |
+| `tooling-substrate.md` | Standard upstream tooling substrate and xtask wrapper doctrine |
 | `verification-ladder.md` | Verification tier ladder |
