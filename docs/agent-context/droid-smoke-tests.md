@@ -37,28 +37,35 @@ Expected: Every Droid action use pinned to safe ref with artifacts disabled.
    # Open PR via GitHub UI — mark as draft
    ```
 
-2. **Confirm Droid Auto Review starts**
+2. **Confirm draft PRs are skipped**
+   - `Droid PR Review` job is skipped while the PR is draft
+   - No Factory or MiniMax secret-backed step runs in the draft state
+
+3. **Convert PR to ready for review**
+
+4. **Confirm Droid Auto Review starts**
    - Workflow logs show "Run Droid Auto Review" step completed
    - No skipped steps due to missing FACTORY_API_KEY
+   - Fork PR guard did not skip the same-repo PR
 
-3. **Verify MiniMax model execution**
+5. **Verify MiniMax model execution**
    - Logs show "custom:MiniMax-M3-0" in model selection
    - No Factory default model fallback
 
-4. **Confirm no raw artifacts uploaded**
+6. **Confirm no raw artifacts uploaded**
    - Artifacts tab in workflow run shows no artifacts
    - Specifically, no `droid-review-debug-<run_id>` artifact
    - No `.factory/**` files exposed
 
-5. **Review comment validation**
+7. **Review comment validation**
    - Comment posted to PR
    - Uses inspection-record format if no findings
    - Finding format is [P0|P1|P2] structured if issues found
    - No raw JSON or debug output in comment
 
-6. **Convert PR to ready for review** (if not auto-removed)
-   - Droid runs again on `ready_for_review` event
-   - Same validation as above
+8. **Confirm fork guard**
+   - Fork PRs skip before the Factory/MiniMax secret-backed action step
+   - Guard is equivalent to `github.event.pull_request.head.repo.full_name == github.repository`
 
 ## Manual @droid Trigger Test
 
@@ -99,17 +106,19 @@ Expected: Every Droid action use pinned to safe ref with artifacts disabled.
 2. **BYOK settings file structure**:
    ```bash
    # Verify in workflow logs during Configure step
-   grep -A 10 "customModels" "$HOME/.factory/settings.json"
+   grep -A 10 "customModels" "$RUNNER_TEMP/minimax-m3-settings.json"
    ```
    Expected:
    - `apiKey: ${MINIMAX_API_KEY}` (literal dollar-brace, not expanded)
    - `baseUrl: https://api.minimax.io/anthropic`
    - `provider: anthropic`
    - `model: MiniMax-M3`
+   - the action receives this file through its `settings` input and merges it into `$HOME/.factory/droid/settings.json`
 
 ## Post-Smoke Sign-Off Checklist
 
 - [ ] Auto-review works on same-repo PR
+- [ ] Draft and fork PRs skip before Factory/MiniMax secrets are used
 - [ ] Review uses MiniMax M3 model
 - [ ] No raw Droid debug artifacts uploaded
 - [ ] Clean review uses inspection-record format

@@ -10,7 +10,9 @@ concurrency:
 
 jobs:
   droid-review:
-    if: github.event.pull_request.draft == false
+    if: >
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -30,9 +32,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$HOME/.factory"
 
-          cat > "$HOME/.factory/settings.json" <<'JSON'
+          cat > "$RUNNER_TEMP/minimax-m3-settings.json" <<'JSON'
           {
             "customModels": [
               {
@@ -46,6 +47,7 @@ jobs:
             ]
           }
           JSON
+          chmod 600 "$RUNNER_TEMP/minimax-m3-settings.json"
 
       - name: Run Droid Auto Review
         uses: EffortlessMetrics/droid-action-safe@01e76b659e4b1e5f23feedc8cfabf8dc14c7485f
@@ -55,6 +57,7 @@ jobs:
           ANTHROPIC_BASE_URL: ""
         with:
           factory_api_key: ${{ secrets.FACTORY_API_KEY }}
+          settings: ${{ runner.temp }}/minimax-m3-settings.json
           automatic_review: true
           review_model: custom:MiniMax-M3-0
           automatic_security_review: true
