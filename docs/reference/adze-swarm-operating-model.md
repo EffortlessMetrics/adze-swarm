@@ -3,9 +3,13 @@
 Status: active operating policy
 Owner: repo governance
 Created: 2026-05-29
+Last reviewed: 2026-06-04
 Linked policy: `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`
 Linked source-of-truth system: `docs/reference/SPEC_SYSTEM.md`
 Linked release checklist: `docs/reference/PUBLISH_CHECKLIST.md`
+Linked research board: `adze-swarm#617`
+Linked release authorization tracker: `adze-swarm#325`
+Linked runner evidence tracker: `adze-swarm#598`
 Support-tier impact: none
 Policy impact: defines repo-boundary and CI-boundary expectations
 
@@ -23,6 +27,54 @@ The steady-state rule is:
 adze-swarm produces proof-backed, release-promotable states.
 public adze receives explicit promotion or release PRs from those states.
 ```
+
+## Source-of-truth anchors
+
+Use these anchors before opening new work:
+
+- Research board: <https://github.com/EffortlessMetrics/adze-swarm/issues/617>
+- Release authorization and install receipt:
+  <https://github.com/EffortlessMetrics/adze-swarm/issues/325>
+- Runner evidence and quarantine decisions:
+  <https://github.com/EffortlessMetrics/adze-swarm/issues/598>
+- Support tiers and proof commands: [`docs/status/SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md)
+- Required and intentionally excluded lanes: [`docs/status/KNOWN_RED.md`](../status/KNOWN_RED.md)
+- Branch protection rule: [`docs/ci/branch-protection.md`](../ci/branch-protection.md)
+- Runner class model: [`docs/ci/runner-classes.md`](../ci/runner-classes.md)
+
+Start each cycle by refreshing live state:
+
+```bash
+gh pr list --repo EffortlessMetrics/adze-swarm --state open
+gh pr list --repo EffortlessMetrics/adze --state open
+gh issue view 617 --repo EffortlessMetrics/adze-swarm
+gh issue view 325 --repo EffortlessMetrics/adze-swarm
+```
+
+Then choose at most one active lane:
+
+- a research question,
+- a bounded issue-linked proof task,
+- a narrow implementation PR that answers a named issue, or
+- a queue cleanup action backed by current PR evidence.
+
+Do not start speculative implementation just because the queue is quiet.
+
+## Issue-first evidence rule
+
+Work should start as an issue, research question, decision packet, or existing
+source-of-truth item. Each active lane records:
+
+- known facts,
+- unknowns,
+- blockers,
+- next evidence,
+- whether implementation is allowed,
+- proof commands or receipts needed to close the question.
+
+Update durable issues with new facts. Do not rely on chat context as the only
+record. Do not repeat diagnostics unless they add a new fact or answer a
+current question.
 
 ## Responsibilities
 
