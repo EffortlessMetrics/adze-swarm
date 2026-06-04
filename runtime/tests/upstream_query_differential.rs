@@ -1,3 +1,5 @@
+#![cfg(feature = "with-grammars")]
+
 use adze::parser_v4::ParseNode;
 use adze::query::compile_query;
 use adze::query::matcher_v2::QueryMatcher;
