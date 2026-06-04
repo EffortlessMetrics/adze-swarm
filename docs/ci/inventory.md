@@ -66,6 +66,7 @@ See `adze-rollout-status.md` for status of each item.
 | `adze-rollout-status.md` | Live status of each rollout item |
 | `inventory.md` | This file — formal file inventory |
 | `branch-protection.md` | Branch protection migration criteria |
+| `change-class-surface.md` | Expected swarm CI proof surface by change class |
 | `ci-lane-whitelist.md` | Whitelist usage docs |
 | `ci-actuals.md` | ci-actuals telemetry schema docs |
 | `cost-and-verification-policy.md` | CI economics verification policy |
