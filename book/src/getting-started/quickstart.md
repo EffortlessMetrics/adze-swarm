@@ -136,6 +136,15 @@ Cargo's build output directory. The compiled crate then exposes
 
 ## Next Steps
 
-- [Grammar Definition](../guide/grammar-definition.md) covers the attributes in detail.
-- [GLR Precedence Resolution](../guide/glr-precedence-resolution.md) explains how conflicts are resolved.
-- [Error Recovery](../guide/error-recovery.md) covers parser diagnostics and recovery behavior.
+Choose the next page by the job you are doing:
+
+| Goal | Next page | Boundary |
+| --- | --- | --- |
+| Build an application around typed Rust values | [Grammar Definition](../guide/grammar-definition.md) | Start with `grammar::parse(source)` for the typed parser path. |
+| Choose between typed parsing, documents, compatibility, query, JSON, and CLI surfaces | [Which API Should I Use?](../../../docs/reference/which-api-should-i-use.md) | Support status still comes from the support-tier rows, not from this quickstart. |
+| Add tooling diagnostics, ranges, or projection data | [Error Recovery](../guide/error-recovery.md) | Use `grammar::parse_document(source)` so diagnostics and projections come from one `AdzeDocument`. |
+| Bring Tree-sitter-shaped tooling to Adze | [Migration Guide](migration.md) and [Tree-sitter Compatibility](../../../docs/reference/tree-sitter-compatibility.md) | Compatibility is a selected-tree adapter, not a full Tree-sitter parity claim. |
+| Match syntax with Tree-sitter-style queries | [Query and Pattern Matching](../guide/query-patterns.md) and [Query Compatibility](../../../docs/reference/query-compatibility.md) | Query support is a documented subset with explicit known gaps. |
+| Understand precedence and ambiguity behavior | [GLR Precedence Resolution](../guide/glr-precedence-resolution.md) | GLR behavior is proof-backed by the documented grammar classes, not a blanket parser-generality claim. |
+| Check whether a surface is Stable | [Support Tiers](../../../docs/status/SUPPORT_TIERS.md) | Do not broaden claims without a proof command and limitations row. |
+| Check release or install status | [Release Process](../development/release.md) and [#325](https://github.com/EffortlessMetrics/adze-swarm/issues/325) | `cargo install adze-cli` still requires a crates.io install receipt before it becomes a public claim. |
