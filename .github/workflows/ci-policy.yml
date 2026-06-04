@@ -17,9 +17,7 @@ concurrency:
 jobs:
   ci-lane-whitelist:
     name: CI Lane Whitelist
-    runs-on:
-      group: em-ci-tiny
-      labels: [self-hosted, linux, x64, em-ci, trusted-pr, rust, rust-tiny]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6.0.2
@@ -68,9 +66,7 @@ jobs:
     name: Source of Truth
     needs: ci-lane-whitelist
     if: ${{ !cancelled() }}
-    runs-on:
-      group: em-ci-tiny
-      labels: [self-hosted, linux, x64, em-ci, trusted-pr, rust, rust-tiny]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6.0.2
@@ -125,9 +121,7 @@ jobs:
     name: GLR Invariants
     needs: source-of-truth
     if: ${{ !cancelled() }}
-    runs-on:
-      group: em-ci-tiny
-      labels: [self-hosted, linux, x64, em-ci, trusted-pr, rust, rust-tiny]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6.0.2
