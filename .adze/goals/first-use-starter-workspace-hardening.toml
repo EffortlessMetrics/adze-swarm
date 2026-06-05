@@ -1,6 +1,6 @@
 id = "first-use-starter-workspace-hardening"
 title = "First-Use Starter Workspace Hardening"
-status = "active"
+status = "paused"
 owner = "cli/product"
 created = "2026-06-05"
 
@@ -14,27 +14,27 @@ adze, workflow, router, runtime, or parser surfaces.
 """
 
 handoff = """
-Start from #617 and #680. The only ready implementation item is
-`starter-workspace-escape`: update generated starter `Cargo.toml` output to
-include an empty `[workspace]` table, add a focused CLI test that generates
-inside a temp parent workspace and proves the child builds from its own
-directory, and run the focused starter proof commands. Keep #680 diagnostic
-wording polish as a separate later decision. If release, promotion, tag,
-publish, signing, Cargo-token, crates.io install, public adze implementation,
-workflow/router changes, broad CI fanout, support-tier promotion, or parser
-diagnostic presentation work is requested, stop unless a separate
-source-of-truth issue explicitly selects that lane.
+Start from #617 and #680. The selected implementation item
+`starter-workspace-escape` was merged in #682 and made generated starter
+manifests standalone workspace roots with a focused nested-parent-workspace CLI
+test. Keep #680 diagnostic wording polish as a separate later decision. If
+release, promotion, tag, publish, signing, Cargo-token, crates.io install,
+public adze implementation, workflow/router changes, broad CI fanout,
+support-tier promotion, or parser diagnostic presentation work is requested,
+stop unless a separate source-of-truth issue explicitly selects that lane. No
+non-release implementation item is active or ready; return to #617 for the next
+decision packet before opening more implementation work.
 """
 
 end_state = [
   "adze-swarm remains the operating repo for non-release implementation, proof, source-of-truth, CI, examples, docs-proof, runtime, tablegen, query, diagnostics, and performance work.",
   "public adze remains the release, public-intake, promotion, tag, publish, signing, Cargo-token, and crates.io receipt surface.",
-  "#680 starter workspace robustness is selected as the single ready implementation item from the current research board.",
+  "#680 starter workspace robustness was selected from the current research board and merged by #682.",
   "Generated starter manifests include an empty [workspace] table so nested first-use projects build without parent workspace edits.",
-  "The implementation diff is limited to cli/src/main.rs and one focused CLI test in cli/tests/cli_test.rs unless the selected proof exposes a directly required adjacent test-fixture edit.",
+  "The merged implementation diff was limited to cli/src/main.rs and one focused CLI test in cli/tests/cli_test.rs.",
   "#680 diagnostic wording polish remains deferred to a separate source-of-truth selection.",
   "No runtime/parser/API/workflow/router/release/public-adze/support-tier/publish/signing/Cargo-token/crates.io install claim is authorized.",
-  "Default required PR proof remains Rust Small Result plus the focused starter commands named by #680.",
+  "Required PR proof passed through Rust Small Result and Product Proof Result, plus the focused starter commands named by #680.",
   "Release and install authorization remains blocked on #325 until a separate explicit human decision selects the public adze release path.",
 ]
 
@@ -57,13 +57,14 @@ commands = [
 
 [[work_item]]
 id = "starter-workspace-escape"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0006-user-experience-hardening.md"
 spec = "docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md"
 adr = ""
 plan = "plans/first-use-starter-workspace/implementation-plan.md"
 blocked_by = ["first-use-starter-source-of-truth"]
 issues = [617, 680]
+prs = [682]
 commands = [
   "cargo test -p adze-cli test_init_generated_cargo_toml_is_valid -- --exact --nocapture",
   "cargo test -p adze-cli test_init_default_cwd_generates_buildable_project -- --exact --nocapture",
