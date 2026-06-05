@@ -379,79 +379,112 @@ fn sexpr_equality_nested_lists() {
 }
 
 // ===========================================================================
-// 5. parse_sexpr — stub returns Ok(List([]))
+// 5. parse_sexpr
 // ===========================================================================
 
 #[test]
 fn parse_sexpr_empty_string() {
     let r = parse_sexpr("");
-    assert_eq!(r, Ok(SExpr::List(vec![])));
+    assert!(r.is_err());
 }
 
 #[test]
 fn parse_sexpr_atom_input() {
     let r = parse_sexpr("hello");
-    assert_eq!(r, Ok(SExpr::List(vec![])));
+    assert_eq!(r, Ok(SExpr::Atom("hello".to_string())));
 }
 
 #[test]
 fn parse_sexpr_simple_list() {
     let r = parse_sexpr("(a b c)");
-    assert_eq!(r, Ok(SExpr::List(vec![])));
+    assert_eq!(
+        r,
+        Ok(SExpr::List(vec![
+            SExpr::Atom("a".to_string()),
+            SExpr::Atom("b".to_string()),
+            SExpr::Atom("c".to_string()),
+        ]))
+    );
 }
 
 #[test]
 fn parse_sexpr_nested_list() {
     let r = parse_sexpr("(define (f x) (+ x 1))");
-    assert_eq!(r, Ok(SExpr::List(vec![])));
+    assert_eq!(
+        r,
+        Ok(SExpr::List(vec![
+            SExpr::Atom("define".to_string()),
+            SExpr::List(vec![
+                SExpr::Atom("f".to_string()),
+                SExpr::Atom("x".to_string()),
+            ]),
+            SExpr::List(vec![
+                SExpr::Atom("+".to_string()),
+                SExpr::Atom("x".to_string()),
+                SExpr::Atom("1".to_string()),
+            ]),
+        ]))
+    );
 }
 
 #[test]
 fn parse_sexpr_numbers() {
     let r = parse_sexpr("42");
-    assert_eq!(r, Ok(SExpr::List(vec![])));
+    assert_eq!(r, Ok(SExpr::Atom("42".to_string())));
 }
 
 #[test]
 fn parse_sexpr_special_chars() {
     let r = parse_sexpr("(!@#$%^&*)");
-    assert_eq!(r, Ok(SExpr::List(vec![])));
+    assert_eq!(
+        r,
+        Ok(SExpr::List(vec![SExpr::Atom("!@#$%^&*".to_string())]))
+    );
 }
 
 #[test]
 fn parse_sexpr_whitespace_only() {
     let r = parse_sexpr("   \t\n  ");
-    assert_eq!(r, Ok(SExpr::List(vec![])));
+    assert!(r.is_err());
 }
 
 #[test]
 fn parse_sexpr_unicode() {
     let r = parse_sexpr("(日本語 テスト)");
-    assert_eq!(r, Ok(SExpr::List(vec![])));
+    assert_eq!(
+        r,
+        Ok(SExpr::List(vec![
+            SExpr::Atom("日本語".to_string()),
+            SExpr::Atom("テスト".to_string()),
+        ]))
+    );
 }
 
 #[test]
 fn parse_sexpr_emoji() {
     let r = parse_sexpr("🎉🚀");
-    assert_eq!(r, Ok(SExpr::List(vec![])));
+    assert_eq!(r, Ok(SExpr::Atom("🎉🚀".to_string())));
 }
 
 #[test]
 fn parse_sexpr_unbalanced_parens() {
     let r = parse_sexpr("((())");
-    assert_eq!(r, Ok(SExpr::List(vec![])));
+    assert!(r.is_err());
 }
 
 #[test]
 fn parse_sexpr_result_is_ok() {
-    assert!(parse_sexpr("anything").is_ok());
+    assert_eq!(
+        parse_sexpr("anything"),
+        Ok(SExpr::Atom("anything".to_string()))
+    );
 }
 
 #[test]
 fn parse_sexpr_long_input() {
     let long = "a".repeat(10_000);
     let r = parse_sexpr(&long);
-    assert_eq!(r, Ok(SExpr::List(vec![])));
+    assert_eq!(r, Ok(SExpr::Atom(long)));
 }
 
 // ===========================================================================
@@ -769,12 +802,15 @@ fn tree_serializer_binary_source() {
 
 #[test]
 fn parse_sexpr_newlines() {
-    assert_eq!(parse_sexpr("\n\n\n"), Ok(SExpr::List(vec![])));
+    assert!(parse_sexpr("\n\n\n").is_err());
 }
 
 #[test]
 fn parse_sexpr_null_bytes_in_str() {
-    assert_eq!(parse_sexpr("abc\0def"), Ok(SExpr::List(vec![])));
+    assert_eq!(
+        parse_sexpr("abc\0def"),
+        Ok(SExpr::Atom("abc\0def".to_string()))
+    );
 }
 
 #[test]
@@ -970,9 +1006,16 @@ fn parse_sexpr_returns_list_variant() {
 }
 
 #[test]
-fn parse_sexpr_result_inner_is_empty_vec() {
+fn parse_sexpr_result_inner_has_items() {
     if let SExpr::List(items) = parse_sexpr("(+ 1 2)").unwrap() {
-        assert!(items.is_empty());
+        assert_eq!(
+            items,
+            vec![
+                SExpr::Atom("+".to_string()),
+                SExpr::Atom("1".to_string()),
+                SExpr::Atom("2".to_string()),
+            ]
+        );
     }
 }
 
@@ -981,6 +1024,7 @@ fn parse_sexpr_multiple_calls_consistent() {
     let r1 = parse_sexpr("(a)");
     let r2 = parse_sexpr("(b c d)");
     let r3 = parse_sexpr("");
-    assert_eq!(r1, r2);
-    assert_eq!(r2, r3);
+    assert_eq!(r1, parse_sexpr("(a)"));
+    assert_eq!(r2, parse_sexpr("(b c d)"));
+    assert!(r3.is_err());
 }

@@ -166,7 +166,7 @@ fn sexpr_serde_roundtrip_empty_list() {
 }
 
 // ---------------------------------------------------------------------------
-// parse_sexpr tests (currently a stub returning empty list)
+// parse_sexpr tests
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -178,14 +178,13 @@ fn parse_sexpr_returns_ok() {
 #[test]
 fn parse_sexpr_empty_input() {
     let result = parse_sexpr("");
-    assert!(result.is_ok());
+    assert!(result.is_err());
 }
 
 #[test]
-fn parse_sexpr_returns_list() {
+fn parse_sexpr_returns_atom() {
     let result = parse_sexpr("anything").unwrap();
-    // Currently stub returns empty list
-    assert!(matches!(result, SExpr::List(_)));
+    assert_eq!(result, SExpr::Atom("anything".to_string()));
 }
 
 // ---------------------------------------------------------------------------

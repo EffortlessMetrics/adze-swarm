@@ -412,7 +412,7 @@ fn sexpr_json_roundtrip_empty_list() {
 }
 
 // ===========================================================================
-// parse_sexpr – stub behavior
+// parse_sexpr
 // ===========================================================================
 
 #[test]
@@ -422,40 +422,59 @@ fn parse_sexpr_returns_ok() {
 }
 
 #[test]
-fn parse_sexpr_returns_empty_list() {
+fn parse_sexpr_returns_nested_list() {
     let result = parse_sexpr("(program (stmt))").unwrap();
-    assert_eq!(result, SExpr::List(vec![]));
+    assert_eq!(
+        result,
+        SExpr::List(vec![
+            SExpr::Atom("program".to_string()),
+            SExpr::List(vec![SExpr::Atom("stmt".to_string())]),
+        ])
+    );
 }
 
 #[test]
 fn parse_sexpr_empty_input() {
-    let result = parse_sexpr("").unwrap();
-    assert_eq!(result, SExpr::List(vec![]));
+    assert!(parse_sexpr("").is_err());
 }
 
 #[test]
 fn parse_sexpr_atom_input() {
     let result = parse_sexpr("atom").unwrap();
-    // Stub always returns empty list
-    assert_eq!(result, SExpr::List(vec![]));
+    assert_eq!(result, SExpr::Atom("atom".to_string()));
 }
 
 #[test]
 fn parse_sexpr_nested_input() {
     let result = parse_sexpr("(a (b (c)))").unwrap();
-    assert_eq!(result, SExpr::List(vec![]));
+    assert_eq!(
+        result,
+        SExpr::List(vec![
+            SExpr::Atom("a".to_string()),
+            SExpr::List(vec![
+                SExpr::Atom("b".to_string()),
+                SExpr::List(vec![SExpr::Atom("c".to_string())]),
+            ]),
+        ])
+    );
 }
 
 #[test]
 fn parse_sexpr_whitespace_only() {
-    let result = parse_sexpr("   \t\n  ").unwrap();
-    assert_eq!(result, SExpr::List(vec![]));
+    assert!(parse_sexpr("   \t\n  ").is_err());
 }
 
 #[test]
 fn parse_sexpr_special_chars() {
     let result = parse_sexpr("(+ 1 2)").unwrap();
-    assert_eq!(result, SExpr::List(vec![]));
+    assert_eq!(
+        result,
+        SExpr::List(vec![
+            SExpr::Atom("+".to_string()),
+            SExpr::Atom("1".to_string()),
+            SExpr::Atom("2".to_string()),
+        ])
+    );
 }
 
 // ===========================================================================

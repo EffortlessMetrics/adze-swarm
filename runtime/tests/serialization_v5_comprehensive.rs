@@ -1,6 +1,6 @@
 #![cfg(feature = "serialization")]
 
-//! Comprehensive tests for the `SExpr` enum and `parse_sexpr` stub in
+//! Comprehensive tests for the `SExpr` enum and `parse_sexpr` in
 //! `adze::serialization`.
 //!
 //! Categories:
@@ -11,7 +11,7 @@
 //! 5. SExpr Atom values (5)
 //! 6. SExpr List operations (5)
 //! 7. SExpr traversal patterns (8)
-//! 8. parse_sexpr stub behavior (5)
+//! 8. parse_sexpr behavior (5)
 //! 9. Edge cases (6)
 
 use adze::serialization::{SExpr, parse_sexpr};
@@ -455,7 +455,7 @@ fn test_traversal_nested_empty_lists() {
 }
 
 // =============================================================================
-// 8. parse_sexpr stub behavior (5 tests)
+// 8. parse_sexpr behavior (5 tests)
 // =============================================================================
 
 #[test]
@@ -465,30 +465,29 @@ fn test_parse_sexpr_returns_ok() {
 }
 
 #[test]
-fn test_parse_sexpr_returns_empty_list() {
+fn test_parse_sexpr_returns_atom() {
     let result = parse_sexpr("anything").unwrap();
-    assert_eq!(result, SExpr::List(vec![]));
+    assert_eq!(result, atom("anything"));
 }
 
 #[test]
-fn test_parse_sexpr_ignores_input() {
+fn test_parse_sexpr_respects_input() {
     let r1 = parse_sexpr("(a b c)").unwrap();
-    let r2 = parse_sexpr("completely different").unwrap();
-    assert_eq!(r1, r2);
+    let r2 = parse_sexpr("completely_different").unwrap();
+    assert_ne!(r1, r2);
 }
 
 #[test]
 fn test_parse_sexpr_empty_string() {
-    let result = parse_sexpr("").unwrap();
-    assert_eq!(result, empty_list());
+    assert!(parse_sexpr("").is_err());
 }
 
 #[test]
 fn test_parse_sexpr_complex_input() {
-    // Even with deeply nested valid s-expr syntax, the stub returns empty list
     let result =
         parse_sexpr("(define (factorial n) (if (= n 0) 1 (* n (factorial (- n 1)))))").unwrap();
-    assert_eq!(result, empty_list());
+    assert!(result.is_list());
+    assert_ne!(result, empty_list());
 }
 
 // =============================================================================

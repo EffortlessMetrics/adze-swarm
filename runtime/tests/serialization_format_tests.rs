@@ -582,9 +582,15 @@ fn sexpr_nested_structure() {
 /// parse_sexpr returns Ok
 #[test]
 fn parse_sexpr_returns_ok() {
-    // The current stub always returns Ok(List([]))
     let result = parse_sexpr("(program (number))");
     assert!(result.is_ok());
+    assert_eq!(
+        result.unwrap(),
+        SExpr::List(vec![
+            SExpr::Atom("program".to_string()),
+            SExpr::List(vec![SExpr::Atom("number".to_string())]),
+        ])
+    );
 }
 
 // ---------------------------------------------------------------------------

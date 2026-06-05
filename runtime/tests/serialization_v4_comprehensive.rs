@@ -599,42 +599,48 @@ fn sexpr_partial_eq_different() {
 // ===========================================================================
 
 #[test]
-fn parse_sexpr_empty_input_returns_ok() {
-    // parse_sexpr is a stub that returns Ok(List([])) for all inputs
+fn parse_sexpr_empty_input_returns_err() {
     let result = parse_sexpr("");
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), SExpr::List(vec![]));
+    assert!(result.is_err());
 }
 
 #[test]
-fn parse_sexpr_simple_atom_returns_empty_list() {
-    // Stub behavior: always returns Ok(List([]))
+fn parse_sexpr_simple_atom_returns_atom() {
     let result = parse_sexpr("hello");
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), SExpr::List(vec![]));
+    assert_eq!(result, Ok(SExpr::Atom("hello".to_string())));
 }
 
 #[test]
-fn parse_sexpr_nested_parens_returns_empty_list() {
-    // Stub behavior
+fn parse_sexpr_nested_parens_returns_nested_list() {
     let result = parse_sexpr("(a (b c))");
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), SExpr::List(vec![]));
+    assert_eq!(
+        result,
+        Ok(SExpr::List(vec![
+            SExpr::Atom("a".to_string()),
+            SExpr::List(vec![
+                SExpr::Atom("b".to_string()),
+                SExpr::Atom("c".to_string()),
+            ]),
+        ]))
+    );
 }
 
 #[test]
-fn parse_sexpr_invalid_input_still_ok() {
-    // Stub always succeeds
+fn parse_sexpr_invalid_input_returns_err() {
     let result = parse_sexpr(")))((( garbage !!!");
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), SExpr::List(vec![]));
+    assert!(result.is_err());
 }
 
 #[test]
-fn parse_sexpr_unicode_input_returns_empty_list() {
+fn parse_sexpr_unicode_input_returns_list() {
     let result = parse_sexpr("(こんにちは 世界)");
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), SExpr::List(vec![]));
+    assert_eq!(
+        result,
+        Ok(SExpr::List(vec![
+            SExpr::Atom("こんにちは".to_string()),
+            SExpr::Atom("世界".to_string()),
+        ]))
+    );
 }
 
 // ===========================================================================

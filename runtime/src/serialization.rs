@@ -145,9 +145,137 @@ impl std::fmt::Display for SExpr {
 }
 
 /// Parse an S-expression from string
-pub fn parse_sexpr(_input: &str) -> Result<SExpr, String> {
-    // Minimal stub for now to satisfy tests
-    Ok(SExpr::List(vec![]))
+pub fn parse_sexpr(input: &str) -> Result<SExpr, String> {
+    let mut parser = SExprParser::new(input);
+    let expr = parser.parse_expr()?;
+    parser.skip_ws();
+
+    if parser.is_eof() {
+        Ok(expr)
+    } else {
+        Err(format!(
+            "unexpected trailing input at byte {}",
+            parser.position()
+        ))
+    }
+}
+
+struct SExprParser<'a> {
+    input: &'a str,
+    pos: usize,
+}
+
+impl<'a> SExprParser<'a> {
+    fn new(input: &'a str) -> Self {
+        Self { input, pos: 0 }
+    }
+
+    fn position(&self) -> usize {
+        self.pos
+    }
+
+    fn is_eof(&self) -> bool {
+        self.pos >= self.input.len()
+    }
+
+    fn peek(&self) -> Option<char> {
+        self.input.get(self.pos..)?.chars().next()
+    }
+
+    fn bump(&mut self) -> Option<char> {
+        let ch = self.peek()?;
+        self.pos += ch.len_utf8();
+        Some(ch)
+    }
+
+    fn skip_ws(&mut self) {
+        while self.peek().is_some_and(char::is_whitespace) {
+            self.bump();
+        }
+    }
+
+    fn parse_expr(&mut self) -> Result<SExpr, String> {
+        self.skip_ws();
+        match self.peek() {
+            Some('(') => self.parse_list(),
+            Some(')') => Err(format!("unexpected ')' at byte {}", self.pos)),
+            Some('"') => self.parse_quoted_atom(),
+            Some(_) => self.parse_atom(),
+            None => Err("expected S-expression, found end of input".to_string()),
+        }
+    }
+
+    fn parse_list(&mut self) -> Result<SExpr, String> {
+        let start = self.pos;
+        self.bump();
+
+        let mut items = Vec::new();
+        loop {
+            self.skip_ws();
+            match self.peek() {
+                Some(')') => {
+                    self.bump();
+                    return Ok(SExpr::List(items));
+                }
+                Some(_) => items.push(self.parse_expr()?),
+                None => {
+                    return Err(format!(
+                        "unclosed list starting at byte {start}: expected ')'"
+                    ));
+                }
+            }
+        }
+    }
+
+    fn parse_quoted_atom(&mut self) -> Result<SExpr, String> {
+        let start = self.pos;
+        self.bump();
+
+        let mut text = String::new();
+        loop {
+            match self.bump() {
+                Some('"') => return Ok(SExpr::Atom(text)),
+                Some('\\') => {
+                    let escaped = match self.bump() {
+                        Some('"') => '"',
+                        Some('\\') => '\\',
+                        Some('n') => '\n',
+                        Some('r') => '\r',
+                        Some('t') => '\t',
+                        Some(ch) => ch,
+                        None => {
+                            return Err(format!(
+                                "unterminated escape in quoted atom starting at byte {start}"
+                            ));
+                        }
+                    };
+                    text.push(escaped);
+                }
+                Some(ch) => text.push(ch),
+                None => {
+                    return Err(format!(
+                        "unclosed quoted atom starting at byte {start}: expected '\"'"
+                    ));
+                }
+            }
+        }
+    }
+
+    fn parse_atom(&mut self) -> Result<SExpr, String> {
+        let start = self.pos;
+        while self
+            .peek()
+            .is_some_and(|ch| !ch.is_whitespace() && ch != '(' && ch != ')')
+        {
+            self.bump();
+        }
+
+        if self.pos == start {
+            Err(format!("expected atom at byte {start}"))
+        } else {
+            Ok(SExpr::Atom(self.input[start..self.pos].to_string()))
+        }
+    }
 }
 
 /// Serializer for parse trees

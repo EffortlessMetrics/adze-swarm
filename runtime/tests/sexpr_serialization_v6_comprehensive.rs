@@ -438,19 +438,26 @@ fn test_edge_many_children() {
 }
 
 #[test]
-fn test_edge_parse_sexpr_stub_returns_empty_list() {
+fn test_edge_parse_sexpr_parses_list_items() {
     let result = parse_sexpr("(+ 1 2)");
     assert!(result.is_ok());
     let expr = result.unwrap();
-    assert_eq!(expr, SExpr::List(vec![]));
+    assert_eq!(
+        expr,
+        SExpr::List(vec![
+            SExpr::Atom("+".to_string()),
+            SExpr::Atom("1".to_string()),
+            SExpr::Atom("2".to_string()),
+        ])
+    );
 }
 
 #[test]
-fn test_edge_parse_sexpr_stub_ignores_input() {
+fn test_edge_parse_sexpr_respects_input() {
     let r1 = parse_sexpr("anything").unwrap();
-    let r2 = parse_sexpr("").unwrap();
+    let r2 = parse_sexpr("");
     let r3 = parse_sexpr("(deeply (nested))").unwrap();
-    assert_eq!(r1, r2);
-    assert_eq!(r2, r3);
-    assert_eq!(r1, SExpr::List(vec![]));
+    assert_eq!(r1, SExpr::Atom("anything".to_string()));
+    assert!(r2.is_err());
+    assert_ne!(r1, r3);
 }

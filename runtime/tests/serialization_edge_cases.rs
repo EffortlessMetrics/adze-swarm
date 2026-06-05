@@ -440,7 +440,6 @@ fn test_malformed_json_invalid_json_syntax() {
 #[test]
 #[cfg(feature = "serialization")]
 fn test_parse_sexpr_basic() {
-    // The parse_sexpr function is a stub, but we can test its current behavior
     let result = parse_sexpr("(+ 1 2)");
     assert!(result.is_ok(), "Should parse S-expression");
 }
@@ -449,7 +448,7 @@ fn test_parse_sexpr_basic() {
 #[cfg(feature = "serialization")]
 fn test_parse_sexpr_empty() {
     let result = parse_sexpr("");
-    assert!(result.is_ok(), "Empty input should be handled");
+    assert!(result.is_err(), "Empty input should be rejected");
 }
 
 #[test]

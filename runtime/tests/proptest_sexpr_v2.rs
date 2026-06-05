@@ -396,16 +396,16 @@ fn test_list_constructor_matches_enum() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_parse_sexpr_stub_returns_ok() {
+fn test_parse_sexpr_atom_returns_ok() {
     let result = parse_sexpr("anything");
-    assert!(result.is_ok());
+    assert_eq!(result, Ok(SExpr::Atom("anything".to_string())));
 }
 
 #[test]
-fn test_parse_sexpr_stub_returns_empty_list() {
+fn test_parse_sexpr_list_returns_items() {
     let result = parse_sexpr("(a b c)").unwrap();
     assert!(result.is_list());
-    assert_eq!(result.as_list().unwrap().len(), 0);
+    assert_eq!(result.as_list().unwrap().len(), 3);
 }
 
 #[test]

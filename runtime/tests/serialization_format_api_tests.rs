@@ -233,17 +233,22 @@ fn sexpr_json_roundtrip_nested_list() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn parse_sexpr_returns_ok_for_any_input() {
-    // The current stub always returns Ok(List([])).
+fn parse_sexpr_returns_ok_for_valid_input() {
     assert!(parse_sexpr("(program)").is_ok());
-    assert!(parse_sexpr("").is_ok());
+    assert!(parse_sexpr("").is_err());
     assert!(parse_sexpr("atom").is_ok());
 }
 
 #[test]
-fn parse_sexpr_result_is_empty_list() {
+fn parse_sexpr_result_preserves_list_items() {
     let result = parse_sexpr("(program (number))").unwrap();
-    assert_eq!(result, SExpr::List(vec![]));
+    assert_eq!(
+        result,
+        SExpr::List(vec![
+            SExpr::Atom("program".to_string()),
+            SExpr::List(vec![SExpr::Atom("number".to_string())]),
+        ])
+    );
 }
 
 // ---------------------------------------------------------------------------
