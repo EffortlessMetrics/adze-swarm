@@ -1,19 +1,23 @@
 # 0.9 Accuracy and Proof Coverage Map
 
-**Last updated:** 2026-05-16
-**Purpose:** List the behavior that must be accurate for 0.9, the current proof, the missing proof, and the next test to add. This is a correctness work queue, not a feature roadmap.
+**Last updated:** 2026-06-05
+**Purpose:** List the behavior that must be accurate for 0.9, the current proof, any missing proof, and the next test to add. This is a correctness proof ledger, not an active implementation queue.
 
 **Rules:**
 - Every row names a concrete behavior claim.
 - Every row has a proof command that can be run.
 - Gaps are honest. If a test exists, it is listed. If not, the cell says "none."
 - No aspirational rows. Only surfaces with public API, docs claims, or support-tier status appear.
+- When the summary shows zero named gaps, new accuracy work must start from #617 or a new bounded issue that names the missing or weak proof first.
+- Zero named accuracy gaps does not authorize support-tier promotion, release, publish, `cargo install`, performance claims, or public `adze` work.
 
 **Related:**
 - Support tiers and proof commands: [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md)
 - API stability inventory: [`API_STABILITY.md`](./API_STABILITY.md)
 - Correctness execution plan: [`CORRECTNESS_PUSH.md`](./CORRECTNESS_PUSH.md)
 - Release readiness checklist: [`../../plans/0.9.0/release-readiness.md`](../../plans/0.9.0/release-readiness.md)
+- Research board: [#617](https://github.com/EffortlessMetrics/adze-swarm/issues/617)
+- Current queue refresh: [#690](https://github.com/EffortlessMetrics/adze-swarm/issues/690)
 
 ---
 
@@ -291,19 +295,23 @@ just check-publishable
 
 ---
 
-## Recommended test PR sequence
+## Historical proof sequence and stop rule
 
-Each PR adds focused proof for one surface gap. Test-only PRs are preferred; production code changes stay limited to gaps where the claimed receipt is not wired honestly yet.
+The summary above is the current accuracy ledger: 78 tested aspects and 0 named gaps. The earlier recommended sequence has been answered by the proof rows above where marked complete below; it is not a ready PR queue.
 
-1. **test(document): prove parse and parse_document agree** — GLR-path agreement and CST topology comparison
-2. **test(document): prove recovered-doc AST refusal** — strict AST extraction refuses recovered diagnostic documents through document AST entry points
-3. **test(document): cover document boundary canaries** — UTF-8 `source_slice()` boundaries and empty clean-node diagnostics
-4. **test(document): prove edge field metadata invariants** — empty field map and repeated field iteration
-5. **test(diagnostics): prove expected-token normalization** — byte↔point span agreement, multi-error dedup, diagnostic ordering
-6. **test(diagnostics): cover UTF-8 and EOF recovery spans** — EOF boundary, mixed ASCII/multibyte line counting
-7. **test(ts-compat): prove adapter identity and alias behavior** — complete
-8. **test(glr): prove ambiguity summary determinism** — complete
-9. **docs: audit README claims against proof map** — no new tests, verify existing proof commands still pass
-10. **benchmarks: classify benchmark inventory** — complete
-11. **release: audit publishable package metadata** — complete
-12. **release: add 0.9 readiness receipt** — complete
+Future accuracy PRs require #617 or a new bounded issue that names the weak behavior claim, the missing or insufficient receipt, the proof command, the expected CI cost, and rollback. Documentation audits may cite this map, but they do not authorize release, support-tier promotion, publish, `cargo install`, or public `adze` work.
+
+| Historical item | Current ledger state |
+|-----------------|----------------------|
+| `test(document): prove parse and parse_document agree` | Covered by Surface 1 proof rows; no active next test listed. |
+| `test(document): prove recovered-doc AST refusal` | Covered by Surface 1 strict recovered-document proof; no active next test listed. |
+| `test(document): cover document boundary canaries` | Covered by Surface 2 document-boundary rows and Surface 5 UTF-8 rows; no active next test listed. |
+| `test(document): prove edge field metadata invariants` | Covered by Surface 3 edge field metadata rows; no active next test listed. |
+| `test(diagnostics): prove expected-token normalization` | Covered by Surface 4 diagnostics normalization rows; no active next test listed. |
+| `test(diagnostics): cover UTF-8 and EOF recovery spans` | Covered by Surface 5 UTF-8 and zero-width span rows; no active next test listed. |
+| `test(ts-compat): prove adapter identity and alias behavior` | Covered by Surface 6 ts_compat adapter identity rows; no active next test listed. |
+| `test(glr): prove ambiguity summary determinism` | Covered by Surface 7 ambiguity determinism rows; no active next test listed. |
+| `docs: audit README claims against proof map` | Not selected as an accuracy implementation lane. Open a bounded docs issue if a README claim lacks a current proof row. |
+| `benchmarks: classify benchmark inventory` | Covered by Surface 10 benchmark truth rows; no active next test listed. |
+| `release: audit publishable package metadata` | Covered only as local publishability proof in Surface 11. #325 still blocks release, publish, and install claims. |
+| `release: add 0.9 readiness receipt` | Not an accuracy-map queue item. Release readiness remains governed by #325 and the release checklist. |
