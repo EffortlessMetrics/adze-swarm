@@ -1,6 +1,6 @@
 # Adze API Reference
 
-> **Doc status:** Aligned with the 2026-05 support-tier ledger.
+> **Doc status:** Aligned with the 2026-06 support-tier ledger.
 
 This page describes the user-facing API ladder. For the authoritative support
 status of each surface, use [`SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md).
@@ -116,10 +116,23 @@ documented generated grammar matrix. The structured parse-error surface is
 |---|---|---|
 | `pure-rust` | Pure-Rust parser backend. Default stable front door. | Stable |
 | `glr` | Enables GLR parsing for ambiguous grammars. | Stabilizing |
-| `serialization` | Enables core table serialization and experimental document JSON. | Stable for core tables; document JSON experimental |
+| `serialization` | Enables core table serialization, runtime S-expression helpers, and experimental document JSON. | Stable for core tables; runtime S-expression helpers and document JSON are non-Stable |
 | `ts-compat` | Tree-sitter-compatible selected-tree adapter. | Stabilizing selected-tree subset |
 | `incremental_glr` | Incremental parsing and fallback metadata. | Experimental |
 | `wasm` | WASM build support. | Advisory compile signal |
+
+### Serialization helpers
+
+With `serialization`, `adze::serialization::parse_sexpr()` parses one top-level
+S-expression, and `SExpr::to_canonical_sexpr()` /
+`SExpr::write_canonical_sexpr()` emit a parseable canonical representation for
+helper values. `Display for SExpr` remains the historical raw/debug formatter,
+so use the canonical methods when a roundtrip string is required.
+
+This is a helper surface, not a Stable README product claim. Core parse-table
+serialization is the Stable serialization row; document JSON and runtime
+tree/S-expression projections remain non-Stable until promoted with
+support-tier proof.
 
 ## Compatibility And Tooling Surfaces
 
