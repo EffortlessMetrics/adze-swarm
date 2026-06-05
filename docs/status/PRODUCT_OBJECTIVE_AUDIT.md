@@ -498,7 +498,8 @@ promotion.
 Current first-use / CLI boundary receipts:
 
 ```bash
-cargo test -p adze-cli test_init -- --nocapture
+cargo test -p adze-cli test_init_default_cwd_generates_buildable_project -- --exact --nocapture
+cargo test -p adze-cli test_init_generates_buildable_project -- --exact --nocapture
 cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture
 cargo test -p adze-cli cargo_install_adze_cli_claims_stay_release_surface_bounded -- --exact --nocapture
 cargo test -p adze-cli co_release_dependency_snippets_stay_release_surface_bounded -- --exact --nocapture
