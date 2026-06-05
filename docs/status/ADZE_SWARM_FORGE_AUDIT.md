@@ -33,8 +33,11 @@ closed the focused runtime `parse_sexpr` parser gap, and after #706/#708 plus
 proof boundary. A later June 5 document projection/root cleanup pass closed
 #729/#732, #730/#731, #733/#735, and #736/#734, updating stale
 `as_tree_sitter`, `doc.root()`, and root-kind examples without changing
-runtime/API behavior, support tiers, CI routing, or release posture. The active
-manifest is paused with no active or ready implementation work.
+runtime/API behavior, support tiers, CI routing, or release posture. The
+post-#734 ledger refresh #738/#740 then recorded those receipts, and #739/#741
+aligned the root README install-shape snippet with the intended 0.9.0 package
+surface while keeping the crates.io install claim blocked. The active manifest
+is paused with no active or ready implementation work.
 
 The near-term CI governance, repo-boundary, proof-refresh, release-candidate
 bundle, adoption-hardening, post-closeout audit, CI-routing, and active-goal
@@ -64,7 +67,7 @@ remains tracked by #325.
 | `AdzeDocument` is the canonical parse product. | `docs/reference/adze-swarm-operating-model.md`; `docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md`; support-tier/product docs. | Covered by architecture docs. |
 | Public views are projections over the document. | `docs/reference/adze-swarm-operating-model.md`; `ADZE-ADR-0001`; projection docs and support-tier rows. | Covered by architecture docs; not re-proven in this audit. |
 | Stable claims require README/support-tier/proof/CI/examples/limitations alignment. | `docs/status/SUPPORT_TIERS.md`; `docs/status/PRODUCT_OBJECTIVE_AUDIT.md`; `docs/reference/adze-swarm-operating-model.md`. | Covered by policy; not exhaustively re-verified here. |
-| `cargo install adze-cli` claim has a real crates.io receipt. | Live `cargo info --registry crates-io adze-cli` on 2026-05-30 returned not found. | Not complete. |
+| `cargo install adze-cli` claim has a real crates.io receipt. | Live `cargo info --registry crates-io adze-cli` on 2026-06-05 returned not found; `adze` still resolves to published 0.8.0 and `adze-tool` also returned not found. | Not complete. |
 | No unsupported parity/performance claims. | `docs/reference/adze-swarm-operating-model.md`; `SUPPORT_TIERS.md`; `PRODUCT_OBJECTIVE_AUDIT.md`. | Covered by policy; not exhaustively re-verified here. |
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
 | Self-hosted implementation routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, #580, #591, #595, #603, #607, #608, #610, #611, #628, #629, #630, and #631 merged; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, #591 removed the Windows `cygpath` dependency from `just check-msrv`, #595 removed the Windows `just build` PDB collision warning, #603 quarantined CX53 from Rust Small route selection while preserving candidate diagnostics, #607 excludes the routed Rust Small router's current route runner from idle counts when relevant, #608 aligns contributor-facing CI docs with the current capacity-policy behavior, #610 records CX53 label/group and planned rust-large diagnostics, #611 adds a manual CX53 rust-large diagnostic workflow, #628 hardens stale advisory and aggregate cancellation guards, #629 moves routing/result control-plane work off self-hosted capacity while keeping implementation lanes self-hosted by default, #630 moves serialized CI Policy source-of-truth checks to hosted control-plane runners, and #631 records the closeout. Issue #598 tracks whether CX53 should regain Rust Small eligibility after a stale selected-lane queue in #597; issue #604 is complete after post-merge CI Policy runs `26705001774` and `26705164480` passed on `main`. | Complete for current routing/tooling assumptions; #598 remains blocked on admin runner/control-plane evidence. |
@@ -161,6 +164,8 @@ Recent merged PRs:
 - #732: `docs: remove stale as_tree_sitter examples`
 - #735: `docs: align spec root examples`
 - #734: `docs(specs): polish document root examples after #735`
+- #740: `docs(status): refresh post-734 proof ledgers`
+- #741: `docs(readme): align install snippet with 0.9 shape`
 
 Current active manifest:
 
@@ -198,9 +203,15 @@ strict: true
 required contexts: Rust Small Result, Product Proof Result
 ```
 
-Current crates.io install receipt state on 2026-05-30:
+Current crates.io install receipt state on 2026-06-05:
 
 ```text
+cargo info --registry crates-io adze
+version: 0.8.0
+
+cargo info --registry crates-io adze-tool
+error: could not find `adze-tool` in registry `https://github.com/rust-lang/crates.io-index`
+
 cargo info --registry crates-io adze-cli
 error: could not find `adze-cli` in registry `https://github.com/rust-lang/crates.io-index`
 ```
