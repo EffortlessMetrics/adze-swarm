@@ -665,4 +665,4 @@ The pure-Rust implementation exposes both C FFI and native Rust scanner paths,
 but both remain experimental unless a support-tier row promotes a narrower
 slice with proof.
 
-For questions or issues with external scanner integration, check the [test suite](../../runtime/tests/external_scanner_test.rs) for working examples or consult the [API Reference](../reference/api.md#external-scanners).
+For questions or issues with external scanner integration, check the [test suite](../../runtime/tests/external_scanner_test.rs) for working examples or consult the [Parser Cookbook external scanner notes](../reference/parser-cookbook.md#external-scanners).
