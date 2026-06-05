@@ -1,6 +1,6 @@
 # Known Limitations
 
-> **Doc status:** Aligned with the 2026-05 support-tier ledger.
+> **Doc status:** Aligned with the 2026-06 support-tier ledger.
 
 Adze's stable product contract is intentionally narrower than the repository's
 full implementation surface. The stable path is: define grammar-shaped Rust
@@ -63,7 +63,15 @@ Tree-sitter compatibility is an adapter over native document data. It exposes a
 selected-tree subset with advisory proof, but Adze does not claim full
 Tree-sitter runtime, node-types, query, or imported grammar corpus parity.
 
-### 6. WASM
+### 6. Runtime Serialization Helpers
+
+`parse_sexpr()` and `SExpr::to_canonical_sexpr()` have focused proof for
+parseable helper values under the `serialization` feature. `Display for SExpr`
+intentionally remains raw/debug-style formatting, and runtime tree
+S-expression/JSON projections are not stable CLI/WASM schemas, full
+Tree-sitter parity, or release/install claims.
+
+### 7. WASM
 
 WASM currently has compile-check signal for the demo target. Browser/runtime
 behavior is not certified as part of the stable contract.
