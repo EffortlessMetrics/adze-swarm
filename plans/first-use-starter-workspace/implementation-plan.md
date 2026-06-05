@@ -1,6 +1,6 @@
 # First-Use Starter Workspace Hardening Plan
 
-Status: active
+Status: complete
 Owner: cli/product
 Created: 2026-06-05
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
@@ -18,10 +18,10 @@ Policy impact: no workflow/router, hosted-fallback, release, publish, signing, C
 
 ## Goal
 
-Select #680 option A as the next bounded non-release implementation lane:
-generated starter crates should include an empty `[workspace]` table so the
-repo-built `adze init` first-use path remains buildable when the output is
-nested under an existing Cargo workspace.
+Record #680 option A as completed through EffortlessMetrics/adze-swarm#682:
+generated starter crates include an empty `[workspace]` table so the repo-built
+`adze init` first-use path remains buildable when the output is nested under an
+existing Cargo workspace.
 
 This lane addresses only the starter workspace robustness gap. The #680
 diagnostic wording gap remains a separate later decision because it touches
@@ -75,7 +75,7 @@ Docs and source-of-truth metadata only.
 - `.adze/goals/active.toml` names this campaign.
 - `.adze/goals/first-use-starter-workspace-hardening.toml` exists.
 - `policy/doc-artifacts.toml` registers the plan and named goal.
-- #680 starter workspace robustness is the single ready implementation item.
+- #680 starter workspace robustness was selected through #681.
 - #680 diagnostic wording polish is deferred to a separate source-of-truth
   selection.
 - #325 remains outside this lane as the release authorization blocker.
@@ -97,7 +97,7 @@ Revert the setup PR to restore the previous paused active manifest.
 
 ## Work Item: starter-workspace-escape
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: n/a
@@ -112,17 +112,17 @@ they build both outside a parent workspace and when generated beneath one.
 
 ### Production Delta
 
-Expected implementation PR:
+Merged implementation PR:
 
 ```text
 cli/src/main.rs
 cli/tests/cli_test.rs
 ```
 
-The generated starter `Cargo.toml` should contain an empty `[workspace]` table.
-The focused test should create a temporary parent Cargo workspace, generate a
-starter beneath it, and prove the generated child passes `cargo test` or
-`cargo check` when run from the child directory.
+EffortlessMetrics/adze-swarm#682 made the generated starter `Cargo.toml`
+contain an empty `[workspace]` table. The focused test creates a temporary
+parent Cargo workspace, generates a starter beneath it, and proves the
+generated child passes `cargo test --quiet` when run from the child directory.
 
 ### Scope
 
@@ -150,13 +150,13 @@ diagnostic wording changes
 
 - Generated starter `Cargo.toml` includes an empty `[workspace]` table.
 - Existing generated-starter tests still pass.
-- A new focused test proves nested generation under a temp parent workspace
-  builds from the generated child directory.
+- A focused test proves nested generation under a temp parent workspace builds
+  from the generated child directory.
 - The generated starter still parses the arithmetic example.
-- The implementation PR links #617 and #680 and states claim boundary, proof
+- The implementation PR linked #617 and #680 and stated claim boundary, proof
   commands, CI cost expectation, and rollback.
 - No public `adze`, release, publish, signing, Cargo-token, or crates.io install
-  claim is made.
+  claim was made.
 
 ### Proof Commands
 
@@ -168,6 +168,16 @@ cargo test -p adze-cli test_init_generated_project_under_parent_workspace_passes
 cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture
 git diff --check
 ```
+
+### Completion Receipts
+
+- Implementation PR: EffortlessMetrics/adze-swarm#682.
+- Merge commit: `3899647e63e9362871987297d4b1733281ba92bb`.
+- Required gate: `Rust Small Result` passed on #682.
+- Source-of-truth checks passed on the post-merge `main` CI Policy run.
+- Focused PR proof covered generated manifest shape, default/current-dir
+  generation, parent-workspace generation, starter arithmetic parse, active-goal
+  validation, and diff whitespace.
 
 ### CI Cost Expectation
 
