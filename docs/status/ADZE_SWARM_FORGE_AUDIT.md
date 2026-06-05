@@ -25,9 +25,13 @@ behavior. #652 refreshed the checked-in standby/source-of-truth state after
 those policy receipts. #673 then closed #672 as the canonical query predicate
 documentation-boundary update. On June 5, #617 was refreshed as the current
 board front page after #680 was closed as completed through #681/#682/#683 and
-#685/#686/#688, and then after #690/#691 refreshed the accuracy proof-map queue
-from stale recommended work into a ledger/stop-rule receipt. The active
-manifest is paused with no active or ready implementation work.
+#685/#686/#688, after #690/#691 refreshed the accuracy proof-map queue from
+stale recommended work into a ledger/stop-rule receipt, after #692/#693,
+#694/#695, #696/#697, and #699/#700 refreshed status ledgers, after #702/#704
+closed the focused runtime `parse_sexpr` parser gap, and after #706/#708 plus
+#709/#710 recorded the canonical `SExpr` helper implementation and checked-in
+proof boundary. The active manifest is paused with no active or ready
+implementation work.
 
 The near-term CI governance, repo-boundary, proof-refresh, release-candidate
 bundle, adoption-hardening, post-closeout audit, CI-routing, and active-goal
@@ -143,6 +147,13 @@ Recent merged PRs:
 - #688: `docs(goal): complete diagnostic wording lane source of truth`
 - #689: `docs(status): refresh first-use closeout state`
 - #691: `docs(status): refresh accuracy proof map queue`
+- #693: `docs(status): refresh source-of-truth ledgers`
+- #695: `docs(status): refresh product proof receipt`
+- #697: `docs(status): refresh rolling proof wording`
+- #700: `docs(status): refresh product status board references`
+- #704: `fix(runtime): parse S-expression lists`
+- #708: `feat(runtime): add canonical S-expression formatting`
+- #710: `docs: record canonical SExpr proof boundary`
 
 Current active manifest:
 
