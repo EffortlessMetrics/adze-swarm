@@ -1382,6 +1382,40 @@ links_to = [
 ]
 
 [[artifact]]
+id = "plans/first-use-starter-workspace/implementation-plan.md"
+kind = "plan"
+path = "plans/first-use-starter-workspace/implementation-plan.md"
+status = "active"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["first-use starter workspace robustness implementation sequence"]
+links_to = [
+  "ADZE-PROP-0006",
+  "ADZE-SPEC-0012",
+  "ADZE-ADR-0001",
+  ".adze/goals/active.toml",
+  ".adze/goals/first-use-starter-workspace-hardening.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/first-use-starter-workspace-hardening.toml"
+kind = "goal"
+path = ".adze/goals/first-use-starter-workspace-hardening.toml"
+status = "active"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["first-use starter workspace hardening agent work queue"]
+links_to = [
+  "ADZE-PROP-0006",
+  "ADZE-SPEC-0012",
+  "ADZE-ADR-0001",
+  "plans/first-use-starter-workspace/implementation-plan.md",
+  ".adze/goals/active.toml",
+  "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
 id = ".adze/goals/archive/2026-05-21-parser-runtime-maintainability-hardening.toml"
 kind = "goal"
 path = ".adze/goals/archive/2026-05-21-parser-runtime-maintainability-hardening.toml"
