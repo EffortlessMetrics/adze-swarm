@@ -8,10 +8,11 @@ JSON/DOT, dynamic parse boundary, adoption-hardening, release-candidate bundle,
 post-adoption standby hygiene, stale-queue control-plane follow-up, and
 first-use starter workspace hardening lanes are closed out. The current #617
 research board was refreshed on June 5 after #680 was closed as completed by
-#681/#682/#683 and #685/#686/#688, and again after #690/#691 converted the
-stale accuracy proof-map test queue into a current ledger/stop-rule receipt,
-after #692/#693 refreshed checked-in status ledgers, and after #694/#695
-refreshed product proof-map receipt pointers.
+#681/#682/#683 and #685/#686/#688, after #690/#691 converted the stale accuracy
+proof-map test queue into a current ledger/stop-rule receipt, after #692/#693
+refreshed checked-in status ledgers, after #694/#695 refreshed product
+proof-map receipt pointers, and after #696/#697 refreshed rolling receipt
+wording without selecting a new implementation lane.
 `active.toml` remains paused as
 `first-use-starter-workspace-hardening` with no active or ready implementation
 lane selected: 3 complete, 0 active, 0 ready, 1 blocked. Release/publish work
@@ -84,20 +85,18 @@ requires `Product Proof Result`; the path-selected `ci-product stable canaries`
 implementation job remains selected by path, schedule, or manual dispatch.
 
 Current referenced research-board state:
-adze-swarm#617 records a June 5 refresh from `adze-swarm/main` at
-`45040a57`. The refresh records #680 as complete and closed after starter
-workspace robustness (#681/#682/#683) and diagnostic wording polish
-(#685/#686/#688), records #690 as closed by #691 after
-`docs/status/ACCURACY_PROOF_MAP.md` converted its stale recommended test
-sequence into historical/stop-rule text, records #692 as closed by #693 after
-the rolling status ledgers were refreshed, and records #694 as closed by #695
-after `docs/status/PRODUCT_PROOF_MAP.md` was refreshed to the current referenced
-hosted stable-product receipt. Local `check-active-goal` and
-`check-doc-artifacts` receipts passed after #695, and post-merge main CI Policy
-run `27002005993` passed. The broader June 4 acceptance matrix checkpoint
-remains prior product evidence and was not rerun by this status refresh. This
-is product proof under the research board, not a support-tier promotion,
-release authorization, public `adze` promotion, or crates.io install receipt.
+adze-swarm#617 records the June 5 paused-forge state after the completed
+starter workspace robustness (#681/#682/#683), diagnostic wording polish
+(#685/#686/#688), accuracy proof-map ledger (#690/#691), checked-in status
+ledger (#692/#693), product proof-map receipt (#694/#695), and rolling receipt
+wording (#696/#697) refreshes. The board now records post-#697 `main` CI Policy
+run `27003865451` passed on `d03e1bbd`. The broader June 4 acceptance matrix
+checkpoint remains prior product evidence and was not rerun by these status
+refreshes. This is product proof under the research board, not a support-tier
+promotion, release authorization, public `adze` promotion, or crates.io install
+receipt. Do not update this paragraph merely to chase every status-only PR;
+refresh it when the board selects a new product/proof fact or closes a named
+source-of-truth issue.
 
 Latest current receipt after CLI reference source-build boundary PR #588:
 `Product Proof` run 26680325962 passed on 2026-05-30 from `adze-swarm/main`.
