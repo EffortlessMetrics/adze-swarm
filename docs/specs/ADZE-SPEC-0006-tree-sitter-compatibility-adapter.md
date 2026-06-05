@@ -84,12 +84,14 @@ compatibility spec, reference docs, support tiers, or known gaps.
 ```rust
 let doc = grammar::parse_document("1 + 2")?;
 let ts = adze::ts_compat::Tree::from_document(language.clone(), &doc);
-assert_eq!(ts.root_node().kind(), doc.tree().root().kind());
-```
+let native_root = doc.tree().root();
+let native_kind = native_root.kind().expect("root kind metadata");
 
-```rust
+assert_eq!(ts.root_node().kind(), native_kind.name());
+
 let left = ts.root_node().child_by_field_name("left").unwrap();
-assert_eq!(left.start_byte(), doc.tree().root().child_by_field_name("left").unwrap().start_byte());
+let native_left = native_root.child_by_field_name("left").unwrap();
+assert_eq!(left.start_byte(), native_left.start_byte());
 ```
 
 ## Test Mapping
