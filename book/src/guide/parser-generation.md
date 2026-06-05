@@ -84,7 +84,7 @@ stable claim.
 |---|---|---|
 | `grammar::parse(source)` | Typed Rust values | Stable front door |
 | `grammar::parse_document(source)` | Tooling document facts | Experimental/Stabilizing by surface |
-| `document.as_tree_sitter()` | Selected-tree compatibility | Advisory subset |
+| `adze::ts_compat::Tree::from_document(...)` | Selected-tree compatibility | Advisory subset |
 | document JSON | Schema-tagged document projection | Experimental/advisory |
 | incremental document lifecycle | Reparse/fallback metadata | Experimental |
 

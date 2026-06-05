@@ -34,7 +34,7 @@ let doc = grammar::parse_document(source)?;
 let tree = doc.tree();
 let syntax: syntax::SourceFile = doc.syntax()?;
 let ast: ast::Module = doc.ast()?;
-let ts_tree = doc.as_tree_sitter();
+let ts_tree = adze::ts_compat::Tree::from_document(language.clone(), &doc);
 ```
 
 They are not fields that make `AdzeDocument` generic over one AST type.

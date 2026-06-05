@@ -270,7 +270,7 @@ Tree-sitter compatibility:
 <p>Use compatibility projections for ecosystem interop, not as the core parse
 truth:</p>
 <pre><code class="language-rust">let document = grammar::parse_document(source)?;
-let tree = document.as_tree_sitter();</code></pre>
+let tree = adze::ts_compat::Tree::from_document(language.clone(), &amp;document);</code></pre>
 <p>See the API reference and known limitations before assuming Tree-sitter method,
 query, node-types, or imported grammar corpus parity.</p>
 <h2 id="incremental-migration"><a class="header" href="#incremental-migration">Incremental Migration</a></h2>

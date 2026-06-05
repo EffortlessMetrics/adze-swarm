@@ -302,10 +302,12 @@ Tree-sitter uses:</p>
 <tr><td>Symbol grouping</td><td>Shares rows across symbols with identical actions</td></tr>
 </tbody></table>
 </div>
-<p>The output is a <strong>static <code>Language</code> struct</strong> with FFI-compatible layout,
-plus a <code>NODE_TYPES</code> JSON file describing every node kind.  Because the layout
-matches Tree-sitter's C ABI exactly, existing Tree-sitter tooling (queries,
-highlights, folds) works with Adze-generated parsers out of the box.</p>
+<p>The output is a <strong>static <code>Language</code> struct</strong> with FFI-oriented layout, plus a
+<code>NODE_TYPES</code> JSON file describing node kinds. Those facts are useful for
+Tree-sitter-shaped tooling experiments, but they do not by themselves prove
+full Tree-sitter runtime, query, highlighting, folding, or imported-grammar
+parity. Use the support-tier ledger and compatibility references for the
+currently proven subset.</p>
 <h3 id="6-code-emission-adze-tool"><a class="header" href="#6-code-emission-adze-tool">6. Code Emission (<code>adze-tool</code>)</a></h3>
 <p>Finally the tool writes:</p>
 <ul>

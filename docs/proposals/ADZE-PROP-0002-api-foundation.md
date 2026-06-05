@@ -70,7 +70,7 @@ let syntax: syntax::SourceFile = doc.syntax()?;
 let ast: ast::Module = doc.ast()?;
 let diagnostics = doc.diagnostics();
 let ambiguities = doc.ambiguities();
-let ts_tree = doc.as_tree_sitter();
+let ts_tree = adze::ts_compat::Tree::from_document(language.clone(), &doc);
 ```
 
 The views may be lazy, generated, or serialized, but they must not become

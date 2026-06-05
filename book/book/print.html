@@ -548,12 +548,18 @@ fn reports_expected_tokens_for_bad_input() {
 Cargo's build output directory. The compiled crate then exposes
 <code>grammar::parse(input)</code> from the generated parser module.</p>
 <h2 id="next-steps-2"><a class="header" href="#next-steps-2">Next Steps</a></h2>
-<ul>
-<li><a href="getting-started/../guide/grammar-definition.html">Grammar Definition</a> covers the attributes in detail.</li>
-<li><a href="getting-started/../guide/glr-precedence-resolution.html">GLR Precedence Resolution</a> explains how conflicts are resolved.</li>
-<li><a href="getting-started/../guide/error-recovery.html">Error Recovery</a> covers parser diagnostics and recovery behavior.</li>
-</ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="migration-guide-generated-parser-surface"><a class="header" href="#migration-guide-generated-parser-surface">Migration Guide: Generated Parser Surface</a></h1>
+<p>Choose the next page by the job you are doing:</p>
+<div class="table-wrapper"><table><thead><tr><th>Goal</th><th>Next page</th><th>Boundary</th></tr></thead><tbody>
+<tr><td>Build an application around typed Rust values</td><td><a href="getting-started/../guide/grammar-definition.html">Grammar Definition</a></td><td>Start with <code>grammar::parse(source)</code> for the typed parser path.</td></tr>
+<tr><td>Choose between typed parsing, documents, compatibility, query, JSON, and CLI surfaces</td><td><a href="getting-started/../../../docs/reference/which-api-should-i-use.html">Which API Should I Use?</a></td><td>Support status still comes from the support-tier rows, not from this quickstart.</td></tr>
+<tr><td>Add tooling diagnostics, ranges, or projection data</td><td><a href="getting-started/../guide/error-recovery.html">Error Recovery</a></td><td>Use <code>grammar::parse_document(source)</code> so diagnostics and projections come from one <code>AdzeDocument</code>.</td></tr>
+<tr><td>Bring Tree-sitter-shaped tooling to Adze</td><td><a href="getting-started/migration.html">Migration Guide</a> and <a href="getting-started/../../../docs/reference/tree-sitter-compatibility.html">Tree-sitter Compatibility</a></td><td>Compatibility is a selected-tree adapter, not a full Tree-sitter parity claim.</td></tr>
+<tr><td>Match syntax with Tree-sitter-style queries</td><td><a href="getting-started/../guide/query-patterns.html">Query and Pattern Matching</a> and <a href="getting-started/../../../docs/reference/query-compatibility.html">Query Compatibility</a></td><td>Query support is a documented subset with explicit known gaps.</td></tr>
+<tr><td>Understand precedence and ambiguity behavior</td><td><a href="getting-started/../guide/glr-precedence-resolution.html">GLR Precedence Resolution</a></td><td>GLR behavior is proof-backed by the documented grammar classes, not a blanket parser-generality claim.</td></tr>
+<tr><td>Check whether a surface is Stable</td><td><a href="getting-started/../../../docs/status/SUPPORT_TIERS.html">Support Tiers</a></td><td>Do not broaden claims without a proof command and limitations row.</td></tr>
+<tr><td>Check release or install status</td><td><a href="getting-started/../development/release.html">Release Process</a> and <a href="https://github.com/EffortlessMetrics/adze-swarm/issues/325">#325</a></td><td><code>cargo install adze-cli</code> still requires a crates.io install receipt before it becomes a public claim.</td></tr>
+</tbody></table>
+</div><div style="break-before: page; page-break-before: always;"></div><h1 id="migration-guide-generated-parser-surface"><a class="header" href="#migration-guide-generated-parser-surface">Migration Guide: Generated Parser Surface</a></h1>
 <blockquote>
 <p><strong>Doc status:</strong> This page replaces the old low-level runtime migration story.
 The current product path is generated parser modules:
@@ -642,7 +648,7 @@ Tree-sitter compatibility:
 <p>Use compatibility projections for ecosystem interop, not as the core parse
 truth:</p>
 <pre><code class="language-rust">let document = grammar::parse_document(source)?;
-let tree = document.as_tree_sitter();</code></pre>
+let tree = adze::ts_compat::Tree::from_document(language.clone(), &amp;document);</code></pre>
 <p>See the API reference and known limitations before assuming Tree-sitter method,
 query, node-types, or imported grammar corpus parity.</p>
 <h2 id="incremental-migration"><a class="header" href="#incremental-migration">Incremental Migration</a></h2>
@@ -813,10 +819,12 @@ Tree-sitter uses:</p>
 <tr><td>Symbol grouping</td><td>Shares rows across symbols with identical actions</td></tr>
 </tbody></table>
 </div>
-<p>The output is a <strong>static <code>Language</code> struct</strong> with FFI-compatible layout,
-plus a <code>NODE_TYPES</code> JSON file describing every node kind.  Because the layout
-matches Tree-sitter's C ABI exactly, existing Tree-sitter tooling (queries,
-highlights, folds) works with Adze-generated parsers out of the box.</p>
+<p>The output is a <strong>static <code>Language</code> struct</strong> with FFI-oriented layout, plus a
+<code>NODE_TYPES</code> JSON file describing node kinds. Those facts are useful for
+Tree-sitter-shaped tooling experiments, but they do not by themselves prove
+full Tree-sitter runtime, query, highlighting, folding, or imported-grammar
+parity. Use the support-tier ledger and compatibility references for the
+currently proven subset.</p>
 <h3 id="6-code-emission-adze-tool"><a class="header" href="#6-code-emission-adze-tool">6. Code Emission (<code>adze-tool</code>)</a></h3>
 <p>Finally the tool writes:</p>
 <ul>
@@ -1758,7 +1766,7 @@ stable claim.</p>
 <div class="table-wrapper"><table><thead><tr><th>Surface</th><th>Use</th><th>Support posture</th></tr></thead><tbody>
 <tr><td><code>grammar::parse(source)</code></td><td>Typed Rust values</td><td>Stable front door</td></tr>
 <tr><td><code>grammar::parse_document(source)</code></td><td>Tooling document facts</td><td>Experimental/Stabilizing by surface</td></tr>
-<tr><td><code>document.as_tree_sitter()</code></td><td>Selected-tree compatibility</td><td>Advisory subset</td></tr>
+<tr><td><code>adze::ts_compat::Tree::from_document(...)</code></td><td>Selected-tree compatibility</td><td>Advisory subset</td></tr>
 <tr><td>document JSON</td><td>Schema-tagged document projection</td><td>Experimental/advisory</td></tr>
 <tr><td>incremental document lifecycle</td><td>Reparse/fallback metadata</td><td>Experimental</td></tr>
 </tbody></table>
@@ -3626,7 +3634,7 @@ let ambiguities = document.ambiguities();</code></pre>
 <p>for the covered generated grammar path.</p>
 <h2 id="selected-tree-and-ambiguity-summary"><a class="header" href="#selected-tree-and-ambiguity-summary">Selected Tree And Ambiguity Summary</a></h2>
 <p>Tree-sitter-compatible output exposes one selected tree:</p>
-<pre><code class="language-rust">let tree = document.as_tree_sitter();
+<pre><code class="language-rust">let tree = adze::ts_compat::Tree::from_document(language.clone(), &amp;document);
 let root = tree.root_node();</code></pre>
 <p>Native Adze tooling should inspect ambiguity summaries:</p>
 <pre><code class="language-text">ambiguity site:
@@ -3674,7 +3682,7 @@ assert!(!document.diagnostics().is_empty());</code></pre>
 all describe the same source snapshot.</p>
 <h2 id="tree-sitter-compatibility-1"><a class="header" href="#tree-sitter-compatibility-1">Tree-Sitter Compatibility</a></h2>
 <p>Tree-sitter-compatible output is an adapter over document data:</p>
-<pre><code class="language-rust">let tree = document.as_tree_sitter();</code></pre>
+<pre><code class="language-rust">let tree = adze::ts_compat::Tree::from_document(language.clone(), &amp;document);</code></pre>
 <p>It should be used when a tool expects Tree-sitter-shaped traversal. It is not
 the core parse product, and it does not expose every GLR alternative.</p>
 <h2 id="performance"><a class="header" href="#performance">Performance</a></h2>

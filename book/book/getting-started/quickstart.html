@@ -288,12 +288,18 @@ fn reports_expected_tokens_for_bad_input() {
 Cargo's build output directory. The compiled crate then exposes
 <code>grammar::parse(input)</code> from the generated parser module.</p>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
-<ul>
-<li><a href="../guide/grammar-definition.html">Grammar Definition</a> covers the attributes in detail.</li>
-<li><a href="../guide/glr-precedence-resolution.html">GLR Precedence Resolution</a> explains how conflicts are resolved.</li>
-<li><a href="../guide/error-recovery.html">Error Recovery</a> covers parser diagnostics and recovery behavior.</li>
-</ul>
-
+<p>Choose the next page by the job you are doing:</p>
+<div class="table-wrapper"><table><thead><tr><th>Goal</th><th>Next page</th><th>Boundary</th></tr></thead><tbody>
+<tr><td>Build an application around typed Rust values</td><td><a href="../guide/grammar-definition.html">Grammar Definition</a></td><td>Start with <code>grammar::parse(source)</code> for the typed parser path.</td></tr>
+<tr><td>Choose between typed parsing, documents, compatibility, query, JSON, and CLI surfaces</td><td><a href="../../../docs/reference/which-api-should-i-use.html">Which API Should I Use?</a></td><td>Support status still comes from the support-tier rows, not from this quickstart.</td></tr>
+<tr><td>Add tooling diagnostics, ranges, or projection data</td><td><a href="../guide/error-recovery.html">Error Recovery</a></td><td>Use <code>grammar::parse_document(source)</code> so diagnostics and projections come from one <code>AdzeDocument</code>.</td></tr>
+<tr><td>Bring Tree-sitter-shaped tooling to Adze</td><td><a href="migration.html">Migration Guide</a> and <a href="../../../docs/reference/tree-sitter-compatibility.html">Tree-sitter Compatibility</a></td><td>Compatibility is a selected-tree adapter, not a full Tree-sitter parity claim.</td></tr>
+<tr><td>Match syntax with Tree-sitter-style queries</td><td><a href="../guide/query-patterns.html">Query and Pattern Matching</a> and <a href="../../../docs/reference/query-compatibility.html">Query Compatibility</a></td><td>Query support is a documented subset with explicit known gaps.</td></tr>
+<tr><td>Understand precedence and ambiguity behavior</td><td><a href="../guide/glr-precedence-resolution.html">GLR Precedence Resolution</a></td><td>GLR behavior is proof-backed by the documented grammar classes, not a blanket parser-generality claim.</td></tr>
+<tr><td>Check whether a surface is Stable</td><td><a href="../../../docs/status/SUPPORT_TIERS.html">Support Tiers</a></td><td>Do not broaden claims without a proof command and limitations row.</td></tr>
+<tr><td>Check release or install status</td><td><a href="../development/release.html">Release Process</a> and <a href="https://github.com/EffortlessMetrics/adze-swarm/issues/325">#325</a></td><td><code>cargo install adze-cli</code> still requires a crates.io install receipt before it becomes a public claim.</td></tr>
+</tbody></table>
+</div>
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">

@@ -62,7 +62,7 @@ for the covered generated grammar path.
 Tree-sitter-compatible output exposes one selected tree:
 
 ```rust
-let tree = document.as_tree_sitter();
+let tree = adze::ts_compat::Tree::from_document(language.clone(), &document);
 let root = tree.root_node();
 ```
 
@@ -131,7 +131,7 @@ all describe the same source snapshot.
 Tree-sitter-compatible output is an adapter over document data:
 
 ```rust
-let tree = document.as_tree_sitter();
+let tree = adze::ts_compat::Tree::from_document(language.clone(), &document);
 ```
 
 It should be used when a tool expects Tree-sitter-shaped traversal. It is not
