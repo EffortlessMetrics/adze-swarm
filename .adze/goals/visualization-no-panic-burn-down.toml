@@ -13,24 +13,22 @@ support-tier promotion, CI routing, and crates.io install work outside scope.
 """
 
 handoff = """
-Start from #617 and #661. The only ready implementation item is
-`visualization-string-write-unwraps`: edit `tool/src/visualization.rs` only,
-run the focused visualization tests and advisory no-panic check, and record
-claim boundary, CI cost expectation, and rollback in the PR. If release,
-promotion, tag, publish, signing, Cargo-token, crates.io install, public adze
-implementation, policy allowlist, checker-mode promotion, or CI routing work is
-requested, stop unless the relevant source-of-truth issue explicitly selects
-that separate lane.
+This is a non-release adze-swarm lane selected from the research board in
+EffortlessMetrics/adze-swarm#617 and the bounded implementation issue
+EffortlessMetrics/adze-swarm#661. It does not authorize public adze
+implementation, release, publish, signing, Cargo-token, crates.io install
+receipt work, CI routing changes, no-panic allowlist edits, checker-mode
+promotion, or support-tier promotion.
 """
 
 end_state = [
-  "adze-swarm remains the operating repo for non-release implementation, proof, source-of-truth, CI, examples, docs-proof, runtime, tablegen, query, diagnostics, and performance work.",
-  "public adze remains the release, public-intake, promotion, tag, publish, signing, Cargo-token, and crates.io receipt surface.",
-  "#661 is selected as the single ready implementation item from the current research board.",
-  "The implementation diff is limited to removing visualization String-write unwraps in tool/src/visualization.rs while preserving output behavior.",
-  "No no-panic allowlist entry, clippy policy change, checker-mode promotion, support-tier promotion, release tag, crate publish, signing, Cargo-token, or crates.io install receipt is authorized.",
-  "Default required PR proof remains Rust Small Result plus the focused visualization commands named by #661.",
-  "Release and install authorization remains blocked on #325 until a separate explicit human decision selects the public adze release path.",
+  "adze-swarm remains the operating repo for non-release implementation and proof work.",
+  "public adze remains release, public intake, promotion, tag, publish, signing, Cargo-token, and crates.io receipt surface.",
+  "#661 is the single ready implementation item selected by the research board.",
+  "The implementation diff is limited to tool/src/visualization.rs.",
+  "Visualization DOT, SVG, text summary, and dependency output behavior stays covered by focused tests.",
+  "No policy allowlist entry, checker-mode promotion, support-tier promotion, release action, public adze work, or crates.io install claim is made.",
+  "Release, publish, signing, Cargo-token, public promotion, and crates.io install-receipt work remain blocked on #325.",
 ]
 
 [[work_item]]
