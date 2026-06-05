@@ -136,6 +136,40 @@ fn generated_parse_document_diagnostics_byte_and_point_ranges_agree() {
 }
 
 #[test]
+fn generated_parse_document_bad_token_message_names_offending_byte() {
+    let source = "1 + @";
+    let document = adze_example::typed_ast_contract::grammar::parse_document(source)
+        .expect("generated parse_document helper should return partial parse facts");
+
+    let diagnostic = document
+        .diagnostics()
+        .first()
+        .expect("parse_document should expose a bad-token diagnostic");
+
+    assert_eq!(diagnostic.byte_span(), 4..5);
+    assert!(
+        diagnostic.message.contains("@"),
+        "document diagnostic should name the offending source byte: {}",
+        diagnostic.message
+    );
+    assert!(
+        !diagnostic.message.contains("unexpected token \"end\""),
+        "document diagnostic should not present a non-EOF invalid byte as EOF: {}",
+        diagnostic.message
+    );
+
+    let rendered = diagnostic.display_with_source(source).to_string();
+    assert!(
+        rendered.contains("@; expected one of: /\\d+/"),
+        "rendered document diagnostic should name the offending byte: {rendered}"
+    );
+    assert!(
+        rendered.contains("expected one of: /\\d+/"),
+        "rendered document diagnostic should retain expected-token text: {rendered}"
+    );
+}
+
+#[test]
 fn generated_parse_document_diagnostics_include_multibyte_byte_span() {
     let source = "1 + \u{03bb}";
     let document = adze_example::typed_ast_contract::grammar::parse_document(source)

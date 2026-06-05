@@ -570,7 +570,7 @@ fn parse_with_pure_parser<T: Extract<T>>(
         let errors = parser_errors
             .into_iter()
             .map(|e| {
-                let symbol_name = symbol_name_for_diagnostic(lang, e.found);
+                let symbol_name = diagnostic_found_name_for_error(input, lang, e.found, e.position);
                 let expected = expected_symbol_names_for_diagnostic(lang, &e.expected);
                 crate::errors::ParseError {
                     reason: crate::errors::ParseErrorReason::UnexpectedToken(
@@ -1203,7 +1203,7 @@ fn document_diagnostics_for_parse_errors(
     parser_errors
         .iter()
         .map(|error| {
-            let found = symbol_name_for_diagnostic(lang, error.found);
+            let found = diagnostic_found_name_for_error(input, lang, error.found, error.position);
             let expected = expected_symbol_names_for_diagnostic(lang, &error.expected);
             let start_byte = error.position;
             let end_byte = diagnostic_end_for_byte(input.as_bytes(), error.position);
@@ -1360,6 +1360,37 @@ fn symbol_name_for_diagnostic(
             .to_string();
         crate::diagnostic_format::diagnostic_symbol_name(raw_name)
     }
+}
+
+#[cfg(feature = "pure-rust")]
+fn diagnostic_found_name_for_error(
+    input: &str,
+    lang: &crate::pure_parser::TSLanguage,
+    found: crate::pure_parser::TSSymbol,
+    position: usize,
+) -> String {
+    if found == lang.eof_symbol && position < input.len() {
+        return source_slice_name_for_diagnostic(input, position)
+            .unwrap_or_else(|| symbol_name_for_diagnostic(lang, found));
+    }
+
+    symbol_name_for_diagnostic(lang, found)
+}
+
+#[cfg(feature = "pure-rust")]
+fn source_slice_name_for_diagnostic(input: &str, position: usize) -> Option<String> {
+    let source = input.as_bytes();
+    let start = position.min(source.len());
+    if start >= source.len() {
+        return None;
+    }
+
+    let end = diagnostic_end_for_byte(source, start);
+    if input.is_char_boundary(start) && input.is_char_boundary(end) {
+        return Some(input[start..end].to_string());
+    }
+
+    Some(format!("byte 0x{:02X}", source[start]))
 }
 
 #[cfg(feature = "pure-rust")]

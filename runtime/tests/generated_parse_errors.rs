@@ -32,6 +32,14 @@ fn generated_typed_parser_bad_token_reports_source_span() {
 
     let rendered = first.display_with_source(source).to_string();
     assert!(
+        rendered.contains("unexpected token \"@\""),
+        "rendered diagnostic should name the offending source byte: {rendered}"
+    );
+    assert!(
+        !rendered.contains("unexpected token \"end\""),
+        "non-EOF bad-token diagnostic should not present the invalid byte as EOF: {rendered}"
+    );
+    assert!(
         rendered.contains("bytes 4..5"),
         "rendered diagnostic should include byte span: {rendered}"
     );
@@ -97,6 +105,10 @@ fn generated_typed_parser_unexpected_eof_reports_zero_width_source_span() {
     assert_eq!(span.end.column, source.len() + 1);
 
     let rendered = first.display_with_source(source).to_string();
+    assert!(
+        rendered.contains("unexpected token \"end\""),
+        "true EOF diagnostic should keep EOF/end wording: {rendered}"
+    );
     assert!(
         rendered.contains("bytes 3..3"),
         "rendered diagnostic should include zero-width byte span: {rendered}"

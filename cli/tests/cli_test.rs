@@ -528,6 +528,12 @@ fn assert_bad_input_diagnostic(diagnostic: &serde_json::Value) {
             .is_some_and(|message| message.contains("expected one of:")),
         "diagnostics projection should preserve useful parser context: {diagnostic:?}"
     );
+    assert!(
+        diagnostic["message"].as_str().is_some_and(|message| {
+            message.contains("@") && !message.contains("unexpected token \"end\"")
+        }),
+        "diagnostics projection should name the offending byte instead of EOF: {diagnostic:?}"
+    );
 }
 
 #[test]
