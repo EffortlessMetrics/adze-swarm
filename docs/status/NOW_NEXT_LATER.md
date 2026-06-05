@@ -1,7 +1,25 @@
 # Now / Next / Later
 
-**Last updated:** 2026-05-31
-**Status:** **Adze-swarm forge standby restored; release remains unauthorized** — `adze-swarm` remains the operating repo for follow-up non-release proof work, and public `adze` remains the release, public-intake, promotion, tag, publish, signing, Cargo-token, and crates.io receipt surface. The current research board is [`adze-swarm#617`](https://github.com/EffortlessMetrics/adze-swarm/issues/617); the latest board pass completed adoption hardening research, Tree-sitter/query gap research, performance receipt strategy, the first-use route-map follow-up, the first upstream query differential canary, and a narrow post-#648 routing-policy cleanup. The query differential lane is closed out through #646, #647/#651/#652 restored the checked-in standby/policy state, and the active manifest is paused with no active or ready implementation lane. The remaining blocked decision/evidence lanes are CX53 runner state in [`adze-swarm#598`](https://github.com/EffortlessMetrics/adze-swarm/issues/598), now narrowed to admin/runner context after repo-visible API checks, and release authorization/install receipts in [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325), refreshed after #652 but still not authorization. No routine release, publish, signing, Cargo-token, public promotion, or crates.io install receipt work is authorized.
+**Last updated:** 2026-06-04
+**Status:** **Adze-swarm forge standby remains paused; release remains
+unauthorized** — `adze-swarm` remains the operating repo for non-release
+research, proof, docs, CI, implementation, and release-candidate preparation,
+while public `adze` remains the release, public-intake, promotion, tag,
+publish, signing, Cargo-token, and crates.io receipt surface. The current
+research board is [`adze-swarm#617`](https://github.com/EffortlessMetrics/adze-swarm/issues/617),
+whose body was refreshed on June 4 after #673 closed the #672 query predicate
+documentation-boundary gap, the #325 release decision packet was refreshed,
+#661 was classified as a blocked future cleanup candidate, and the product
+acceptance matrix proof checkpoint was posted. The active manifest is paused
+with no active or ready implementation lane. The remaining blocked
+decision/evidence lanes are CX53 runner state in
+[`adze-swarm#598`](https://github.com/EffortlessMetrics/adze-swarm/issues/598),
+now narrowed to admin/runner context after repo-visible API checks, and release
+authorization/install receipts in
+[`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
+Open swarm PRs #662 and #663 are draft/behind and not treated as ready. No
+routine release, publish, signing, Cargo-token, public promotion, or crates.io
+install receipt work is authorized.
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
@@ -296,5 +314,6 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
   documented as covered; remaining work is broader alternation/directive,
   imported-fixture, differential-corpus, and GLR-forest matching proof.
 - Open fresh CLI/tooling work only for a material selected gap such as dynamic
-  parse output, static `json`/`dot` output, or stable schema promotion.
+  parse output, broader document-projection behavior, or stable CLI/WASM schema
+  promotion.
 - Stabilize the LSP generator and related developer tooling for broader use.

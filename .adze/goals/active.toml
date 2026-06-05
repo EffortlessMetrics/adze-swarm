@@ -10,13 +10,17 @@ the #646 closeout archived that lane. #647 restored checked-in forge standby
 status, #649 researched the self-hosted routing guard question from the closed
 broad #648 proposal, and #651 aligned the route-runner policy text with the
 current #598/#607 quarantine behavior without changing routing. #652 refreshed
-checked-in standby state after those policy receipts. The current operating
-board is #617; #598 now records that repo-visible runner state cannot explain
-CX53 occupancy without org/admin runner context; and #325 records the refreshed
-release decision packet after #652. No non-release implementation work item is
-currently active or ready. This paused state does not authorize public adze
-work, release, publish, signing, Cargo-token, hosted fallback restoration, or
-crates.io install receipt work.
+checked-in standby state after those policy receipts. #673 then closed #672 as
+the canonical query predicate documentation-boundary update, and the June 4
+#617 board-front-page refresh now records the current queue, #325 release
+decision packet, #661 candidate classification, and product acceptance matrix
+proof checkpoint. The current operating board is #617; #598 still records that
+repo-visible runner state cannot explain CX53 occupancy without org/admin
+runner context; and #325 records the refreshed release decision packet without
+authorization. No non-release implementation work item is currently active or
+ready. This paused state does not authorize public adze work, release, publish,
+signing, Cargo-token, hosted fallback restoration, or crates.io install receipt
+work.
 """
 
 objective = """

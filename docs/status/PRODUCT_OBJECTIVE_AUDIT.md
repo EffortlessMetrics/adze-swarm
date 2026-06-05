@@ -1,26 +1,20 @@
 # Product Objective Audit
 
-**Last updated:** 2026-05-31
+**Last updated:** 2026-06-04
 **Status:** incomplete; use this as an audit checklist, not as a support-tier
 promotion. Routine product-proof, query/tooling, recovery, user-experience,
 parser/runtime maintainability, CLI parse-surface, static S-expression, static
 JSON/DOT, dynamic parse boundary, adoption-hardening, release-candidate bundle,
 post-adoption standby hygiene, and stale-queue control-plane follow-up lanes
-are closed out. The latest #617 research-board pass is also closed out through
-the #646 query differential lane closeout plus the #647/#651/#652
-standby/policy refreshes, and `active.toml` is paused as
-`adze-swarm-forge-standby` with no active or ready implementation lane
-selected. Release/publish work remains separate and blocked on explicit
-authorization in adze-swarm#325; the CX53 runner investigation remains blocked
-on adze-swarm#598 pending admin/runner context; and the current research board is tracked by
-adze-swarm#617 with no unblocked implementation lane. The adoption hardening
-research in adze-swarm#638, Tree-sitter/query gap research in #639,
-performance receipt strategy in #640, and self-hosted routing guard research
-in #649 are closed; #641 was implemented by #642, #643 was implemented by #645
-with #646 closeout, #647 restored forge standby status, #651 aligned
-route-runner policy text without changing routing behavior, and #652 refreshed
-checked-in standby state after those receipts. The latest #325 packet records
-current drift and missing crates.io metadata without authorizing release.
+are closed out. The current #617 research board was refreshed on June 4 after
+#673 closed #672 as the canonical query predicate documentation-boundary update,
+the #325 release decision packet was refreshed, #661 was classified as a blocked
+future cleanup candidate, and the product acceptance matrix proof checkpoint was
+posted. `active.toml` remains paused as `adze-swarm-forge-standby` with no
+active or ready implementation lane selected. Release/publish work remains
+separate and blocked on explicit authorization in adze-swarm#325; the CX53
+runner investigation remains blocked on adze-swarm#598 pending admin/runner
+context; and public `adze` still has no routine development PR lane.
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
 
@@ -84,6 +78,16 @@ Receipt-era note: the older `ci-product-stable` receipts below predate the
 later `Product Proof Result` required-gate promotion. Current branch protection
 requires `Product Proof Result`; the path-selected `ci-product stable canaries`
 implementation job remains selected by path, schedule, or manual dispatch.
+
+Latest current product acceptance matrix proof checkpoint:
+adze-swarm#617 records a June 4 read-only refresh from `adze-swarm/main` at
+`c85ddb3d`. The checkpoint reran the acceptance matrix proof set for GLR
+conflicts, diagnostics, `AdzeDocument`, typed AST, Tree-sitter selected-tree,
+query differential, JSON projection, downstream starter, CLI document output,
+WASM compile, and advisory benchmark/performance receipts. All recorded
+commands passed locally. This is product proof under the research board, not a
+support-tier promotion, release authorization, public `adze` promotion, or
+crates.io install receipt.
 
 Latest current receipt after CLI reference source-build boundary PR #588:
 `Product Proof` run 26680325962 passed on 2026-05-30 from `adze-swarm/main`.
