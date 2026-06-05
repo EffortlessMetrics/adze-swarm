@@ -1,6 +1,6 @@
 # First-Use Starter Workspace Hardening Plan
 
-Status: active
+Status: paused
 Owner: cli/product
 Created: 2026-06-05
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
@@ -18,15 +18,19 @@ Policy impact: no workflow/router, hosted-fallback, release, publish, signing, C
 
 ## Goal
 
-Select #680 diagnostic wording polish as the next bounded non-release
-implementation lane after the starter workspace robustness slice completed
-through EffortlessMetrics/adze-swarm#682 and #683.
+Close #680 diagnostic wording polish after the starter workspace robustness
+slice completed through EffortlessMetrics/adze-swarm#682 and #683 and the
+diagnostic wording slice completed through EffortlessMetrics/adze-swarm#686.
 
 This lane addresses only the bad-token wording gap recorded on #680: for a
 non-EOF invalid source byte such as `1 + @`, the diagnostic should not point at
 the offending byte while rendering the found token as `end`. It must preserve
 true EOF wording for `1 +`, expected-token text, byte/point spans, UTF-8 and
 multiline behavior, and existing document diagnostic range agreement.
+
+No non-release implementation item remains active or ready in this campaign.
+Return to #617 for the next decision packet before opening more implementation
+work.
 
 ## Operating Rules
 
@@ -199,7 +203,7 @@ generated manifest stanza plus the one focused CLI test.
 
 ## Work Item: diagnostic-wording-polish
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -218,10 +222,21 @@ zero-width EOF span behavior.
 
 ### Production Delta
 
-Expected focused runtime/diagnostic implementation PR. The likely surface is
-the public diagnostic conversion/formatting path around
-`runtime/src/__private.rs` and any directly required focused tests. Do not edit
-starter manifest generation, workflow routing, or unrelated parser behavior.
+Merged by EffortlessMetrics/adze-swarm#686 as one focused runtime/diagnostic
+presentation diff:
+
+```text
+runtime/src/__private.rs
+runtime/tests/generated_parse_errors.rs
+runtime/tests/typed_cst_generated_document.rs
+cli/tests/cli_test.rs
+```
+
+The pure-Rust parser diagnostic conversion now maps an EOF symbol reported
+before the real end of input to the offending source scalar, or to an explicit
+byte phrase for invalid UTF-8 boundaries. True EOF still uses the language
+EOF/end symbol. Document diagnostics and CLI JSON projections remain
+projections of the same parser diagnostic facts.
 
 ### Non-Goals
 
@@ -262,6 +277,28 @@ Small runtime/diagnostic presentation change plus focused tests. Expected
 required PR gate remains `Rust Small Result`; no broad hosted fanout, workflow
 change, coverage expansion, benchmark lane, release lane, or support-tier
 promotion is selected by this lane.
+
+### Completion Receipts
+
+- Implementation PR: EffortlessMetrics/adze-swarm#686.
+- Merge commit: `d6aee95c9cad59dbbd593d6f53f0b8cd8c6648ee`.
+- Required gates before merge: `Rust Small Result` and `Product Proof Result`
+  passed.
+- PR Gate before merge: `PR Plan / PR Plan`, `Supported Rust Gate`, and
+  `PR Gate Success` passed on run `26997407560`.
+- Additional source-relevant hosted receipts: `Pure Rust Implementation CI`
+  passed, including `Test Pure Rust Implementation (self-hosted-linux, stable)`.
+- Known non-source CI red: `Runner Capacity / Fallback Policy` remained the
+  expected no-idle/no-default-fallback control-plane signal, and
+  `Microcrate CI / Test Runtime Crates` was classified on #686 as runner/job
+  state evidence rather than a diagnostic source failure.
+- Focused local proof included the named #680 diagnostic commands, CLI JSON
+  diagnostics projection, UTF-8 and multiline document diagnostic canaries, the
+  #686-only bad-token document message canary, touched-file rustfmt,
+  active-goal check, and `git diff --check`.
+- Broad `cargo fmt --all` and `cargo fmt -p adze -p adze-cli` were unavailable
+  on Windows with `os error 206`, so touched files were formatted directly with
+  `rustfmt`.
 
 ### Rollback
 
