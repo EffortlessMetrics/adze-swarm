@@ -83,7 +83,7 @@ later `Product Proof Result` required-gate promotion. Current branch protection
 requires `Product Proof Result`; the path-selected `ci-product stable canaries`
 implementation job remains selected by path, schedule, or manual dispatch.
 
-Latest current research-board state:
+Current referenced research-board state:
 adze-swarm#617 records a June 5 refresh from `adze-swarm/main` at
 `45040a57`. The refresh records #680 as complete and closed after starter
 workspace robustness (#681/#682/#683) and diagnostic wording polish
@@ -109,7 +109,7 @@ receipt does not prove public `adze` source builds from the current swarm state.
 
 GitHub workflow dispatch
 [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
-passed on 2026-05-19 from current `adze-swarm/main` after PR #281, commit
+passed on 2026-05-19 from `adze-swarm/main` after PR #281, commit
 `0b79a36a`. The `ci-product stable canaries` job passed in 3m02s and the broad
 advisory canaries skipped under the stable-only default. This is evidence for
 the README Stable claim lane from the pre-promotion receipt era.
