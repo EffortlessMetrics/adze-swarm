@@ -13,10 +13,13 @@ research board was refreshed on June 5 after #680 was closed as completed by
 proof-map test queue into a current ledger/stop-rule receipt, after #692/#693
 refreshed checked-in status ledgers, after #694/#695 refreshed product
 proof-map receipt pointers, after #696/#697 refreshed rolling receipt wording,
-after #702/#704 closed the focused `parse_sexpr` parser gap, and after
-#706/#708 plus #709/#710 recorded the canonical `SExpr` helper implementation
-and support/API proof boundary without selecting a new implementation lane.
-`active.toml` remains paused as
+after #702/#704 closed the focused `parse_sexpr` parser gap, and after the
+#706/#708 canonical `SExpr` implementation and #709/#710 checked-in
+support/API proof-boundary docs landed without selecting a new implementation
+lane. A later June 5 docs/projection cleanup pass closed #729/#732, #730/#731,
+#733/#735, and #736/#734, replacing stale `as_tree_sitter` and direct
+`doc.root()` examples with the current `AdzeDocument` projection/root API
+shape. `active.toml` remains paused as
 `first-use-starter-workspace-hardening` with no active or ready implementation
 lane selected: 3 complete, 0 active, 0 ready, 1 blocked. Release/publish work
 remains separate and blocked on explicit authorization in adze-swarm#325; the
@@ -94,15 +97,16 @@ starter workspace robustness (#681/#682/#683), diagnostic wording polish
 ledger (#692/#693), product proof-map receipt (#694/#695), rolling receipt
 wording (#696/#697), board-reference durability (#699/#700), runtime
 S-expression parser (#702/#704), canonical `SExpr` formatter (#706/#708), and
-canonical formatter proof-boundary docs (#709/#710) refreshes. The latest
-recorded post-merge control-plane receipt is `main` CI Policy run `27014065648`
-passing on `499195cc` after #710. The broader June 4 acceptance matrix
-checkpoint remains prior product evidence and was not rerun by these status
-refreshes. This is product proof under the research board, not a support-tier
-promotion, release authorization, public `adze` promotion, or crates.io install
-receipt. Do not update this paragraph merely to chase every status-only PR;
-refresh it when the board selects a new product/proof fact or closes a named
-source-of-truth issue.
+canonical formatter proof-boundary docs (#709/#710) refreshes, plus the
+document projection/root cleanup sequence #729/#732, #730/#731, #733/#735, and
+#736/#734. The latest recorded post-merge control-plane receipt is `main` CI
+Policy run `27023675156` passing on `7881186e` after #734. The broader June 4
+acceptance matrix checkpoint remains prior product evidence and was not rerun
+by these status refreshes. This is product proof under the research board, not
+a support-tier promotion, release authorization, public `adze` promotion, or
+crates.io install receipt. Do not update this paragraph merely to chase every
+status-only PR; refresh it when the board selects a new product/proof fact or
+closes a named source-of-truth issue.
 
 Latest current receipt after CLI reference source-build boundary PR #588:
 `Product Proof` run 26680325962 passed on 2026-05-30 from `adze-swarm/main`.

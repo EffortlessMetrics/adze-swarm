@@ -30,8 +30,11 @@ stale recommended work into a ledger/stop-rule receipt, after #692/#693,
 #694/#695, #696/#697, and #699/#700 refreshed status ledgers, after #702/#704
 closed the focused runtime `parse_sexpr` parser gap, and after #706/#708 plus
 #709/#710 recorded the canonical `SExpr` helper implementation and checked-in
-proof boundary. The active manifest is paused with no active or ready
-implementation work.
+proof boundary. A later June 5 document projection/root cleanup pass closed
+#729/#732, #730/#731, #733/#735, and #736/#734, updating stale
+`as_tree_sitter`, `doc.root()`, and root-kind examples without changing
+runtime/API behavior, support tiers, CI routing, or release posture. The active
+manifest is paused with no active or ready implementation work.
 
 The near-term CI governance, repo-boundary, proof-refresh, release-candidate
 bundle, adoption-hardening, post-closeout audit, CI-routing, and active-goal
@@ -154,6 +157,10 @@ Recent merged PRs:
 - #704: `fix(runtime): parse S-expression lists`
 - #708: `feat(runtime): add canonical S-expression formatting`
 - #710: `docs: record canonical SExpr proof boundary`
+- #731: `docs: align document root examples`
+- #732: `docs: remove stale as_tree_sitter examples`
+- #735: `docs: align spec root examples`
+- #734: `docs(specs): polish document root examples after #735`
 
 Current active manifest:
 

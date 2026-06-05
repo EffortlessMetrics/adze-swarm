@@ -14,17 +14,21 @@ after #692/#693 refreshed checked-in status ledgers, and after #694/#695
 refreshed product proof-map receipt pointers, then after #696/#697 refreshed
 rolling receipt wording, after #699/#700 refreshed board-reference durability,
 after #702/#704 closed the focused runtime `parse_sexpr` parser gap, and after
-#706/#708 plus #709/#710 recorded the canonical `SExpr` helper implementation
-and checked-in proof boundary without support-tier promotion. The active
-manifest is paused as `first-use-starter-workspace-hardening` with 3 complete,
-0 active, 0 ready, and 1 blocked item. The remaining blocked decision/evidence
-lanes are release authorization/install receipts in
+the #706/#708 canonical `SExpr` implementation and #709/#710 checked-in
+proof-boundary docs landed without support-tier promotion. A later June 5
+docs/projection cleanup pass closed #729/#732, #730/#731, #733/#735, and
+#736/#734, removing stale `as_tree_sitter` examples and aligning current
+document-root examples with `AdzeDocument::tree().root()` and native
+`NodeKind` shape. The active manifest is paused as
+`first-use-starter-workspace-hardening` with 3 complete, 0 active, 0 ready, and
+1 blocked item. The remaining blocked decision/evidence lanes are release
+authorization/install receipts in
 [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325)
 and standing CX53 runner state in
 [`adze-swarm#598`](https://github.com/EffortlessMetrics/adze-swarm/issues/598),
 now narrowed to admin/runner context after repo-visible API checks.
 Open swarm PRs #662 and #663 are draft/behind and not treated as ready; queued
-and in-progress swarm runs were empty after the post-#710 queue cleanup. No
+and in-progress swarm runs were empty after the post-#734 queue cleanup. No
 routine release, publish, signing, Cargo-token, public promotion, or crates.io
 install receipt work is authorized.
 
@@ -63,6 +67,9 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       `docs/status/ACCURACY_PROOF_MAP.md` so 78 tested aspects / 0 named gaps
       is a ledger state and the old recommended test sequence is not a ready
       PR queue.
+- [x] #729/#732, #730/#731, #733/#735, and #736/#734 refreshed current
+      document projection/root examples without changing runtime/API behavior,
+      support tiers, workflows, release state, or public `adze`.
 
 ---
 
