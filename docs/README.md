@@ -74,6 +74,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 
 - [**Roadmap**](../ROADMAP.md) - Milestones for 0.8.0, 0.9.0, and 1.0.
 - [**Source-Of-Truth System**](./reference/SPEC_SYSTEM.md) - Repo rails for proposals, specs, ADRs, plans, active goals, proof, and policy ledgers.
+- [**Repo Style**](./REPO_STYLE.md) - Evidence-machine doctrine: strict defaults, owned exceptions, static signal first, runtime proof where it pays, receipts everywhere, and one review-fast PR at a time.
 - [**Proposals**](./proposals/README.md) - PRD-style "why" documents for product and repo-governance campaigns.
 - [**Specs**](./specs/README.md) - Behavior contracts, acceptance criteria, and proof requirements.
 - [**Architecture Decisions**](./adr/README.md) - Durable architecture decisions and their consequences.
