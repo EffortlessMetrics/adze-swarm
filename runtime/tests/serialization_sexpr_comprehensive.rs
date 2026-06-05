@@ -2,7 +2,7 @@
 
 //! Comprehensive tests for S-expression serialization in `adze::serialization`.
 //!
-//! Covers: parse_sexpr stub behavior, SExpr enum construction/traits,
+//! Covers: parse_sexpr behavior, SExpr enum construction/traits,
 //! SerializedNode JSON roundtrip, CompactNode serde, BinaryFormat/BinarySerializer
 //! construction, TreeSerializer/CompactSerializer/SExpressionSerializer builder
 //! APIs, and determinism across repeated calls.
@@ -52,28 +52,28 @@ fn branch(kind: &str, children: Vec<SerializedNode>, start: usize, end: usize) -
 #[test]
 fn parse_sexpr_empty_string_returns_ok() {
     let result = parse_sexpr("");
-    assert!(result.is_ok());
+    assert!(result.is_err());
 }
 
 #[test]
-fn parse_sexpr_empty_string_returns_empty_list() {
-    let result = parse_sexpr("").unwrap();
-    assert_eq!(result, SExpr::List(vec![]));
+fn parse_sexpr_empty_string_returns_error() {
+    let result = parse_sexpr("");
+    assert!(result.is_err());
 }
 
 #[test]
-fn parse_sexpr_whitespace_only_returns_ok() {
-    assert!(parse_sexpr("   ").is_ok());
+fn parse_sexpr_whitespace_only_returns_error() {
+    assert!(parse_sexpr("   ").is_err());
 }
 
 #[test]
-fn parse_sexpr_newline_only_returns_ok() {
-    assert!(parse_sexpr("\n").is_ok());
+fn parse_sexpr_newline_only_returns_error() {
+    assert!(parse_sexpr("\n").is_err());
 }
 
 #[test]
-fn parse_sexpr_tab_only_returns_ok() {
-    assert!(parse_sexpr("\t").is_ok());
+fn parse_sexpr_tab_only_returns_error() {
+    assert!(parse_sexpr("\t").is_err());
 }
 
 // ===================================================================
@@ -130,27 +130,43 @@ fn parse_sexpr_triple_nested_returns_ok() {
 }
 
 // ===================================================================
-// 4. parse_sexpr – various inputs (stub always returns List([]))
+// 4. parse_sexpr – parsed values
 // ===================================================================
 
 #[test]
-fn parse_sexpr_with_symbols_returns_empty_list() {
-    assert_eq!(parse_sexpr("+").unwrap(), SExpr::List(vec![]));
+fn parse_sexpr_with_symbols_returns_atom() {
+    assert_eq!(parse_sexpr("+").unwrap(), SExpr::Atom("+".to_string()));
 }
 
 #[test]
-fn parse_sexpr_with_operator_expr_returns_empty_list() {
-    assert_eq!(parse_sexpr("(+ 1 2)").unwrap(), SExpr::List(vec![]));
+fn parse_sexpr_with_operator_expr_returns_list() {
+    assert_eq!(
+        parse_sexpr("(+ 1 2)").unwrap(),
+        SExpr::List(vec![
+            SExpr::Atom("+".to_string()),
+            SExpr::Atom("1".to_string()),
+            SExpr::Atom("2".to_string())
+        ])
+    );
 }
 
 #[test]
-fn parse_sexpr_with_mixed_returns_empty_list() {
-    assert_eq!(parse_sexpr("(define x 10)").unwrap(), SExpr::List(vec![]));
+fn parse_sexpr_with_mixed_returns_list() {
+    assert!(matches!(
+        parse_sexpr("(define x 10)").unwrap(),
+        SExpr::List(items) if items.len() == 3
+    ));
 }
 
 #[test]
-fn parse_sexpr_with_unicode_returns_empty_list() {
-    assert_eq!(parse_sexpr("(λ x)").unwrap(), SExpr::List(vec![]));
+fn parse_sexpr_with_unicode_returns_list() {
+    assert_eq!(
+        parse_sexpr("(λ x)").unwrap(),
+        SExpr::List(vec![
+            SExpr::Atom("λ".to_string()),
+            SExpr::Atom("x".to_string())
+        ])
+    );
 }
 
 #[test]
@@ -178,10 +194,9 @@ fn parse_sexpr_consistent_across_calls() {
 
 #[test]
 fn parse_sexpr_different_inputs_same_result() {
-    // Stub returns List([]) for all inputs
     let r1 = parse_sexpr("(a)").unwrap();
     let r2 = parse_sexpr("(b)").unwrap();
-    assert_eq!(r1, r2);
+    assert_ne!(r1, r2);
 }
 
 // ===================================================================
@@ -612,17 +627,25 @@ fn sexpr_serializer_with_positions() {
 fn parse_sexpr_deterministic_ten_calls() {
     let results: Vec<_> = (0..10).map(|_| parse_sexpr("(a b)").unwrap()).collect();
     for r in &results {
-        assert_eq!(r, &SExpr::List(vec![]));
+        assert_eq!(
+            r,
+            &SExpr::List(vec![
+                SExpr::Atom("a".to_string()),
+                SExpr::Atom("b".to_string())
+            ])
+        );
     }
 }
 
 #[test]
 fn parse_sexpr_deterministic_varied_inputs() {
-    let inputs = vec!["", "()", "(a)", "(a b)", "(a (b c))", "atom", "123"];
+    let inputs = vec!["()", "(a)", "(a b)", "(a (b c))", "atom", "123"];
     for input in &inputs {
         let result = parse_sexpr(input).unwrap();
-        assert_eq!(result, SExpr::List(vec![]));
+        assert_eq!(result, parse_sexpr(input).unwrap());
     }
+
+    assert!(parse_sexpr("").is_err());
 }
 
 // ===================================================================

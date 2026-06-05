@@ -171,7 +171,6 @@ mod s_expr_tests {
 
     /// Test 1: Round-trip identity for basic structures
     #[test]
-    #[ignore = "parse_sexpr is still a documented stub"]
     fn test_basic_roundtrip_identity() {
         // Simple atom
         let atom_sexpr = SExpr::Atom("hello".to_string());
@@ -191,7 +190,6 @@ mod s_expr_tests {
 
     /// Test 2: Canonicalization - atom quoting/escaping
     #[test]
-    #[ignore = "parse_sexpr is still a documented stub"]
     fn test_canonicalization_atom_escaping() {
         let test_cases = vec![
             (r#""hello world""#, "hello world"),
@@ -213,34 +211,25 @@ mod s_expr_tests {
 
     /// Test 3: Unicode edge cases (non-BMP, combining marks, RTL)
     #[test]
-    #[ignore = "parse_sexpr is still a documented stub"]
     fn test_unicode_edge_cases() {
         let unicode_cases = vec![
             // Non-BMP characters (emoji, mathematical symbols)
-            ("🚀", "🚀"),
-            ("𝔘𝔫𝔦𝔠𝔬𝔡𝔢", "𝔘𝔫𝔦𝔠𝔬𝔡𝔢"),
+            "🚀",
+            "𝔘𝔫𝔦𝔠𝔬𝔡𝔢",
             // Combining marks
-            ("e\u{0301}", "é"), // é composed
+            "e\u{0301}",
             // RTL text
-            ("שלום", "שלום"),
-            ("مرحبا", "مرحبا"),
+            "שלום",
+            "مرحبا",
             // Mixed scripts
-            ("Hello世界", "Hello世界"),
+            "Hello世界",
         ];
 
-        for (input, expected) in unicode_cases {
+        for input in unicode_cases {
             let quoted_input = format!("\"{}\"", input);
             let parsed = parse_sexpr(&quoted_input).unwrap();
             match parsed {
-                SExpr::Atom(text) => {
-                    // For combining marks, we compare the normalized form
-                    assert!(
-                        text.contains(expected) || expected.contains(&text),
-                        "Unicode handling failed: {} vs {}",
-                        text,
-                        expected
-                    );
-                }
+                SExpr::Atom(text) => assert_eq!(text, input),
                 _ => panic!("Expected atom for unicode test"),
             }
         }
@@ -248,7 +237,6 @@ mod s_expr_tests {
 
     /// Test 4: Empty list vs empty atom semantics  
     #[test]
-    #[ignore = "parse_sexpr is still a documented stub"]
     fn test_empty_structures() {
         // Empty lists should parse but may be semantically invalid
         let empty_list = parse_sexpr("()").unwrap();

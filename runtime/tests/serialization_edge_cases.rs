@@ -440,23 +440,34 @@ fn test_malformed_json_invalid_json_syntax() {
 #[test]
 #[cfg(feature = "serialization")]
 fn test_parse_sexpr_basic() {
-    // The parse_sexpr function is a stub, but we can test its current behavior
     let result = parse_sexpr("(+ 1 2)");
-    assert!(result.is_ok(), "Should parse S-expression");
+    assert_eq!(
+        result,
+        Ok(SExpr::List(vec![
+            SExpr::Atom("+".to_string()),
+            SExpr::Atom("1".to_string()),
+            SExpr::Atom("2".to_string())
+        ])),
+        "Should parse S-expression"
+    );
 }
 
 #[test]
 #[cfg(feature = "serialization")]
 fn test_parse_sexpr_empty() {
     let result = parse_sexpr("");
-    assert!(result.is_ok(), "Empty input should be handled");
+    assert!(result.is_err(), "Empty input should be rejected");
 }
 
 #[test]
 #[cfg(feature = "serialization")]
 fn test_parse_sexpr_atom() {
     let result = parse_sexpr("identifier");
-    assert!(result.is_ok(), "Single atom should parse");
+    assert_eq!(
+        result,
+        Ok(SExpr::Atom("identifier".to_string())),
+        "Single atom should parse"
+    );
 }
 
 // ============================================================================

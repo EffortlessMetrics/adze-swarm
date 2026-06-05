@@ -3,7 +3,7 @@
 //! Serialization v4 tests for `adze::serialization`.
 //!
 //! 55+ tests covering SExpr constructors, type predicates, accessors,
-//! Display formatting, equality, cloning, parse_sexpr stub, and edge cases.
+//! Display formatting, equality, cloning, parse_sexpr behavior, and edge cases.
 
 use adze::serialization::{SExpr, parse_sexpr};
 
@@ -373,7 +373,7 @@ fn test_debug_list() {
 }
 
 // ===========================================================================
-// parse_sexpr stub
+// parse_sexpr behavior
 // ===========================================================================
 
 #[test]
@@ -384,27 +384,27 @@ fn test_parse_sexpr_returns_ok() {
 
 #[test]
 fn test_parse_sexpr_returns_list() {
-    let result = parse_sexpr("anything").unwrap();
+    let result = parse_sexpr("(anything)").unwrap();
     assert!(result.is_list());
 }
 
 #[test]
-fn test_parse_sexpr_stub_returns_empty_list() {
+fn test_parse_sexpr_list_keeps_items() {
     let result = parse_sexpr("(+ 1 2)").unwrap();
     let items = result.as_list().unwrap();
-    assert!(items.is_empty());
+    assert_eq!(items.len(), 3);
 }
 
 #[test]
 fn test_parse_sexpr_empty_input() {
     let result = parse_sexpr("");
-    assert!(result.is_ok());
+    assert!(result.is_err());
 }
 
 #[test]
 fn test_parse_sexpr_whitespace_input() {
     let result = parse_sexpr("   ");
-    assert!(result.is_ok());
+    assert!(result.is_err());
 }
 
 #[test]

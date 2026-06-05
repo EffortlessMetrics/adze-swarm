@@ -144,10 +144,126 @@ impl std::fmt::Display for SExpr {
     }
 }
 
-/// Parse an S-expression from string
-pub fn parse_sexpr(_input: &str) -> Result<SExpr, String> {
-    // Minimal stub for now to satisfy tests
-    Ok(SExpr::List(vec![]))
+/// Parse a single S-expression from a string.
+pub fn parse_sexpr(input: &str) -> Result<SExpr, String> {
+    struct Parser<'a> {
+        input: &'a str,
+        offset: usize,
+    }
+
+    impl<'a> Parser<'a> {
+        fn new(input: &'a str) -> Self {
+            Self { input, offset: 0 }
+        }
+
+        fn parse(mut self) -> Result<SExpr, String> {
+            self.skip_ws();
+            if self.is_eof() {
+                return Err("expected S-expression, found end of input".to_string());
+            }
+
+            let expr = self.parse_expr()?;
+            self.skip_ws();
+            if !self.is_eof() {
+                return Err(format!("unexpected trailing input at byte {}", self.offset));
+            }
+            Ok(expr)
+        }
+
+        fn parse_expr(&mut self) -> Result<SExpr, String> {
+            match self.peek_char() {
+                Some('(') => self.parse_list(),
+                Some('"') => self.parse_quoted_atom(),
+                Some(')') => Err(format!("unexpected ')' at byte {}", self.offset)),
+                Some(_) => self.parse_atom(),
+                None => Err("expected S-expression, found end of input".to_string()),
+            }
+        }
+
+        fn parse_list(&mut self) -> Result<SExpr, String> {
+            self.consume_char();
+            let mut items = Vec::new();
+
+            loop {
+                self.skip_ws();
+                match self.peek_char() {
+                    Some(')') => {
+                        self.consume_char();
+                        return Ok(SExpr::List(items));
+                    }
+                    Some(_) => items.push(self.parse_expr()?),
+                    None => return Err("unterminated list: expected ')'".to_string()),
+                }
+            }
+        }
+
+        fn parse_atom(&mut self) -> Result<SExpr, String> {
+            let start = self.offset;
+            while let Some(ch) = self.peek_char() {
+                if ch.is_whitespace() || ch == '(' || ch == ')' || ch == '"' {
+                    break;
+                }
+                self.consume_char();
+            }
+
+            if self.offset == start {
+                return Err(format!("expected atom at byte {start}"));
+            }
+
+            Ok(SExpr::Atom(self.input[start..self.offset].to_string()))
+        }
+
+        fn parse_quoted_atom(&mut self) -> Result<SExpr, String> {
+            self.consume_char();
+            let mut atom = String::new();
+
+            loop {
+                match self.consume_char() {
+                    Some('"') => return Ok(SExpr::Atom(atom)),
+                    Some('\\') => match self.consume_char() {
+                        Some('"') => atom.push('"'),
+                        Some('\\') => atom.push('\\'),
+                        Some('n') => atom.push('\n'),
+                        Some('r') => atom.push('\r'),
+                        Some('t') => atom.push('\t'),
+                        Some(other) => {
+                            return Err(format!(
+                                "unsupported escape '\\{other}' at byte {}",
+                                self.offset
+                            ));
+                        }
+                        None => {
+                            return Err("unterminated quoted atom after escape".to_string());
+                        }
+                    },
+                    Some(ch) => atom.push(ch),
+                    None => return Err("unterminated quoted atom".to_string()),
+                }
+            }
+        }
+
+        fn skip_ws(&mut self) {
+            while self.peek_char().is_some_and(char::is_whitespace) {
+                self.consume_char();
+            }
+        }
+
+        fn is_eof(&self) -> bool {
+            self.offset >= self.input.len()
+        }
+
+        fn peek_char(&self) -> Option<char> {
+            self.input[self.offset..].chars().next()
+        }
+
+        fn consume_char(&mut self) -> Option<char> {
+            let ch = self.peek_char()?;
+            self.offset += ch.len_utf8();
+            Some(ch)
+        }
+    }
+
+    Parser::new(input).parse()
 }
 
 /// Serializer for parse trees

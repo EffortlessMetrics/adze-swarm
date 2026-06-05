@@ -610,60 +610,62 @@ fn sexpr_json_roundtrip_list() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 12. parse_sexpr – stub behaviour
+// 12. parse_sexpr
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn parse_sexpr_empty_input() {
     let r = parse_sexpr("");
-    assert!(r.is_ok());
-    assert_eq!(r.unwrap(), SExpr::List(vec![]));
+    assert!(r.is_err());
 }
 
 #[test]
 fn parse_sexpr_atom_input() {
     let r = parse_sexpr("hello");
-    assert!(r.is_ok());
-    assert_eq!(r.unwrap(), SExpr::List(vec![]));
+    assert_eq!(r, Ok(SExpr::Atom("hello".to_string())));
 }
 
 #[test]
 fn parse_sexpr_list_input() {
     let r = parse_sexpr("(a b c)");
-    assert!(r.is_ok());
-    assert_eq!(r.unwrap(), SExpr::List(vec![]));
+    assert_eq!(
+        r,
+        Ok(SExpr::List(vec![
+            SExpr::Atom("a".to_string()),
+            SExpr::Atom("b".to_string()),
+            SExpr::Atom("c".to_string())
+        ]))
+    );
 }
 
 #[test]
 fn parse_sexpr_nested_input() {
     let r = parse_sexpr("(a (b c))");
-    assert!(r.is_ok());
-    assert_eq!(r.unwrap(), SExpr::List(vec![]));
+    assert!(matches!(r, Ok(SExpr::List(items)) if items.len() == 2));
 }
 
 #[test]
 fn parse_sexpr_whitespace_input() {
     let r = parse_sexpr("   \t\n  ");
-    assert!(r.is_ok());
-    assert_eq!(r.unwrap(), SExpr::List(vec![]));
+    assert!(r.is_err());
 }
 
 #[test]
 fn parse_sexpr_numeric_input() {
     let r = parse_sexpr("12345");
-    assert!(r.is_ok());
+    assert_eq!(r, Ok(SExpr::Atom("12345".to_string())));
 }
 
 #[test]
 fn parse_sexpr_special_chars() {
     let r = parse_sexpr("!@#$%^&*");
-    assert!(r.is_ok());
+    assert_eq!(r, Ok(SExpr::Atom("!@#$%^&*".to_string())));
 }
 
 #[test]
 fn parse_sexpr_unicode_input() {
     let r = parse_sexpr("日本語");
-    assert!(r.is_ok());
+    assert_eq!(r, Ok(SExpr::Atom("日本語".to_string())));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
