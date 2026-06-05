@@ -48,7 +48,7 @@ The beginner path and tooling path are both backed by starter-shaped proof:
 
 | User step | API surface | Local proof |
 | --- | --- | --- |
-| Generate starter project | `adze init` output | `cargo test -p adze-cli test_init -- --nocapture` |
+| Generate starter project | `adze init` output | `cargo test -p adze-cli test_init_default_cwd_generates_buildable_project -- --exact --nocapture`<br>`cargo test -p adze-cli test_init_generates_buildable_project -- --exact --nocapture` |
 | Use typed values | `grammar::parse(source)` | `cargo test --manifest-path testing/downstream-starter/Cargo.toml` |
 | Run the generated parse example | generated `examples/parse.rs` | `cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse -- "1 + 2 * 3"` |
 | Inspect diagnostics and document facts | `grammar::parse_document(source)` / `AdzeDocument` | `cargo test --manifest-path testing/downstream-starter/Cargo.toml` |
