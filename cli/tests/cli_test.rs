@@ -577,6 +577,10 @@ fn test_init_generated_cargo_toml_is_valid() {
         cargo_toml.contains("pure-rust"),
         "Cargo.toml must include pure-rust feature"
     );
+    assert!(
+        cargo_toml.contains("[workspace]"),
+        "Cargo.toml must make generated starters standalone workspace roots"
+    );
 }
 
 #[test]
@@ -637,6 +641,49 @@ fn test_init_generated_project_passes_check() {
     assert!(
         status.success(),
         "generated project should pass cargo check"
+    );
+}
+
+#[test]
+fn test_init_generated_project_under_parent_workspace_passes() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let parent_dir = temp.path().join("parent-workspace");
+    let output_dir = parent_dir.join("scratch");
+    std::fs::create_dir_all(&output_dir).expect("create parent scratch dir");
+    std::fs::write(
+        parent_dir.join("Cargo.toml"),
+        "[workspace]\nmembers = []\nresolver = \"3\"\n",
+    )
+    .expect("write parent workspace manifest");
+
+    let project_name = "nestedlang";
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg(project_name)
+        .arg("--output")
+        .arg(&output_dir)
+        .assert()
+        .success();
+
+    let project_dir = output_dir.join(project_name);
+    let cargo_toml =
+        std::fs::read_to_string(project_dir.join("Cargo.toml")).expect("read generated Cargo.toml");
+    assert!(
+        cargo_toml.contains("[workspace]"),
+        "generated nested starter should opt out of the parent workspace"
+    );
+
+    let output = Command::new("cargo")
+        .arg("test")
+        .arg("--quiet")
+        .current_dir(&project_dir)
+        .output()
+        .expect("run cargo test for nested generated project");
+    assert!(
+        output.status.success(),
+        "nested generated project should build outside the parent workspace\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
     );
 }
 

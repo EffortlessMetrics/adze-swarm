@@ -202,6 +202,8 @@ pure-rust = ["adze/pure-rust"]
 
 [dev-dependencies]
 insta = "1.40"
+
+[workspace]
 "#,
         name, dependency_block
     );
