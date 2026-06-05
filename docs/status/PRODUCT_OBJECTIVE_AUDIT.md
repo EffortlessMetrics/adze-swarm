@@ -5,14 +5,17 @@
 promotion. Routine product-proof, query/tooling, recovery, user-experience,
 parser/runtime maintainability, CLI parse-surface, static S-expression, static
 JSON/DOT, dynamic parse boundary, adoption-hardening, release-candidate bundle,
-post-adoption standby hygiene, stale-queue control-plane follow-up, and
-first-use starter workspace hardening lanes are closed out. The current #617
+post-adoption standby hygiene, stale-queue control-plane follow-up, first-use
+starter workspace hardening, runtime S-expression parser, and canonical
+S-expression formatter proof-boundary lanes are closed out. The current #617
 research board was refreshed on June 5 after #680 was closed as completed by
 #681/#682/#683 and #685/#686/#688, after #690/#691 converted the stale accuracy
 proof-map test queue into a current ledger/stop-rule receipt, after #692/#693
 refreshed checked-in status ledgers, after #694/#695 refreshed product
-proof-map receipt pointers, and after #696/#697 refreshed rolling receipt
-wording without selecting a new implementation lane.
+proof-map receipt pointers, after #696/#697 refreshed rolling receipt wording,
+after #702/#704 closed the focused `parse_sexpr` parser gap, and after
+#706/#708 plus #709/#710 recorded the canonical `SExpr` helper implementation
+and support/API proof boundary without selecting a new implementation lane.
 `active.toml` remains paused as
 `first-use-starter-workspace-hardening` with no active or ready implementation
 lane selected: 3 complete, 0 active, 0 ready, 1 blocked. Release/publish work
@@ -88,9 +91,12 @@ Current referenced research-board state:
 adze-swarm#617 records the June 5 paused-forge state after the completed
 starter workspace robustness (#681/#682/#683), diagnostic wording polish
 (#685/#686/#688), accuracy proof-map ledger (#690/#691), checked-in status
-ledger (#692/#693), product proof-map receipt (#694/#695), and rolling receipt
-wording (#696/#697) refreshes. The board now records post-#697 `main` CI Policy
-run `27003865451` passed on `d03e1bbd`. The broader June 4 acceptance matrix
+ledger (#692/#693), product proof-map receipt (#694/#695), rolling receipt
+wording (#696/#697), board-reference durability (#699/#700), runtime
+S-expression parser (#702/#704), canonical `SExpr` formatter (#706/#708), and
+canonical formatter proof-boundary docs (#709/#710) refreshes. The latest
+recorded post-merge control-plane receipt is `main` CI Policy run `27014065648`
+passing on `499195cc` after #710. The broader June 4 acceptance matrix
 checkpoint remains prior product evidence and was not rerun by these status
 refreshes. This is product proof under the research board, not a support-tier
 promotion, release authorization, public `adze` promotion, or crates.io install
@@ -628,7 +634,8 @@ Do not mark the product objective complete while any of these are true:
 The routine product-proof, Adze adoption hardening, user-experience,
 external-scanner recovery, parser-recovery real-grammar, query/tooling
 expansion, parser/runtime maintainability, CLI parse-surface, CLI static
-S-expression, CLI static JSON/DOT, and CLI dynamic parse boundary lanes are
+S-expression, CLI static JSON/DOT, CLI dynamic parse boundary, runtime
+S-expression parser, and canonical `SExpr` formatter proof-boundary lanes are
 closed out:
 [`../../plans/adze-adoption-hardening/closeout.md`](../../plans/adze-adoption-hardening/closeout.md),
 [`../../plans/user-experience-hardening/closeout.md`](../../plans/user-experience-hardening/closeout.md),
