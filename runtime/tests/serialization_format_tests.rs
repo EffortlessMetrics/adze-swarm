@@ -579,10 +579,9 @@ fn sexpr_nested_structure() {
     assert_eq!(expr, decoded);
 }
 
-/// parse_sexpr returns Ok
+/// parse_sexpr parses valid lists
 #[test]
 fn parse_sexpr_returns_ok() {
-    // The current stub always returns Ok(List([]))
     let result = parse_sexpr("(program (number))");
     assert!(result.is_ok());
 }

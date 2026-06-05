@@ -543,7 +543,6 @@ fn test_edge_unicode_multibyte() {
 
 #[test]
 fn test_edge_parse_sexpr_returns_result() {
-    // parse_sexpr is a stub — just verify it returns Ok
     let result = parse_sexpr("(anything)");
     assert!(result.is_ok());
 }

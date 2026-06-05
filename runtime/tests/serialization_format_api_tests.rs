@@ -233,17 +233,30 @@ fn sexpr_json_roundtrip_nested_list() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn parse_sexpr_returns_ok_for_any_input() {
-    // The current stub always returns Ok(List([])).
-    assert!(parse_sexpr("(program)").is_ok());
-    assert!(parse_sexpr("").is_ok());
-    assert!(parse_sexpr("atom").is_ok());
+fn parse_sexpr_parses_atoms_and_lists() {
+    assert_eq!(
+        parse_sexpr("(program (number 42))"),
+        Ok(SExpr::List(vec![
+            SExpr::Atom("program".to_string()),
+            SExpr::List(vec![
+                SExpr::Atom("number".to_string()),
+                SExpr::Atom("42".to_string())
+            ])
+        ]))
+    );
+    assert_eq!(
+        parse_sexpr("\"hello world\""),
+        Ok(SExpr::Atom("hello world".to_string()))
+    );
+    assert_eq!(parse_sexpr("atom"), Ok(SExpr::Atom("atom".to_string())));
 }
 
 #[test]
-fn parse_sexpr_result_is_empty_list() {
-    let result = parse_sexpr("(program (number))").unwrap();
-    assert_eq!(result, SExpr::List(vec![]));
+fn parse_sexpr_rejects_empty_and_unbalanced_input() {
+    assert!(parse_sexpr("").is_err());
+    assert!(parse_sexpr("   ").is_err());
+    assert!(parse_sexpr("(program (number)").is_err());
+    assert!(parse_sexpr("program number").is_err());
 }
 
 // ---------------------------------------------------------------------------

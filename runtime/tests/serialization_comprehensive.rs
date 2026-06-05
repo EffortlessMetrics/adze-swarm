@@ -571,14 +571,14 @@ fn sexpr_atom_ne_list() {
 }
 
 // ===================================================================
-// 23. parse_sexpr – returns Ok on various inputs
+// 23. parse_sexpr
 // ===================================================================
 
 #[test]
-fn parse_sexpr_returns_ok() {
+fn parse_sexpr_parses_valid_inputs_and_rejects_empty_input() {
     assert!(parse_sexpr("(program (number))").is_ok());
-    assert!(parse_sexpr("atom").is_ok());
-    assert!(parse_sexpr("").is_ok());
+    assert_eq!(parse_sexpr("atom"), Ok(SExpr::Atom("atom".to_string())));
+    assert!(parse_sexpr("").is_err());
     assert!(parse_sexpr("(+ 1 2)").is_ok());
 }
 

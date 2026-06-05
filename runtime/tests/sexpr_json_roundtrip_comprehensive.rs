@@ -4,7 +4,7 @@
 
 use adze::serialization::{SExpr, SerializedNode, parse_sexpr};
 
-// ── SExpr parsing (parse_sexpr currently returns Ok(List([])) for all inputs) ──
+// ── SExpr parsing ──
 
 #[test]
 fn sexpr_atom_ok() {
@@ -83,17 +83,17 @@ fn sexpr_mixed_ws_ok() {
 
 #[test]
 fn sexpr_empty_string() {
-    let _ = parse_sexpr("");
+    assert!(parse_sexpr("").is_err());
 }
 
 #[test]
 fn sexpr_unmatched_open() {
-    let _ = parse_sexpr("(a b");
+    assert!(parse_sexpr("(a b").is_err());
 }
 
 #[test]
 fn sexpr_unmatched_close() {
-    let _ = parse_sexpr("a b)");
+    assert!(parse_sexpr("a b)").is_err());
 }
 
 #[test]
