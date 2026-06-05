@@ -7,9 +7,8 @@ Rust type annotations
   -> grammar IR
   -> parse table
   -> generated parser
-  -> typed AST
-  -> AdzeDocument
-  -> optional projections
+      -> grammar::parse(input) -> typed AST
+      -> grammar::parse_document(input) -> AdzeDocument -> optional projections
 ```
 
 The beginner path is `grammar::parse(input)`. It returns the typed Rust value

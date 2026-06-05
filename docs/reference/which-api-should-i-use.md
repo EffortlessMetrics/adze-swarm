@@ -34,13 +34,18 @@ let ast = grammar::parse(source)?;
 
 let document = grammar::parse_document(source)?;
 let diagnostics = document.diagnostics();
-let tree = document.as_tree_sitter();
+let native_tree = document.tree();
 let ambiguities = document.ambiguities();
+
+// If you already have a ts_compat Language for this grammar:
+let ts_tree = adze::ts_compat::Tree::from_document(language.clone(), &document);
 ```
 
 The typed parser path is the beginner and library-author front door. The
 document path is the tooling front door. Compatibility, query, JSON, CLI, WASM,
-and performance surfaces stay bounded by their support-tier rows.
+and performance surfaces stay bounded by their support-tier rows. The
+Tree-sitter-shaped tree is an explicit compatibility projection from the native
+document, not a method on `AdzeDocument`.
 
 ## Adoption Proof Ladder
 
