@@ -1,20 +1,20 @@
 # Product Objective Audit
 
-**Last updated:** 2026-06-04
+**Last updated:** 2026-06-05
 **Status:** incomplete; use this as an audit checklist, not as a support-tier
 promotion. Routine product-proof, query/tooling, recovery, user-experience,
 parser/runtime maintainability, CLI parse-surface, static S-expression, static
 JSON/DOT, dynamic parse boundary, adoption-hardening, release-candidate bundle,
-post-adoption standby hygiene, and stale-queue control-plane follow-up lanes
-are closed out. The current #617 research board was refreshed on June 4 after
-#673 closed #672 as the canonical query predicate documentation-boundary update,
-the #325 release decision packet was refreshed, #661 was classified as a blocked
-future cleanup candidate, and the product acceptance matrix proof checkpoint was
-posted. `active.toml` remains paused as `adze-swarm-forge-standby` with no
-active or ready implementation lane selected. Release/publish work remains
-separate and blocked on explicit authorization in adze-swarm#325; the CX53
-runner investigation remains blocked on adze-swarm#598 pending admin/runner
-context; and public `adze` still has no routine development PR lane.
+post-adoption standby hygiene, stale-queue control-plane follow-up, and
+first-use starter workspace hardening lanes are closed out. The current #617
+research board was refreshed on June 5 after #680 was closed as completed by
+#681/#682/#683 and #685/#686/#688. `active.toml` remains paused as
+`first-use-starter-workspace-hardening` with no active or ready implementation
+lane selected: 3 complete, 0 active, 0 ready, 1 blocked. Release/publish work
+remains separate and blocked on explicit authorization in adze-swarm#325; the
+CX53 runner investigation remains blocked on adze-swarm#598 pending
+admin/runner context; and public `adze` still has no routine development PR
+lane.
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
 
@@ -44,12 +44,12 @@ Adze should be release-readable as a Rust parser generator where:
 | Requirement | Evidence inspected | Current result | Gap / next action |
 | --- | --- | --- | --- |
 | Rust types define grammar and generated parsers return typed ASTs. | README core example; `SUPPORT_TIERS.md` Stable `Typed extraction` row; `PRODUCT_PROOF_MAP.md` Stable typed extraction claim. | Covered for the supported generated-parser contract. | Keep Stable claim limited to proof rows; do not broaden to every grammar shape. |
-| Quickstart works in a clean downstream crate. | `testing/downstream-starter/`; `docs/product/ACCEPTANCE_MATRIX.md`; `SUPPORT_TIERS.md` Pure-Rust parser row; user-experience hardening closeout. | Covered for path-dependency downstream wiring, generated starter shape, local `adze-cli` package verification, and the post-closeout starter README/local dependency polish from PR #352. | Published `cargo install adze-cli` is not proven until `adze-cli` is published and an install receipt exists. |
+| Quickstart works in a clean downstream crate. | `testing/downstream-starter/`; `docs/product/ACCEPTANCE_MATRIX.md`; `SUPPORT_TIERS.md` Pure-Rust parser row; user-experience hardening closeout; first-use starter workspace hardening closeout. | Covered for path-dependency downstream wiring, generated starter shape, nested parent-workspace starter escape from #682, local `adze-cli` package verification, and the post-closeout starter README/local dependency polish from PR #352. | Published `cargo install adze-cli` is not proven until `adze-cli` is published and an install receipt exists. |
 | Core pure-Rust pipeline is green, bounded, and boring. | `just ci-supported`; `Rust Small Result`; `Product Proof Result`; `KNOWN_RED.md` supported-lane description; `adze-swarm` PRs #284, #285, #329, #354, #381, #383, Product Proof required-gate burn-in receipts #386-#391, and parser/runtime maintainability closeout #455. | Covered as the required swarm gate plus supported proof. PR #284 bounds the broad Rust tail, PR #285 scopes the default pure-rust PR test step to supported crates while keeping full workspace tests explicit through manual/full-ci, PRs #329/#354/#381 reduce Windows supported-gate friction, PR #383 adds the always-present Product Proof result context, the burn-in receipts prove selected/skipped Stable-canary paths, and #455 records the post-maintainability closeout with `Supported Rust Gate` green. | Keep broad feature matrices and advisory product canaries outside branch protection unless separately promoted. |
 | Tablegen emits valid tables. | `SUPPORT_TIERS.md` Tablegen `TSLanguage` ABI row; `PRODUCT_PROOF_MAP.md` tablegen ABI claim; parser/runtime maintainability PRs #444-#446 and #451-#454. | Stabilizing with compressed decode, field metadata, aliases, externals, lex modes, conflict-cell proof, and recent guardrails for invalid names, null field names, zero-symbol metadata, exact field-name counts, generated ABI name arrays, generated API reads, and exact-array validation fixtures. | Broader generated-language roundtrip and full Tree-sitter parity remain future work. |
 | GLR handles real conflicts honestly. | `SUPPORT_TIERS.md` GLR conflict routing row; `docs/product/ACCEPTANCE_MATRIX.md` GLR ambiguity row. | Stabilizing with generated shift/reduce conflict preservation, generated reduce/reduce preservation and selected typed-AST extraction, dangling-else nearest-else selected typed AST proof, retained alternatives, deterministic selected output, ambiguity summaries, and no-panic bad-input guardrails. | Broader conflict-class coverage and any Stable GLR promotion still require support-tier proof review. |
 | Typed extraction is deterministic. | `typed_ast_contract_left_associative_addition`; `typed_ast_contract_repeated_parse_is_deterministic`; `readme_arithmetic_quickstart_builds_and_runs`. | Covered for Stable typed extraction rows. | Keep determinism claims scoped to supported generated-parser shapes. |
-| Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors and External scanners rows; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof; `docs/reference/diagnostics-and-recovery.md`. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, generated-parser matrix canaries, object-like `parse_document()`/JSON recovery proof, and user-facing diagnostics/recovery guidance from PR #353. External-scanner dispatch now has focused parser-v4 proof for emitted-token byte spans/text, rejection of scanner tokens that are invalid in the parser state without advancing input position, direct parser-v4 `parse_document()` diagnostic-document behavior for bad input in an external-scanner grammar shape with rendered source context, and generated external-token grammar diagnostic-document matrix behavior for malformed root, empty/whitespace input, keyword/missing-condition, missing-colon, trailing-token, multibyte expression, multibyte body-token, invalid body, newline/CRLF boundary, and nested invalid-expression inputs. The generated matrix also compares `parse()` errors with `parse_document()` diagnostics for span and expected-token agreement. | Corpus-wide external-scanner recovery parity remains future work; any Stable promotion still needs support-tier review. |
+| Parse errors are useful instead of incidental. | `SUPPORT_TIERS.md` Structured parse errors and External scanners rows; `PRODUCT_PROOF_MAP.md` parse-error claim; CLI recovery diagnostics proof; `docs/reference/diagnostics-and-recovery.md`; #686 diagnostic wording polish receipts. | Stabilizing with spans, excerpts, expected tokens, UTF-8, EOF, multiline, no-panic, generated-parser matrix canaries, object-like `parse_document()`/JSON recovery proof, and user-facing diagnostics/recovery guidance from PR #353. The #686 closeout keeps non-EOF invalid source bytes from rendering as EOF/end while preserving true EOF wording and diagnostic range contracts. External-scanner dispatch now has focused parser-v4 proof for emitted-token byte spans/text, rejection of scanner tokens that are invalid in the parser state without advancing input position, direct parser-v4 `parse_document()` diagnostic-document behavior for bad input in an external-scanner grammar shape with rendered source context, and generated external-token grammar diagnostic-document matrix behavior for malformed root, empty/whitespace input, keyword/missing-condition, missing-colon, trailing-token, multibyte expression, multibyte body-token, invalid body, newline/CRLF boundary, and nested invalid-expression inputs. The generated matrix also compares `parse()` errors with `parse_document()` diagnostics for span and expected-token agreement. | Corpus-wide external-scanner recovery parity remains future work; any Stable promotion still needs support-tier review. |
 | Every Stable README claim maps to proof. | README capability table; `SUPPORT_TIERS.md`; `readme_stable_claims_are_in_stable_product_lane`; `scripts/ci-product-stable.sh`; `Product Proof Result`. | Covered by current proof map and stable-product canaries. PR #383 proves the Product Proof workflow emits an always-present aggregate result while selecting Stable canaries only for relevant product surfaces, schedule, or manual dispatch. Product Proof required-gate burn-in receipts #386-#391 proved enough selected/skipped paths for the deliberate required-gate policy update. | `Product Proof Result` is now required; keep the path-selected `ci-product stable canaries` implementation job out of branch protection. |
 | Experimental/developing surfaces are clearly labeled. | README capability table; `SUPPORT_TIERS.md`; `KNOWN_RED.md`; `PRODUCT_PROOF_MAP.md`; query/tooling closeout. | Covered for runtime2, broader grammars, WASM, Tree-sitter interop, CLI, benchmarks, typed CST, incremental, JSON, and the documented query subset. Query remains Stabilizing for the documented subset, not full Tree-sitter query parity. | Re-check after any README, support-tier, or release-facing wording change. |
 | Product works under ordinary user pressure and fails clearly. | Downstream starter fixture; README/tutorial/book quickstart canaries; CLI selected-tree, S-expression, JSON, DOT, and document JSON recovery diagnostics; public promotion PR #795; user-experience hardening closeout; query/tooling closeout; parser/runtime maintainability closeout; CLI parse-surface closeout; CLI static S-expression closeout; CLI static JSON/DOT closeout; CLI dynamic parse boundary closeout. | Covered for local/downstream fixtures, CLI recovery smoke, document-backed static selected-tree output, document-backed static S-expression output, document-backed static JSON output, document-backed static DOT output, explicit dynamic `--dynamic` feature-gate and missing-library boundaries, public repository promotion, starter README polish, diagnostics/recovery guidance, performance receipt boundaries, query example/differential receipts, local proof-loop friction mitigation, and post-closeout tablegen/supported-gate receipts. | Published CLI install, full dynamic parse output, stable CLI/WASM schemas, and any future crates.io release surface need fresh receipts. |
@@ -79,13 +79,14 @@ later `Product Proof Result` required-gate promotion. Current branch protection
 requires `Product Proof Result`; the path-selected `ci-product stable canaries`
 implementation job remains selected by path, schedule, or manual dispatch.
 
-Latest current product acceptance matrix proof checkpoint:
-adze-swarm#617 records a June 4 read-only refresh from `adze-swarm/main` at
-`c85ddb3d`. The checkpoint reran the acceptance matrix proof set for GLR
-conflicts, diagnostics, `AdzeDocument`, typed AST, Tree-sitter selected-tree,
-query differential, JSON projection, downstream starter, CLI document output,
-WASM compile, and advisory benchmark/performance receipts. All recorded
-commands passed locally. This is product proof under the research board, not a
+Latest current research-board state:
+adze-swarm#617 records a June 5 refresh from `adze-swarm/main` at
+`0856b05c`. The refresh records #680 as complete and closed after starter
+workspace robustness (#681/#682/#683) and diagnostic wording polish
+(#685/#686/#688), with local `check-active-goal` and `check-doc-artifacts`
+receipts plus post-merge main CI Policy run `26998798725`. The broader June 4
+acceptance matrix checkpoint remains prior product evidence and was not rerun
+by this status refresh. This is product proof under the research board, not a
 support-tier promotion, release authorization, public `adze` promotion, or
 crates.io install receipt.
 
