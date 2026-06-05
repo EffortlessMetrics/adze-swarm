@@ -8,6 +8,10 @@
 
 This guide walks through integrating external scanners with adze's pure-Rust parser implementation. External scanners enable complex tokenization that cannot be expressed with regular expressions, such as indentation-sensitive parsing, heredoc strings, and context-sensitive tokenization.
 
+The APIs shown here are the current experimental surfaces, not Stable API
+commitments. Treat code blocks as implementation sketches unless the text points
+to a checked test or support-tier proof command.
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -42,11 +46,18 @@ External scanners are needed for:
 
 ### Using Existing Tree-sitter Scanners
 
-The most straightforward approach is to use existing Tree-sitter external scanners:
+The most direct C path is to register Tree-sitter-compatible scanner callbacks
+with Adze's scanner registry. The current public FFI data type is
+`adze::external_scanner_ffi::TSExternalScannerData`:
 
 ```rust
 use std::ffi::c_void;
-use adze::pure_parser::{ExternalScanner, TSLexer};
+use adze::external_scanner_ffi::{
+    CreateFn, DeserializeFn, DestroyFn, ScanFn, SerializeFn,
+    TSExternalScannerData, TSLexer,
+};
+use adze::scanner_registry;
+use adze::SymbolId;
 
 // Link to existing Tree-sitter scanner
 extern "C" {
@@ -69,14 +80,14 @@ extern "C" {
 }
 
 // External scanner configuration
-static PYTHON_EXTERNAL_SCANNER: ExternalScanner = ExternalScanner {
+static PYTHON_EXTERNAL_SCANNER: TSExternalScannerData = TSExternalScannerData {
     states: std::ptr::null(),
     symbol_map: PYTHON_EXTERNAL_SYMBOL_MAP.as_ptr(),
-    create: Some(tree_sitter_python_external_scanner_create),
-    destroy: Some(tree_sitter_python_external_scanner_destroy),
-    scan: Some(tree_sitter_python_external_scanner_scan),
-    serialize: Some(tree_sitter_python_external_scanner_serialize),
-    deserialize: Some(tree_sitter_python_external_scanner_deserialize),
+    create: Some(tree_sitter_python_external_scanner_create as CreateFn),
+    destroy: Some(tree_sitter_python_external_scanner_destroy as DestroyFn),
+    scan: Some(tree_sitter_python_external_scanner_scan as ScanFn),
+    serialize: Some(tree_sitter_python_external_scanner_serialize as SerializeFn),
+    deserialize: Some(tree_sitter_python_external_scanner_deserialize as DeserializeFn),
 };
 
 // Symbol mapping for external tokens
@@ -90,16 +101,24 @@ static PYTHON_EXTERNAL_SYMBOL_MAP: &[u16] = &[
     105,  // STRING_END token
 ];
 
-// Language integration
-use adze::pure_parser::TSLanguage;
+fn register_python_scanner() {
+    let external_tokens = PYTHON_EXTERNAL_SYMBOL_MAP
+        .iter()
+        .copied()
+        .map(SymbolId)
+        .collect();
 
-static PYTHON_LANGUAGE: TSLanguage = TSLanguage {
-    // ... other fields ...
-    external_scanner: PYTHON_EXTERNAL_SCANNER,
-    external_token_count: 6, // Number of external tokens
-    // ... rest of language definition ...
-};
+    scanner_registry::register_c_scanner(
+        "python",
+        PYTHON_EXTERNAL_SCANNER,
+        external_tokens,
+    );
+}
 ```
+
+C scanner support depends on matching ABI data, symbol maps, and language
+fixtures. Keep grammar-specific C scanner integration behind focused proof for
+that grammar.
 
 ### Build Configuration
 
@@ -150,9 +169,9 @@ impl ExternalScanner for PythonIndentationScanner {
         let mut indent_level = 0;
         let mut found_newline = false;
 
-        while !lexer.eof() {
+        while !lexer.is_eof() {
             match lexer.lookahead() {
-                Some(b'\n' as u32) => {
+                Some(b'\n') => {
                     found_newline = true;
                     self.at_line_start = true;
                     lexer.advance(1);
@@ -162,11 +181,11 @@ impl ExternalScanner for PythonIndentationScanner {
                         return Some(ScanResult { symbol: NEWLINE as u16, length: 1 });
                     }
                 }
-                Some(b' ' as u32) if self.at_line_start => {
+                Some(b' ') if self.at_line_start => {
                     indent_level += 1;
                     lexer.advance(1);
                 }
-                Some(b'\t' as u32) if self.at_line_start => {
+                Some(b'\t') if self.at_line_start => {
                     indent_level += 8; // Tab = 8 spaces
                     lexer.advance(1);
                 }
@@ -175,7 +194,7 @@ impl ExternalScanner for PythonIndentationScanner {
         }
 
         // Process indentation changes
-        if self.at_line_start && !lexer.eof() {
+        if self.at_line_start && !lexer.is_eof() {
             self.at_line_start = false;
             let current_indent = self.indent_stack.last().copied().unwrap_or(0);
 
@@ -262,29 +281,30 @@ impl ExternalScanner for PythonIndentationScanner {
 
 ### Registering Pure-Rust Scanners
 
-Register scanners with the scanner registry:
+Register scanners with the scanner registry. The current registry APIs create a
+fresh scanner from a `Default` implementation:
 
 ```rust
-use adze::scanner_registry::ExternalScannerRegistry;
+use adze::scanner_registry::{
+    ExternalScannerBuilder, register_rust_scanner,
+};
 
-fn setup_python_grammar() -> Grammar {
-    let mut registry = ExternalScannerRegistry::default();
-    
-    registry.register(
-        "python_indentation".to_string(),
-        Box::new(PythonIndentationScanner::default())
-    );
-    
-    // Use registry in parser setup
-    // ... grammar configuration ...
+fn register_python_indentation() {
+    register_rust_scanner::<PythonIndentationScanner>("python_indentation");
+
+    // Builder form for generated/setup code:
+    ExternalScannerBuilder::new("python_indentation")
+        .register_rust::<PythonIndentationScanner>();
 }
 ```
 
 ## Integration Examples
 
-### Complete Python-like Grammar
+### Python-like Grammar Sketch
 
-Here's a complete example showing external scanner integration:
+Generated grammar integration is still experimental. The sketch below shows the
+intended grammar relationship between normal tokens and external tokens; it is
+not a Stable, pasteable macro contract:
 
 ```rust
 #[adze::grammar("python_simple")]
@@ -339,11 +359,9 @@ mod python_grammar {
         name: String,
     }
 
-    // External scanner configuration
-    #[adze::external_scanner]
-    pub fn create_scanner() -> Box<dyn adze::ExternalScanner> {
-        Box::new(PythonIndentationScanner::default())
-    }
+    // Register the scanner separately with `scanner_registry` using the
+    // generated language name and a scanner type that implements
+    // `adze::external_scanner::ExternalScanner + Default`.
 }
 ```
 
@@ -366,7 +384,7 @@ impl ExternalScanner for TemplateScanner {
         const TEMPLATE_END: usize = 4;        // `
         
         if valid_symbols.get(TEMPLATE_START).copied().unwrap_or(false) {
-            if lexer.lookahead() == Some(b'`' as u32) {
+            if lexer.lookahead() == Some(b'`') {
                 lexer.advance(1);
                 lexer.mark_end();
                 self.in_template = true;
@@ -379,7 +397,7 @@ impl ExternalScanner for TemplateScanner {
             
             while let Some(ch) = lexer.lookahead() {
                 match ch {
-                    b'`' as u32 => {
+                    b'`' => {
                         // End of template
                         if content_length > 0 {
                             lexer.mark_end();
@@ -390,10 +408,10 @@ impl ExternalScanner for TemplateScanner {
                         }
                         break;
                     }
-                    b'$' as u32 => {
+                    b'$' => {
                         // Check for ${ expression start
                         lexer.advance(1);
-                        if lexer.lookahead() == Some(b'{' as u32) {
+                        if lexer.lookahead() == Some(b'{') {
                             if content_length > 0 {
                                 // Return content before ${
                                 return Some(ScanResult { 
@@ -406,11 +424,11 @@ impl ExternalScanner for TemplateScanner {
                         }
                         content_length += 1;
                     }
-                    b'\\' as u32 => {
+                    b'\\' => {
                         // Escape sequence
                         lexer.advance(1);
                         content_length += 1;
-                        if !lexer.eof() {
+                        if !lexer.is_eof() {
                             lexer.advance(1);
                             content_length += 1;
                         }
@@ -491,9 +509,9 @@ impl ExternalScanner for LookaheadScanner {
         let mut lookahead_pos = 0;
         while let Some(ch) = lexer.lookahead() {
             match (lookahead_pos, ch) {
-                (0, b'<' as u32) => lookahead_pos += 1,
-                (1, b'<' as u32) => lookahead_pos += 1,
-                (2, b'-' as u32) => {
+                (0, b'<') => lookahead_pos += 1,
+                (1, b'<') => lookahead_pos += 1,
+                (2, b'-') => {
                     // Found <<- heredoc
                     return self.scan_heredoc_with_indent(lexer, valid_symbols);
                 }
@@ -540,7 +558,40 @@ Create unit tests for scanner logic:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use adze::external_scanner::test_utils::TestLexer;
+
+    struct TestLexer<'a> {
+        input: &'a [u8],
+        position: usize,
+    }
+
+    impl<'a> TestLexer<'a> {
+        fn new(input: &'a str) -> Self {
+            Self {
+                input: input.as_bytes(),
+                position: 0,
+            }
+        }
+    }
+
+    impl<'a> Lexer for TestLexer<'a> {
+        fn lookahead(&self) -> Option<u8> {
+            self.input.get(self.position).copied()
+        }
+
+        fn advance(&mut self, n: usize) {
+            self.position = (self.position + n).min(self.input.len());
+        }
+
+        fn mark_end(&mut self) {}
+
+        fn column(&self) -> usize {
+            self.position
+        }
+
+        fn is_eof(&self) -> bool {
+            self.position >= self.input.len()
+        }
+    }
 
     #[test]
     fn test_indentation_scanner() {
@@ -588,32 +639,20 @@ mod tests {
 
 ### Integration Testing
 
-Test the complete parsing pipeline:
+Use the support-tier commands as the current integration receipts:
 
-```rust
-#[test]
-fn test_python_parsing_with_external_scanner() {
-    let source = r#"
-def hello():
-    print("Hello")
-    if True:
-        print("World")
-"#;
-
-    let mut parser = Parser::new();
-    parser.set_language(&PYTHON_LANGUAGE).unwrap();
-    
-    let result = parser.parse_string(source);
-    assert!(result.root.is_some());
-    
-    let tree = result.root.unwrap();
-    assert_eq!(tree.error_count(), 0);
-    
-    // Verify structure includes indentation-based blocks
-    assert!(tree.kind() == "program");
-    // ... more specific assertions ...
-}
+```bash
+cargo test -p adze --features external_scanners
+cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_parser_with_external_scanner -- --exact --nocapture
+cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_rejects_token_not_in_valid_symbols -- --exact --nocapture
+cargo test -p adze --features "pure-rust,external_scanners" parser_v4::tests::test_external_scanner_parse_document_bad_input_returns_diagnostic_document -- --exact --nocapture
+cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_matrix_returns_diagnostic_document --features pure-rust -- --exact --nocapture
 ```
+
+For source examples, start with
+[`runtime/src/external_scanner/tests.rs`](../../runtime/src/external_scanner/tests.rs),
+[`runtime/tests/test_python_scanner.rs`](../../runtime/tests/test_python_scanner.rs),
+and the parser-v4 external scanner canaries named above.
 
 ## Performance Considerations
 
@@ -646,7 +685,7 @@ impl ExternalScanner for BoundedScanner {
         const MAX_LOOKAHEAD: usize = 100;
         let mut lookahead = 0;
         
-        while lookahead < MAX_LOOKAHEAD && !lexer.eof() {
+        while lookahead < MAX_LOOKAHEAD && !lexer.is_eof() {
             // Process character
             lexer.advance(1);
             lookahead += 1;
@@ -665,4 +704,6 @@ The pure-Rust implementation exposes both C FFI and native Rust scanner paths,
 but both remain experimental unless a support-tier row promotes a narrower
 slice with proof.
 
-For questions or issues with external scanner integration, check the [test suite](../../runtime/tests/external_scanner_test.rs) for working examples or consult the [Parser Cookbook external scanner notes](../reference/parser-cookbook.md#external-scanners).
+For questions or issues with external scanner integration, check the runtime
+scanner tests linked above for working examples or consult the
+[Parser Cookbook external scanner notes](../reference/parser-cookbook.md#external-scanners).
