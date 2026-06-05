@@ -1,6 +1,6 @@
 id = "visualization-no-panic-burn-down"
 title = "Visualization No-Panic Burn-Down"
-status = "active"
+status = "paused"
 owner = "tooling/policy"
 created = "2026-06-05"
 
@@ -24,9 +24,9 @@ promotion, or support-tier promotion.
 end_state = [
   "adze-swarm remains the operating repo for non-release implementation and proof work.",
   "public adze remains release, public intake, promotion, tag, publish, signing, Cargo-token, and crates.io receipt surface.",
-  "#661 is the single ready implementation item selected by the research board.",
-  "The implementation diff is limited to tool/src/visualization.rs.",
-  "Visualization DOT, SVG, text summary, and dependency output behavior stays covered by focused tests.",
+  "#661 was selected by the research board and merged by #678.",
+  "The merged implementation diff was limited to tool/src/visualization.rs.",
+  "Visualization DOT, SVG, text summary, and dependency output behavior stayed covered by focused tests.",
   "No policy allowlist entry, checker-mode promotion, support-tier promotion, release action, public adze work, or crates.io install claim is made.",
   "Release, publish, signing, Cargo-token, public promotion, and crates.io install-receipt work remain blocked on #325.",
 ]
@@ -50,13 +50,14 @@ commands = [
 
 [[work_item]]
 id = "visualization-string-write-unwraps"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md"
 spec = "docs/NO_PANIC_POLICY.md"
 adr = "docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md"
 plan = "plans/visualization-no-panic/implementation-plan.md"
 blocked_by = ["visualization-no-panic-source-of-truth"]
 issues = [617, 661]
+prs = [678]
 commands = [
   "cargo test -p adze-tool --lib visualization -- --nocapture",
   "cargo test -p adze-tool --test visualization_comprehensive -- --nocapture",

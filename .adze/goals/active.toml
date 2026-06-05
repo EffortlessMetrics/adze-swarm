@@ -1,6 +1,6 @@
 id = "visualization-no-panic-burn-down"
 title = "Visualization No-Panic Burn-Down"
-status = "active"
+status = "paused"
 owner = "tooling/policy"
 created = "2026-06-05"
 
@@ -13,23 +13,24 @@ support-tier promotion, CI routing, and crates.io install work outside scope.
 """
 
 handoff = """
-Start from #617 and #661. The only ready implementation item is
-`visualization-string-write-unwraps`: edit `tool/src/visualization.rs` only,
-run the focused visualization tests and advisory no-panic check, and record
-claim boundary, CI cost expectation, and rollback in the PR. If release,
-promotion, tag, publish, signing, Cargo-token, crates.io install, public adze
-implementation, policy allowlist, checker-mode promotion, or CI routing work is
-requested, stop unless the relevant source-of-truth issue explicitly selects
-that separate lane.
+Start from #617 and #661. The selected implementation item
+`visualization-string-write-unwraps` was merged in #678 and removed the
+`tool/src/visualization.rs` String-write unwrap findings while preserving the
+focused visualization proof surface. If release, promotion, tag, publish,
+signing, Cargo-token, crates.io install, public adze implementation, policy
+allowlist, checker-mode promotion, or CI routing work is requested, stop unless
+the relevant source-of-truth issue explicitly selects that separate lane. No
+non-release implementation item is active or ready; return to #617 for the next
+decision packet before opening more implementation work.
 """
 
 end_state = [
   "adze-swarm remains the operating repo for non-release implementation, proof, source-of-truth, CI, examples, docs-proof, runtime, tablegen, query, diagnostics, and performance work.",
   "public adze remains the release, public-intake, promotion, tag, publish, signing, Cargo-token, and crates.io receipt surface.",
-  "#661 is selected as the single ready implementation item from the current research board.",
-  "The implementation diff is limited to removing visualization String-write unwraps in tool/src/visualization.rs while preserving output behavior.",
+  "#661 was selected from the current research board and merged by #678.",
+  "The merged implementation diff was limited to removing visualization String-write unwraps in tool/src/visualization.rs while preserving output behavior.",
   "No no-panic allowlist entry, clippy policy change, checker-mode promotion, support-tier promotion, release tag, crate publish, signing, Cargo-token, or crates.io install receipt is authorized.",
-  "Default required PR proof remains Rust Small Result plus the focused visualization commands named by #661.",
+  "Required PR proof passed through Rust Small Result and PR Gate, plus the focused visualization commands named by #661.",
   "Release and install authorization remains blocked on #325 until a separate explicit human decision selects the public adze release path.",
 ]
 
@@ -52,13 +53,14 @@ commands = [
 
 [[work_item]]
 id = "visualization-string-write-unwraps"
-status = "ready"
+status = "complete"
 proposal = "docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md"
 spec = "docs/NO_PANIC_POLICY.md"
 adr = "docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md"
 plan = "plans/visualization-no-panic/implementation-plan.md"
 blocked_by = ["visualization-no-panic-source-of-truth"]
 issues = [617, 661]
+prs = [678]
 commands = [
   "cargo test -p adze-tool --lib visualization -- --nocapture",
   "cargo test -p adze-tool --test visualization_comprehensive -- --nocapture",

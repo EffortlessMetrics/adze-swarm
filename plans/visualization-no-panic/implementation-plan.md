@@ -1,6 +1,6 @@
 # Visualization No-Panic Burn-Down Plan
 
-Status: active
+Status: complete
 Owner: tooling/policy
 Created: 2026-06-05
 Linked proposal: ../../docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md
@@ -91,7 +91,7 @@ Revert the setup PR to restore the previous paused forge-standby manifest.
 
 ## Work Item: visualization-string-write-unwraps
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0012-parser-runtime-maintainability-hardening.md
 Linked policy: ../../docs/NO_PANIC_POLICY.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
@@ -106,8 +106,9 @@ Remove the no-panic findings in `tool/src/visualization.rs` that come from
 
 ### Production Delta
 
-One focused tool implementation diff in `tool/src/visualization.rs` only. The
-change should preserve DOT, SVG, text summary, and dependency output behavior.
+Merged by EffortlessMetrics/adze-swarm#678 as one focused tool implementation
+diff in `tool/src/visualization.rs` only. The change preserves DOT, SVG, text
+summary, and dependency output behavior.
 
 ### Scope
 
@@ -134,13 +135,13 @@ support-tier or benchmark claims
 
 ### Acceptance
 
-- The `tool/src/visualization.rs` `write!` / `writeln!` unwrap findings are
+- The `tool/src/visualization.rs` `write!` / `writeln!` unwrap findings were
   removed.
-- Visualization output behavior is preserved.
-- No policy exceptions are added.
-- No checker-mode promotion happens.
-- Public `adze` is untouched.
-- The implementation PR links #661 and #617 and states claim boundary, proof
+- Visualization output behavior was preserved.
+- No policy exceptions were added.
+- No checker-mode promotion happened.
+- Public `adze` was untouched.
+- The implementation PR linked #661 and #617 and stated claim boundary, proof
   commands, CI cost expectation, and rollback.
 
 ### Proof Commands
@@ -153,6 +154,17 @@ cargo test -p adze-tool --test build_pipeline_comprehensive visualizer_to_dot_pr
 cargo run -q -p xtask -- check-no-panic-family --mode advisory
 git diff --check
 ```
+
+### Completion Receipts
+
+- Implementation PR: EffortlessMetrics/adze-swarm#678.
+- Merge commit: `8da166eede0f6bccc86ea738aec355171f2ae6b1`.
+- Required gate: PR Gate `Supported Rust Gate` and `PR Gate Success` passed.
+- Focused local proof: visualization lib tests, comprehensive v1/v2 tests,
+  build-pipeline DOT canary, advisory no-panic report, targeted fmt, targeted
+  clippy, and active-goal check passed.
+- The generated no-panic report had no `tool/src/visualization.rs` entries
+  after the implementation.
 
 ### CI Cost Expectation
 
