@@ -85,12 +85,28 @@ fn error_leaf(text: &str, start: usize, end: usize) -> SerializedNode {
 fn node_to_sexp(node: &SerializedNode) -> String {
     if node.children.is_empty() {
         if let Some(ref text) = node.text {
-            return format!("\"{}\"", text.replace('"', "\\\""));
+            return quote_leaf_text(text);
         }
         return format!("({})", node.kind);
     }
     let child_strs: Vec<String> = node.children.iter().map(node_to_sexp).collect();
     format!("({} {})", node.kind, child_strs.join(" "))
+}
+
+fn quote_leaf_text(text: &str) -> String {
+    let mut output = String::from("\"");
+    for ch in text.chars() {
+        match ch {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            _ => output.push(ch),
+        }
+    }
+    output.push('"');
+    output
 }
 
 // ===========================================================================
@@ -577,6 +593,29 @@ fn sexp_node_with_quotes_in_text() {
     let sexp = node_to_sexp(&tree);
     // Quotes inside text should be escaped
     assert!(sexp.contains("\\\"hi\\\""));
+}
+
+#[test]
+fn sexp_node_with_canonical_leaf_text_escapes() {
+    let tree = branch(
+        "program",
+        vec![
+            leaf("empty", "", 0, 0),
+            leaf("quote", r#""quoted""#, 0, 0),
+            leaf("backslash", r"path\to", 0, 0),
+            leaf("newline", "line1\nline2", 0, 0),
+            leaf("tab", "tab\there", 0, 0),
+            leaf("carriage", "carriage\rreturn", 0, 0),
+        ],
+        0,
+        0,
+    );
+
+    let sexp = node_to_sexp(&tree);
+    assert_eq!(
+        sexp,
+        r#"(program "" "\"quoted\"" "path\\to" "line1\nline2" "tab\there" "carriage\rreturn")"#
+    );
 }
 
 #[test]

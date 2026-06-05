@@ -209,6 +209,57 @@ mod s_expr_tests {
         }
     }
 
+    #[test]
+    fn test_canonical_sexpr_formatter_roundtrips_escaped_atoms() {
+        let test_cases = vec![
+            ("", r#""""#),
+            ("hello_world", "hello_world"),
+            ("hello world", r#""hello world""#),
+            ("a(b)", r#""a(b)""#),
+            (r#""quoted""#, r#""\"quoted\"""#),
+            (r"backslash\here", r#""backslash\\here""#),
+            ("line1\nline2", r#""line1\nline2""#),
+            ("tab\there", r#""tab\there""#),
+            ("carriage\rreturn", r#""carriage\rreturn""#),
+            ("café", "café"),
+        ];
+
+        for (atom, expected) in test_cases {
+            let expr = SExpr::atom(atom);
+            let canonical = expr.to_canonical_sexpr();
+            assert_eq!(canonical, expected);
+            assert_eq!(parse_sexpr(&canonical).unwrap(), expr);
+        }
+    }
+
+    #[test]
+    fn test_canonical_sexpr_formatter_roundtrips_nested_list() {
+        let expr = SExpr::list(vec![
+            SExpr::atom("root"),
+            SExpr::atom(""),
+            SExpr::atom("two words"),
+            SExpr::list(vec![
+                SExpr::atom("a\"b"),
+                SExpr::atom(r"path\x"),
+                SExpr::atom("line\nnext"),
+            ]),
+        ]);
+
+        let canonical = expr.to_canonical_sexpr();
+        assert_eq!(
+            canonical,
+            r#"(root "" "two words" ("a\"b" "path\\x" "line\nnext"))"#
+        );
+        assert_eq!(parse_sexpr(&canonical).unwrap(), expr);
+    }
+
+    #[test]
+    fn test_sexpr_display_remains_raw_formatter() {
+        assert_eq!(SExpr::atom("").to_string(), "");
+        assert_eq!(SExpr::atom("hello world").to_string(), "hello world");
+        assert_eq!(SExpr::list(vec![SExpr::atom("")]).to_string(), "()");
+    }
+
     /// Test 3: Unicode edge cases (non-BMP, combining marks, RTL)
     #[test]
     fn test_unicode_edge_cases() {
@@ -581,7 +632,7 @@ mod property_based_tests {
         }
     }
 
-    /// Property test: S-expression parsing is inverse of formatting
+    /// Property test: canonical S-expression formatting parses back to the same value.
     #[test]
     fn property_test_sexpr_roundtrip() {
         let mut rng = rand::SmallRng::seed_from_u64(54321);
@@ -589,19 +640,9 @@ mod property_based_tests {
         for _ in 0..50 {
             // Generate random S-expression
             let sexpr = gen_random_sexpr(3, &mut rng);
-
-            // For now, just test that parsing doesn't crash
-            // A full roundtrip would require implementing SExpr -> string formatting
-            match sexpr {
-                SExpr::Atom(ref text) => {
-                    let quoted = format!("\"{}\"", text.replace('"', r#"\""#));
-                    let parsed = parse_sexpr(&quoted);
-                    assert!(parsed.is_ok(), "Failed to parse generated atom: {}", quoted);
-                }
-                SExpr::List(_) => {
-                    // List formatting is more complex, skip for now
-                }
-            }
+            let canonical = sexpr.to_canonical_sexpr();
+            let parsed = parse_sexpr(&canonical).unwrap();
+            assert_eq!(parsed, sexpr);
         }
     }
 

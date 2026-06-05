@@ -124,6 +124,63 @@ impl SExpr {
             SExpr::List(items) => Some(items),
         }
     }
+
+    /// Return a canonical S-expression string that can be parsed by [`parse_sexpr`].
+    ///
+    /// This is the parseable formatter. [`std::fmt::Display`] remains the
+    /// existing raw/debug-style formatter for compatibility.
+    pub fn to_canonical_sexpr(&self) -> String {
+        let mut output = String::new();
+        self.write_canonical_sexpr(&mut output);
+        output
+    }
+
+    /// Append this value in canonical, parseable S-expression form.
+    pub fn write_canonical_sexpr(&self, output: &mut String) {
+        match self {
+            SExpr::Atom(atom) => write_canonical_atom(output, atom),
+            SExpr::List(items) => {
+                output.push('(');
+                for (index, item) in items.iter().enumerate() {
+                    if index > 0 {
+                        output.push(' ');
+                    }
+                    item.write_canonical_sexpr(output);
+                }
+                output.push(')');
+            }
+        }
+    }
+}
+
+fn write_canonical_atom(output: &mut String, atom: &str) {
+    if atom_needs_quotes(atom) {
+        write_quoted_atom(output, atom);
+    } else {
+        output.push_str(atom);
+    }
+}
+
+fn atom_needs_quotes(atom: &str) -> bool {
+    atom.is_empty()
+        || atom
+            .chars()
+            .any(|ch| ch.is_whitespace() || matches!(ch, '(' | ')' | '"' | '\\'))
+}
+
+fn write_quoted_atom(output: &mut String, atom: &str) {
+    output.push('"');
+    for ch in atom.chars() {
+        match ch {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            _ => output.push(ch),
+        }
+    }
+    output.push('"');
 }
 
 impl std::fmt::Display for SExpr {
@@ -540,7 +597,7 @@ impl<'a> SExpressionSerializer<'a> {
         if node.child_count() == 0 {
             // Leaf node
             if let Ok(text) = node.utf8_text(self.source) {
-                result.push_str(&format!("\"{}\"", text.replace('"', "\\\"")));
+                write_quoted_atom(&mut result, text);
             }
         } else {
             // Internal node
@@ -587,7 +644,7 @@ impl<'a> SExpressionSerializer<'a> {
         if node.child_count() == 0 {
             // Leaf node
             if let Ok(text) = node.utf8_text(self.source) {
-                result.push_str(&format!("\"{}\"", text.replace('"', "\\\"")));
+                write_quoted_atom(&mut result, text);
             }
         } else {
             // Internal node
