@@ -570,7 +570,7 @@ fn parse_with_pure_parser<T: Extract<T>>(
         let errors = parser_errors
             .into_iter()
             .map(|e| {
-                let symbol_name = symbol_name_for_diagnostic(lang, e.found);
+                let symbol_name = found_name_for_diagnostic(lang, input, e.position, e.found);
                 let expected = expected_symbol_names_for_diagnostic(lang, &e.expected);
                 crate::errors::ParseError {
                     reason: crate::errors::ParseErrorReason::UnexpectedToken(
@@ -1203,7 +1203,7 @@ fn document_diagnostics_for_parse_errors(
     parser_errors
         .iter()
         .map(|error| {
-            let found = symbol_name_for_diagnostic(lang, error.found);
+            let found = found_name_for_diagnostic(lang, input, error.position, error.found);
             let expected = expected_symbol_names_for_diagnostic(lang, &error.expected);
             let start_byte = error.position;
             let end_byte = diagnostic_end_for_byte(input.as_bytes(), error.position);
@@ -1322,6 +1322,30 @@ fn diagnostic_end_for_byte(source: &[u8], start: usize) -> usize {
         .and_then(|tail| tail.chars().next())
         .map(|ch| start + ch.len_utf8())
         .unwrap_or_else(|| (start + 1).min(source.len()))
+}
+
+#[cfg(feature = "pure-rust")]
+fn found_name_for_diagnostic(
+    lang: &crate::pure_parser::TSLanguage,
+    source: &str,
+    position: usize,
+    symbol: crate::pure_parser::TSSymbol,
+) -> String {
+    if symbol == lang.eof_symbol && position < source.len() {
+        return offending_source_for_diagnostic(source, position);
+    }
+
+    symbol_name_for_diagnostic(lang, symbol)
+}
+
+#[cfg(feature = "pure-rust")]
+fn offending_source_for_diagnostic(source: &str, start: usize) -> String {
+    let end = diagnostic_end_for_byte(source.as_bytes(), start);
+    source
+        .get(start..end)
+        .filter(|slice| !slice.is_empty())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| "invalid token".to_string())
 }
 
 #[cfg(feature = "pure-rust")]

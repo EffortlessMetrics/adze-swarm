@@ -85,6 +85,7 @@ fn generated_parse_document_diagnostics_preserve_expected_tokens() {
         "document diagnostic related node should carry error state"
     );
     assert_eq!(related_node.byte_range(), diagnostic.byte_span());
+    assert_eq!(diagnostic.found.as_deref(), Some("end"));
     assert!(
         diagnostic.expected.iter().any(|token| token == r"/\d+/"),
         "document diagnostic should preserve generated expected token names: {:?}",
@@ -116,9 +117,13 @@ fn generated_parse_document_diagnostics_preserve_expected_tokens() {
 
 #[test]
 fn generated_parse_document_diagnostics_byte_and_point_ranges_agree() {
-    let cases = ["1 +", "1 + \u{03bb}", "1 +\n@"];
+    let cases = [
+        ("1 +", "end", true),
+        ("1 + \u{03bb}", "λ", false),
+        ("1 +\n@", "@", false),
+    ];
 
-    for source in cases {
+    for (source, expected_found, allow_end) in cases {
         let document = adze_example::typed_ast_contract::grammar::parse_document(source)
             .expect("generated parse_document helper should return partial parse facts");
         let diagnostic = document
@@ -131,6 +136,23 @@ fn generated_parse_document_diagnostics_byte_and_point_ranges_agree() {
         assert_eq!(
             diagnostic.point_range, expected_point_range,
             "diagnostic point range should describe the same source span as its byte range for {source:?}"
+        );
+        assert_eq!(
+            diagnostic.found.as_deref(),
+            Some(expected_found),
+            "diagnostic should preserve the user-facing found token for {source:?}"
+        );
+        assert!(
+            diagnostic
+                .message
+                .starts_with(&format!("{expected_found};")),
+            "diagnostic message should start with the found token for {source:?}: {}",
+            diagnostic.message
+        );
+        assert!(
+            allow_end || !diagnostic.message.starts_with("end;"),
+            "non-EOF invalid input should not be reported as EOF for {source:?}: {}",
+            diagnostic.message
         );
     }
 }
@@ -174,6 +196,12 @@ fn generated_parse_document_diagnostics_include_multibyte_byte_span() {
     assert_eq!(
         diagnostic.point_range.end.column as usize + 1,
         source_span.end.column
+    );
+    assert_eq!(diagnostic.found.as_deref(), Some("λ"));
+    assert!(
+        diagnostic.message.starts_with("λ; expected one of:"),
+        "document diagnostic should name the invalid UTF-8 scalar: {}",
+        diagnostic.message
     );
     assert_eq!(diagnostic.expected, parse_error.expected);
     assert!(
@@ -231,6 +259,12 @@ fn generated_parse_document_diagnostics_include_multiline_point_range() {
     assert_eq!(
         diagnostic.point_range.end.column as usize + 1,
         source_span.end.column
+    );
+    assert_eq!(diagnostic.found.as_deref(), Some("@"));
+    assert!(
+        diagnostic.message.starts_with("@; expected one of:"),
+        "document diagnostic should name the multiline invalid source token: {}",
+        diagnostic.message
     );
 
     let rendered = diagnostic.display_with_source(source).to_string();
