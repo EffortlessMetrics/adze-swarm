@@ -44,7 +44,7 @@ For the stricter objective-level completion audit, see
   stable-only manual dispatch. For unrelated PRs, the aggregate result passes
   after path detection records the explicit skip reason. Manual dispatch runs
   the broad advisory product lane only when `lane=all` is selected.
-- Latest hosted stable-product receipt:
+- Current referenced hosted stable-product receipt:
   [`Product Proof` run 27000900885](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27000900885)
   passed on 2026-06-05 from `adze-swarm` PR #693 head `ae032281`. The
   path-selected `ci-product stable canaries` job passed in 3m44s, the broad
@@ -54,6 +54,9 @@ For the stricter objective-level completion audit, see
   protection change, or crates.io install receipt. Post-merge main
   [`CI Policy` run 27001248348](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27001248348)
   passed on commit `74894f0f`.
+- Status-only PRs can produce newer Product Proof runs. Update this reference
+  when selecting a new release-readable stable-product proof receipt, not merely
+  to chase each subsequent docs/status run.
 - Historical hosted receipt:
   [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
   passed on 2026-05-19 from `adze-swarm/main` after PR #281. The
