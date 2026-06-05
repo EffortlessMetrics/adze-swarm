@@ -25,4 +25,4 @@ cargo add --build adze-tool
 cargo test
 ```
 
-See [QUICK_START.md](../QUICK_START.md) for a full walkthrough and [CONTRIBUTING.md](../CONTRIBUTING.md) for development setup.
+See [QUICK_START.md](../../QUICK_START.md) for a full walkthrough and [CONTRIBUTING.md](../../CONTRIBUTING.md) for development setup.
