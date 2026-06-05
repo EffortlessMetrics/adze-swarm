@@ -124,6 +124,78 @@ impl SExpr {
             SExpr::List(items) => Some(items),
         }
     }
+
+    /// Format this value as a canonical, parseable S-expression.
+    ///
+    /// This is the roundtrip-oriented formatter. [`Display`](std::fmt::Display)
+    /// remains the historical raw/debug-style formatter for `SExpr`.
+    pub fn to_canonical_sexpr(&self) -> String {
+        let mut output = String::new();
+        self.write_canonical_sexpr(&mut output)
+            .expect("writing S-expression to String cannot fail");
+        output
+    }
+
+    /// Write this value as a canonical, parseable S-expression.
+    ///
+    /// Atoms are emitted bare only when `parse_sexpr` can read them
+    /// unambiguously. Other atoms are quoted and escaped.
+    pub fn write_canonical_sexpr(&self, output: &mut impl std::fmt::Write) -> std::fmt::Result {
+        match self {
+            SExpr::Atom(atom) => write_canonical_atom(atom, output),
+            SExpr::List(items) => {
+                output.write_char('(')?;
+                for (index, item) in items.iter().enumerate() {
+                    if index > 0 {
+                        output.write_char(' ')?;
+                    }
+                    item.write_canonical_sexpr(output)?;
+                }
+                output.write_char(')')
+            }
+        }
+    }
+}
+
+fn write_canonical_atom(atom: &str, output: &mut impl std::fmt::Write) -> std::fmt::Result {
+    if is_bare_atom(atom) {
+        output.write_str(atom)
+    } else {
+        write_quoted_atom(atom, output)
+    }
+}
+
+fn write_quoted_atom(atom: &str, output: &mut impl std::fmt::Write) -> std::fmt::Result {
+    output.write_char('"')?;
+    write_quoted_atom_contents(atom, output)?;
+    output.write_char('"')
+}
+
+fn write_quoted_atom_contents(atom: &str, output: &mut impl std::fmt::Write) -> std::fmt::Result {
+    for ch in atom.chars() {
+        match ch {
+            '"' => output.write_str("\\\"")?,
+            '\\' => output.write_str("\\\\")?,
+            '\n' => output.write_str("\\n")?,
+            '\r' => output.write_str("\\r")?,
+            '\t' => output.write_str("\\t")?,
+            ch => output.write_char(ch)?,
+        }
+    }
+    Ok(())
+}
+
+fn is_bare_atom(atom: &str) -> bool {
+    !atom.is_empty()
+        && atom.chars().all(|ch| {
+            !ch.is_whitespace() && !matches!(ch, '(' | ')' | '"' | '\\') && !ch.is_control()
+        })
+}
+
+fn quoted_atom(atom: &str) -> String {
+    let mut output = String::new();
+    write_quoted_atom(atom, &mut output).expect("writing quoted atom to String cannot fail");
+    output
 }
 
 impl std::fmt::Display for SExpr {
@@ -540,7 +612,7 @@ impl<'a> SExpressionSerializer<'a> {
         if node.child_count() == 0 {
             // Leaf node
             if let Ok(text) = node.utf8_text(self.source) {
-                result.push_str(&format!("\"{}\"", text.replace('"', "\\\"")));
+                result.push_str(&quoted_atom(text));
             }
         } else {
             // Internal node
@@ -587,7 +659,7 @@ impl<'a> SExpressionSerializer<'a> {
         if node.child_count() == 0 {
             // Leaf node
             if let Ok(text) = node.utf8_text(self.source) {
-                result.push_str(&format!("\"{}\"", text.replace('"', "\\\"")));
+                result.push_str(&quoted_atom(text));
             }
         } else {
             // Internal node
@@ -921,6 +993,30 @@ mod tests {
         // This is a placeholder showing the expected format
         let expected = "(program (function_declaration name: (identifier \"main\")))";
         assert!(expected.contains("function_declaration"));
+    }
+
+    #[cfg(feature = "pure-rust")]
+    #[test]
+    fn parse_sexpr_accepts_serialized_leaf_text_escaped_by_tree_serializer() {
+        let source = b"quote\" slash\\\n\t";
+        let leaf = Node::builder(0, vec![], 0, source.len()).build();
+        let rendered = SExpressionSerializer::new(source).serialize_node(&leaf);
+
+        assert_eq!(rendered, "\"quote\\\" slash\\\\\\n\\t\"");
+        assert_eq!(
+            parse_sexpr(&rendered).unwrap(),
+            SExpr::atom("quote\" slash\\\n\t")
+        );
+    }
+
+    #[cfg(feature = "pure-rust")]
+    #[test]
+    fn parse_sexpr_accepts_empty_serialized_leaf_text() {
+        let leaf = Node::builder(0, vec![], 0, 0).build();
+        let rendered = SExpressionSerializer::new(b"").serialize_node(&leaf);
+
+        assert_eq!(rendered, "\"\"");
+        assert_eq!(parse_sexpr(&rendered).unwrap(), SExpr::atom(""));
     }
 
     #[test]
