@@ -1,6 +1,6 @@
 # First-Use Starter Workspace Hardening Plan
 
-Status: active
+Status: complete
 Owner: cli/product
 Created: 2026-06-05
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
@@ -97,7 +97,7 @@ Revert the setup PR to restore the previous paused active manifest.
 
 ## Work Item: starter-workspace-escape
 
-Status: ready
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: n/a
@@ -112,17 +112,18 @@ they build both outside a parent workspace and when generated beneath one.
 
 ### Production Delta
 
-Expected implementation PR:
+Merged by EffortlessMetrics/adze-swarm#682 as one focused CLI implementation
+diff:
 
 ```text
 cli/src/main.rs
 cli/tests/cli_test.rs
 ```
 
-The generated starter `Cargo.toml` should contain an empty `[workspace]` table.
-The focused test should create a temporary parent Cargo workspace, generate a
-starter beneath it, and prove the generated child passes `cargo test` or
-`cargo check` when run from the child directory.
+The generated starter `Cargo.toml` contains an empty `[workspace]` table. The
+focused test creates a temporary parent Cargo workspace, generates a starter
+beneath it, and proves the generated child passes `cargo test --quiet` when run
+from the child directory.
 
 ### Scope
 
@@ -175,6 +176,20 @@ Small CLI-only implementation plus focused generated-starter tests. Expected
 required PR gate remains `Rust Small Result`; no broad hosted fanout, workflow
 change, coverage expansion, benchmark lane, or product-proof requirement is
 selected by this lane.
+
+### Completion Receipts
+
+- Implementation PR: EffortlessMetrics/adze-swarm#682.
+- Merge commit: `3899647e63e9362871987297d4b1733281ba92bb`.
+- Required gates before merge: `Rust Small Result` and `Product Proof Result`
+  passed.
+- Focused local proof: targeted formatting, generated Cargo.toml shape test,
+  nested parent-workspace generated-starter test, default-cwd build canary,
+  generated-project test/parse canary, getting-started quickstart canary,
+  active-goal check, and `git diff --check` passed.
+- Broad `cargo fmt --all` was unavailable on Windows with `os error 206`, so
+  formatting was applied through `cargo fmt -p adze-cli` and targeted
+  `rustfmt`.
 
 ### Rollback
 
