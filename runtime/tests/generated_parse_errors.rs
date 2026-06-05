@@ -32,6 +32,14 @@ fn generated_typed_parser_bad_token_reports_source_span() {
 
     let rendered = first.display_with_source(source).to_string();
     assert!(
+        rendered.contains("unexpected token \"@\""),
+        "rendered diagnostic should name the offending source byte: {rendered}"
+    );
+    assert!(
+        !rendered.contains("unexpected token \"end\""),
+        "non-EOF bad-token diagnostic should not present the invalid byte as EOF: {rendered}"
+    );
+    assert!(
         rendered.contains("bytes 4..5"),
         "rendered diagnostic should include byte span: {rendered}"
     );
@@ -72,6 +80,14 @@ fn generated_typed_parser_multibyte_bad_token_reports_utf8_byte_span() {
         rendered.contains("bytes 4..6"),
         "rendered diagnostic should include full UTF-8 byte span: {rendered}"
     );
+    assert!(
+        rendered.contains("unexpected token \"λ\""),
+        "rendered diagnostic should name the invalid UTF-8 scalar: {rendered}"
+    );
+    assert!(
+        !rendered.contains("unexpected token \"end\""),
+        "rendered diagnostic should not present a non-EOF UTF-8 scalar as EOF: {rendered}"
+    );
 }
 
 #[test]
@@ -97,6 +113,10 @@ fn generated_typed_parser_unexpected_eof_reports_zero_width_source_span() {
     assert_eq!(span.end.column, source.len() + 1);
 
     let rendered = first.display_with_source(source).to_string();
+    assert!(
+        rendered.contains("unexpected token \"end\""),
+        "true EOF diagnostic should keep EOF/end wording: {rendered}"
+    );
     assert!(
         rendered.contains("bytes 3..3"),
         "rendered diagnostic should include zero-width byte span: {rendered}"
@@ -205,6 +225,14 @@ fn generated_typed_parser_multiline_bad_token_reports_line_column_and_excerpt() 
         "rendered diagnostic should include second-line location and byte span: {rendered}"
     );
     assert!(
+        rendered.contains("unexpected token \"@\""),
+        "rendered diagnostic should name the invalid token on the second line: {rendered}"
+    );
+    assert!(
+        !rendered.contains("unexpected token \"end\""),
+        "rendered diagnostic should not present a non-EOF second-line token as EOF: {rendered}"
+    );
+    assert!(
         rendered.contains("@\n^"),
         "rendered diagnostic should include the second source line and caret: {rendered}"
     );
@@ -227,6 +255,8 @@ fn generated_typed_parser_error_contract_is_feature_stable() {
         start_column: usize,
         end_line: usize,
         end_column: usize,
+        rendered_token: &'static str,
+        rendered_end_allowed: bool,
     }
 
     let cases = [
@@ -238,6 +268,8 @@ fn generated_typed_parser_error_contract_is_feature_stable() {
             start_column: 4,
             end_line: 1,
             end_column: 4,
+            rendered_token: "end",
+            rendered_end_allowed: true,
         },
         Case {
             label: "invalid ASCII token",
@@ -247,6 +279,8 @@ fn generated_typed_parser_error_contract_is_feature_stable() {
             start_column: 5,
             end_line: 1,
             end_column: 6,
+            rendered_token: "@",
+            rendered_end_allowed: false,
         },
         Case {
             label: "invalid UTF-8 scalar",
@@ -256,6 +290,8 @@ fn generated_typed_parser_error_contract_is_feature_stable() {
             start_column: 5,
             end_line: 1,
             end_column: 7,
+            rendered_token: "λ",
+            rendered_end_allowed: false,
         },
     ];
 
@@ -308,6 +344,17 @@ fn generated_typed_parser_error_contract_is_feature_stable() {
         assert!(
             rendered.contains(&expected_byte_range),
             "{} should render byte range {expected_byte_range}: {rendered}",
+            case.label
+        );
+        let expected_token = format!("unexpected token {:?}", case.rendered_token);
+        assert!(
+            rendered.contains(&expected_token),
+            "{} should render the structured offending token {expected_token}: {rendered}",
+            case.label
+        );
+        assert!(
+            case.rendered_end_allowed || !rendered.contains("unexpected token \"end\""),
+            "{} should not render non-EOF input as EOF: {rendered}",
             case.label
         );
     }

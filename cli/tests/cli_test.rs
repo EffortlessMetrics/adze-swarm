@@ -514,6 +514,7 @@ fn assert_bad_input_diagnostic(diagnostic: &serde_json::Value) {
         diagnostic["point_range"]["start"]["column"].as_u64(),
         Some(4)
     );
+    assert_eq!(diagnostic["found"].as_str(), Some("@"));
     assert!(
         diagnostic["expected"]
             .as_array()
@@ -527,6 +528,18 @@ fn assert_bad_input_diagnostic(diagnostic: &serde_json::Value) {
             .as_str()
             .is_some_and(|message| message.contains("expected one of:")),
         "diagnostics projection should preserve useful parser context: {diagnostic:?}"
+    );
+    assert!(
+        diagnostic["message"]
+            .as_str()
+            .is_some_and(|message| message.starts_with("@;")),
+        "diagnostics projection should start with the offending byte: {diagnostic:?}"
+    );
+    assert!(
+        diagnostic["message"]
+            .as_str()
+            .is_some_and(|message| !message.starts_with("end;")),
+        "diagnostics projection should name the offending byte instead of EOF: {diagnostic:?}"
     );
 }
 
