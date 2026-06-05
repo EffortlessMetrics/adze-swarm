@@ -95,7 +95,7 @@ node.is_named();      // Node flags
 - Handle-based child references
 - Packed flags (8 in 1 byte)
 
-**See**: [`TREE_NODE_DATA_SPEC.md`](specs/TREE_NODE_DATA_SPEC.md)
+**See**: archived [`TREE_NODE_DATA_SPEC.md`](../archive/specs/TREE_NODE_DATA_SPEC.md)
 
 ## Safety Guarantees
 
@@ -106,8 +106,8 @@ node.is_named();      // Node flags
 
 ## Documentation
 
-- **Full Guide**: [docs/guides/ARENA_ALLOCATOR_GUIDE.md](guides/ARENA_ALLOCATOR_GUIDE.md)
-- **Design Rationale**: [docs/adr/0001-arena-allocator-for-parse-trees.md](adr/0001-arena-allocator-for-parse-trees.md)
+- **Full Guide**: [docs/guides/ARENA_ALLOCATOR_GUIDE.md](../guides/ARENA_ALLOCATOR_GUIDE.md)
+- **Design Rationale**: [docs/adr/0001-arena-allocator-for-parse-trees.md](../adr/0001-arena-allocator-for-parse-trees.md)
 - **Benchmark Policy**: [docs/perf/baselines.md](../perf/baselines.md)
 
 ## Testing
