@@ -209,6 +209,49 @@ mod s_expr_tests {
         }
     }
 
+    /// Test 2b: Canonical SExpr formatting is parseable and deterministic
+    #[test]
+    fn test_canonical_sexpr_formatter_roundtrips_atoms_and_lists() {
+        let atom_cases = vec![
+            ("", "\"\""),
+            ("hello", "hello"),
+            ("hello world", "\"hello world\""),
+            ("a(b)", "\"a(b)\""),
+            (r#""quoted""#, "\"\\\"quoted\\\"\""),
+            (r"back\slash", "\"back\\\\slash\""),
+            ("line1\nline2", "\"line1\\nline2\""),
+            ("line1\rline2", "\"line1\\rline2\""),
+            ("tab\there", "\"tab\\there\""),
+            ("lambda", "lambda"),
+        ];
+
+        for (atom, expected) in atom_cases {
+            let expr = SExpr::atom(atom);
+            let rendered = expr.to_canonical_sexpr();
+            assert_eq!(rendered, expected);
+            assert_eq!(parse_sexpr(&rendered).unwrap(), expr);
+        }
+
+        let nested = SExpr::list(vec![
+            SExpr::atom("root"),
+            SExpr::atom(""),
+            SExpr::atom("hello world"),
+            SExpr::atom("a(b)"),
+            SExpr::atom(r#""quoted""#),
+            SExpr::atom(r"back\slash"),
+            SExpr::atom("line1\nline2"),
+            SExpr::atom("tab\there"),
+            SExpr::list(vec![SExpr::atom("child"), SExpr::atom("")]),
+        ]);
+        let rendered = nested.to_canonical_sexpr();
+
+        assert_eq!(
+            rendered,
+            r#"(root "" "hello world" "a(b)" "\"quoted\"" "back\\slash" "line1\nline2" "tab\there" (child ""))"#
+        );
+        assert_eq!(parse_sexpr(&rendered).unwrap(), nested);
+    }
+
     /// Test 3: Unicode edge cases (non-BMP, combining marks, RTL)
     #[test]
     fn test_unicode_edge_cases() {
@@ -581,7 +624,7 @@ mod property_based_tests {
         }
     }
 
-    /// Property test: S-expression parsing is inverse of formatting
+    /// Property test: canonical S-expression formatting roundtrips through parsing
     #[test]
     fn property_test_sexpr_roundtrip() {
         let mut rng = rand::SmallRng::seed_from_u64(54321);
@@ -589,19 +632,9 @@ mod property_based_tests {
         for _ in 0..50 {
             // Generate random S-expression
             let sexpr = gen_random_sexpr(3, &mut rng);
-
-            // For now, just test that parsing doesn't crash
-            // A full roundtrip would require implementing SExpr -> string formatting
-            match sexpr {
-                SExpr::Atom(ref text) => {
-                    let quoted = format!("\"{}\"", text.replace('"', r#"\""#));
-                    let parsed = parse_sexpr(&quoted);
-                    assert!(parsed.is_ok(), "Failed to parse generated atom: {}", quoted);
-                }
-                SExpr::List(_) => {
-                    // List formatting is more complex, skip for now
-                }
-            }
+            let rendered = sexpr.to_canonical_sexpr();
+            let parsed = parse_sexpr(&rendered).unwrap();
+            assert_eq!(parsed, sexpr);
         }
     }
 

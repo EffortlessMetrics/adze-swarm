@@ -85,12 +85,28 @@ fn error_leaf(text: &str, start: usize, end: usize) -> SerializedNode {
 fn node_to_sexp(node: &SerializedNode) -> String {
     if node.children.is_empty() {
         if let Some(ref text) = node.text {
-            return format!("\"{}\"", text.replace('"', "\\\""));
+            return quote_sexp_atom(text);
         }
         return format!("({})", node.kind);
     }
     let child_strs: Vec<String> = node.children.iter().map(node_to_sexp).collect();
     format!("({} {})", node.kind, child_strs.join(" "))
+}
+
+fn quote_sexp_atom(text: &str) -> String {
+    let mut output = String::from("\"");
+    for ch in text.chars() {
+        match ch {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            ch => output.push(ch),
+        }
+    }
+    output.push('"');
+    output
 }
 
 // ===========================================================================
@@ -109,6 +125,30 @@ fn sexp_simple_identifier_leaf() {
     let tree = branch("program", vec![leaf("identifier", "foo", 0, 3)], 0, 3);
     let sexp = node_to_sexp(&tree);
     assert_eq!(sexp, "(program \"foo\")");
+}
+
+#[test]
+fn sexp_leaf_text_escapes_parseable_atoms() {
+    let tree = branch(
+        "program",
+        vec![
+            leaf("string", "quote\" slash\\\n\t", 0, 15),
+            leaf("empty", "", 15, 15),
+        ],
+        0,
+        15,
+    );
+    let sexp = node_to_sexp(&tree);
+
+    assert_eq!(sexp, "(program \"quote\\\" slash\\\\\\n\\t\" \"\")");
+    assert_eq!(
+        parse_sexpr(&sexp).unwrap(),
+        SExpr::list(vec![
+            SExpr::atom("program"),
+            SExpr::atom("quote\" slash\\\n\t"),
+            SExpr::atom("")
+        ])
+    );
 }
 
 // ===========================================================================
