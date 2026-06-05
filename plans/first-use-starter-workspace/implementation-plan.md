@@ -1,6 +1,6 @@
 # First-Use Starter Workspace Hardening Plan
 
-Status: complete
+Status: active
 Owner: cli/product
 Created: 2026-06-05
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
@@ -18,14 +18,15 @@ Policy impact: no workflow/router, hosted-fallback, release, publish, signing, C
 
 ## Goal
 
-Select #680 option A as the next bounded non-release implementation lane:
-generated starter crates should include an empty `[workspace]` table so the
-repo-built `adze init` first-use path remains buildable when the output is
-nested under an existing Cargo workspace.
+Select #680 diagnostic wording polish as the next bounded non-release
+implementation lane after the starter workspace robustness slice completed
+through EffortlessMetrics/adze-swarm#682 and #683.
 
-This lane addresses only the starter workspace robustness gap. The #680
-diagnostic wording gap remains a separate later decision because it touches
-parser diagnostic presentation rather than starter manifest generation.
+This lane addresses only the bad-token wording gap recorded on #680: for a
+non-EOF invalid source byte such as `1 + @`, the diagnostic should not point at
+the offending byte while rendering the found token as `end`. It must preserve
+true EOF wording for `1 +`, expected-token text, byte/point spans, UTF-8 and
+multiline behavior, and existing document diagnostic range agreement.
 
 ## Operating Rules
 
@@ -36,7 +37,8 @@ parser diagnostic presentation rather than starter manifest generation.
   workflows, or claim crates.io install support in this lane.
 - Do not edit workflow files, runner router logic, branch protection, or merge
   queue settings for this lane.
-- Do not edit runtime/parser diagnostic presentation in this lane.
+- Do not edit runtime/parser diagnostic presentation outside the selected
+  non-EOF invalid-token wording rule.
 - Keep support-tier claims bounded by `docs/status/SUPPORT_TIERS.md`.
 - Inspect open `adze-swarm` and public `adze` PR queues before opening
   duplicate work.
@@ -75,9 +77,8 @@ Docs and source-of-truth metadata only.
 - `.adze/goals/active.toml` names this campaign.
 - `.adze/goals/first-use-starter-workspace-hardening.toml` exists.
 - `policy/doc-artifacts.toml` registers the plan and named goal.
-- #680 starter workspace robustness is the single ready implementation item.
-- #680 diagnostic wording polish is deferred to a separate source-of-truth
-  selection.
+- #680 starter workspace robustness is complete through #682 and #683.
+- #680 diagnostic wording polish is the single ready implementation item.
 - #325 remains outside this lane as the release authorization blocker.
 
 ### Proof Commands
@@ -198,37 +199,74 @@ generated manifest stanza plus the one focused CLI test.
 
 ## Work Item: diagnostic-wording-polish
 
-Status: blocked
+Status: ready
 Linked proposal: ../../docs/proposals/ADZE-PROP-0006-user-experience-hardening.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 Blocks: n/a
-Blocked by:
-- separate source-of-truth selection after starter workspace robustness
+Blocked by: n/a
 
 ### Goal
 
-Keep the #680 bad-token wording gap visible without bundling parser diagnostic
-presentation work into the starter manifest PR.
+Make generated-parser bad-token presentation less misleading for non-EOF
+invalid source bytes without broadening the diagnostics support tier.
+
+When bad input points at an offending byte such as `@`, public diagnostic
+formatting should not render that byte-span diagnostic as `unexpected token
+"end"`. True EOF diagnostics, such as `1 +`, should keep EOF/end wording and
+zero-width EOF span behavior.
+
+### Production Delta
+
+Expected focused runtime/diagnostic implementation PR. The likely surface is
+the public diagnostic conversion/formatting path around
+`runtime/src/__private.rs` and any directly required focused tests. Do not edit
+starter manifest generation, workflow routing, or unrelated parser behavior.
 
 ### Non-Goals
 
-- No parser diagnostic change in this lane.
 - No broad diagnostics-stability claim.
 - No support-tier promotion.
+- No change to expected-token text.
+- No change to byte spans, point ranges, UTF-8/multiline behavior, or document
+  diagnostic range agreement.
+- No starter manifest, workflow/router, public `adze`, release, publish,
+  signing, Cargo-token, or crates.io install work.
 
-### Candidate Proof Commands If Selected Later
+### Acceptance
+
+- `1 + @` does not render the byte-span `4..5` diagnostic as `unexpected token
+  "end"`.
+- The non-EOF invalid byte is rendered as `@`, `invalid token`, or an
+  equivalent offending-source-byte phrase.
+- `1 +` keeps EOF/end wording and zero-width EOF span behavior.
+- Existing expected-token text remains present.
+- Existing byte/point span and document diagnostic range contracts remain
+  covered by focused tests.
+- The implementation PR links #617 and #680 and states claim boundary, proof
+  commands, CI cost expectation, and rollback.
+
+### Proof Commands
 
 ```bash
 cargo test -p adze --features pure-rust --test generated_parse_errors generated_typed_parser_bad_token_reports_source_span -- --exact --nocapture
 cargo test -p adze --features pure-rust --test generated_parse_errors generated_typed_parser_error_contract_is_feature_stable -- --exact --nocapture
 cargo test -p adze --features pure-rust --test typed_cst_generated_document generated_parse_document_diagnostics_byte_and_point_ranges_agree -- --exact --nocapture
 cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture
+git diff --check
 ```
+
+### CI Cost Expectation
+
+Small runtime/diagnostic presentation change plus focused tests. Expected
+required PR gate remains `Rust Small Result`; no broad hosted fanout, workflow
+change, coverage expansion, benchmark lane, release lane, or support-tier
+promotion is selected by this lane.
 
 ### Rollback
 
-Not applicable until a separate implementation lane is selected.
+Revert the focused implementation PR. The expected rollback surface is the
+diagnostic presentation change plus its focused tests.
 
 ## Work Item: release-publish-authorization
 
