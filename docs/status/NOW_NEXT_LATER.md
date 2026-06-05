@@ -159,13 +159,27 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Close out CLI clean-room quickstart/truthfulness and README/support-tier reconciliation as landed proof work ([#464](https://github.com/EffortlessMetrics/adze/issues/464), [#465](https://github.com/EffortlessMetrics/adze/issues/465)).
 - [x] Keep README feature claims aligned with [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md): no Stable claim without a named proof command; guarded by `readme_stable_claims_are_in_stable_product_lane`.
 - [x] Add stable-product canaries for the checked-in downstream demo, README quickstart, and Getting Started tutorial so clean downstream crates prove typed parsing and useful bad-input diagnostics.
-- [x] Latest hosted stable-product receipt: GitHub workflow dispatch
+- [x] Historical hosted stable-product receipt: GitHub workflow dispatch
       [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
-      passed on 2026-05-19 from current `adze-swarm/main` after PR #281,
+      passed on 2026-05-19 from `adze-swarm/main` after PR #281,
       commit `0b79a36a`. The `ci-product stable canaries` job passed in 3m02s
       and the broad advisory canaries skipped under the stable-only default.
       This is evidence for the README Stable claim lane, not a
       branch-protection change.
+- [x] Current referenced hosted stable-product receipts are tracked in
+      [`PRODUCT_PROOF_MAP.md`](./PRODUCT_PROOF_MAP.md). On 2026-06-05,
+      `Product Proof` run
+      [27000900885](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27000900885)
+      passed for PR #693, and status-doc refresh PR #695 selected the same
+      stable canary lane in run
+      [27001741252](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27001741252).
+      Post-merge main CI Policy runs
+      [27001248348](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27001248348)
+      and
+      [27002005993](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27002005993)
+      passed on the corresponding main commits. These are receipt pointers,
+      not support-tier promotion, release authorization, or crates.io install
+      evidence.
 - [x] Latest local stable-product receipt: `just ci-product-stable` passed on
       2026-05-20 from current `adze-swarm/main` at commit `4f3d451c` after
       residual product-trust PRs #318-#322. This refreshes the advisory

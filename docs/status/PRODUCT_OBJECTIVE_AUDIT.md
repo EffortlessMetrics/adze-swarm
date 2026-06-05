@@ -81,18 +81,23 @@ later `Product Proof Result` required-gate promotion. Current branch protection
 requires `Product Proof Result`; the path-selected `ci-product stable canaries`
 implementation job remains selected by path, schedule, or manual dispatch.
 
-Latest current research-board state:
-adze-swarm#617 records a June 5 refresh from `adze-swarm/main` at
-`e291ce10`. The refresh records #680 as complete and closed after starter
-workspace robustness (#681/#682/#683) and diagnostic wording polish
-(#685/#686/#688), then records #690 as closed by #691 after
+Current referenced research-board state:
+adze-swarm#617 records the June 5 closeout sequence through current
+`adze-swarm/main` at `45040a57`. The board records #680 as complete and closed
+after starter workspace robustness (#681/#682/#683) and diagnostic wording
+polish (#685/#686/#688), then records #690 as closed by #691 after
 `docs/status/ACCURACY_PROOF_MAP.md` converted its stale recommended test
-sequence into historical/stop-rule text. Local `check-active-goal` and
-`check-doc-artifacts` receipts passed after #691, and post-merge main CI Policy
-run `27000436955` passed. The broader June 4 acceptance matrix checkpoint
-remains prior product evidence and was not rerun by this status refresh. This
-is product proof under the research board, not a support-tier promotion,
-release authorization, public `adze` promotion, or crates.io install receipt.
+sequence into historical/stop-rule text. Follow-on docs/status receipt refreshes
+closed #692 through #693 and #694 through #695. The post-#693 Product Proof run
+`27000900885` passed selected stable-product canaries and aggregate
+`Product Proof Result`; post-#693 main CI Policy run `27001248348` passed on
+`74894f0f`. The post-#695 Product Proof run `27001741252` also passed selected
+stable-product canaries and aggregate `Product Proof Result`; post-#695 main CI
+Policy run `27002005993` passed on `45040a57`. The broader June 4 acceptance
+matrix checkpoint remains prior product evidence and was not rerun by these
+status refreshes. This is product proof under the research board, not a
+support-tier promotion, release authorization, public `adze` promotion, or
+crates.io install receipt.
 
 Latest current receipt after CLI reference source-build boundary PR #588:
 `Product Proof` run 26680325962 passed on 2026-05-30 from `adze-swarm/main`.
@@ -104,7 +109,7 @@ receipt does not prove public `adze` source builds from the current swarm state.
 
 GitHub workflow dispatch
 [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
-passed on 2026-05-19 from current `adze-swarm/main` after PR #281, commit
+passed on 2026-05-19 from `adze-swarm/main` after PR #281, commit
 `0b79a36a`. The `ci-product stable canaries` job passed in 3m02s and the broad
 advisory canaries skipped under the stable-only default. This is evidence for
 the README Stable claim lane from the pre-promotion receipt era.

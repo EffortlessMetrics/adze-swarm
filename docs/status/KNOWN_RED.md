@@ -107,13 +107,23 @@ surfaces, schedule, and stable-only manual dispatch. For unrelated PRs,
 reason. When Stable canaries are selected, the aggregate result fails if they do
 not pass.
 
-Latest stable-product receipt: GitHub workflow dispatch
+Historical stable-product receipt: GitHub workflow dispatch
 [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
 passed on 2026-05-19 from `adze-swarm/main` after PR #281. The
 `ci-product stable canaries` job passed in 3m02s and `ci-product advisory
 canaries` skipped under the stable-only default. This remains useful
 stable-product evidence; branch protection now requires the aggregate
 `Product Proof Result` context rather than the path-selected implementation job.
+Current referenced hosted stable-product receipts live in
+[`PRODUCT_PROOF_MAP.md`](./PRODUCT_PROOF_MAP.md). As of the post-#695 status
+refresh on 2026-06-05, Product Proof runs
+[27000900885](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27000900885)
+and
+[27001741252](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27001741252)
+passed their selected stable-product canaries and aggregate
+`Product Proof Result` contexts. These receipts do not authorize support-tier
+promotion, release, publish, signing, Cargo-token access, branch-protection
+changes, hosted fallback, or crates.io install claims.
 
 Current canaries:
 
