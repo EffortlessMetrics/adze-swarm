@@ -2,7 +2,7 @@
 
 Status: current audit
 Owner: repo governance
-Updated: 2026-06-04
+Updated: 2026-06-05
 Scope: `EffortlessMetrics/adze-swarm` development/proof forge endpoint
 Completion: not complete
 
@@ -12,22 +12,21 @@ install receipt.
 
 ## Summary
 
-`adze-swarm` remains in paused forge standby after the #617 research-board
-pass, the #643 query differential proof spike, and the post-closeout
-standby/policy cleanup. The adoption-hardening, Tree-sitter/query gap-ranking,
-and performance-receipt research issues produced bounded outputs; #642 handled
-the selected first-use route-map task; #645 added the first upstream
-`tree-sitter-json` query differential canary; #646 closed out the query lane
-and archived it; #647 refreshed the checked-in forge standby state; #649
-researched the self-hosted routing guard question from closed broad PR #648;
-and #651 aligned route-runner policy text with the current #598/#607 behavior.
-#652 refreshed the checked-in standby/source-of-truth state after those policy
-receipts. #673 then closed #672 as the canonical query predicate
-documentation-boundary update. On June 4, #617 was refreshed as the current
-board front page after the #325 release decision packet, #661 candidate
-classification, and product acceptance matrix proof checkpoint were recorded.
-The active manifest is still the forge-standby manifest, with no active or
-ready implementation work.
+`adze-swarm` remains paused after the #617 research-board pass, the #643 query
+differential proof spike, the post-closeout standby/policy cleanup, and the
+first-use starter workspace hardening closeout. The adoption-hardening,
+Tree-sitter/query gap-ranking, and performance-receipt research issues produced
+bounded outputs; #642 handled the selected first-use route-map task; #645 added
+the first upstream `tree-sitter-json` query differential canary; #646 closed
+out the query lane and archived it; #647 refreshed the checked-in forge standby
+state; #649 researched the self-hosted routing guard question from closed broad
+PR #648; and #651 aligned route-runner policy text with the current #598/#607
+behavior. #652 refreshed the checked-in standby/source-of-truth state after
+those policy receipts. #673 then closed #672 as the canonical query predicate
+documentation-boundary update. On June 5, #617 was refreshed as the current
+board front page after #680 was closed as completed through #681/#682/#683 and
+#685/#686/#688. The active manifest is paused with no active or ready
+implementation work.
 
 The near-term CI governance, repo-boundary, proof-refresh, release-candidate
 bundle, adoption-hardening, post-closeout audit, CI-routing, and active-goal
@@ -62,8 +61,8 @@ remains tracked by #325.
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
 | Self-hosted implementation routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, #580, #591, #595, #603, #607, #608, #610, #611, #628, #629, #630, and #631 merged; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, #591 removed the Windows `cygpath` dependency from `just check-msrv`, #595 removed the Windows `just build` PDB collision warning, #603 quarantined CX53 from Rust Small route selection while preserving candidate diagnostics, #607 excludes the routed Rust Small router's current route runner from idle counts when relevant, #608 aligns contributor-facing CI docs with the current capacity-policy behavior, #610 records CX53 label/group and planned rust-large diagnostics, #611 adds a manual CX53 rust-large diagnostic workflow, #628 hardens stale advisory and aggregate cancellation guards, #629 moves routing/result control-plane work off self-hosted capacity while keeping implementation lanes self-hosted by default, #630 moves serialized CI Policy source-of-truth checks to hosted control-plane runners, and #631 records the closeout. Issue #598 tracks whether CX53 should regain Rust Small eligibility after a stale selected-lane queue in #597; issue #604 is complete after post-merge CI Policy runs `26705001774` and `26705164480` passed on `main`. | Complete for current routing/tooling assumptions; #598 remains blocked on admin runner/control-plane evidence. |
 | Duplicate same-scope PRs collapsed. | PR #542 merged; duplicate document SRP PRs were not all merged. | Complete for the observed queue. |
-| Current active goal complete/paused/superseded before new goal. | `query-upstream-differential` is complete and archived; `active.toml` is restored to the paused `adze-swarm-forge-standby` manifest and refreshed through #652/#673 plus current #617/#598/#325 issue receipts; #617 is the current research board; #598 and #325 are the only active blocked decision/evidence lanes in the manifest. | Complete. |
-| Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-06-04. | Covered at audit time. |
+| Current active goal complete/paused/superseded before new goal. | `first-use-starter-workspace-hardening` is paused after #680 closed through #681/#682/#683 and #685/#686/#688; current `active.toml` reports 3 complete, 0 active, 0 ready, 1 blocked. #617 is the current research board, #325 is the remaining active-goal blocker, and #598 remains the standing runner evidence/admin-decision issue. | Complete. |
+| Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-06-05. | Covered at audit time. |
 
 ## Current evidence snapshot
 
@@ -135,21 +134,30 @@ Recent merged PRs:
 - #651: `docs(policy): align route runner proof obligation`
 - #652: `docs(governance): refresh standby after policy cleanup`
 - #673: `docs(query): align predicate subset boundary`
+- #681: `docs(goal): select starter workspace hardening lane`
+- #682: `fix(cli): make generated starters workspace roots`
+- #683: `docs(goal): close starter workspace robustness lane`
+- #685: `docs(goal): select diagnostic wording polish`
+- #686: `fix(runtime): name invalid-byte diagnostics`
+- #688: `docs(goal): complete diagnostic wording lane source of truth`
 
 Current active manifest:
 
 ```text
 .adze/goals/active.toml
-  id = "adze-swarm-forge-standby"
+  id = "first-use-starter-workspace-hardening"
   status = "paused"
-  board = "adze-swarm#617"
+  complete = 3
+  active = 0
+  ready = 0
+  blocked = 1
 ```
 
 Current live blockers:
 
 ```text
-release-publish-authorization: blocked, tracked by #325
-cx53-rust-small-stale-queue-investigation: blocked, tracked by #598
+release-publish-authorization: blocked active-goal item, tracked by #325
+cx53-rust-small-stale-queue-investigation: standing blocked issue, tracked by #598
 ```
 
 Current live queue at audit time:

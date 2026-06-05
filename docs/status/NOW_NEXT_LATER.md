@@ -1,22 +1,21 @@
 # Now / Next / Later
 
-**Last updated:** 2026-06-04
-**Status:** **Adze-swarm forge standby remains paused; release remains
+**Last updated:** 2026-06-05
+**Status:** **Adze-swarm forge remains paused; release remains
 unauthorized** — `adze-swarm` remains the operating repo for non-release
 research, proof, docs, CI, implementation, and release-candidate preparation,
 while public `adze` remains the release, public-intake, promotion, tag,
 publish, signing, Cargo-token, and crates.io receipt surface. The current
 research board is [`adze-swarm#617`](https://github.com/EffortlessMetrics/adze-swarm/issues/617),
-whose body was refreshed on June 4 after #673 closed the #672 query predicate
-documentation-boundary gap, the #325 release decision packet was refreshed,
-#661 was classified as a blocked future cleanup candidate, and the product
-acceptance matrix proof checkpoint was posted. The active manifest is paused
-with no active or ready implementation lane. The remaining blocked
-decision/evidence lanes are CX53 runner state in
+whose body was refreshed on June 5 after #680 was closed as completed through
+the starter workspace robustness and diagnostic wording polish closeouts. The
+active manifest is paused as `first-use-starter-workspace-hardening` with 3
+complete, 0 active, 0 ready, and 1 blocked item. The remaining blocked
+decision/evidence lanes are release authorization/install receipts in
+[`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325)
+and standing CX53 runner state in
 [`adze-swarm#598`](https://github.com/EffortlessMetrics/adze-swarm/issues/598),
-now narrowed to admin/runner context after repo-visible API checks, and release
-authorization/install receipts in
-[`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325).
+now narrowed to admin/runner context after repo-visible API checks.
 Open swarm PRs #662 and #663 are draft/behind and not treated as ready. No
 routine release, publish, signing, Cargo-token, public promotion, or crates.io
 install receipt work is authorized.
@@ -41,6 +40,17 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] PR `#281` (roadmap/execution-state refresh) merged.
 - [x] `main` is aligned with `origin/main` and is now the source of truth for the remaining hardening work.
 - [x] A restore audit on 2026-04-11 confirmed that the proof surfaces trimmed during publication are already present again on `main`.
+
+### ✅ First-use starter workspace hardening
+- [x] #680 starter workspace robustness completed through #681/#682/#683.
+- [x] Generated starter manifests include an empty `[workspace]` table so
+      nested parent-workspace generation remains buildable without mutating the
+      parent manifest.
+- [x] #680 diagnostic wording polish completed through #685/#686/#688.
+- [x] Non-EOF invalid source bytes no longer render as EOF/end while true EOF
+      wording and diagnostic span contracts remain covered.
+- [x] #680 is closed as completed; return to #617 or a new source-of-truth
+      issue before opening another non-release implementation lane.
 
 ---
 
