@@ -2,7 +2,7 @@
 
 **Status:** release-readable companion to `SUPPORT_TIERS.md`
 **Source of truth:** `SUPPORT_TIERS.md`
-**Last updated:** 2026-05-21
+**Last updated:** 2026-06-05
 
 This map answers one question quickly: which product claims have proof, and
 where is that proof owned?
@@ -44,13 +44,21 @@ For the stricter objective-level completion audit, see
   stable-only manual dispatch. For unrelated PRs, the aggregate result passes
   after path detection records the explicit skip reason. Manual dispatch runs
   the broad advisory product lane only when `lane=all` is selected.
-- Latest hosted receipt: GitHub workflow dispatch
+- Latest hosted stable-product receipt:
+  [`Product Proof` run 27000900885](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27000900885)
+  passed on 2026-06-05 from `adze-swarm` PR #693 head `ae032281`. The
+  path-selected `ci-product stable canaries` job passed in 3m44s, the broad
+  advisory canaries skipped under the stable-only default, and the aggregate
+  `Product Proof Result` context passed. Treat this as stable-product proof
+  evidence, not a support-tier promotion, release authorization, branch
+  protection change, or crates.io install receipt. Post-merge main
+  [`CI Policy` run 27001248348](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27001248348)
+  passed on commit `74894f0f`.
+- Historical hosted receipt:
   [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
-  passed on 2026-05-19 from current `adze-swarm/main` after PR #281. The
+  passed on 2026-05-19 from `adze-swarm/main` after PR #281. The
   `ci-product stable canaries` job passed in 3m02s and the broad advisory
-  canaries skipped under the stable-only default. Treat this as stable-product
-  proof evidence; current branch protection requires the aggregate
-  `Product Proof Result` context, not the path-selected implementation job.
+  canaries skipped under the stable-only default.
 - Experimental, Stabilizing, and Advisory rows here are not marketing claims.
   They are current evidence snapshots.
 - Do not promote any Stabilizing or Advisory surface to Stable from this
