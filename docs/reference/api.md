@@ -116,10 +116,28 @@ documented generated grammar matrix. The structured parse-error surface is
 |---|---|---|
 | `pure-rust` | Pure-Rust parser backend. Default stable front door. | Stable |
 | `glr` | Enables GLR parsing for ambiguous grammars. | Stabilizing |
-| `serialization` | Enables core table serialization and experimental document JSON. | Stable for core tables; document JSON experimental |
+| `serialization` | Enables core table serialization, experimental document JSON, and runtime S-expression helpers. | Stable for core tables; document JSON experimental; S-expression helpers non-Stable |
 | `ts-compat` | Tree-sitter-compatible selected-tree adapter. | Stabilizing selected-tree subset |
 | `incremental_glr` | Incremental parsing and fallback metadata. | Experimental |
 | `wasm` | WASM build support. | Advisory compile signal |
+
+### Serialization helper APIs
+
+The `serialization` feature also exposes runtime S-expression helpers for
+tooling and tests:
+
+- `parse_sexpr(input)` parses one S-expression helper value.
+- `SExpr::to_canonical_sexpr()` returns a canonical string that
+  `parse_sexpr` can read back into the same `SExpr`.
+- `SExpr::write_canonical_sexpr(...)` writes the same canonical form into an
+  existing string buffer.
+
+These helpers are proof-backed but are not the Stable core serialization
+claim. Stable serialization still means core parse-table serialization in
+[`SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md). `Display for SExpr` remains
+the historical raw/debug-style formatter and should not be used when parseable
+canonical output is required. This helper boundary does not create a stable
+CLI/WASM schema claim, release claim, or crates.io install claim.
 
 ## Compatibility And Tooling Surfaces
 
