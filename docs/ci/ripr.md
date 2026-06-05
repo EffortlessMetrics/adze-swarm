@@ -1,14 +1,17 @@
 # ripr advisory
 
-`ripr` is a static RIPR exposure analyzer. It sits between line coverage
+`ripr` is static mutation-exposure analysis. It sits between line coverage
 (too coarse) and runtime mutation testing (too expensive) and asks a
-narrower question for each behavioural delta:
+narrower question for each behavioral delta:
 
 > Is this changed code path exposed to a meaningful test discriminator?
 
-It does **not** run mutants and does **not** report killed/survived
-outcomes. Reading or writing ripr policy without that distinction will
-produce garbled mental models — see `docs/ci/cost-and-verification-policy.md`.
+It catches mutation-shaped weak-test and weak-oracle signal earlier and
+cheaper because it is static and PR-time. It does **not** run mutants, report
+killed/survived outcomes, prove correctness, or replace runtime mutation
+testing. Mutation testing remains the slower runtime backstop. Reading or
+writing ripr policy without that distinction will produce garbled mental
+models — see `docs/ci/cost-and-verification-policy.md`.
 
 ## Where it sits in the ladder
 
