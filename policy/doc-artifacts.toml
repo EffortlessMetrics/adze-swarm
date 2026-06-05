@@ -858,6 +858,24 @@ links_to = [
 ]
 
 [[artifact]]
+id = "plans/visualization-no-panic/implementation-plan.md"
+kind = "plan"
+path = "plans/visualization-no-panic/implementation-plan.md"
+status = "active"
+owner = "tooling/policy"
+milestone = "post-0.9"
+source_of_truth_for = ["visualization no-panic burn-down implementation sequence"]
+links_to = [
+  "ADZE-PROP-0012",
+  "ADZE-SPEC-0011",
+  "ADZE-ADR-0001",
+  "docs/NO_PANIC_POLICY.md",
+  "policy/no-panic-allowlist.toml",
+  ".adze/goals/active.toml",
+  ".adze/goals/visualization-no-panic-burn-down.toml",
+]
+
+[[artifact]]
 id = "plans/parser-runtime-maintainability/supported-surface-audit.md"
 kind = "plan"
 path = "plans/parser-runtime-maintainability/supported-surface-audit.md"
@@ -1343,6 +1361,24 @@ links_to = [
   "plans/parser-runtime-maintainability/closeout.md",
   ".adze/goals/active.toml",
   "docs/status/SUPPORT_TIERS.md",
+]
+
+[[artifact]]
+id = ".adze/goals/visualization-no-panic-burn-down.toml"
+kind = "goal"
+path = ".adze/goals/visualization-no-panic-burn-down.toml"
+status = "active"
+owner = "tooling/policy"
+milestone = "post-0.9"
+source_of_truth_for = ["visualization no-panic burn-down agent work queue"]
+links_to = [
+  "ADZE-PROP-0012",
+  "ADZE-SPEC-0011",
+  "ADZE-ADR-0001",
+  "docs/NO_PANIC_POLICY.md",
+  "policy/no-panic-allowlist.toml",
+  "plans/visualization-no-panic/implementation-plan.md",
+  ".adze/goals/active.toml",
 ]
 
 [[artifact]]
