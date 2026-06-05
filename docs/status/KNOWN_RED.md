@@ -1,6 +1,6 @@
 # Known red
 
-**Last updated:** 2026-05-20
+**Last updated:** 2026-06-05
 
 This file tracks intentional exclusions from the supported lane:
 
@@ -107,13 +107,16 @@ surfaces, schedule, and stable-only manual dispatch. For unrelated PRs,
 reason. When Stable canaries are selected, the aggregate result fails if they do
 not pass.
 
-Latest stable-product receipt: GitHub workflow dispatch
-[`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
-passed on 2026-05-19 from `adze-swarm/main` after PR #281. The
-`ci-product stable canaries` job passed in 3m02s and `ci-product advisory
-canaries` skipped under the stable-only default. This remains useful
-stable-product evidence; branch protection now requires the aggregate
-`Product Proof Result` context rather than the path-selected implementation job.
+Current referenced stable-product receipt:
+[`Product Proof` run 27000900885](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27000900885)
+passed on 2026-06-05 from `adze-swarm` PR #693 head `ae032281`. The
+`ci-product stable canaries` job passed in 3m44s, `ci-product advisory
+canaries` skipped under the stable-only default, and the aggregate
+`Product Proof Result` context passed. #695 later produced Product Proof run
+`27001741252`, where stable canaries passed in 3m40s and `Product Proof Result`
+passed, while refreshing docs/status receipt pointers only. Branch protection
+requires the aggregate `Product Proof Result` context rather than the
+path-selected implementation job.
 
 Current canaries:
 

@@ -8,9 +8,10 @@ while public `adze` remains the release, public-intake, promotion, tag,
 publish, signing, Cargo-token, and crates.io receipt surface. The current
 research board is [`adze-swarm#617`](https://github.com/EffortlessMetrics/adze-swarm/issues/617),
 whose body was refreshed on June 5 after #680 was closed as completed through
-the starter workspace robustness and diagnostic wording polish closeouts and
-after #690/#691 refreshed the accuracy proof-map queue into a current ledger
-state. The
+the starter workspace robustness and diagnostic wording polish closeouts, after
+#690/#691 refreshed the accuracy proof-map queue into a current ledger state,
+after #692/#693 refreshed checked-in status ledgers, and after #694/#695
+refreshed product proof-map receipt pointers. The
 active manifest is paused as `first-use-starter-workspace-hardening` with 3
 complete, 0 active, 0 ready, and 1 blocked item. The remaining blocked
 decision/evidence lanes are release authorization/install receipts in
@@ -159,14 +160,19 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Close out CLI clean-room quickstart/truthfulness and README/support-tier reconciliation as landed proof work ([#464](https://github.com/EffortlessMetrics/adze/issues/464), [#465](https://github.com/EffortlessMetrics/adze/issues/465)).
 - [x] Keep README feature claims aligned with [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md): no Stable claim without a named proof command; guarded by `readme_stable_claims_are_in_stable_product_lane`.
 - [x] Add stable-product canaries for the checked-in downstream demo, README quickstart, and Getting Started tutorial so clean downstream crates prove typed parsing and useful bad-input diagnostics.
-- [x] Latest hosted stable-product receipt: GitHub workflow dispatch
-      [`Product Proof` run 26104726428](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/26104726428)
-      passed on 2026-05-19 from current `adze-swarm/main` after PR #281,
-      commit `0b79a36a`. The `ci-product stable canaries` job passed in 3m02s
-      and the broad advisory canaries skipped under the stable-only default.
-      This is evidence for the README Stable claim lane, not a
-      branch-protection change.
-- [x] Latest local stable-product receipt: `just ci-product-stable` passed on
+- [x] Current referenced hosted stable-product receipt:
+      [`Product Proof` run 27000900885](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27000900885)
+      passed on 2026-06-05 from `adze-swarm` PR #693 head `ae032281`. The
+      path-selected `ci-product stable canaries` job passed in 3m44s, broad
+      advisory canaries skipped under the stable-only default, and the aggregate
+      `Product Proof Result` context passed. #695 later produced Product Proof
+      run `27001741252`, where stable canaries passed in 3m40s and
+      `Product Proof Result` passed, while refreshing docs/status receipt
+      pointers only. These are stable-product proof receipts, not support-tier
+      promotions, branch-protection changes, release authorization, or
+      crates.io install receipts.
+- [x] Representative local stable-product receipt sequence:
+      `just ci-product-stable` passed on
       2026-05-20 from current `adze-swarm/main` at commit `4f3d451c` after
       residual product-trust PRs #318-#322. This refreshes the advisory
       README-stable, clean-room quickstart, downstream fixture, typed AST,
