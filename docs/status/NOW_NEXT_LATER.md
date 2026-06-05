@@ -11,7 +11,8 @@ whose body was refreshed on June 5 after #680 was closed as completed through
 the starter workspace robustness and diagnostic wording polish closeouts, after
 #690/#691 refreshed the accuracy proof-map queue into a current ledger state,
 after #692/#693 refreshed checked-in status ledgers, and after #694/#695
-refreshed product proof-map receipt pointers. The
+refreshed product proof-map receipt pointers, then after #696/#697 refreshed
+rolling receipt wording without selecting a new implementation lane. The
 active manifest is paused as `first-use-starter-workspace-hardening` with 3
 complete, 0 active, 0 ready, and 1 blocked item. The remaining blocked
 decision/evidence lanes are release authorization/install receipts in
