@@ -22,7 +22,12 @@ lane. A later June 5 docs/projection cleanup pass closed #729/#732, #730/#731,
 shape. Subsequent June 5 docs/status work closed #738/#740 with the post-#734
 ledger refresh and #739/#741 with the root README release-surface install-shape
 alignment for the intended 0.9.0 package surface, without adding any
-crates.io-install claim. `active.toml` remains paused as
+crates.io-install claim. The refreshed #617 board also records a June 5
+Windows/local first-use receipt on `24650183`: checkout-built `adze init calc`,
+generated `cargo test`, generated `cargo run --example parse -- "1 + 2 * 3"`,
+and the focused release-surface boundary tests passed. This remains
+checkout-built/docs-boundary proof, not a crates.io install receipt.
+`active.toml` remains paused as
 `first-use-starter-workspace-hardening` with no active or ready implementation
 lane selected: 3 complete, 0 active, 0 ready, 1 blocked. Release/publish work
 remains separate and blocked on explicit authorization in adze-swarm#325; the
@@ -58,7 +63,7 @@ Adze should be release-readable as a Rust parser generator where:
 | Requirement | Evidence inspected | Current result | Gap / next action |
 | --- | --- | --- | --- |
 | Rust types define grammar and generated parsers return typed ASTs. | README core example; `SUPPORT_TIERS.md` Stable `Typed extraction` row; `PRODUCT_PROOF_MAP.md` Stable typed extraction claim. | Covered for the supported generated-parser contract. | Keep Stable claim limited to proof rows; do not broaden to every grammar shape. |
-| Quickstart works in a clean downstream crate. | `testing/downstream-starter/`; `docs/product/ACCEPTANCE_MATRIX.md`; `SUPPORT_TIERS.md` Pure-Rust parser row; user-experience hardening closeout; first-use starter workspace hardening closeout. | Covered for path-dependency downstream wiring, generated starter shape, nested parent-workspace starter escape from #682, local `adze-cli` package verification, and the post-closeout starter README/local dependency polish from PR #352. | Published `cargo install adze-cli` is not proven until `adze-cli` is published and an install receipt exists. |
+| Quickstart works in a clean downstream crate. | `testing/downstream-starter/`; `docs/product/ACCEPTANCE_MATRIX.md`; `SUPPORT_TIERS.md` Pure-Rust parser row; user-experience hardening closeout; first-use starter workspace hardening closeout; adze-swarm#617 first-use receipt comment. | Covered for path-dependency downstream wiring, generated starter shape, nested parent-workspace starter escape from #682, local `adze-cli` package verification, post-closeout starter README/local dependency polish from PR #352, and the current Windows/local checkout-built `adze init calc` -> generated `cargo test` -> generated parse example receipt on `24650183`. | Published `cargo install adze-cli` is not proven until `adze-cli` is published and an install receipt exists. |
 | Core pure-Rust pipeline is green, bounded, and boring. | `just ci-supported`; `Rust Small Result`; `Product Proof Result`; `KNOWN_RED.md` supported-lane description; `adze-swarm` PRs #284, #285, #329, #354, #381, #383, Product Proof required-gate burn-in receipts #386-#391, and parser/runtime maintainability closeout #455. | Covered as the required swarm gate plus supported proof. PR #284 bounds the broad Rust tail, PR #285 scopes the default pure-rust PR test step to supported crates while keeping full workspace tests explicit through manual/full-ci, PRs #329/#354/#381 reduce Windows supported-gate friction, PR #383 adds the always-present Product Proof result context, the burn-in receipts prove selected/skipped Stable-canary paths, and #455 records the post-maintainability closeout with `Supported Rust Gate` green. | Keep broad feature matrices and advisory product canaries outside branch protection unless separately promoted. |
 | Tablegen emits valid tables. | `SUPPORT_TIERS.md` Tablegen `TSLanguage` ABI row; `PRODUCT_PROOF_MAP.md` tablegen ABI claim; parser/runtime maintainability PRs #444-#446 and #451-#454. | Stabilizing with compressed decode, field metadata, aliases, externals, lex modes, conflict-cell proof, and recent guardrails for invalid names, null field names, zero-symbol metadata, exact field-name counts, generated ABI name arrays, generated API reads, and exact-array validation fixtures. | Broader generated-language roundtrip and full Tree-sitter parity remain future work. |
 | GLR handles real conflicts honestly. | `SUPPORT_TIERS.md` GLR conflict routing row; `docs/product/ACCEPTANCE_MATRIX.md` GLR ambiguity row. | Stabilizing with generated shift/reduce conflict preservation, generated reduce/reduce preservation and selected typed-AST extraction, dangling-else nearest-else selected typed AST proof, retained alternatives, deterministic selected output, ambiguity summaries, and no-panic bad-input guardrails. | Broader conflict-class coverage and any Stable GLR promotion still require support-tier proof review. |
@@ -87,6 +92,22 @@ cargo test -p adze-cli parse_document_json_modes_emit_recovery_diagnostics -- --
 cargo test --manifest-path testing/downstream-starter/Cargo.toml
 cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse
 ```
+
+Current checkout-built first-use receipt recorded on #617:
+
+```bash
+cargo run -q -p adze-cli --manifest-path C:\Code\Rust\adze-swarm\Cargo.toml -- init calc
+cd calc
+cargo test
+cargo run --example parse -- "1 + 2 * 3"
+cargo test -p adze-cli release_surface_bounded -- --nocapture
+```
+
+This receipt proves the repo-built CLI starter path and the docs-boundary
+canaries from current `adze-swarm/main` at `24650183`. Release-surface
+boundary: it does not prove `cargo install adze-cli`, crates.io dependency
+resolution, signing, tag, publish, or public `adze` promotion, and it is not a
+crates.io install claim.
 
 Receipt-era note: the older `ci-product-stable` receipts below predate the
 later `Product Proof Result` required-gate promotion. Current branch protection

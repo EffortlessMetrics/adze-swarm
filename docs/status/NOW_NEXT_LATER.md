@@ -22,7 +22,12 @@ document-root examples with `AdzeDocument::tree().root()` and native
 `NodeKind` shape. The post-#734 ledger refresh closed #738/#740, and
 #739/#741 aligned the root README release-surface install-shape snippet with
 the intended 0.9.0 package shape while preserving the no-crates.io-install
-claim boundary. The active manifest is paused as
+claim boundary. A later #617 receipt recorded the current Windows/local
+checkout-built first-use path on `24650183`: `adze init calc`, generated
+`cargo test`, generated `cargo run --example parse -- "1 + 2 * 3"`, and the
+focused release-surface boundary tests passed. This remains local
+checkout-built/docs-boundary proof, not release authorization or a crates.io
+install receipt. The active manifest is paused as
 `first-use-starter-workspace-hardening` with 3 complete, 0 active, 0 ready, and
 1 blocked item. The remaining blocked decision/evidence lanes are release
 authorization/install receipts in
@@ -79,6 +84,11 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] #739/#741 aligned the root README release-surface install-shape snippet
       with the intended 0.9.0 package shape while preserving the no
       crates.io-install claim boundary.
+- [x] #617 records a current Windows/local checkout-built first-use receipt on
+      `24650183`: `adze init calc`, generated `cargo test`, generated
+      `cargo run --example parse -- "1 + 2 * 3"`, and
+      `cargo test -p adze-cli release_surface_bounded -- --nocapture` passed.
+      This is not a crates.io install receipt.
 
 ---
 
