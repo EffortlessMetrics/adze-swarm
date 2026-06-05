@@ -74,10 +74,10 @@ let expr = grammar::parse("1 + 2 * 3")?;
 
 ```toml
 [dependencies]
-adze = { version = "0.8", default-features = false }
+adze = { version = "0.9.0", default-features = false }
 
 [build-dependencies]
-adze-tool = "0.8"
+adze-tool = "0.9.0"
 
 [features]
 default = ["pure-rust"]
