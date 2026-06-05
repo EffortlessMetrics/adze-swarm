@@ -19,7 +19,10 @@ support/API proof-boundary docs landed without selecting a new implementation
 lane. A later June 5 docs/projection cleanup pass closed #729/#732, #730/#731,
 #733/#735, and #736/#734, replacing stale `as_tree_sitter` and direct
 `doc.root()` examples with the current `AdzeDocument` projection/root API
-shape. `active.toml` remains paused as
+shape. Subsequent June 5 docs/status work closed #738/#740 with the post-#734
+ledger refresh and #739/#741 with the root README release-surface install-shape
+alignment for the intended 0.9.0 package surface, without adding any
+crates.io-install claim. `active.toml` remains paused as
 `first-use-starter-workspace-hardening` with no active or ready implementation
 lane selected: 3 complete, 0 active, 0 ready, 1 blocked. Release/publish work
 remains separate and blocked on explicit authorization in adze-swarm#325; the
@@ -99,8 +102,13 @@ wording (#696/#697), board-reference durability (#699/#700), runtime
 S-expression parser (#702/#704), canonical `SExpr` formatter (#706/#708), and
 canonical formatter proof-boundary docs (#709/#710) refreshes, plus the
 document projection/root cleanup sequence #729/#732, #730/#731, #733/#735, and
-#736/#734. The latest recorded post-merge control-plane receipt is `main` CI
-Policy run `27023675156` passing on `7881186e` after #734. The broader June 4
+#736/#734, the post-#734 ledger refresh #738/#740, and the root README
+release-shape alignment #739/#741. The latest selected release-facing
+stable-product receipt is Product Proof run `27025600278` passing on PR #741
+head `d8d24b34`, including stable canaries job `79764814421` and Product Proof
+Result job `79767362834`; the latest recorded post-merge control-plane receipt
+is `main` CI Policy run `27026436572` passing on `95c41dc9` after #741. The
+broader June 4
 acceptance matrix checkpoint remains prior product evidence and was not rerun
 by these status refreshes. This is product proof under the research board, not
 a support-tier promotion, release authorization, public `adze` promotion, or

@@ -19,7 +19,10 @@ proof-boundary docs landed without support-tier promotion. A later June 5
 docs/projection cleanup pass closed #729/#732, #730/#731, #733/#735, and
 #736/#734, removing stale `as_tree_sitter` examples and aligning current
 document-root examples with `AdzeDocument::tree().root()` and native
-`NodeKind` shape. The active manifest is paused as
+`NodeKind` shape. The post-#734 ledger refresh closed #738/#740, and
+#739/#741 aligned the root README release-surface install-shape snippet with
+the intended 0.9.0 package shape while preserving the no-crates.io-install
+claim boundary. The active manifest is paused as
 `first-use-starter-workspace-hardening` with 3 complete, 0 active, 0 ready, and
 1 blocked item. The remaining blocked decision/evidence lanes are release
 authorization/install receipts in
@@ -28,7 +31,7 @@ and standing CX53 runner state in
 [`adze-swarm#598`](https://github.com/EffortlessMetrics/adze-swarm/issues/598),
 now narrowed to admin/runner context after repo-visible API checks.
 Open swarm PRs #662 and #663 are draft/behind and not treated as ready; queued
-and in-progress swarm runs were empty after the post-#734 queue cleanup. No
+and in-progress swarm runs were empty after the post-#741 queue check. No
 routine release, publish, signing, Cargo-token, public promotion, or crates.io
 install receipt work is authorized.
 
@@ -70,6 +73,12 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] #729/#732, #730/#731, #733/#735, and #736/#734 refreshed current
       document projection/root examples without changing runtime/API behavior,
       support tiers, workflows, release state, or public `adze`.
+- [x] #738/#740 refreshed the checked-in post-#734 proof ledgers without
+      changing runtime/API behavior, support tiers, workflows, release state,
+      or public `adze`.
+- [x] #739/#741 aligned the root README release-surface install-shape snippet
+      with the intended 0.9.0 package shape while preserving the no
+      crates.io-install claim boundary.
 
 ---
 
@@ -173,16 +182,18 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
 - [x] Keep README feature claims aligned with [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md): no Stable claim without a named proof command; guarded by `readme_stable_claims_are_in_stable_product_lane`.
 - [x] Add stable-product canaries for the checked-in downstream demo, README quickstart, and Getting Started tutorial so clean downstream crates prove typed parsing and useful bad-input diagnostics.
 - [x] Current referenced hosted stable-product receipt:
-      [`Product Proof` run 27000900885](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27000900885)
-      passed on 2026-06-05 from `adze-swarm` PR #693 head `ae032281`. The
-      path-selected `ci-product stable canaries` job passed in 3m44s, broad
-      advisory canaries skipped under the stable-only default, and the aggregate
-      `Product Proof Result` context passed. #695 later produced Product Proof
-      run `27001741252`, where stable canaries passed in 3m40s and
-      `Product Proof Result` passed, while refreshing docs/status receipt
-      pointers only. These are stable-product proof receipts, not support-tier
-      promotions, branch-protection changes, release authorization, or
-      crates.io install receipts.
+      [`Product Proof` run 27025600278](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27025600278)
+      passed on 2026-06-05 from `adze-swarm` PR #741 head `d8d24b34`. The
+      path-selected `ci-product stable canaries` job `79764814421` passed in
+      3m44s, broad advisory canaries skipped under the stable-only default, and
+      the aggregate `Product Proof Result` job `79767362834` passed. The
+      post-merge `main` CI Policy run
+      [`27026436572`](https://github.com/EffortlessMetrics/adze-swarm/actions/runs/27026436572)
+      passed on commit `95c41dc9`. This selected receipt supersedes the earlier
+      #693/#695/#740 status-ledger receipts for the current release-facing
+      README claim-boundary state. It is stable-product proof evidence, not a
+      support-tier promotion, branch-protection change, release authorization,
+      public promotion, or crates.io install receipt.
 - [x] Representative local stable-product receipt sequence:
       `just ci-product-stable` passed on
       2026-05-20 from current `adze-swarm/main` at commit `4f3d451c` after
