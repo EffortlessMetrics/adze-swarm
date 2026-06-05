@@ -292,7 +292,7 @@ facts.
 
 ```rust
 let doc = grammar::parse_document(source)?;
-let tree = doc.as_tree_sitter();
+let tree = adze::ts_compat::Tree::from_document(language.clone(), &doc);
 assert_eq!(tree.root_node().to_sexp(), "(source_file ...)");
 ```
 

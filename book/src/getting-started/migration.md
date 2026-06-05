@@ -127,7 +127,7 @@ truth:
 
 ```rust
 let document = grammar::parse_document(source)?;
-let tree = document.as_tree_sitter();
+let tree = adze::ts_compat::Tree::from_document(language.clone(), &document);
 ```
 
 See the API reference and known limitations before assuming Tree-sitter method,

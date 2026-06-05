@@ -82,7 +82,7 @@ Tooling:
   AdzeDocument diagnostics, syntax, JSON, and ambiguity summaries
 
 Compatibility:
-  document.as_tree_sitter()
+  adze::ts_compat::Tree::from_document(language, &document)
   documented query subset
   node-types and selected-tree receipts
 

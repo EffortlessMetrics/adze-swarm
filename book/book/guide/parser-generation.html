@@ -244,7 +244,7 @@ stable claim.</p>
 <div class="table-wrapper"><table><thead><tr><th>Surface</th><th>Use</th><th>Support posture</th></tr></thead><tbody>
 <tr><td><code>grammar::parse(source)</code></td><td>Typed Rust values</td><td>Stable front door</td></tr>
 <tr><td><code>grammar::parse_document(source)</code></td><td>Tooling document facts</td><td>Experimental/Stabilizing by surface</td></tr>
-<tr><td><code>document.as_tree_sitter()</code></td><td>Selected-tree compatibility</td><td>Advisory subset</td></tr>
+<tr><td><code>adze::ts_compat::Tree::from_document(...)</code></td><td>Selected-tree compatibility</td><td>Advisory subset</td></tr>
 <tr><td>document JSON</td><td>Schema-tagged document projection</td><td>Experimental/advisory</td></tr>
 <tr><td>incremental document lifecycle</td><td>Reparse/fallback metadata</td><td>Experimental</td></tr>
 </tbody></table>

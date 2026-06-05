@@ -43,7 +43,7 @@ let doc = grammar::parse_document(source)?;
 let tree = doc.tree();
 let syntax: syntax::SourceFile = doc.syntax()?;
 let ast: ast::Module = doc.ast()?;
-let ts_tree = doc.as_tree_sitter();
+let ts_tree = adze::ts_compat::Tree::from_document(language.clone(), &doc);
 ```
 
 They are not fields on the document and must not define separate parse truths.
@@ -201,7 +201,7 @@ surfaces that require separate proof.
 Tree-sitter compatibility is a conformance adapter over the native document.
 
 ```rust
-let ts_tree = doc.as_tree_sitter();
+let ts_tree = adze::ts_compat::Tree::from_document(language.clone(), &doc);
 let root = ts_tree.root_node();
 ```
 
@@ -350,7 +350,7 @@ AdzeDocument
   -> language()
   -> diagnostics()
   -> metadata()
-  -> as_tree_sitter()
+  -> ts_compat::Tree::from_document(...)
 ```
 
 The current alpha also preserves expected/found token names for generated

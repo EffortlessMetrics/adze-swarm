@@ -83,7 +83,7 @@ compatibility spec, reference docs, support tiers, or known gaps.
 
 ```rust
 let doc = grammar::parse_document("1 + 2")?;
-let ts = doc.as_tree_sitter();
+let ts = adze::ts_compat::Tree::from_document(language.clone(), &doc);
 assert_eq!(ts.root_node().kind(), doc.root().kind());
 ```
 
