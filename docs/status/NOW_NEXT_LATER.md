@@ -8,7 +8,9 @@ while public `adze` remains the release, public-intake, promotion, tag,
 publish, signing, Cargo-token, and crates.io receipt surface. The current
 research board is [`adze-swarm#617`](https://github.com/EffortlessMetrics/adze-swarm/issues/617),
 whose body was refreshed on June 5 after #680 was closed as completed through
-the starter workspace robustness and diagnostic wording polish closeouts. The
+the starter workspace robustness and diagnostic wording polish closeouts and
+after #690/#691 refreshed the accuracy proof-map queue into a current ledger
+state. The
 active manifest is paused as `first-use-starter-workspace-hardening` with 3
 complete, 0 active, 0 ready, and 1 blocked item. The remaining blocked
 decision/evidence lanes are release authorization/install receipts in
@@ -51,6 +53,10 @@ Adze status and rolling execution plan. For recurring pain points, see [`docs/st
       wording and diagnostic span contracts remain covered.
 - [x] #680 is closed as completed; return to #617 or a new source-of-truth
       issue before opening another non-release implementation lane.
+- [x] #690 was closed by #691, which refreshed
+      `docs/status/ACCURACY_PROOF_MAP.md` so 78 tested aspects / 0 named gaps
+      is a ledger state and the old recommended test sequence is not a ready
+      PR queue.
 
 ---
 
