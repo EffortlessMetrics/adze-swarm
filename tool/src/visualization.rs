@@ -7,6 +7,21 @@ use adze_ir::{Grammar, Symbol, SymbolId};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 
+macro_rules! string_write {
+    ($dst:expr, $($arg:tt)*) => {{
+        let _ = write!($dst, $($arg)*);
+    }};
+}
+
+macro_rules! string_writeln {
+    ($dst:expr $(,)?) => {{
+        let _ = writeln!($dst);
+    }};
+    ($dst:expr, $($arg:tt)*) => {{
+        let _ = writeln!($dst, $($arg)*);
+    }};
+}
+
 /// Grammar visualizer that generates various output formats
 pub struct GrammarVisualizer {
     grammar: Grammar,
@@ -20,46 +35,44 @@ impl GrammarVisualizer {
     /// Generate a Graphviz DOT representation of the grammar
     pub fn to_dot(&self) -> String {
         let mut output = String::new();
-        writeln!(&mut output, "digraph Grammar {{").unwrap();
-        writeln!(&mut output, "  rankdir=LR;").unwrap();
-        writeln!(&mut output, "  node [shape=box];").unwrap();
+        string_writeln!(&mut output, "digraph Grammar {{");
+        string_writeln!(&mut output, "  rankdir=LR;");
+        string_writeln!(&mut output, "  node [shape=box];");
 
         // Style for different node types
-        writeln!(&mut output, "  // Terminals").unwrap();
+        string_writeln!(&mut output, "  // Terminals");
         for (id, token) in &self.grammar.tokens {
             let label = self.escape_dot(&token.name);
-            writeln!(
+            string_writeln!(
                 &mut output,
                 "  t{} [label=\"{}\" shape=ellipse style=filled fillcolor=lightblue];",
-                id.0, label
-            )
-            .unwrap();
+                id.0,
+                label
+            );
         }
 
-        writeln!(&mut output, "\n  // Non-terminals").unwrap();
+        string_writeln!(&mut output, "\n  // Non-terminals");
         for id in self.grammar.rules.keys() {
             let name = self.get_symbol_name(*id);
-            writeln!(
+            string_writeln!(
                 &mut output,
                 "  n{} [label=\"{}\" style=filled fillcolor=lightgreen];",
                 id.0,
                 self.escape_dot(&name)
-            )
-            .unwrap();
+            );
         }
 
-        writeln!(&mut output, "\n  // External tokens").unwrap();
+        string_writeln!(&mut output, "\n  // External tokens");
         for external in &self.grammar.externals {
-            writeln!(
+            string_writeln!(
                 &mut output,
                 "  e{} [label=\"{}\" shape=diamond style=filled fillcolor=lightcoral];",
                 external.symbol_id.0,
                 self.escape_dot(&external.name)
-            )
-            .unwrap();
+            );
         }
 
-        writeln!(&mut output, "\n  // Rules").unwrap();
+        string_writeln!(&mut output, "\n  // Rules");
         for (lhs, rules) in &self.grammar.rules {
             for rule in rules {
                 for (i, symbol) in rule.rhs.iter().enumerate() {
@@ -82,12 +95,12 @@ impl GrammarVisualizer {
                         String::new()
                     };
 
-                    writeln!(&mut output, "  {} -> {} [label=\"{}\"];", from, to, label).unwrap();
+                    string_writeln!(&mut output, "  {} -> {} [label=\"{}\"];", from, to, label);
                 }
             }
         }
 
-        writeln!(&mut output, "}}").unwrap();
+        string_writeln!(&mut output, "}}");
         output
     }
 
@@ -97,26 +110,23 @@ impl GrammarVisualizer {
         let width = 800;
         let mut y_offset = 50;
 
-        writeln!(
+        string_writeln!(
             &mut output,
             r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="600">"#,
             width
-        )
-        .unwrap();
-        writeln!(&mut output, r#"  <style>"#).unwrap();
-        writeln!(
+        );
+        string_writeln!(&mut output, r#"  <style>"#);
+        string_writeln!(
             &mut output,
             r#"    .rule-name {{ font-family: monospace; font-weight: bold; }}"#
-        )
-        .unwrap();
-        writeln!(&mut output, r#"    .terminal {{ fill: #4a90e2; }}"#).unwrap();
-        writeln!(&mut output, r#"    .non-terminal {{ fill: #7ed321; }}"#).unwrap();
-        writeln!(
+        );
+        string_writeln!(&mut output, r#"    .terminal {{ fill: #4a90e2; }}"#);
+        string_writeln!(&mut output, r#"    .non-terminal {{ fill: #7ed321; }}"#);
+        string_writeln!(
             &mut output,
             r#"    .line {{ stroke: #333; stroke-width: 2; fill: none; }}"#
-        )
-        .unwrap();
-        writeln!(&mut output, r#"  </style>"#).unwrap();
+        );
+        string_writeln!(&mut output, r#"  </style>"#);
 
         // Draw each rule
         for (lhs, rules) in &self.grammar.rules {
@@ -124,13 +134,12 @@ impl GrammarVisualizer {
 
             for rule in rules {
                 // Rule name
-                writeln!(
+                string_writeln!(
                     &mut output,
                     r#"  <text x="10" y="{}" class="rule-name">{} ::=</text>"#,
                     y_offset,
                     self.escape_xml(&rule_name)
-                )
-                .unwrap();
+                );
 
                 // Rule diagram
                 let mut x_offset = 150;
@@ -178,30 +187,34 @@ impl GrammarVisualizer {
                     let text_width = text.len() * 8 + 20;
 
                     // Draw box
-                    writeln!(&mut output, r#"  <rect x="{}" y="{}" width="{}" height="30" rx="5" class="{}" opacity="0.3"/>"#, 
-                    x_offset, y_offset - 15, text_width, class).unwrap();
+                    string_writeln!(
+                        &mut output,
+                        r#"  <rect x="{}" y="{}" width="{}" height="30" rx="5" class="{}" opacity="0.3"/>"#,
+                        x_offset,
+                        y_offset - 15,
+                        text_width,
+                        class
+                    );
 
                     // Draw text
-                    writeln!(
+                    string_writeln!(
                         &mut output,
                         r#"  <text x="{}" y="{}" text-anchor="middle">{}</text>"#,
                         x_offset + text_width / 2,
                         y_offset + 5,
                         self.escape_xml(&text)
-                    )
-                    .unwrap();
+                    );
 
                     // Draw connecting line
                     if x_offset > 150 {
-                        writeln!(
+                        string_writeln!(
                             &mut output,
                             r#"  <line x1="{}" y1="{}" x2="{}" y2="{}" class="line"/>"#,
                             x_offset - 10,
                             y_offset,
                             x_offset,
                             y_offset
-                        )
-                        .unwrap();
+                        );
                     }
 
                     x_offset += text_width + 20;
@@ -211,7 +224,7 @@ impl GrammarVisualizer {
             }
         }
 
-        writeln!(&mut output, "</svg>").unwrap();
+        string_writeln!(&mut output, "</svg>");
         output
     }
 
@@ -219,38 +232,38 @@ impl GrammarVisualizer {
     pub fn to_text(&self) -> String {
         let mut output = String::new();
 
-        writeln!(&mut output, "Grammar: {}", self.grammar.name).unwrap();
-        writeln!(&mut output, "{}", "=".repeat(50)).unwrap();
+        string_writeln!(&mut output, "Grammar: {}", self.grammar.name);
+        string_writeln!(&mut output, "{}", "=".repeat(50));
 
         // Tokens
-        writeln!(&mut output, "\nTokens:").unwrap();
+        string_writeln!(&mut output, "\nTokens:");
         for (id, token) in &self.grammar.tokens {
             let pattern = match &token.pattern {
                 adze_ir::TokenPattern::String(s) => format!("\"{}\"", s),
                 adze_ir::TokenPattern::Regex(r) => format!("/{}/", r),
             };
-            writeln!(&mut output, "  {} ({:?}) = {}", token.name, id, pattern).unwrap();
+            string_writeln!(&mut output, "  {} ({:?}) = {}", token.name, id, pattern);
         }
 
         // External tokens
         if !self.grammar.externals.is_empty() {
-            writeln!(&mut output, "\nExternal Tokens:").unwrap();
+            string_writeln!(&mut output, "\nExternal Tokens:");
             for external in &self.grammar.externals {
-                writeln!(
+                string_writeln!(
                     &mut output,
                     "  {} ({:?})",
-                    external.name, external.symbol_id
-                )
-                .unwrap();
+                    external.name,
+                    external.symbol_id
+                );
             }
         }
 
         // Rules
-        writeln!(&mut output, "\nRules:").unwrap();
+        string_writeln!(&mut output, "\nRules:");
         for (lhs, rules) in &self.grammar.rules {
             let lhs_name = self.get_symbol_name(*lhs);
             for rule in rules {
-                write!(&mut output, "  {} ::=", lhs_name).unwrap();
+                string_write!(&mut output, "  {} ::=", lhs_name);
 
                 for symbol in &rule.rhs {
                     match symbol {
@@ -261,78 +274,77 @@ impl GrammarVisualizer {
                                 .get(id)
                                 .map(|t| t.name.clone())
                                 .unwrap_or_else(|| format!("T{}", id.0));
-                            write!(&mut output, " '{}'", name).unwrap();
+                            string_write!(&mut output, " '{}'", name);
                         }
                         Symbol::NonTerminal(id) => {
-                            write!(&mut output, " {}", self.get_symbol_name(*id)).unwrap();
+                            string_write!(&mut output, " {}", self.get_symbol_name(*id));
                         }
                         Symbol::External(id) => {
-                            write!(&mut output, " ${}", id.0).unwrap();
+                            string_write!(&mut output, " ${}", id.0);
                         }
                         Symbol::Optional(inner) => {
-                            write!(&mut output, " {}?", self.format_symbol_simple(inner)).unwrap();
+                            string_write!(&mut output, " {}?", self.format_symbol_simple(inner));
                         }
                         Symbol::Repeat(inner) => {
-                            write!(&mut output, " {}*", self.format_symbol_simple(inner)).unwrap();
+                            string_write!(&mut output, " {}*", self.format_symbol_simple(inner));
                         }
                         Symbol::RepeatOne(inner) => {
-                            write!(&mut output, " {}+", self.format_symbol_simple(inner)).unwrap();
+                            string_write!(&mut output, " {}+", self.format_symbol_simple(inner));
                         }
                         Symbol::Choice(choices) => {
-                            write!(&mut output, " (").unwrap();
+                            string_write!(&mut output, " (");
                             for (i, choice) in choices.iter().enumerate() {
                                 if i > 0 {
-                                    write!(&mut output, " | ").unwrap();
+                                    string_write!(&mut output, " | ");
                                 }
-                                write!(&mut output, "{}", self.format_symbol_simple(choice))
-                                    .unwrap();
+                                string_write!(&mut output, "{}", self.format_symbol_simple(choice));
                             }
-                            write!(&mut output, ")").unwrap();
+                            string_write!(&mut output, ")");
                         }
                         Symbol::Sequence(seq) => {
                             for s in seq {
-                                write!(&mut output, " {}", self.format_symbol_simple(s)).unwrap();
+                                string_write!(&mut output, " {}", self.format_symbol_simple(s));
                             }
                         }
                         Symbol::Epsilon => {
-                            write!(&mut output, " ε").unwrap();
+                            string_write!(&mut output, " ε");
                         }
                     }
                 }
 
                 // Add metadata
                 if let Some(prec) = &rule.precedence {
-                    write!(&mut output, " [precedence: {:?}]", prec).unwrap();
+                    string_write!(&mut output, " [precedence: {:?}]", prec);
                 }
                 if let Some(assoc) = &rule.associativity {
-                    write!(&mut output, " [associativity: {:?}]", assoc).unwrap();
+                    string_write!(&mut output, " [associativity: {:?}]", assoc);
                 }
 
-                writeln!(&mut output).unwrap();
+                string_writeln!(&mut output);
             }
         }
 
         // Precedences
         if !self.grammar.precedences.is_empty() {
-            writeln!(&mut output, "\nPrecedence Declarations:").unwrap();
+            string_writeln!(&mut output, "\nPrecedence Declarations:");
             for prec in &self.grammar.precedences {
-                write!(&mut output, "  Level {}: ", prec.level).unwrap();
+                string_write!(&mut output, "  Level {}: ", prec.level);
                 for symbol in &prec.symbols {
-                    write!(&mut output, "{:?} ", symbol).unwrap();
+                    string_write!(&mut output, "{:?} ", symbol);
                 }
-                writeln!(&mut output, "({:?})", prec.associativity).unwrap();
+                string_writeln!(&mut output, "({:?})", prec.associativity);
             }
         }
 
         // Conflicts
         if !self.grammar.conflicts.is_empty() {
-            writeln!(&mut output, "\nConflict Declarations:").unwrap();
+            string_writeln!(&mut output, "\nConflict Declarations:");
             for conflict in &self.grammar.conflicts {
-                write!(&mut output, "  Symbols: ").unwrap();
+                string_write!(&mut output, "  Symbols: ");
                 for symbol in &conflict.symbols {
-                    write!(&mut output, "{:?} ", symbol).unwrap();
+                    string_write!(&mut output, "{:?} ", symbol);
                 }
-                writeln!(&mut output, "Resolution: {:?}", conflict.resolution).unwrap();
+                string_writeln!(&mut output, "Resolution: {:?}", conflict.resolution);
             }
         }
 
@@ -356,21 +368,21 @@ impl GrammarVisualizer {
             }
         }
 
-        writeln!(&mut output, "Symbol Dependencies:").unwrap();
-        writeln!(&mut output, "===================").unwrap();
+        string_writeln!(&mut output, "Symbol Dependencies:");
+        string_writeln!(&mut output, "===================");
 
         for (symbol, deps) in dependencies {
             let symbol_name = self.get_symbol_name(symbol);
-            write!(&mut output, "{} depends on:", symbol_name).unwrap();
+            string_write!(&mut output, "{} depends on:", symbol_name);
 
             if deps.is_empty() {
-                write!(&mut output, " (none)").unwrap();
+                string_write!(&mut output, " (none)");
             } else {
                 for dep in deps {
-                    write!(&mut output, " {}", self.get_symbol_name(dep)).unwrap();
+                    string_write!(&mut output, " {}", self.get_symbol_name(dep));
                 }
             }
-            writeln!(&mut output).unwrap();
+            string_writeln!(&mut output);
         }
 
         output
