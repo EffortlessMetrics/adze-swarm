@@ -114,7 +114,7 @@ forest data should be lazy where possible.
 ```rust
 let doc = grammar::parse_document("1 +")?;
 assert!(!doc.diagnostics().is_empty());
-assert!(doc.root().is_some());
+assert!(doc.tree().root().is_some());
 ```
 
 ```rust
