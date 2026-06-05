@@ -125,7 +125,7 @@ Runtime users should inspect GLR behavior through:
 let document = grammar::parse_document(source)?;
 
 let ambiguities = document.ambiguities();
-let selected_tree = document.root();
+let selected_tree = document.tree().root();
 ```
 
 That is the user-facing path for selected-tree behavior and ambiguity summaries.

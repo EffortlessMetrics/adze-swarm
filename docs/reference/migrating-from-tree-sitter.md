@@ -32,7 +32,7 @@ adapter over the selected document tree, not the core parse product.
 | --- | --- | --- |
 | `parser.parse(source)` | `grammar::parse(source)` | Use this when you want typed Rust values. |
 | `Tree` | `grammar::parse_document(source)` | Use this when you want tooling facts and projections. |
-| `Node` | `doc.root()`, document syntax nodes, or `ts_compat::Tree::from_document(...).root_node()` | Native APIs keep document facts; `ts_compat` exposes the selected-tree adapter. |
+| `Node` | `doc.tree().root()`, document syntax nodes, or `ts_compat::Tree::from_document(...).root_node()` | Native APIs keep document facts; `ts_compat` exposes the selected-tree adapter. |
 | `Language` | generated grammar module and `ts_compat::Language` | Metadata comes from generated language schema/table data. |
 | `node-types.json` | `ts_compat::Language::node_types_json()` | Advisory until alias-visible node-types parity is proven. |
 | Query | `adze::query` | Documented subset; text predicates require source-aware matching. |
@@ -56,7 +56,7 @@ Use `parse_document()` when you need Tree-sitter-like tooling data:
 ```rust
 let document = grammar::parse_document(source)?;
 let diagnostics = document.diagnostics();
-let root = document.root();
+let root = document.tree().root();
 ```
 
 The document owns source text, selected-tree facts, diagnostics, parse metadata,
