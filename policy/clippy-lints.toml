@@ -53,5 +53,13 @@ indexing_slicing = { level = "warn", target = "deny", stage = 1 }
 string_slice = { level = "warn", target = "deny", stage = 1 }
 dbg_macro = { level = "warn", target = "deny", stage = 1 }
 
+# Rustc lints (not clippy) that have a staged warn -> deny promotion path.
+# missing_docs is currently warn in [workspace.lints.rust] (Cargo.toml:58)
+# but per-crate `#![cfg_attr(not(feature = "strict_docs"), allow(missing_docs))]`
+# suppresses it in 5 of 7 core crates. This staged entry records the intent
+# to promote to deny once the per-crate debt is cleared.
+[staged.rust]
+missing_docs = { level = "warn", target = "deny", stage = 2 }
+
 # Planned lints — gated on future MSRV bumps. The Rust 1.94/1.95 lint batch is
 # active as of the 0.9 Clippy policy refresh.
