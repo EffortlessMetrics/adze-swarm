@@ -104,9 +104,15 @@ pub unsafe fn create_lexer_adapter(
 ///
 /// # Safety
 ///
-/// - `lexer` must be null or a pointer returned by `create_lexer_adapter`.
-/// - `state` must be null or a pointer returned by `create_lexer_adapter`.
+/// - `lexer` must be null or the `*mut TSLexer` returned by `create_lexer_adapter`.
+/// - `state` must be null or the `*mut LexerAdapterState` returned by
+///   `create_lexer_adapter` (the second element of the returned tuple).
+/// - If both `lexer` and `state` are non-null and `state` equals the pointer
+///   stored in `lexer.context` (the normal case when the caller passes the
+///   original pair), the state is freed exactly once via `state_ptr` and the
+///   `state != state_ptr` guard prevents a double-free.
 /// - Each pointer must not have been freed previously (no double-free).
+/// - Passing a pointer that was NOT returned by `create_lexer_adapter` is UB.
 pub unsafe fn destroy_lexer_adapter(lexer: *mut TSLexer, state: *mut LexerAdapterState) {
     let state_ptr = if lexer.is_null() {
         state
@@ -127,10 +133,12 @@ pub unsafe fn destroy_lexer_adapter(lexer: *mut TSLexer, state: *mut LexerAdapte
         let _ = unsafe { Box::from_raw(state_ptr) };
     }
     if !state.is_null() && state != state_ptr {
-        // SAFETY: `state` is a separate `Box::into_raw` pointer that differs from
-        // `state_ptr`, so it has not been freed above. Non-null guard present.
-        // TODO(safety): Double-free risk if caller passes a `state` pointer that
-        // aliases `state_ptr` through a different bit pattern (unlikely but not enforced).
+        // SAFETY: `state` is non-null and differs from `state_ptr` by address
+        // comparison, so it points to a separate allocation not freed above.
+        // The `state != state_ptr` guard prevents the double-free case documented
+        // in the function-level safety contract: if the caller passes the same
+        // pointer value as `state` that `lexer.context` holds, `state_ptr == state`
+        // and this branch is skipped, freeing the state exactly once via `state_ptr`.
         let _ = unsafe { Box::from_raw(state) };
     }
 }
