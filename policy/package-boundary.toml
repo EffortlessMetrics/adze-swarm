@@ -270,19 +270,6 @@ last_changed = "2026-05-12"
 last_changed_pr = "#694"
 
 [[package]]
-name = "adze-testing"
-path = "testing"
-category = "dev-only"
-owner = "test-infrastructure"
-production_use = false
-publish_intent = "none"
-support_tier_impact = "dev/test/tooling only; excluded from product claims"
-ci_impact = "dev/test/tooling lane only"
-removal_or_promotion_condition = "Keep as dev-only while it has active test/tooling ownership; reclassify before any product claim."
-last_changed = "2026-05-12"
-last_changed_pr = "#694"
-
-[[package]]
 name = "adze-tool"
 path = "tool"
 category = "published"

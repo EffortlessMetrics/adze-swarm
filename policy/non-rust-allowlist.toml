@@ -435,10 +435,6 @@ reason = "Test-only example crate."
 covered_by = ["cargo test"]
 
 [[allow]]
-glob = "testing/**"
-covered_by = ["cargo test"]
-
-[[allow]]
 glob = "repro-issue-74/**"
 kind = "fixture_input"
 owner = "core/test"
