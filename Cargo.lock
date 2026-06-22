@@ -337,24 +337,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "adze-testing"
-version = "0.1.0"
-dependencies = [
- "adze",
- "adze-glr-core",
- "adze-ir",
- "adze-tablegen",
- "anyhow",
- "chrono",
- "clap",
- "insta",
- "proptest",
- "serde",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
 name = "adze-tool"
 version = "0.9.0"
 dependencies = [
