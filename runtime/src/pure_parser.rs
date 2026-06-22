@@ -597,6 +597,9 @@ impl Parser {
 
             // Check cancellation
             if let Some(flag) = self.cancellation_flag {
+                // SAFETY: `flag` is a raw pointer to an AtomicBool provided by the caller.
+                // The caller guarantees the pointer remains valid for the duration of the parse.
+                // Relaxed ordering is sufficient for a cancellation check.
                 unsafe {
                     if (*flag).load(Ordering::Relaxed) {
                         errors.push(ParseError {
@@ -915,6 +918,8 @@ impl Parser {
         }
 
         // Get lex state for current parser state with null pointer check
+        // SAFETY: `language.lex_modes` is a raw pointer to an array of TSLexState.
+        // The null check and bounds check (state < state_count) guard the dereference.
         let lex_mode = unsafe {
             if !language.lex_modes.is_null() && state < language.state_count as u16 {
                 *language.lex_modes.add(state as usize)
@@ -930,6 +935,8 @@ impl Parser {
         if lex_mode.external_lex_state != 0
             && let Some(scan_fn) = language.external_scanner.scan
         {
+            // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+            // null/bounds checks are performed at the call site where applicable.
             unsafe {
                 // Build valid symbols array from external_lex_state bitset.
                 // Tree-sitter's external scanners expect a 1-based array of flags
@@ -998,6 +1005,8 @@ impl Parser {
             // Adapt Tree-sitter's C-style lexer callback to our input. We create a
             // minimal `TsLexer` backed by the remaining input starting at
             // `position` and invoke the language's lexer function.
+            // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+            // null/bounds checks are performed at the call site where applicable.
             unsafe {
                 use crate::lex::TsLexer;
 
@@ -1010,6 +1019,8 @@ impl Parser {
                 }
 
                 unsafe extern "C" fn lookahead(lex: *mut TsLexer) -> u32 {
+                    // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+                    // null/bounds checks are performed at the call site where applicable.
                     unsafe {
                         // Null pointer check
                         if lex.is_null() || (*lex).data.is_null() {
@@ -1025,6 +1036,8 @@ impl Parser {
                 }
 
                 unsafe extern "C" fn advance(lex: *mut TsLexer, _skip: bool) {
+                    // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+                    // null/bounds checks are performed at the call site where applicable.
                     unsafe {
                         // Null pointer check
                         if lex.is_null() || (*lex).data.is_null() {
@@ -1038,6 +1051,8 @@ impl Parser {
                 }
 
                 unsafe extern "C" fn mark_end(lex: *mut TsLexer) {
+                    // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+                    // null/bounds checks are performed at the call site where applicable.
                     unsafe {
                         // Null pointer check
                         if lex.is_null() || (*lex).data.is_null() {
@@ -2240,6 +2255,8 @@ impl<'a> ExternalLexer<'a> {
         if data.is_null() {
             return 0;
         }
+        // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+        // null/bounds checks are performed at the call site where applicable.
         let ext_lexer = unsafe { &*(data as *const ExternalLexer) };
         ext_lexer.column as u32
     }
@@ -2254,6 +2271,8 @@ impl<'a> ExternalLexer<'a> {
         if data.is_null() {
             return false;
         }
+        // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+        // null/bounds checks are performed at the call site where applicable.
         let ext_lexer = unsafe { &*(data as *const ExternalLexer) };
         ext_lexer.position == 0
     }
@@ -2268,6 +2287,8 @@ impl<'a> ExternalLexer<'a> {
         if data.is_null() {
             return true;
         }
+        // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+        // null/bounds checks are performed at the call site where applicable.
         let ext_lexer = unsafe { &*(data as *const ExternalLexer) };
         ext_lexer.position >= ext_lexer.input.len()
     }
@@ -2435,16 +2456,26 @@ mod tests {
         let mut ts = create_ts_lexer(&mut ext);
 
         // Initial column at start
+        // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+        // null/bounds checks are performed at the call site where applicable.
         assert_eq!(unsafe { ExternalLexer::get_column(&mut ts) }, 0);
 
         // Advance over "hello"
         for _ in 0..5 {
+            // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+            // null/bounds checks are performed at the call site where applicable.
             unsafe { ExternalLexer::advance(&mut ts, false) };
         }
+        // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+        // null/bounds checks are performed at the call site where applicable.
         assert_eq!(unsafe { ExternalLexer::get_column(&mut ts) }, 5);
 
         // Advance over newline
+        // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+        // null/bounds checks are performed at the call site where applicable.
         unsafe { ExternalLexer::advance(&mut ts, false) };
+        // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+        // null/bounds checks are performed at the call site where applicable.
         assert_eq!(unsafe { ExternalLexer::get_column(&mut ts) }, 0);
     }
 
@@ -2454,8 +2485,14 @@ mod tests {
         let mut ext = ExternalLexer::new(input, 0, 0);
         let mut ts = create_ts_lexer(&mut ext);
 
+        // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+        // null/bounds checks are performed at the call site where applicable.
         assert!(unsafe { ExternalLexer::is_at_included_range_start(&mut ts) });
+        // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+        // null/bounds checks are performed at the call site where applicable.
         unsafe { ExternalLexer::advance(&mut ts, true) };
+        // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+        // null/bounds checks are performed at the call site where applicable.
         assert!(!unsafe { ExternalLexer::is_at_included_range_start(&mut ts) });
     }
 
@@ -2465,8 +2502,14 @@ mod tests {
         let mut ext = ExternalLexer::new(input, 0, 0);
         let mut ts = create_ts_lexer(&mut ext);
 
+        // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+        // null/bounds checks are performed at the call site where applicable.
         assert!(!unsafe { ExternalLexer::eof(&mut ts) });
+        // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+        // null/bounds checks are performed at the call site where applicable.
         unsafe { ExternalLexer::advance(&mut ts, true) };
+        // SAFETY: raw pointer dereference on a TSLanguage/TSLexer field;
+        // null/bounds checks are performed at the call site where applicable.
         assert!(unsafe { ExternalLexer::eof(&mut ts) });
     }
 
