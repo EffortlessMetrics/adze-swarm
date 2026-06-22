@@ -913,7 +913,7 @@ pub struct OptimizationStats {
 }
 
 /// Convenience function to optimize a grammar
-pub fn optimize_grammar(mut grammar: Grammar) -> anyhow::Result<Grammar> {
+pub fn optimize_grammar(mut grammar: Grammar) -> crate::error::Result<Grammar> {
     let mut optimizer = GrammarOptimizer::new();
     optimizer.optimize(&mut grammar);
     Ok(grammar)
