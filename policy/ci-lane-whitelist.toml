@@ -19,7 +19,7 @@ schema_version = "1.0"
 policy = "ci-lane-whitelist"
 owner = "release/ci"
 status = "advisory"
-updated = "2026-05-29"
+updated = "2026-06-22"
 
 [budget]
 # All values in LEM (Linux-equivalent minutes).
@@ -61,7 +61,7 @@ proof_obligation = "Compute changed areas, selected lanes, budget band, and emit
 evidence = ["target/ci/ci-plan.json", "GitHub step summary"]
 allowed_triggers = ["pull_request", "workflow_dispatch"]
 duplicate_of = []
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -82,7 +82,7 @@ proof_obligation = "Run just ci-supported: fmt, clippy, supported crate tests, a
 evidence = ["nextest results", "step summary"]
 allowed_triggers = ["pull_request", "merge_group", "push", "workflow_dispatch"]
 duplicate_of = ["justfile:ci-supported"]
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -103,7 +103,7 @@ proof_obligation = "Aggregate pr-plan + supported / docs gate results into a sta
 evidence = ["job summary"]
 allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
 duplicate_of = []
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -124,7 +124,7 @@ proof_obligation = "Query runner availability, exclude the current route runner 
 evidence = ["job logs", "GitHub job outputs"]
 allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
 duplicate_of = []
-review_after = "2026-06-15"
+review_after = "2026-09-20"
 expires = "2026-11-15"
 
 [[lane]]
@@ -145,7 +145,7 @@ proof_obligation = "Prepare CPX42 scratch before toolchain setup, then run cargo
 evidence = ["job logs", "disk and toolchain preflight output"]
 allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
 duplicate_of = ["ci-supported"]
-review_after = "2026-06-21"
+review_after = "2026-09-20"
 expires = "2026-11-21"
 
 [[lane]]
@@ -166,7 +166,7 @@ proof_obligation = "Run cargo fetch and cargo check --workspace --locked in the 
 evidence = ["job logs", "sccache stats"]
 allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
 duplicate_of = ["ci-supported"]
-review_after = "2026-06-15"
+review_after = "2026-09-20"
 expires = "2026-11-15"
 
 [[lane]]
@@ -208,7 +208,7 @@ proof_obligation = "Run cargo fetch and cargo check --workspace --locked in the 
 evidence = ["job logs", "sccache stats"]
 allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
 duplicate_of = ["ci-supported"]
-review_after = "2026-06-21"
+review_after = "2026-09-20"
 expires = "2026-11-21"
 
 [[lane]]
@@ -229,7 +229,7 @@ proof_obligation = "Run cargo fetch and cargo check --workspace --locked on GitH
 evidence = ["job logs"]
 allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
 duplicate_of = ["ci-supported"]
-review_after = "2026-06-15"
+review_after = "2026-09-20"
 expires = "2026-11-15"
 
 [[lane]]
@@ -250,7 +250,7 @@ proof_obligation = "Report the routing reason and fail unless hosted fallback ha
 evidence = ["job logs", "target_reason"]
 allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
 duplicate_of = []
-review_after = "2026-06-21"
+review_after = "2026-09-20"
 expires = "2026-11-21"
 
 [[lane]]
@@ -271,7 +271,7 @@ proof_obligation = "Pass only when the selected Rust Small implementation lane s
 evidence = ["job summary", "selected lane result"]
 allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
 duplicate_of = ["em-rust-small-cpx42", "em-rust-small-cx43", "em-rust-small-cx33", "em-rust-small-cx53", "em-rust-small-github"]
-review_after = "2026-06-15"
+review_after = "2026-09-20"
 expires = "2026-11-15"
 
 [[lane]]
@@ -334,7 +334,7 @@ proof_obligation = "Run cargo xtask check-ci-lane-whitelist and upload the recei
 evidence = ["target/receipts/ci-lane-whitelist.json"]
 allowed_triggers = ["pull_request", "push", "workflow_dispatch"]
 duplicate_of = []
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -355,7 +355,7 @@ proof_obligation = "Run check-doc-artifacts and check-active-goal in blocking mo
 evidence = ["target/policy/doc-artifacts.log", "target/policy/active-goal.log"]
 allowed_triggers = ["pull_request", "push", "workflow_dispatch"]
 duplicate_of = []
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -377,7 +377,7 @@ evidence = ["target/policy/goto-indexing.log", "target/policy/goto-indexing-test
 allowed_triggers = ["pull_request", "push", "workflow_dispatch"]
 routing_note = "The job wakes with ci-policy but runs the guard only for runtime/parser/tablegen/glr-core/goto-indexing paths, push, or manual dispatch."
 duplicate_of = []
-review_after = "2026-06-15"
+review_after = "2026-09-20"
 expires = "2026-11-15"
 
 [[lane]]
@@ -399,7 +399,7 @@ evidence = ["target/ripr/pr/repo-exposure.json", "target/ripr/review/comments.js
 allowed_triggers = ["pull_request", "workflow_dispatch"]
 duplicate_of = []
 provisioning_note = "Stub (no-op) until ripr binary provisioned via workspace MSRV toolchain. See docs/ci/ripr.md."
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -421,7 +421,7 @@ evidence = ["badges/ripr-plus.json", "badge refresh PR"]
 allowed_triggers = ["workflow_dispatch"]
 duplicate_of = ["ripr-advisory"]
 routing_note = "Manual-only to avoid adding recurring PR or main-push CI cost."
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -443,7 +443,7 @@ evidence = ["TEST_INVENTORY_REPORT.md", "step summary"]
 routing_note = "Path-routed on PRs that change the test-policy workflow, inventory script, CI test-policy docs, or lane policy. Routine test-file PRs rely on Rust Small Result and risk-routed test lanes. Runtime-cap execution remains available through workflow_dispatch; the compile timeout is only a coarse hang guard."
 allowed_triggers = ["pull_request", "workflow_dispatch"]
 duplicate_of = []
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 # ---------------------------------------------------------------------------
@@ -471,7 +471,7 @@ routing_note = "matrix-setup job skips docs/policy-only PRs, limits code-path PR
 expensive = true
 default_pr_exception = "ci-exception-pure-rust-os-matrix-default-pr"
 duplicate_of = ["ci-supported", "microcrate-ci"]
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-08-07"
 
 [[lane]]
@@ -494,7 +494,7 @@ routing_note = "changes setup job routes each PR to matching crate groups and re
 expensive = true
 default_pr_exception = "ci-exception-microcrate-ci-default-pr"
 duplicate_of = ["ci-supported", "core-tests"]
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-08-07"
 
 [[lane]]
@@ -516,7 +516,7 @@ evidence = ["job logs", "grammar_changed output"]
 allowed_triggers = ["pull_request", "workflow_dispatch"]
 routing_note = "Cheap setup job; matrix work remains gated by changed paths, workflow_dispatch, or ci:golden/full-ci labels."
 duplicate_of = ["pr-plan"]
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -540,7 +540,7 @@ routing_note = "paths job detects grammar/golden/corpus/glr-core changes; job sk
 expensive = true
 default_pr_exception = "ci-exception-golden-tests-default-pr"
 duplicate_of = ["product-proof-advisory"]
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-08-07"
 
 [[lane]]
@@ -561,7 +561,7 @@ proof_obligation = "Run cargo test on the core crate set."
 evidence = ["job logs"]
 allowed_triggers = ["pull_request", "push"]
 duplicate_of = ["ci-supported"]
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-09-07"
 
 [[lane]]
@@ -582,7 +582,7 @@ proof_obligation = "cargo bench -p adze-benchmarks --no-run."
 evidence = ["job logs"]
 allowed_triggers = ["schedule", "workflow_dispatch"]
 duplicate_of = []
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -604,7 +604,7 @@ evidence = ["job logs"]
 allowed_triggers = ["pull_request", "push", "workflow_dispatch"]
 routing_note = "Runs only when the path-routed ts-bridge smoke workflow wakes. Linux-only by default; full OS matrix on 'platform-matrix'/'full-ci' labels or workflow_dispatch matrix=full-os."
 duplicate_of = []
-review_after = "2026-06-15"
+review_after = "2026-09-20"
 expires = "2026-09-15"
 
 [[lane]]
@@ -626,7 +626,7 @@ evidence = ["job logs"]
 allowed_triggers = ["pull_request", "push", "workflow_dispatch"]
 routing_note = "Workflow is path-routed to tools/ts-bridge, scripts/smoke-link.sh, or its own workflow file. Ordinary PRs run Ubuntu only; 'platform-matrix'/'full-ci' labels and workflow_dispatch matrix=full-os run Ubuntu/macOS/Windows."
 duplicate_of = ["ts-bridge-parity"]
-review_after = "2026-06-15"
+review_after = "2026-09-20"
 expires = "2026-09-15"
 
 [[lane]]
@@ -647,7 +647,7 @@ proof_obligation = "Run ts-bridge parity harness on canonical grammars when TSB_
 evidence = ["job logs"]
 allowed_triggers = ["workflow_dispatch", "schedule"]
 duplicate_of = []
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-09-07"
 
 [[lane]]
@@ -668,7 +668,7 @@ proof_obligation = "Run quarantine report and upload markdown."
 evidence = ["quarantine-report.md"]
 allowed_triggers = ["pull_request", "push"]
 duplicate_of = []
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -689,7 +689,7 @@ proof_obligation = "Run scheduled or manually dispatched ci.yml with run_full_ci
 evidence = ["job logs"]
 allowed_triggers = ["schedule", "workflow_dispatch"]
 duplicate_of = ["ci-supported"]
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 # ---------------------------------------------------------------------------
@@ -715,7 +715,7 @@ evidence = ["job logs"]
 allowed_triggers = ["pull_request", "schedule", "workflow_dispatch"]
 routing_note = "Runs cheaply on every Product Proof event; selects Stable canaries for relevant paths and all non-PR events."
 duplicate_of = []
-review_after = "2026-06-21"
+review_after = "2026-09-20"
 expires = "2026-11-21"
 
 [[lane]]
@@ -737,7 +737,7 @@ evidence = ["job logs"]
 allowed_triggers = ["pull_request", "schedule", "workflow_dispatch"]
 routing_note = "Selected by Product Proof path detection for README/FAQ/quickstart/book claim-boundary docs, support-tier/product-proof/status docs, quickstart tests, downstream demo, the stable canary script, and this workflow. Manual dispatch defaults to stable-only."
 duplicate_of = ["ci-supported"]
-review_after = "2026-06-15"
+review_after = "2026-09-20"
 expires = "2026-11-15"
 
 [[lane]]
@@ -759,7 +759,7 @@ evidence = ["job logs"]
 allowed_triggers = ["pull_request", "schedule", "workflow_dispatch"]
 routing_note = "Branch-protection required aggregate context. The implementation job remains always-present; Stable canaries are path-selected for Stable product surfaces and skipped with an explicit reason for unrelated PRs."
 duplicate_of = ["product-proof-stable"]
-review_after = "2026-06-21"
+review_after = "2026-09-20"
 expires = "2026-11-21"
 
 [[lane]]
@@ -780,7 +780,7 @@ proof_obligation = "Run scripts/ci-product.sh on schedule or manual dispatch wit
 evidence = ["job logs"]
 allowed_triggers = ["schedule", "workflow_dispatch"]
 duplicate_of = ["golden-tests", "product-proof-stable", "ci-supported"]
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 # ---------------------------------------------------------------------------
@@ -805,7 +805,7 @@ proof_obligation = "Run pr-plan.yml as a reusable workflow under pr-gate."
 evidence = ["pr-plan.yml outputs"]
 allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
 duplicate_of = ["pr-plan"]
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -826,7 +826,7 @@ proof_obligation = "cargo fmt --check on docs-only PRs."
 evidence = ["job logs"]
 allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
 duplicate_of = []
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -847,7 +847,7 @@ proof_obligation = "Run pr-plan.yml as a reusable workflow under ripr."
 evidence = ["pr-plan.yml outputs"]
 allowed_triggers = ["pull_request", "workflow_dispatch"]
 duplicate_of = ["pr-plan"]
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -869,7 +869,7 @@ evidence = ["job logs"]
 allowed_triggers = ["pull_request", "workflow_dispatch"]
 routing_note = "Cheap setup job; coverage-lite/full carry the actual cargo-llvm-cov cost."
 duplicate_of = []
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -891,7 +891,7 @@ evidence = ["lcov.info", "coverage-lite-lcov GitHub artifact"]
 allowed_triggers = ["pull_request", "workflow_dispatch"]
 routing_note = "Path-routed for runtime/test coverage paths, label-routed with 'coverage', and manually runnable with workflow_dispatch mode=lite. Additional packages require measured runtime evidence before inclusion."
 duplicate_of = []
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
 
 [[lane]]
@@ -913,5 +913,5 @@ evidence = ["lcov.info", "coverage-full-lcov GitHub artifact"]
 allowed_triggers = ["pull_request", "workflow_dispatch"]
 routing_note = "Runs on workflow_dispatch mode=full and PRs labeled 'full-ci'. Not an ordinary PR default."
 duplicate_of = ["coverage-lite"]
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-11-07"
