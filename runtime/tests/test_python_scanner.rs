@@ -206,6 +206,10 @@ fn test_scanner_state_serialization() {
             self.input.get(self.position).copied()
         }
 
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
+
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
         }
@@ -274,6 +278,10 @@ fn test_multiple_dedents() {
     impl<'a> adze::external_scanner::Lexer for MockLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
             self.input.get(self.position).copied()
+        }
+
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
         }
 
         fn advance(&mut self, n: usize) {

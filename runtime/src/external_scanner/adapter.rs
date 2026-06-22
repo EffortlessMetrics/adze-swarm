@@ -105,6 +105,15 @@ impl<'a> crate::external_scanner::Lexer for TSLexerAdapter<'a> {
         self.src.get(self.cursor).copied()
     }
 
+    fn lookahead_n(&self, n: usize) -> Option<u8> {
+        let range = self.current_range()?;
+        let pos = self.cursor.checked_add(n)?;
+        if pos >= range.end {
+            return None;
+        }
+        self.src.get(pos).copied()
+    }
+
     fn advance(&mut self, n: usize) {
         for _ in 0..n {
             // Check if we can advance within current range

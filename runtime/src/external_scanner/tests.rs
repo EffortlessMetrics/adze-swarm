@@ -21,6 +21,10 @@ fn test_string_scanner_start_token() {
             self.input.get(self.position).copied()
         }
 
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position + n).copied()
+        }
+
         fn mark_end(&mut self) {}
 
         fn column(&self) -> usize {

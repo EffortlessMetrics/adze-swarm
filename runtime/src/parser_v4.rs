@@ -1038,6 +1038,11 @@ impl Parser {
                 }
             }
 
+            fn lookahead_n(&self, n: usize) -> Option<u8> {
+                let pos = self.parser.position.checked_add(n)?;
+                self.parser.input.get(pos).copied()
+            }
+
             fn advance(&mut self, n: usize) {
                 self.parser.position =
                     std::cmp::min(self.parser.position + n, self.parser.input.len());
@@ -1539,6 +1544,11 @@ impl crate::external_scanner::Lexer for Parser {
         } else {
             None
         }
+    }
+
+    fn lookahead_n(&self, n: usize) -> Option<u8> {
+        let pos = self.position.checked_add(n)?;
+        self.input.get(pos).copied()
     }
 
     fn advance(&mut self, n: usize) {

@@ -26,6 +26,10 @@ impl Lexer for TestLexer {
         Some(b'x')
     }
 
+        fn lookahead_n(&self, _n: usize) -> Option<u8> {
+            Some(b'x')
+        }
+
     fn advance(&mut self, _n: usize) {}
 
     fn mark_end(&mut self) {}
