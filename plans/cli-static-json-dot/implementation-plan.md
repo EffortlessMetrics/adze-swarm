@@ -134,13 +134,12 @@ projection modes while returning to the explicit unsupported boundary for
 
 ## Work Item: cli-static-json-dot-closeout
 
-Status: blocked
+Status: complete
 Linked proposal: ../../docs/proposals/ADZE-PROP-0015-cli-static-json-dot-output.md
 Linked spec: ../../docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
 Linked ADR: ../../docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md
 Blocks: n/a
-Blocked by:
-- static-cli-json-dot-output
+Blocked by: n/a
 
 ### Goal
 
