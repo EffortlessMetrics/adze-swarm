@@ -11,7 +11,7 @@ concurrency:
 jobs:
   parity:
     runs-on: self-hosted
-    continue-on-error: true # Non-blocking job
+    continue-on-error: true # Non-blocking advisory job
     permissions:
       contents: read
     steps:
@@ -21,23 +21,32 @@ jobs:
       - name: Install dependencies
         run: |
           set -euo pipefail
-          command -v jq
           command -v pkg-config
           pkg-config --exists tree-sitter
       - name: Build ts-bridge
         run: cargo build --manifest-path tools/ts-bridge/Cargo.toml --release --target-dir target
-      - name: Run parity cases
+      - name: Run parity cases (requires external grammar libraries)
         run: |
-          set -e
-          # Example grammars - adjust to your examples
-          for g in json python; do
-            echo "=== Parity: $g ==="
-            # ts-bridge is expected to produce a JSON report with stats
-            ./target/release/ts-bridge --grammar examples/$g --out /tmp/tsb-report-$g.json || true
-            echo "Report: /tmp/tsb-report-$g.json"
-            jq -C '.summary' /tmp/tsb-report-$g.json || true
+          set -euo pipefail
+          # ts-bridge takes positional args: <grammar-lib-path> <output.json> <symbol-name>
+          # Real Tree-sitter grammar libraries (.so/.dylib) are NOT vendored in this repo.
+          # If TSB_GRAMMAR_LIB_DIR is set (e.g. by a self-hosted runner with tree-sitter-json
+          # installed), run parity against each grammar found there; otherwise skip with a notice.
+          if [ -z "${TSB_GRAMMAR_LIB_DIR:-}" ]; then
+            echo "::notice::TSB_GRAMMAR_LIB_DIR is not set; skipping parity run. ts-bridge built successfully."
+            exit 0
+          fi
+          for lib in "$TSB_GRAMMAR_LIB_DIR"/libtree-sitter-*.so "$TSB_GRAMMAR_LIB_DIR"/libtree-sitter-*.dylib; do
+            [ -e "$lib" ] || continue
+            name=$(basename "$lib" | sed 's/^libtree-sitter-//' | sed 's/\.\(so\|dylib\)$//')
+            sym="tree_sitter_$(echo "$name" | tr '-' '_')"
+            echo "=== Parity: $name ($sym) ==="
+            ./target/release/ts-bridge "$lib" "/tmp/tsb-report-$name.json" "$sym" \
+              && jq -C '.summary' "/tmp/tsb-report-$name.json" \
+              || echo "::warning::parity failed for $name"
           done
       - name: Upload reports
+        if: always()
         uses: actions/upload-artifact@v7.0.0
         with:
           name: ts-bridge-reports
