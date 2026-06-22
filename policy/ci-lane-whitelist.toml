@@ -36,6 +36,8 @@ windows_latest = 2.0
 macos_latest = 10.0
 docker_build = 6.0
 external_ai_review = 4.0
+self_hosted = 1.0
+mixed = 1.0
 
 # ---------------------------------------------------------------------------
 # Tier 0/1 — frontdoor lanes
@@ -634,16 +636,16 @@ job = "parity"
 display_name = "ts-bridge parity"
 kind = "ffi"
 tier = "compatibility"
-default_pr = true
+default_pr = false
 blocking = false
-runner = "ubuntu_latest"
+runner = "self_hosted"
 base_lem = 8
 owner = "core/runtime"
-intent = "Parity tests between adze ts-bridge and reference tree-sitter."
+intent = "Parity tests between adze ts-bridge and reference tree-sitter (requires external grammar libraries)."
 failure_mode = "ABI parity drift goes unnoticed."
-proof_obligation = "Run ts-bridge parity harness on canonical grammars."
+proof_obligation = "Run ts-bridge parity harness on canonical grammars when TSB_GRAMMAR_LIB_DIR is set."
 evidence = ["job logs"]
-allowed_triggers = ["pull_request", "push"]
+allowed_triggers = ["workflow_dispatch", "schedule"]
 duplicate_of = []
 review_after = "2026-09-20"
 expires = "2026-09-07"
