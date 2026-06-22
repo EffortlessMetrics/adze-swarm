@@ -185,7 +185,6 @@ name = "adze-ir"
 version = "0.9.0"
 dependencies = [
  "adze-glr-core",
- "anyhow",
  "indexmap",
  "insta",
  "postcard",
