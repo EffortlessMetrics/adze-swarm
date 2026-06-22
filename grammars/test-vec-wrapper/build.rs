@@ -16,22 +16,6 @@ fn main() {
         std::env::set_var("ADZE_EMIT_ARTIFACTS", "true");
     }
 
-    // Generate grammars first to see what's being generated
-    let grammars =
-        adze_tool::generate_grammars(Path::new("src/lib.rs")).expect("failed to generate grammars");
-
-    // Print the generated grammar for debugging
-    for grammar in &grammars {
-        eprintln!("Generated adze grammar JSON:");
-        eprintln!("{}", serde_json::to_string_pretty(&grammar).unwrap());
-
-        // Also write to a file for easier debugging
-        use std::io::Write;
-        let path = std::env::temp_dir().join("test-vec-wrapper-grammar.json");
-        let mut file = std::fs::File::create(&path).unwrap();
-        writeln!(file, "{}", serde_json::to_string_pretty(&grammar).unwrap()).unwrap();
-    }
-
-    // Now build the parsers
+    // Build the parsers
     adze_tool::build_parsers(Path::new("src/lib.rs"));
 }
