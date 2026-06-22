@@ -17,7 +17,8 @@ selected-lane capacity.
 If no trusted self-hosted runner is idle, ordinary same-repo PRs get an
 explicit non-required `Runner Capacity / Fallback Policy` failure instead of
 silently falling back to GitHub-hosted compute. The required aggregate
-`Rust Small Result` records the selected policy outcome.
+`Rust Small Result` also fails in this case (per ADZE-SPEC-0015 B2), so
+capacity exhaustion blocks merge rather than silently passing.
 
 Runner-class policy is defined in [`runner-classes.md`](./runner-classes.md).
 The short version is: CPX42/CX43 own the preferred `rust-small` base gate,
