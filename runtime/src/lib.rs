@@ -144,7 +144,6 @@ pub mod glr_forest;
 /// Incremental parsing support for GLR.
 #[cfg(feature = "pure-rust")]
 pub mod glr_incremental;
-// pub mod glr_incremental_opt; // Temporarily disabled during chunk-based refactor
 /// Lexer specialized for GLR parsing.
 pub mod glr_lexer;
 /// GLR parser implementation.
@@ -234,11 +233,6 @@ pub use adze_glr_core;
 /// Tree-sitter compatibility: re-exported IR types.
 #[cfg(feature = "ts-compat")]
 pub use adze_ir;
-// TODO: Update parallel_parser for new Parser API
-// pub mod parallel_parser {
-//     pub use super::parallel_parser_v2::*;
-// }
-// mod parallel_parser_v2;
 
 #[cfg(all(
     feature = "pure-rust",
