@@ -368,19 +368,12 @@ impl ExternalScanner for PythonScanner {
 
 impl PythonScanner {
     fn match_triple_at_lexer(&self, lexer: &mut dyn Lexer, quote: u8) -> bool {
-        // Check if we have three consecutive quotes
-        if lexer.lookahead() != Some(quote) {
-            return false;
-        }
-
-        // Look ahead without advancing to check for triple quotes
-        // This is a simplified check - ideally we'd need a peek(n) method
-        // For now, we'll rely on the lexer's lookahead for single-char checks
-        // TODO: Improve this with proper multi-char lookahead support
-
-        // For now, return false for triple quotes to keep it simple
-        // This will need to be fixed when we have better lexer API
-        false
+        // Non-advancing triple-quote check using multi-byte lookahead.
+        // All three bytes must equal `quote`; otherwise the lexer position is
+        // untouched and the caller can fall through to single-quote handling.
+        lexer.lookahead() == Some(quote)
+            && lexer.lookahead_n(1) == Some(quote)
+            && lexer.lookahead_n(2) == Some(quote)
     }
 }
 

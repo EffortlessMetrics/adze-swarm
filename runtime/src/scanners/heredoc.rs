@@ -189,6 +189,10 @@ mod tests {
             self.input.get(self.pos).copied()
         }
 
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.pos + n).copied()
+        }
+
         fn advance(&mut self, n: usize) {
             self.pos = (self.pos + n).min(self.input.len());
         }
