@@ -1,4 +1,0 @@
-build_parsers called for: src/lib.rs
-CARGO_FEATURE_PURE_RUST=Ok("1")
-ADZE_USE_PURE_RUST=Ok("1")
-use_pure_rust=true
