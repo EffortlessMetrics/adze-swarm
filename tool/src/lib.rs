@@ -1,6 +1,6 @@
 // Tool crate is mostly safe, with minimal unsafe for optimizations
 #![deny(unsafe_op_in_unsafe_fn)]
-#![cfg_attr(feature = "strict_docs", allow(missing_docs))]
+#![cfg_attr(feature = "strict_docs", deny(missing_docs))]
 #![cfg_attr(not(feature = "strict_docs"), allow(missing_docs))]
 
 //! Build tool for adze parser generation
