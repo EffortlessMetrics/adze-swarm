@@ -155,6 +155,10 @@ fn test_basic_indentation() {
             self.input.get(self.position).copied()
         }
 
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
+
         fn advance(&mut self, n: usize) {
             for _ in 0..n {
                 if let Some(&byte) = self.input.get(self.position) {
@@ -245,6 +249,10 @@ fn test_mixed_spaces_tabs() {
             self.input.get(self.position).copied()
         }
 
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
+
         fn advance(&mut self, n: usize) {
             for _ in 0..n {
                 if let Some(&byte) = self.input.get(self.position) {
@@ -333,6 +341,10 @@ fn test_multi_dedent() {
     impl<'a> Lexer for TestLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
             self.input.get(self.position).copied()
+        }
+
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
         }
 
         fn advance(&mut self, n: usize) {
@@ -454,6 +466,10 @@ fn test_dedent_sequence() {
     impl<'a> Lexer for TestLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
             self.input.get(self.position).copied()
+        }
+
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
         }
 
         fn advance(&mut self, n: usize) {

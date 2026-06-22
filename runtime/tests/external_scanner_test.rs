@@ -185,6 +185,10 @@ fn test_indentation_scanner() {
             self.input.get(self.position).copied()
         }
 
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
+
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
         }
@@ -233,6 +237,10 @@ fn test_nested_comment_scanner() {
     impl Lexer for MockLexer {
         fn lookahead(&self) -> Option<u8> {
             self.input.get(self.position).copied()
+        }
+
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
         }
 
         fn advance(&mut self, n: usize) {
