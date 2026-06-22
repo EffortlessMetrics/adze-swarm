@@ -868,9 +868,9 @@ jobs:
               if [ "$fallback_allowed" = "true" ]; then
                 test "$gh" = "success"
               else
-                echo "::notice::No trusted Rust Small runner was idle and GitHub-hosted fallback was not allowed."
+                echo "::error::No trusted Rust Small runner was idle and GitHub-hosted fallback was not allowed. The required gate cannot verify this PR."
                 echo "::notice::target_reason=${target_reason}"
-                exit 0
+                exit 1
               fi
               ;;
             *)
