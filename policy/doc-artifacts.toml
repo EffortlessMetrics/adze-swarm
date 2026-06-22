@@ -522,6 +522,36 @@ source_of_truth_for = ["required merge gate proof contract", "no-false-green inv
 links_to = ["ADZE-PROP-0001", "ADZE-SPEC-0011"]
 
 [[artifact]]
+id = "ADZE-SPEC-0016"
+kind = "spec"
+path = "docs/specs/ADZE-SPEC-0016-test-api-feature-contract.md"
+status = "accepted"
+owner = "core/test"
+milestone = "0.9.x"
+source_of_truth_for = ["test-api feature is test infrastructure, not published surface"]
+links_to = ["ADZE-PROP-0001", "ADZE-SPEC-0011"]
+
+[[artifact]]
+id = "ADZE-SPEC-0017"
+kind = "spec"
+path = "docs/specs/ADZE-SPEC-0017-unsafe-invariant-contract.md"
+status = "accepted"
+owner = "runtime/safety"
+milestone = "0.9.x"
+source_of_truth_for = ["unsafe block safety documentation contract"]
+links_to = ["ADZE-PROP-0001", "ADZE-ADR-0001"]
+
+[[artifact]]
+id = "ADZE-SPEC-0018"
+kind = "spec"
+path = "docs/specs/ADZE-SPEC-0018-golden-test-reference-contract.md"
+status = "accepted"
+owner = "grammar/fixtures"
+milestone = "0.9.x"
+source_of_truth_for = ["golden-test reference format and generation procedure"]
+links_to = ["ADZE-PROP-0003"]
+
+[[artifact]]
 id = "ADZE-ADR-0001"
 kind = "adr"
 path = "docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md"
