@@ -1,6 +1,7 @@
 # ADR-0007: Runtime2 GLR Integration with Examples
 
-**Status**: Accepted
+**Status**: Superseded
+**Superseded by**: Current experimental classification — `runtime2/` is a dev-only experimental proving ground per `policy/package-boundary.toml`, `docs/status/SUPPORT_TIERS.md`, and `docs/status/KNOWN_RED.md`. The "merge runtime2 into runtime" option (Option B) recorded below remains FUTURE and is not the current contract.
 **Date**: 2025-11-19
 **Context**: Phase 3.3 Integration Testing
 **Related**: Phase 3.2 Complete, PHASE_3.3_INTEGRATION_TESTING.md
