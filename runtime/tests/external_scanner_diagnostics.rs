@@ -22,6 +22,10 @@ fn comprehensive_indentation_scan_diagnostics() {
             self.input.get(self.position).copied()
         }
 
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
+
         fn advance(&mut self, n: usize) {
             for _ in 0..n {
                 if let Some(&byte) = self.input.get(self.position) {
