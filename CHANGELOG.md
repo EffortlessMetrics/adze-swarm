@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] — 0.8.0 Release Candidate
+## [Unreleased] — 0.9.0
 
 **Focus**: Test infrastructure, quality hardening, documentation, security audit, and RC readiness.
 
