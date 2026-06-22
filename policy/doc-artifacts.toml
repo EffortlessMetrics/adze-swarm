@@ -592,6 +592,26 @@ source_of_truth_for = ["schema-versioned serialized projection decision"]
 links_to = ["ADZE-PROP-0002", "ADZE-SPEC-0008"]
 
 [[artifact]]
+id = "ADZE-ADR-0005"
+kind = "adr"
+path = "docs/adr/ADZE-ADR-0005-durable-published-support-crates.md"
+status = "accepted"
+owner = "release/package"
+milestone = "0.9.x"
+source_of_truth_for = ["durable published support crate decision"]
+links_to = ["ADZE-PROP-0001", "ADZE-SPEC-0001"]
+
+[[artifact]]
+id = "ADZE-ADR-0006"
+kind = "adr"
+path = "docs/adr/ADZE-ADR-0006-user-defined-grammar-is-stable-product.md"
+status = "accepted"
+owner = "release/product"
+milestone = "0.9.x"
+source_of_truth_for = ["user-defined pure-rust grammar is the stable product; bundled grammars are advisory"]
+links_to = ["ADZE-PROP-0003", "ADZE-SPEC-0012"]
+
+[[artifact]]
 id = "ADR-0007"
 kind = "adr"
 path = "docs/adr/ADR-0007-RUNTIME2-GLR-INTEGRATION.md"
