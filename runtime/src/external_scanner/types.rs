@@ -44,6 +44,14 @@ pub trait Lexer {
     /// Get the next byte at the current position
     fn lookahead(&self) -> Option<u8>;
 
+    /// Peek at the byte `n` positions ahead without advancing.
+    ///
+    /// `lookahead_n(0)` is equivalent to `lookahead()`. Returns `None` if the
+    /// position is at or past EOF. This lets scanners recognize multi-byte
+    /// token openers (e.g. Python triple-quotes) without destructively
+    /// advancing and then having no way to rewind on a failed match.
+    fn lookahead_n(&self, n: usize) -> Option<u8>;
+
     /// Advance the lexer by n bytes
     fn advance(&mut self, n: usize);
 
