@@ -110,9 +110,9 @@ Rust Small Result
 ```
 
 This is the normalized result check from the routed Rust-small workflow. Do not
-require the implementation lanes (`Rust Small on CX43`, `Rust Small on CX53`,
-or `Rust Small on GitHub Hosted`) directly; exactly one of those may run or
-skip depending on router state.
+require the implementation lanes (`Rust Small on CPX42`, `Rust Small on CX43`,
+`Rust Small on CX33`, `Rust Small on CX53`, or `Rust Small on GitHub Hosted`)
+directly; exactly one of those may run or skip depending on router state.
 
 ### Local Supported Proof
 
@@ -283,7 +283,7 @@ Enforced via `[workspace.lints.rust]`:
 
 ## CI Workflows
 
-18 workflows in `.github/workflows/`. Key ones:
+19 workflows in `.github/workflows/`. Key ones:
 
 | Workflow | Purpose |
 |----------|---------|
