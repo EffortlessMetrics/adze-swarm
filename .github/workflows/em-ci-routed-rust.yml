@@ -767,6 +767,37 @@ jobs:
           echo "For trusted runs, wait for self-hosted capacity or use workflow_dispatch."
           exit 1
 
+  supported-proof:
+    name: Supported Proof (fmt + clippy + tests)
+    needs: route-rust-small
+    if: >-
+      needs.route-rust-small.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event_name == 'merge_group' ||
+       github.event_name == 'pull_request')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95.0"
+          components: rustfmt, clippy
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-supported-${{ hashFiles('**/Cargo.lock') }}
+      - name: Run supported proof (fmt + clippy + tests on 7 core crates)
+        run: just ci-supported
+
   rust-small-result:
     name: Rust Small Result
     needs:
@@ -776,6 +807,7 @@ jobs:
       - rust-small-cx33
       - rust-small-cx53
       - rust-small-github
+      - supported-proof
     if: >-
       always() &&
       needs.route-rust-small.result != 'cancelled' &&
@@ -784,6 +816,8 @@ jobs:
       needs.rust-small-cx33.result != 'cancelled' &&
       needs.rust-small-cx53.result != 'cancelled' &&
       needs.rust-small-github.result != 'cancelled' &&
+      needs.supported-proof.result != 'cancelled' &&
+      needs.supported-proof.result == 'success' &&
       (
         github.event_name == 'workflow_dispatch' ||
         github.event_name == 'merge_group' ||
