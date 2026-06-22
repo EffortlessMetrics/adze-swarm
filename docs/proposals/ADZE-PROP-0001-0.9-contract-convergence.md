@@ -1,6 +1,6 @@
 # ADZE-PROP-0001: 0.9 contract convergence
 
-Status: proposed
+Status: implemented
 Owner: Adze maintainers
 Created: 2026-05-12
 Target milestone: 0.9.0
