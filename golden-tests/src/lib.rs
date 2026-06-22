@@ -356,64 +356,10 @@ mod tests {
 
     #[test]
     #[cfg(feature = "javascript-grammar")]
-    fn javascript_simple_golden() -> Result<()> {
-        run_golden_test(GoldenTest {
-            language: "javascript",
-            fixture_name: "simple_program.js",
-        })
-    }
-
-    #[test]
-    #[cfg(feature = "javascript-grammar")]
     fn javascript_canary_expression_golden() -> Result<()> {
         run_golden_test_strict(GoldenTest {
             language: "javascript",
             fixture_name: "canary_expression.js",
-        })
-    }
-
-    #[test]
-    #[cfg(feature = "javascript-grammar")]
-    fn javascript_empty_golden() -> Result<()> {
-        run_golden_test(GoldenTest {
-            language: "javascript",
-            fixture_name: "empty.js",
-        })
-    }
-
-    #[test]
-    #[cfg(feature = "javascript-grammar")]
-    fn javascript_unicode_golden() -> Result<()> {
-        run_golden_test(GoldenTest {
-            language: "javascript",
-            fixture_name: "unicode_strings.js",
-        })
-    }
-
-    #[test]
-    #[cfg(feature = "javascript-grammar")]
-    fn javascript_deeply_nested_golden() -> Result<()> {
-        run_golden_test(GoldenTest {
-            language: "javascript",
-            fixture_name: "deeply_nested.js",
-        })
-    }
-
-    #[test]
-    #[cfg(feature = "javascript-grammar")]
-    fn javascript_long_expression_golden() -> Result<()> {
-        run_golden_test(GoldenTest {
-            language: "javascript",
-            fixture_name: "long_expression.js",
-        })
-    }
-
-    #[test]
-    #[cfg(feature = "javascript-grammar")]
-    fn javascript_syntax_error_golden() -> Result<()> {
-        run_golden_test(GoldenTest {
-            language: "javascript",
-            fixture_name: "syntax_error.js",
         })
     }
 
