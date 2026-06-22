@@ -552,6 +552,16 @@ source_of_truth_for = ["schema-versioned serialized projection decision"]
 links_to = ["ADZE-PROP-0002", "ADZE-SPEC-0008"]
 
 [[artifact]]
+id = "ADR-0007"
+kind = "adr"
+path = "docs/adr/ADR-0007-RUNTIME2-GLR-INTEGRATION.md"
+status = "superseded"
+owner = "runtime2/tree-sitter-compat"
+milestone = "legacy"
+source_of_truth_for = ["historical runtime2 GLR integration decision (superseded by dev-only classification)"]
+links_to = []
+
+[[artifact]]
 id = "plans/0.9.0/implementation-plan.md"
 kind = "plan"
 path = "plans/0.9.0/implementation-plan.md"
