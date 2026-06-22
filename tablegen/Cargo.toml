@@ -22,13 +22,13 @@ adze-ir = { version = "0.9.0", path = "../ir" }
 adze-glr-core = { version = "0.9.0", path = "../glr-core" }
 adze-bdd-governance-core = { version = "0.1.0", path = "../crates/bdd-governance-core" }
 adze-parsetable-metadata = { version = "0.1.0", path = "../crates/parsetable-metadata" }
-proc-macro2 = "1.0"
-quote = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-thiserror = "2.0"
-indexmap = "2.0"
-rustc-hash = "2.1"
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+indexmap = { workspace = true }
+rustc-hash = { workspace = true }
 sha2 = "0.10"
 chrono = "0.4"
 rustc_version = "0.2.3"
@@ -38,11 +38,11 @@ tree-sitter = { version = "0.25.2", optional = true }
 tree-sitter-c2rust = { version = "0.25.2", optional = true }
 
 [dev-dependencies]
-proptest = "1.5"
-insta = "1.40"
-rustc-hash = "2.1"
+proptest = { workspace = true }
+insta = { workspace = true }
+rustc-hash = { workspace = true }
 criterion.workspace = true
-syn = { version = "2", features = ["full", "parsing"] }
+syn = { workspace = true }
 adze-bdd-governance-core = { version = "0.1.0", path = "../crates/bdd-governance-core" }
 adze-glr-core = { version = "0.9.0", path = "../glr-core" }
 adze-ir = { version = "0.9.0", path = "../ir" }
