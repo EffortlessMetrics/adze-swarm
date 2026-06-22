@@ -113,7 +113,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Extract implementation needs support for nested enum variants (Expression_Add inside Statement)"]
     fn test_primary_expression() {
         // use adze::Extract;
 
@@ -192,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Extract implementation needs support for nested enum variants (Expression_Add inside Statement)"]
+    #[ignore = "String literal parsing fails (0 body items); separate from GH-74 nested-variant extraction which is now fixed"]
     fn test_extract_string() {
         // use adze::Extract;
 
@@ -222,7 +221,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Extract implementation needs support for nested enum variants (Expression_Add inside Statement)"]
     fn test_extract_identifier() {
         // use adze::Extract;
 
@@ -249,7 +247,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Extract implementation needs support for nested enum variants (Expression_Add inside Statement)"]
     fn test_simple_addition() {
         let input = "1 + 2";
         let result = parse(input);
@@ -257,7 +254,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Extract implementation needs support for nested enum variants (Expression_Add inside Statement)"]
     fn test_operator_precedence() {
         let input = "1 + 2 * 3";
         let result = parse(input);
@@ -266,7 +262,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Extract implementation needs support for nested enum variants (Expression_Add inside Statement)"]
     fn test_assignment() {
         let input = "x = 42";
         let result = parse(input);

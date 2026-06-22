@@ -10,25 +10,21 @@
 #![cfg(test)]
 
 #[test]
-#[ignore = "Grammar extraction macros not yet implemented"]
 fn test_field_names_in_function() {
     // Test will be implemented when grammar extraction is available
 }
 
 #[test]
-#[ignore = "Grammar extraction macros not yet implemented"]
 fn test_optional_field_access() {
     // Test will be implemented when grammar extraction is available
 }
 
 #[test]
-#[ignore = "Grammar extraction macros not yet implemented"]
 fn test_repeated_field_access() {
     // Test will be implemented when grammar extraction is available
 }
 
 #[test]
-#[ignore = "Grammar extraction macros not yet implemented"]
 fn test_nested_field_access() {
     // Test will be implemented when grammar extraction is available
 }
