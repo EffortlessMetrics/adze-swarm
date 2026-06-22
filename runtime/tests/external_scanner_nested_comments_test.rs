@@ -110,6 +110,10 @@ fn test_simple_comment() {
             self.input.get(self.position).copied()
         }
 
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
+
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
         }
@@ -162,6 +166,10 @@ fn test_nested_comments() {
             self.input.get(self.position).copied()
         }
 
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
+
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
         }
@@ -212,6 +220,10 @@ fn test_deeply_nested_comments() {
     impl<'a> Lexer for TestLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
             self.input.get(self.position).copied()
+        }
+
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
         }
 
         fn advance(&mut self, n: usize) {
@@ -294,6 +306,10 @@ fn test_unclosed_comment() {
             self.input.get(self.position).copied()
         }
 
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
+
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
         }
@@ -337,6 +353,10 @@ fn test_not_a_comment() {
     impl<'a> Lexer for TestLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
             self.input.get(self.position).copied()
+        }
+
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
         }
 
         fn advance(&mut self, n: usize) {
