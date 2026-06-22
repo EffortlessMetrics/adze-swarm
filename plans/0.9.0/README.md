@@ -27,18 +27,14 @@ Other artifacts own:
 
 ## Expected Files
 
-Use `implementation-plan.md` for the milestone overview, then split substantial
-work into focused files:
+Use `implementation-plan.md` for the milestone overview. Substantial work
+that was split into focused files:
 
 ```text
 implementation-plan.md
 api-foundation.md
 microcrate-collapse.md
 rust-1.95.md
-ci-economics-v2.md
-clippy-policy.md
-product-proof.md
-release-polish.md
 closeout.md
 ```
 
