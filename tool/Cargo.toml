@@ -32,25 +32,25 @@ strict_docs = [] # Enable strict documentation requirements
 serialization = ["adze-tablegen/serialization"] # Enable serialization support
 
 [dependencies]
-syn = { version = "2", features = ["full", "extra-traits"] }
+syn = { workspace = true }
 syn-inline-mod = "0.6"
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
 adze-common = { version = "0.9.0", path = "../common" }
 adze-ir = { version = "0.9.0", path = "../ir" }
 adze-glr-core = { version = "0.9.0", path = "../glr-core" }
 adze-tablegen = { version = "0.9.0", path = "../tablegen" }
-regex = "1.10"
-anyhow = "1.0"
-thiserror = "2"
-indexmap = "2.0"
-clap = { version = "4.5", features = ["derive"] }
+regex = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+indexmap = { workspace = true }
+clap = { workspace = true }
 glob = "0.3"
 prettyplease = "0.2"
-proc-macro2 = "1"
-quote = "1"
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
 
-tempfile = { version = "3", optional = true }
+tempfile = { workspace = true, optional = true }
 tree-sitter = { version = "0.25.2", optional = true }
 tree-sitter-generate = { version = "0.25.1", optional = true }
 cc = { version = "1", optional = true }
@@ -60,8 +60,8 @@ name = "adze-gen"
 path = "src/bin/adze.rs"
 
 [dev-dependencies]
-insta = "1.39"
-proptest = "1.4"
-tempfile = "3"
-proc-macro2 = "1"
-syn = { version = "2", features = ["full", "extra-traits"] }
+insta = { workspace = true }
+proptest = { workspace = true }
+tempfile = { workspace = true }
+proc-macro2 = { workspace = true }
+syn = { workspace = true }
