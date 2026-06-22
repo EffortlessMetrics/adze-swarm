@@ -275,6 +275,27 @@ review_after = "2026-09-20"
 expires = "2026-11-15"
 
 [[lane]]
+id = "em-rust-small-supported-proof"
+workflow = ".github/workflows/em-ci-routed-rust.yml"
+job = "supported-proof"
+display_name = "Supported Proof (fmt + clippy + tests)"
+kind = "rust"
+tier = "frontdoor"
+default_pr = true
+blocking = true
+runner = "ubuntu_latest"
+base_lem = 18
+owner = "release/ci"
+intent = "Run just ci-supported (fmt + clippy -D warnings + tests on the 7 supported core crates) as part of the required gate (ADZE-SPEC-0015 B1)."
+failure_mode = "A PR that breaks formatting, clippy, or supported-crate tests merges green."
+proof_obligation = "just ci-supported passes."
+evidence = ["job logs"]
+allowed_triggers = ["pull_request", "merge_group", "workflow_dispatch"]
+duplicate_of = []
+review_after = "2026-09-20"
+expires = "2026-11-15"
+
+[[lane]]
 id = "cx53-rust-large-diagnostic-probe"
 workflow = ".github/workflows/cx53-rust-large-diagnostic.yml"
 job = "probe-cx53-rust-large"
