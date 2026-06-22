@@ -435,12 +435,7 @@ reason = "Test-only example crate."
 covered_by = ["cargo test"]
 
 [[allow]]
-glob = "test-mini/**"
-kind = "fixture_input"
-owner = "core/test"
-surface = "fixtures"
-classification = "test"
-reason = "Minimal repro and debug captures."
+glob = "testing/**"
 covered_by = ["cargo test"]
 
 [[allow]]

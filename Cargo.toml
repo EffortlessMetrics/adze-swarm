@@ -26,7 +26,6 @@ members = [
   "samples/downstream-demo",
   "cli",
   "benchmarks",
-  "test-mini",
   "golden-tests",
   "wasm-demo",
   "tests/governance",
@@ -36,7 +35,6 @@ members = [
 exclude = [
   "runtime/fuzz",
   "tools/ts-bridge",     # build separately to enable grammar features
-  "crates/ts-c-harness", # relies on external C/TS libs
   "example",             # has mutually exclusive pure-rust/c-backend features
 ]
 
