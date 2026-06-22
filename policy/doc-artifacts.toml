@@ -512,6 +512,16 @@ source_of_truth_for = ["performance evidence contract", "benchmark regression re
 links_to = ["ADZE-PROP-0003", "plans/glr-toolkit/productization-plan.md", "docs/perf/baselines.md", "docs/status/SUPPORT_TIERS.md"]
 
 [[artifact]]
+id = "ADZE-SPEC-0015"
+kind = "spec"
+path = "docs/specs/ADZE-SPEC-0015-required-merge-gate-contract.md"
+status = "accepted"
+owner = "release/ci"
+milestone = "0.9.x"
+source_of_truth_for = ["required merge gate proof contract", "no-false-green invariant"]
+links_to = ["ADZE-PROP-0001", "ADZE-SPEC-0011"]
+
+[[artifact]]
 id = "ADZE-ADR-0001"
 kind = "adr"
 path = "docs/adr/ADZE-ADR-0001-adze-document-one-parse-truth.md"
