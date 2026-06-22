@@ -1,11 +1,11 @@
 # ADZE-SPEC-0002: CI economics
 
-Status: proposed
+Status: accepted
 Owner: Adze maintainers
 Created: 2026-05-12
 Linked proposal: ../proposals/ADZE-PROP-0001-0.9-contract-convergence.md
 Linked ADRs:
-Linked plan: ../../plans/0.9.0/ci-economics-v2.md
+Linked plan: ../../plans/0.9.0/implementation-plan.md
 Linked issues:
 Linked PRs:
 
