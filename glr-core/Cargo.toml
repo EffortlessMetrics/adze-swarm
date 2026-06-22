@@ -17,15 +17,15 @@ all-features = true
 
 [dependencies]
 adze-ir = { version = "0.9.0", path = "../ir" }
-indexmap = { version = "2.0", features = ["serde"] }
+indexmap = { workspace = true, features = ["serde"] }
 fixedbitset = { version = "0.5", default-features = false }
-serde = { version = "1.0", features = ["derive"] }
-thiserror = "2"
+serde = { workspace = true }
+thiserror = { workspace = true }
 typed-arena = "2.0"
 
 # Optional parallel processing
-rayon = { version = "1.0", optional = true }
-rustc-hash = "2.1.1"
+rayon = { workspace = true, optional = true }
+rustc-hash = { workspace = true }
 smallvec.workspace = true
 postcard = { version = "1.0", features = ["use-std"], optional = true }
 
@@ -51,16 +51,16 @@ serialization = [
 glr_telemetry = [] # Enable GLR telemetry (used by benchmarks)
 
 [dev-dependencies]
-insta = "1.0"
+insta = { workspace = true }
 criterion.workspace = true
 dhat = "0.3"
-serde_json = "1.0"
-proptest = "1.4"
+serde_json = { workspace = true }
+proptest = { workspace = true }
 glr-test-support = { path = "../glr-test-support" }
 trybuild = "1"
 adze-bdd-governance-core = { version = "0.1.0", path = "../crates/bdd-governance-core" }
 adze-tablegen = { version = "0.9.0", path = "../tablegen" }
-indexmap = { version = "2.0", features = ["serde"] }
+indexmap = { workspace = true, features = ["serde"] }
 
 [[bench]]
 name = "automaton"
