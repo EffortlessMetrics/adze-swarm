@@ -168,15 +168,15 @@ last_changed_pr = "#758"
 [[package]]
 name = "adze-lsp-generator"
 path = "lsp-generator"
-category = "published"
+category = "dev-only"
 owner = "lsp-generator/user-tooling"
-production_use = true
-publish_intent = "public"
-support_tier_impact = "links to docs/status/SUPPORT_TIERS.md before stable release claims"
-ci_impact = "ci-supported or explicitly routed product proof"
-removal_or_promotion_condition = "Maintain release metadata and support-tier proof before stable claims."
-last_changed = "2026-05-12"
-last_changed_pr = "#694"
+production_use = false
+publish_intent = "none"
+support_tier_impact = "experimental prototype; excluded from published claims per docs/status/SUPPORT_TIERS.md and KNOWN_RED.md"
+ci_impact = "not in ci-supported"
+removal_or_promotion_condition = "If promoted to stable, reclassify to published with support-tier proof and an ADR. Generated code currently references deps the crate does not declare."
+last_changed = "2026-06-22"
+last_changed_pr = "#811"
 
 [[package]]
 name = "adze-macro"
@@ -246,15 +246,15 @@ last_changed_pr = "#694"
 [[package]]
 name = "adze-runtime"
 path = "runtime2"
-category = "published"
+category = "dev-only"
 owner = "runtime2/tree-sitter-compat"
-production_use = true
-publish_intent = "public"
-support_tier_impact = "links to docs/status/SUPPORT_TIERS.md before stable release claims"
-ci_impact = "ci-supported or explicitly routed product proof"
-removal_or_promotion_condition = "Maintain release metadata and support-tier proof before stable claims."
-last_changed = "2026-05-12"
-last_changed_pr = "#694"
+production_use = false
+publish_intent = "none"
+support_tier_impact = "experimental proving ground; excluded from published claims per docs/status/SUPPORT_TIERS.md and KNOWN_RED.md"
+ci_impact = "not in ci-supported; smoke only"
+removal_or_promotion_condition = "If promoted to stable, reclassify to published with support-tier proof and an ADR superseding ADR-0007."
+last_changed = "2026-06-22"
+last_changed_pr = "#811"
 
 [[package]]
 name = "adze-tablegen"
