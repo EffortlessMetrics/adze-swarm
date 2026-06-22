@@ -14,7 +14,7 @@ schema_version = "1.0"
 policy = "ci-whitelist-exceptions"
 owner = "release/ci"
 status = "active"
-updated = "2026-05-21"
+updated = "2026-06-22"
 
 [[exception]]
 id = "ci-exception-pure-rust-os-matrix-default-pr"
@@ -22,11 +22,11 @@ kind = "expensive_default_pr_lane"
 lane = "pure-rust-os-matrix"
 allowed = true
 owner = "core/runtime"
-issue = "TODO"
+issue = "https://github.com/EffortlessMetrics/adze-swarm/issues/789"
 reason = "Default PR matrix is now ubuntu/stable only (~18 LEM) via matrix-setup job. Full OS/toolchain matrix (was 180 LEM) gated to labels/main. Exception kept for whitelist audit; update base_lem in lane entry reflects routed reality."
 created = "2026-05-07"
-review_after = "2026-06-07"
-expires = "2026-08-07"
+review_after = "2026-09-20"
+expires = "2026-11-07"
 
 [[exception]]
 id = "ci-exception-microcrate-ci-default-pr"
@@ -34,10 +34,10 @@ kind = "expensive_default_pr_lane"
 lane = "microcrate-ci"
 allowed = true
 owner = "core/build"
-issue = "TODO"
+issue = "https://github.com/EffortlessMetrics/adze-swarm/issues/789"
 reason = "Microcrate routing by risk pack is active; changes setup job routes each PR to matching groups only. Exception kept while routing is validated across real PRs."
 created = "2026-05-07"
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-08-07"
 
 [[exception]]
@@ -46,8 +46,8 @@ kind = "expensive_default_pr_lane"
 lane = "golden-tests"
 allowed = true
 owner = "grammar/fixtures"
-issue = "TODO"
+issue = "https://github.com/EffortlessMetrics/adze-swarm/issues/789"
 reason = "Golden tests run via paths detection; skip on non-grammar PRs unless ci:golden/full-ci label. Exception kept while routing is validated across real PRs."
 created = "2026-05-07"
-review_after = "2026-06-07"
+review_after = "2026-09-20"
 expires = "2026-08-07"
