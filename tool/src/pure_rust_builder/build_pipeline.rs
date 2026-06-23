@@ -11,6 +11,8 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use adze_glr_core::Action;
+
 /// Coordinates the pure-Rust parser build while delegating each stage to an
 /// SRP-oriented helper method.
 pub(super) struct BuildPipeline {
@@ -68,7 +70,14 @@ impl BuildPipeline {
                 // Apply standard table normalization:
                 // 1. Normalize EOF to SymbolId(0)
                 // 2. Auto-detect and set appropriate GOTO indexing mode
-                let normalized = table.normalize_eof_to_zero().with_detected_goto_indexing();
+                let mut normalized = table.normalize_eof_to_zero().with_detected_goto_indexing();
+
+                // Resolve empty-repeat shift-reduce conflicts at table-generation
+                // time so pure_parser.rs (which has no Fork handling) never sees them.
+                // When a _vec_contents empty-reduce conflicts with a shift and the
+                // lookahead token is in the FIRST set of the repeated element, keep
+                // only the Shift action (prefer shift over empty-reduce).
+                resolve_vec_wrapper_conflicts(&mut normalized, &self.grammar, first_follow);
 
                 // Ensure invariants
                 debug_assert_eq!(normalized.eof_symbol, SymbolId(0));
@@ -509,6 +518,93 @@ impl BuildPipeline {
             );
         } else {
             debug_trace!("WARNING: State 0 has no token actions - parser cannot accept input!");
+        }
+    }
+}
+
+/// Resolve empty-repeat shift-reduce conflicts at table-generation time.
+///
+/// When a grammar has `declarations: Vec<Declaration>` (a repeat that can be
+/// empty), the LR(1) table produces a shift-reduce conflict: after parsing the
+/// preceding element (e.g. `package main`), the parser can either shift the
+/// next token (continue the repeat) or reduce by the empty `_vec_contents`
+/// production (terminate the repeat with zero elements).
+///
+/// The pure-rust parser (`pure_parser.rs`) has no GLR fork handling, so it
+/// cannot explore both branches. This function resolves such conflicts by
+/// keeping only the Shift action when the lookahead token is in the FIRST set
+/// of the repeated element. This makes the parser prefer continuing the repeat
+/// over terminating it with an empty list when the next token could start a
+/// new element.
+fn resolve_vec_wrapper_conflicts(
+    table: &mut ParseTable,
+    grammar: &Grammar,
+    first_follow: &FirstFollowSets,
+) {
+    // Build the set of "repeat-starter" terminal IDs: tokens that begin a
+    // repeated element in any _vec_contents rule. When a shift-reduce conflict
+    // involves such a token, prefer shift over the empty reduce.
+    let mut repeat_starters: std::collections::HashSet<SymbolId> = std::collections::HashSet::new();
+
+    for (rule_sym, rules) in &grammar.rules {
+        let is_vec_contents = grammar
+            .rule_names
+            .iter()
+            .any(|(sid, name)| sid == rule_sym && name.ends_with("_vec_contents"));
+        if !is_vec_contents {
+            continue;
+        }
+        for rule in rules {
+            if rule.rhs.is_empty() {
+                continue;
+            }
+            for sym in &rule.rhs {
+                if let Symbol::NonTerminal(sid) = sym {
+                    if let Some(first_set) = first_follow.first(*sid) {
+                        for idx in first_set.ones() {
+                            repeat_starters.insert(SymbolId(idx as u16));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if repeat_starters.is_empty() {
+        return;
+    }
+
+
+    // Walk the action table and resolve conflicts where a cell has both
+    let mut resolved_count = 0;
+    // a Shift and a Reduce, and the terminal for that column is a repeat-starter.
+    let num_symbols = table.symbol_to_index.len();
+    for state in 0..table.action_table.len() {
+        for sym_idx in 0..table.action_table[state].len() {
+            let cell = &mut table.action_table[state][sym_idx];
+            if cell.len() < 2 {
+                continue;
+            }
+            let has_shift = cell.iter().any(|a| matches!(a, Action::Shift(_)));
+            let has_reduce = cell.iter().any(|a| matches!(a, Action::Reduce(_)));
+            if !has_shift || !has_reduce {
+                continue;
+            }
+            // Check if this column's terminal is a repeat-starter
+            let terminal_id = SymbolId(sym_idx as u16);
+            if !repeat_starters.contains(&terminal_id) {
+                continue;
+            }
+            // Keep only the Shift action, drop the Reduce (and any Fork/Error)
+            let shift_action = cell
+                .iter()
+                .find(|a| matches!(a, Action::Shift(_)))
+                .cloned();
+            if let Some(shift) = shift_action {
+                cell.clear();
+                cell.push(shift);
+                resolved_count += 1;
+            }
         }
     }
 }
