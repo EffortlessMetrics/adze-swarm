@@ -559,11 +559,11 @@ fn resolve_vec_wrapper_conflicts(
                 continue;
             }
             for sym in &rule.rhs {
-                if let Symbol::NonTerminal(sid) = sym {
-                    if let Some(first_set) = first_follow.first(*sid) {
-                        for idx in first_set.ones() {
-                            repeat_starters.insert(SymbolId(idx as u16));
-                        }
+                if let Symbol::NonTerminal(sid) = sym
+                    && let Some(first_set) = first_follow.first(*sid)
+                {
+                    for idx in first_set.ones() {
+                        repeat_starters.insert(SymbolId(idx as u16));
                     }
                 }
             }
@@ -574,11 +574,8 @@ fn resolve_vec_wrapper_conflicts(
         return;
     }
 
-
     // Walk the action table and resolve conflicts where a cell has both
-    let mut resolved_count = 0;
     // a Shift and a Reduce, and the terminal for that column is a repeat-starter.
-    let num_symbols = table.symbol_to_index.len();
     for state in 0..table.action_table.len() {
         for sym_idx in 0..table.action_table[state].len() {
             let cell = &mut table.action_table[state][sym_idx];
@@ -603,7 +600,6 @@ fn resolve_vec_wrapper_conflicts(
             if let Some(shift) = shift_action {
                 cell.clear();
                 cell.push(shift);
-                resolved_count += 1;
             }
         }
     }
