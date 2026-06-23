@@ -21,6 +21,9 @@
 // Pure-Rust Tree-sitter compatible parser runtime
 // This implements the core parsing algorithm with GLR support
 
+mod helpers;
+use helpers::{advance_point, subtree_to_node};
+
 use std::ffi::{CStr, c_char, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
@@ -211,20 +214,20 @@ struct Lexer {
 
 /// Internal node representation during parsing
 #[derive(Debug, Clone)]
-struct Subtree {
-    symbol: TSSymbol,
-    children: Vec<Subtree>,
-    start_byte: usize,
-    end_byte: usize,
+pub(super) struct Subtree {
+    pub(super) symbol: TSSymbol,
+    pub(super) children: Vec<Subtree>,
+    pub(super) start_byte: usize,
+    pub(super) end_byte: usize,
     start_point: Point,
-    end_point: Point,
-    is_extra: bool,
-    is_error: bool,
-    is_missing: bool,
+    pub(super) end_point: Point,
+    pub(super) is_extra: bool,
+    pub(super) is_error: bool,
+    pub(super) is_missing: bool,
     #[allow(dead_code)]
-    production_id: u16,
+    pub(super) production_id: u16,
     /// Optional field identifier for this node within its parent
-    field_id: Option<u16>,
+    pub(super) field_id: Option<u16>,
 }
 
 /// The result of a parse operation.
@@ -1883,70 +1886,6 @@ enum Action {
     Accept,
     Error,
 }
-
-/// Advance point by text
-fn advance_point(mut point: Point, text: &[u8]) -> Point {
-    for &byte in text {
-        if byte == b'\n' {
-            point.row += 1;
-            point.column = 0;
-        } else {
-            point.column += 1;
-        }
-    }
-    point
-}
-
-/// Convert internal subtree to public node
-fn subtree_to_node(subtree: Subtree, language: Option<*const TSLanguage>) -> ParsedNode {
-    ////eprintln!($
-    //    "DEBUG subtree_to_node: Converting subtree with symbol {}, children: {}, extra: {}",
-    //    subtree.symbol,
-    //    subtree.children.len(),
-    //    subtree.is_extra
-    //);
-
-    // Determine if the node is named based on symbol metadata
-    let is_named = if let Some(lang_ptr) = language {
-        // SAFETY: `lang_ptr` comes from a valid `TSLanguage` that outlives the
-        // parse result. `symbol_metadata` is bounds-checked via `symbol_count`.
-        unsafe {
-            let lang = &*lang_ptr;
-            if subtree.symbol < lang.symbol_count as u16 {
-                let metadata = *lang.symbol_metadata.add(subtree.symbol as usize);
-                // In Tree-sitter, metadata & 1 == 0 means named
-                // metadata values: 0 = unnamed extra, 1 = unnamed, 3 = named
-                metadata >= 2
-            } else {
-                false
-            }
-        }
-    } else {
-        true // Default to named if no language info
-    };
-
-    //eprintln!("  Symbol {} is_named: {}", subtree.symbol, is_named);
-
-    ParsedNode {
-        symbol: subtree.symbol,
-        children: subtree
-            .children
-            .into_iter()
-            .map(|s| subtree_to_node(s, language))
-            .collect(),
-        start_byte: subtree.start_byte,
-        end_byte: subtree.end_byte,
-        start_point: subtree.start_point,
-        end_point: subtree.end_point,
-        is_extra: subtree.is_extra,
-        is_error: subtree.is_error,
-        is_missing: subtree.is_missing,
-        is_named,
-        field_id: subtree.field_id,
-        language,
-    }
-}
-
 impl ParsedNode {
     /// Creates a builder for a synthetic parsed node.
     pub fn builder(
