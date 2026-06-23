@@ -17,7 +17,7 @@ impl IndentationScanner {
     fn new() -> Self {
         Self {
             indent_stack: std::sync::Mutex::new(vec![0]), // Start with indent level 0
-    }
+        }
     }
 }
 
@@ -29,12 +29,12 @@ impl ExternalScanner for IndentationScanner {
 
         // Controlled newline handling
         match lexer.lookahead() {
-        Some(b'\n') => {
+            Some(b'\n') => {
                 lexer.advance(1);
                 lexer.mark_end();
                 found_newline = true;
             }
-        Some(b'\r') => {
+            Some(b'\r') => {
                 lexer.advance(1);
                 if lexer.lookahead() == Some(b'\n') {
                     lexer.advance(1);
@@ -43,7 +43,7 @@ impl ExternalScanner for IndentationScanner {
                 found_newline = true;
             }
             _ => {}
-    }
+        }
 
         // Selective newline token detection
         if found_newline && valid_symbols.get(NEWLINE as usize) == Some(&true) {
@@ -51,7 +51,7 @@ impl ExternalScanner for IndentationScanner {
                 symbol: NEWLINE,
                 length: 1,
             });
-    }
+        }
 
         // Granular indentation detection
         if lexer.column() == 0 {
@@ -108,7 +108,7 @@ impl ExternalScanner for IndentationScanner {
                     }
                 }
             }
-    }
+        }
 
         None
     }
@@ -118,7 +118,7 @@ impl ExternalScanner for IndentationScanner {
         let stack = self.indent_stack.lock().unwrap();
         for &level in stack.iter() {
             buffer.extend_from_slice(&(level as u32).to_le_bytes());
-    }
+        }
     }
 
     fn deserialize(&mut self, buffer: &[u8]) {
@@ -130,10 +130,10 @@ impl ExternalScanner for IndentationScanner {
                 let level = u32::from_le_bytes(bytes) as usize;
                 stack.push(level);
             }
-    }
+        }
         if stack.is_empty() {
             stack.push(0);
-    }
+        }
     }
 }
 
@@ -152,12 +152,12 @@ fn test_basic_indentation() {
 
     impl<'a> Lexer for TestLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
-        self.input.get(self.position).copied()
-    }
+            self.input.get(self.position).copied()
+        }
 
-    fn lookahead_n(&self, n: usize) -> Option<u8> {
-        self.input.get(self.position.saturating_add(n)).copied()
-    }
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
 
         fn advance(&mut self, n: usize) {
             for _ in 0..n {
@@ -170,19 +170,19 @@ fn test_basic_indentation() {
                     }
                 }
             }
-    }
+        }
 
         fn mark_end(&mut self) {
             self.mark = self.position;
-    }
+        }
 
         fn column(&self) -> usize {
             self.column
-    }
+        }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-    }
+        }
     }
 
     // Test sequence:
@@ -246,12 +246,12 @@ fn test_mixed_spaces_tabs() {
 
     impl<'a> Lexer for TestLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
-        self.input.get(self.position).copied()
-    }
+            self.input.get(self.position).copied()
+        }
 
-    fn lookahead_n(&self, n: usize) -> Option<u8> {
-        self.input.get(self.position.saturating_add(n)).copied()
-    }
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
 
         fn advance(&mut self, n: usize) {
             for _ in 0..n {
@@ -264,19 +264,19 @@ fn test_mixed_spaces_tabs() {
                     }
                 }
             }
-    }
+        }
 
         fn mark_end(&mut self) {
             self.mark = self.position;
-    }
+        }
 
         fn column(&self) -> usize {
             self.column
-    }
+        }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-    }
+        }
     }
 
     let valid_symbols = vec![true; 2000];
@@ -340,12 +340,12 @@ fn test_multi_dedent() {
 
     impl<'a> Lexer for TestLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
-        self.input.get(self.position).copied()
-    }
+            self.input.get(self.position).copied()
+        }
 
-    fn lookahead_n(&self, n: usize) -> Option<u8> {
-        self.input.get(self.position.saturating_add(n)).copied()
-    }
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
 
         fn advance(&mut self, n: usize) {
             for _ in 0..n {
@@ -358,19 +358,19 @@ fn test_multi_dedent() {
                     }
                 }
             }
-    }
+        }
 
         fn mark_end(&mut self) {
             self.mark = self.position;
-    }
+        }
 
         fn column(&self) -> usize {
             self.column
-    }
+        }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-    }
+        }
     }
 
     let mut lexer = TestLexer {
@@ -465,12 +465,12 @@ fn test_dedent_sequence() {
 
     impl<'a> Lexer for TestLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
-        self.input.get(self.position).copied()
-    }
+            self.input.get(self.position).copied()
+        }
 
-    fn lookahead_n(&self, n: usize) -> Option<u8> {
-        self.input.get(self.position.saturating_add(n)).copied()
-    }
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
 
         fn advance(&mut self, n: usize) {
             for _ in 0..n {
@@ -483,19 +483,19 @@ fn test_dedent_sequence() {
                     }
                 }
             }
-    }
+        }
 
         fn mark_end(&mut self) {
             self.mark = self.position;
-    }
+        }
 
         fn column(&self) -> usize {
             self.column
-    }
+        }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-    }
+        }
     }
 
     // Position at the start of "end" (column 0)
@@ -514,7 +514,7 @@ fn test_dedent_sequence() {
         let result = scanner.scan(&mut lexer, &valid_symbols);
         assert_eq!(
             result,
-        Some(ScanResult {
+            Some(ScanResult {
                 symbol: DEDENT,
                 length: 0
             })

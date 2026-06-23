@@ -29,7 +29,7 @@ impl TestLexer {
             data: input.to_vec(),
             pos: 0,
             mark: 0,
-    }
+        }
     }
 
     fn at(input: &[u8], position: usize) -> Self {
@@ -37,7 +37,7 @@ impl TestLexer {
             data: input.to_vec(),
             pos: position,
             mark: position,
-    }
+        }
     }
 }
 
@@ -550,7 +550,7 @@ fn runtime_scan_builds_valid_symbols_from_tokens() {
         fn scan(&mut self, _lexer: &mut dyn Lexer, valid_symbols: &[bool]) -> Option<ScanResult> {
             self.observed_valid = valid_symbols.to_vec();
             None
-    }
+        }
         fn serialize(&self, _buffer: &mut Vec<u8>) {}
         fn deserialize(&mut self, _buffer: &[u8]) {}
     }
@@ -575,19 +575,19 @@ fn runtime_persists_state_across_scans() {
     impl ExternalScanner for CountingScanner {
         fn scan(&mut self, _lexer: &mut dyn Lexer, _valid_symbols: &[bool]) -> Option<ScanResult> {
             self.counter += 1;
-        Some(ScanResult {
+            Some(ScanResult {
                 symbol: 0,
                 length: 1,
             })
-    }
+        }
         fn serialize(&self, buffer: &mut Vec<u8>) {
             buffer.push(self.counter);
-    }
+        }
         fn deserialize(&mut self, buffer: &[u8]) {
             if let Some(&b) = buffer.first() {
                 self.counter = b;
             }
-    }
+        }
     }
 
     let mut runtime = ExternalScannerRuntime::new(vec![1]);
@@ -612,7 +612,7 @@ fn runtime_all_tokens_valid() {
         fn scan(&mut self, _lexer: &mut dyn Lexer, valid_symbols: &[bool]) -> Option<ScanResult> {
             self.all_true = valid_symbols.iter().all(|&v| v);
             None
-    }
+        }
         fn serialize(&self, _buffer: &mut Vec<u8>) {}
         fn deserialize(&mut self, _buffer: &[u8]) {}
     }

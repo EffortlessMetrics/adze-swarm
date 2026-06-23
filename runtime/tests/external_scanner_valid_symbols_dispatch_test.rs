@@ -69,7 +69,7 @@ fn scanner_runtime_allows_tokens_that_are_valid_in_state() {
                 });
             }
             None
-    }
+        }
 
         fn serialize(&self, _buffer: &mut Vec<u8>) {}
 

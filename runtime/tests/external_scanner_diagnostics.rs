@@ -19,12 +19,12 @@ fn comprehensive_indentation_scan_diagnostics() {
 
     impl Lexer for DiagnosticLexer {
         fn lookahead(&self) -> Option<u8> {
-        self.input.get(self.position).copied()
-    }
+            self.input.get(self.position).copied()
+        }
 
-    fn lookahead_n(&self, n: usize) -> Option<u8> {
-        self.input.get(self.position.saturating_add(n)).copied()
-    }
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
 
         fn advance(&mut self, n: usize) {
             for _ in 0..n {
@@ -37,19 +37,19 @@ fn comprehensive_indentation_scan_diagnostics() {
                     }
                 }
             }
-    }
+        }
 
         fn mark_end(&mut self) {
             self.mark = self.position;
-    }
+        }
 
         fn column(&self) -> usize {
             self.column
-    }
+        }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-    }
+        }
     }
 
     struct TestIndentationScanner {
@@ -59,7 +59,7 @@ fn comprehensive_indentation_scan_diagnostics() {
     impl TestIndentationScanner {
         fn new() -> Self {
             Self { stack: vec![0] }
-    }
+        }
     }
 
     impl ExternalScanner for TestIndentationScanner {
@@ -158,13 +158,13 @@ fn comprehensive_indentation_scan_diagnostics() {
             }
 
             None
-    }
+        }
 
         fn serialize(&self, buffer: &mut Vec<u8>) {
             for &level in &self.stack {
                 buffer.extend_from_slice(&(level as u32).to_le_bytes());
             }
-    }
+        }
 
         fn deserialize(&mut self, buffer: &[u8]) {
             self.stack.clear();
@@ -177,7 +177,7 @@ fn comprehensive_indentation_scan_diagnostics() {
             if self.stack.is_empty() {
                 self.stack.push(0);
             }
-    }
+        }
     }
 
     // Diagnostic test cases (using Vec<u8> instead of byte arrays)
@@ -213,7 +213,7 @@ fn comprehensive_indentation_scan_diagnostics() {
             if let Some(result) = scanner.scan(&mut lexer, &valid_symbols) {
                 scan_results.push(result);
             }
-    }
+        }
 
         println!("Scan results: {:?}", scan_results);
     }

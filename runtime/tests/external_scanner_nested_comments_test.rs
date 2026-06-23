@@ -23,7 +23,7 @@ impl ExternalScanner for NestedCommentScanner {
         // Only scan if comment token is valid
         if valid_symbols.get(COMMENT as usize) != Some(&true) {
             return None;
-    }
+        }
 
         // Check for comment start
         if lexer.lookahead() == Some(b'(') {
@@ -37,7 +37,7 @@ impl ExternalScanner for NestedCommentScanner {
             }
         } else {
             return None;
-    }
+        }
 
         let mut consumed = 2;
         let mut depth = 1;
@@ -76,7 +76,7 @@ impl ExternalScanner for NestedCommentScanner {
                 }
                 None => break,
             }
-    }
+        }
 
         // Unclosed comment
         None
@@ -90,7 +90,7 @@ impl ExternalScanner for NestedCommentScanner {
         if buffer.len() >= 4 {
             let bytes: [u8; 4] = buffer[0..4].try_into().unwrap();
             self.depth = u32::from_le_bytes(bytes) as usize;
-    }
+        }
     }
 }
 
@@ -107,28 +107,28 @@ fn test_simple_comment() {
 
     impl<'a> Lexer for TestLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
-        self.input.get(self.position).copied()
-    }
+            self.input.get(self.position).copied()
+        }
 
-    fn lookahead_n(&self, n: usize) -> Option<u8> {
-        self.input.get(self.position.saturating_add(n)).copied()
-    }
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
 
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
-    }
+        }
 
         fn mark_end(&mut self) {
             self.mark = self.position;
-    }
+        }
 
         fn column(&self) -> usize {
             0 // Not needed for this test
-    }
+        }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-    }
+        }
     }
 
     let mut lexer = TestLexer {
@@ -163,28 +163,28 @@ fn test_nested_comments() {
 
     impl<'a> Lexer for TestLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
-        self.input.get(self.position).copied()
-    }
+            self.input.get(self.position).copied()
+        }
 
-    fn lookahead_n(&self, n: usize) -> Option<u8> {
-        self.input.get(self.position.saturating_add(n)).copied()
-    }
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
 
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
-    }
+        }
 
         fn mark_end(&mut self) {
             self.mark = self.position;
-    }
+        }
 
         fn column(&self) -> usize {
             0
-    }
+        }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-    }
+        }
     }
 
     let mut lexer = TestLexer {
@@ -219,28 +219,28 @@ fn test_deeply_nested_comments() {
 
     impl<'a> Lexer for TestLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
-        self.input.get(self.position).copied()
-    }
+            self.input.get(self.position).copied()
+        }
 
-    fn lookahead_n(&self, n: usize) -> Option<u8> {
-        self.input.get(self.position.saturating_add(n)).copied()
-    }
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
 
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
-    }
+        }
 
         fn mark_end(&mut self) {
             self.mark = self.position;
-    }
+        }
 
         fn column(&self) -> usize {
             0
-    }
+        }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-    }
+        }
     }
 
     let mut lexer = TestLexer {
@@ -303,28 +303,28 @@ fn test_unclosed_comment() {
 
     impl<'a> Lexer for TestLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
-        self.input.get(self.position).copied()
-    }
+            self.input.get(self.position).copied()
+        }
 
-    fn lookahead_n(&self, n: usize) -> Option<u8> {
-        self.input.get(self.position.saturating_add(n)).copied()
-    }
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
 
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
-    }
+        }
 
         fn mark_end(&mut self) {
             self.mark = self.position;
-    }
+        }
 
         fn column(&self) -> usize {
             0
-    }
+        }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-    }
+        }
     }
 
     let mut lexer = TestLexer {
@@ -352,28 +352,28 @@ fn test_not_a_comment() {
 
     impl<'a> Lexer for TestLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
-        self.input.get(self.position).copied()
-    }
+            self.input.get(self.position).copied()
+        }
 
-    fn lookahead_n(&self, n: usize) -> Option<u8> {
-        self.input.get(self.position.saturating_add(n)).copied()
-    }
+        fn lookahead_n(&self, n: usize) -> Option<u8> {
+            self.input.get(self.position.saturating_add(n)).copied()
+        }
 
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
-    }
+        }
 
         fn mark_end(&mut self) {
             self.mark = self.position;
-    }
+        }
 
         fn column(&self) -> usize {
             0
-    }
+        }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-    }
+        }
     }
 
     let mut lexer = TestLexer {
