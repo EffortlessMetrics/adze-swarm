@@ -274,7 +274,13 @@ pub fn build_lr1_automaton(
                 // Regular reduce action
                 if let Some(&rule_id) = production_to_rule_id.get(&item.rule_id.0) {
                     let rule = &rules[rule_id as usize];
-                    let is_empty_production = rule.rhs_len == 0;
+                    let is_empty_production = rule.rhs_len == 0
+                        || augmented_grammar
+                            .all_rules()
+                            .nth(rule_id as usize)
+                            .is_some_and(|r| {
+                                r.rhs.len() == 1 && matches!(r.rhs[0], adze_ir::Symbol::Epsilon)
+                            });
 
                     // For empty productions, we need to add reduce actions for all symbols in FOLLOW set
                     let lookaheads_to_check: Vec<SymbolId> = if is_empty_production {
