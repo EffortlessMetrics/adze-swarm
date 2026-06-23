@@ -26,9 +26,9 @@ impl Lexer for TestLexer {
         Some(b'x')
     }
 
-        fn lookahead_n(&self, _n: usize) -> Option<u8> {
-            Some(b'x')
-        }
+    fn lookahead_n(&self, _n: usize) -> Option<u8> {
+        Some(b'x')
+    }
 
     fn advance(&mut self, _n: usize) {}
 
@@ -69,7 +69,7 @@ fn scanner_runtime_allows_tokens_that_are_valid_in_state() {
                 });
             }
             None
-        }
+    }
 
         fn serialize(&self, _buffer: &mut Vec<u8>) {}
 

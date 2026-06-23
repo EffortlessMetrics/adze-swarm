@@ -203,20 +203,20 @@ fn test_scanner_state_serialization() {
 
     impl<'a> adze::external_scanner::Lexer for MockLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
-            self.input.get(self.position).copied()
-        }
+        self.input.get(self.position).copied()
+    }
 
-        fn lookahead_n(&self, n: usize) -> Option<u8> {
-            self.input.get(self.position.saturating_add(n)).copied()
-        }
+    fn lookahead_n(&self, n: usize) -> Option<u8> {
+        self.input.get(self.position.saturating_add(n)).copied()
+    }
 
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
-        }
+    }
 
         fn mark_end(&mut self) {
             self.marked_end = self.position;
-        }
+    }
 
         fn column(&self) -> usize {
             // Simplified - count from last newline
@@ -228,11 +228,11 @@ fn test_scanner_state_serialization() {
                 col += 1;
             }
             col
-        }
+    }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-        }
+    }
     }
 
     let mut lexer = MockLexer {
@@ -277,20 +277,20 @@ fn test_multiple_dedents() {
 
     impl<'a> adze::external_scanner::Lexer for MockLexer<'a> {
         fn lookahead(&self) -> Option<u8> {
-            self.input.get(self.position).copied()
-        }
+        self.input.get(self.position).copied()
+    }
 
-        fn lookahead_n(&self, n: usize) -> Option<u8> {
-            self.input.get(self.position.saturating_add(n)).copied()
-        }
+    fn lookahead_n(&self, n: usize) -> Option<u8> {
+        self.input.get(self.position.saturating_add(n)).copied()
+    }
 
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
-        }
+    }
 
         fn mark_end(&mut self) {
             self.marked_end = self.position;
-        }
+    }
 
         fn column(&self) -> usize {
             // Simplified - count from last newline
@@ -302,11 +302,11 @@ fn test_multiple_dedents() {
                 col += 1;
             }
             col
-        }
+    }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-        }
+    }
     }
 
     let mut lexer = MockLexer {

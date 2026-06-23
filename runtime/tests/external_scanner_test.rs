@@ -22,7 +22,7 @@ impl ExternalScanner for IndentationScanner {
         // Skip whitespace except newlines
         while lexer.lookahead() == Some(b' ') || lexer.lookahead() == Some(b'\t') {
             lexer.advance(1);
-        }
+    }
 
         if lexer.lookahead() == Some(b'\n') {
             if valid_symbols[NEWLINE] {
@@ -67,7 +67,7 @@ impl ExternalScanner for IndentationScanner {
                     length: (current_indent - indent) as usize,
                 });
             }
-        }
+    }
 
         None
     }
@@ -75,7 +75,7 @@ impl ExternalScanner for IndentationScanner {
     fn serialize(&self, buffer: &mut Vec<u8>) {
         for &indent in &self.indent_stack {
             buffer.extend_from_slice(&indent.to_le_bytes());
-        }
+    }
     }
 
     fn deserialize(&mut self, buffer: &[u8]) {
@@ -91,7 +91,7 @@ impl ExternalScanner for IndentationScanner {
             ];
             self.indent_stack.push(u32::from_le_bytes(bytes));
             consumed += 4;
-        }
+    }
     }
 }
 
@@ -107,7 +107,7 @@ impl ExternalScanner for NestedCommentScanner {
 
         if !valid_symbols[COMMENT] {
             return None;
-        }
+    }
 
         // Look for (* to start
         if self.depth == 0 && lexer.lookahead() == Some(b'(') {
@@ -116,7 +116,7 @@ impl ExternalScanner for NestedCommentScanner {
                 lexer.advance(1);
                 self.depth = 1;
             }
-        }
+    }
 
         let mut length = 0;
         // Scan until we find matching *)
@@ -153,7 +153,7 @@ impl ExternalScanner for NestedCommentScanner {
                 }
                 None => return None, // EOF
             }
-        }
+    }
 
         None
     }
@@ -165,7 +165,7 @@ impl ExternalScanner for NestedCommentScanner {
     fn deserialize(&mut self, buffer: &[u8]) {
         if buffer.len() >= 4 {
             self.depth = u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
-        }
+    }
     }
 }
 
@@ -182,29 +182,29 @@ fn test_indentation_scanner() {
 
     impl Lexer for MockLexer {
         fn lookahead(&self) -> Option<u8> {
-            self.input.get(self.position).copied()
-        }
+        self.input.get(self.position).copied()
+    }
 
-        fn lookahead_n(&self, n: usize) -> Option<u8> {
-            self.input.get(self.position.saturating_add(n)).copied()
-        }
+    fn lookahead_n(&self, n: usize) -> Option<u8> {
+        self.input.get(self.position.saturating_add(n)).copied()
+    }
 
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
-        }
+    }
 
         fn mark_end(&mut self) {
             self.marked_end = self.position;
-        }
+    }
 
         fn column(&self) -> usize {
             // Simplified: just return position
             self.position
-        }
+    }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-        }
+    }
     }
 
     // Test newline detection
@@ -236,28 +236,28 @@ fn test_nested_comment_scanner() {
 
     impl Lexer for MockLexer {
         fn lookahead(&self) -> Option<u8> {
-            self.input.get(self.position).copied()
-        }
+        self.input.get(self.position).copied()
+    }
 
-        fn lookahead_n(&self, n: usize) -> Option<u8> {
-            self.input.get(self.position.saturating_add(n)).copied()
-        }
+    fn lookahead_n(&self, n: usize) -> Option<u8> {
+        self.input.get(self.position.saturating_add(n)).copied()
+    }
 
         fn advance(&mut self, n: usize) {
             self.position = (self.position + n).min(self.input.len());
-        }
+    }
 
         fn mark_end(&mut self) {
             self.marked_end = self.position;
-        }
+    }
 
         fn column(&self) -> usize {
             self.position
-        }
+    }
 
         fn is_eof(&self) -> bool {
             self.position >= self.input.len()
-        }
+    }
     }
 
     // Test simple comment
