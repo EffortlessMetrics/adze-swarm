@@ -447,8 +447,47 @@ impl GrammarJsConverter {
             | JsRule::PrecLeft { content, .. }
             | JsRule::PrecRight { content, .. } => {
                 // For precedence rules, return the symbol of the content
-                eprintln!("Debug: rule_to_symbol for precedence rule, unwrapping content");
                 self.rule_to_symbol(grammar, content)
+            }
+            JsRule::Choice { members } => {
+                // Create an auxiliary non-terminal for the choice so it can be
+                // used as a single symbol in a SEQ. This is necessary because
+                // a CHOICE inside a FIELD (e.g. Vec<Declaration> expands to
+                // FIELD("declarations", CHOICE([BLANK, SYMBOL(vec_contents)])))
+                // needs to be representable as one symbol on the RHS.
+                let aux_id = SymbolId(self.next_symbol_id.try_into().unwrap());
+                self.next_symbol_id += 1;
+                grammar
+                    .rule_names
+                    .insert(aux_id, format!("_choice_aux_{}", aux_id.0));
+                for member in members {
+                    match member {
+                        JsRule::Blank => {
+                            grammar.add_rule(adze_ir::Rule {
+                                lhs: aux_id,
+                                rhs: vec![Symbol::Epsilon],
+                                precedence: None,
+                                associativity: None,
+                                fields: vec![],
+                                production_id: adze_ir::ProductionId(0),
+                            });
+                        }
+                        _ => {
+                            let _ = self.convert_rule_body(grammar, member, aux_id);
+                        }
+                    }
+                }
+                Some(Symbol::NonTerminal(aux_id))
+            }
+            JsRule::Blank => Some(Symbol::Epsilon),
+            JsRule::Repeat { .. } | JsRule::Repeat1 { .. } => {
+                let aux_id = SymbolId(self.next_symbol_id.try_into().unwrap());
+                self.next_symbol_id += 1;
+                grammar
+                    .rule_names
+                    .insert(aux_id, format!("_repeat_aux_{}", aux_id.0));
+                let _ = self.convert_rule_body(grammar, rule, aux_id);
+                Some(Symbol::NonTerminal(aux_id))
             }
             _ => None, // Other types not yet handled
         }
