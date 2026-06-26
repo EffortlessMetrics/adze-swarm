@@ -25,9 +25,9 @@ mod helpers;
 mod types;
 
 use helpers::{advance_point, subtree_to_node};
-pub use types::{ParseError, ParseResult, ParsedNode, ParsedNodeBuilder};
 pub(crate) use types::Subtree;
 use types::{Lexer, StackEntry};
+pub use types::{ParseError, ParseResult, ParsedNode, ParsedNodeBuilder};
 
 use std::ffi::{CStr, c_char, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -197,7 +197,6 @@ pub struct Parser {
     cancellation_flag: Option<*const AtomicBool>,
     lexer: Option<Lexer>,
 }
-
 
 impl Parser {
     /// Creates a new parser with no language assigned.
