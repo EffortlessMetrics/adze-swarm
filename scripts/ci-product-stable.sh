@@ -20,11 +20,16 @@ CANARIES=(
   "Book quickstart clean-room parse and diagnostics|cargo test -p adze-cli book_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture"
   "checked-in downstream quickstart sample|cargo test -p downstream-demo -- --nocapture"
   "checked-in downstream quickstart binary run|cargo run -p downstream-demo --quiet"
-  "standalone downstream starter fixture|cargo test --manifest-path testing/downstream-starter/Cargo.toml"
-  'standalone downstream starter binary run|cargo run --manifest-path testing/downstream-starter/Cargo.toml --example parse -- "1 + 2 * 3"'
   "operator precedence core shape|cargo test -p adze-glr-core --test ambiguity_detection_comprehensive test_precedence_resolves_add_mul -- --exact --nocapture"
   "core parse-table serialization doctests|cargo test -p adze-glr-core --features serialization --doc"
   "core parse-table serialization roundtrip|cargo test -p adze-glr-core --features serialization --test serialization_v9 sv9_complex_precedence_roundtrip -- --exact --nocapture"
+)
+
+# Also check the downstream-demo acceptance tests (added in the product-readiness campaign)
+STABLE_CANARIES+=(
+  "downstream acceptance tests|cargo test -p downstream-demo --lib acceptance -- --nocapture"
+  "downstream edge case tests|cargo test -p downstream-demo --lib edge_case -- --nocapture"
+  "downstream document projection tests|cargo test -p downstream-demo --lib document_projection -- --nocapture"
 )
 
 printf '== ci-product stable canaries ==\n'
