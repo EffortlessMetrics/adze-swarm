@@ -63,3 +63,45 @@ mod tests {
         assert!(rendered.contains("    ^"));
     }
 }
+
+#[cfg(test)]
+mod edge_case_tests {
+    use super::grammar;
+
+    #[test]
+    fn edge_empty_input() {
+        let result = grammar::parse("");
+        // Empty input should fail gracefully with a diagnostic, not panic
+        assert!(result.is_err(), "empty input should fail, not panic");
+        let errors = result.unwrap_err();
+        assert!(!errors.is_empty(), "should have at least one error");
+    }
+
+    #[test]
+    fn edge_only_whitespace() {
+        let result = grammar::parse("   ");
+        // Only whitespace should fail (no expression found)
+        assert!(result.is_err(), "whitespace-only should fail");
+    }
+
+    #[test]
+    fn edge_deeply_nested() {
+        // Deeply nested expression
+        let source = "1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10";
+        let result = grammar::parse(source);
+        assert!(result.is_ok(), "long expression should parse: {:?}", result.err());
+    }
+
+    #[test]
+    fn edge_unexpected_eof_during_operator() {
+        let source = "1 +";
+        let errors = grammar::parse(source).expect_err("incomplete should fail");
+        let rendered = errors[0].display_with_source(source).to_string();
+        // The rendered error should mention what was expected
+        assert!(
+            rendered.contains("expected") || rendered.contains("EOF") || rendered.contains("end"),
+            "error should be informative, got: {}",
+            rendered
+        );
+    }
+}
