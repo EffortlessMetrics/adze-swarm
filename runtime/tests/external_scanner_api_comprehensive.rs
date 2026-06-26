@@ -46,9 +46,9 @@ impl Lexer for TestLexer {
         self.data.get(self.pos).copied()
     }
 
-        fn lookahead_n(&self, n: usize) -> Option<u8> {
-            self.data.get(self.pos.saturating_add(n)).copied()
-        }
+    fn lookahead_n(&self, n: usize) -> Option<u8> {
+        self.data.get(self.pos.saturating_add(n)).copied()
+    }
 
     fn advance(&mut self, n: usize) {
         self.pos = self.pos.saturating_add(n).min(self.data.len());
