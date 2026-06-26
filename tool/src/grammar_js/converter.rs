@@ -463,9 +463,8 @@ impl GrammarJsConverter {
                 for member in members {
                     match member {
                         JsRule::Blank => {
-                            let pid = adze_ir::ProductionId(
-                                self.next_production_id.try_into().unwrap(),
-                            );
+                            let pid =
+                                adze_ir::ProductionId(self.next_production_id.try_into().unwrap());
                             self.next_production_id += 1;
                             grammar.add_rule(adze_ir::Rule {
                                 lhs: aux_id,

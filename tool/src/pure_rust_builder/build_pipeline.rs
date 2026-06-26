@@ -593,10 +593,7 @@ fn resolve_vec_wrapper_conflicts(
                 continue;
             }
             // Keep only the Shift action, drop the Reduce (and any Fork/Error)
-            let shift_action = cell
-                .iter()
-                .find(|a| matches!(a, Action::Shift(_)))
-                .cloned();
+            let shift_action = cell.iter().find(|a| matches!(a, Action::Shift(_))).cloned();
             if let Some(shift) = shift_action {
                 cell.clear();
                 cell.push(shift);

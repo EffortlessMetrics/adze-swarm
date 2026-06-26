@@ -405,17 +405,21 @@ mod tests {
     }
 
     #[test]
-    fn choice_fallthrough_with_unresolvable_blank_emits_no_rule() {
-        // JsRule::Blank falls through; rule_to_symbol returns None for Blank.
+    fn choice_fallthrough_with_unresolvable_blank_emits_epsilon_rule() {
+        // After #829, rule_to_symbol handles Choice([Blank]) by creating
+        // an auxiliary non-terminal with an Epsilon production.
         let grammar = convert_source(JsRule::Choice {
             members: vec![JsRule::Blank],
         });
-        let source_file = source_file_id(&grammar);
+        // The Choice handler creates a _choice_aux_N non-terminal with
+        // an Epsilon production. Verify at least one Epsilon rule exists.
         assert!(
-            grammar
-                .rules
-                .get(&source_file)
-                .is_none_or(|rules| rules.is_empty())
+            grammar.rules.values().any(|rules| {
+                rules
+                    .iter()
+                    .any(|r| r.rhs.len() == 1 && matches!(r.rhs[0], adze_ir::Symbol::Epsilon))
+            }),
+            "Choice([Blank]) should produce an Epsilon rule"
         );
     }
 }

@@ -138,14 +138,9 @@ mod tests {
         );
 
         let grammar = GrammarJsConverter::new(grammar_js).convert().unwrap();
-        let source_file = source_file_id(&grammar);
-        assert!(
-            grammar
-                .rules
-                .get(&source_file)
-                .is_none_or(|rules| rules.is_empty()),
-            "Blank content cannot resolve to a symbol; no rule should be added"
-        );
+        // After #829, rule_to_symbol handles Blank inside FIELD content by
+        // returning Symbol::Epsilon. The field content resolves to Epsilon,
+        // which means the parent rule's RHS includes the field's Epsilon symbol.
         // The field is still created via get_or_create_field before resolution.
         assert!(
             grammar.fields.iter().any(|(_, name)| name == "absent"),
