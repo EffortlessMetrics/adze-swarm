@@ -228,7 +228,6 @@ impl StaticLanguageGenerator {
         serde_json::to_string_pretty(&json!(types)).unwrap_or_else(|_| "[]".to_string())
     }
 
-
     /// Apply table compression
     pub fn compress_tables(&mut self) -> Result<()> {
         // If start_can_be_empty wasn't explicitly set by the caller, derive a conservative value:
