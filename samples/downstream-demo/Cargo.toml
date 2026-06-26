@@ -9,6 +9,10 @@ publish = false
 [dependencies]
 adze = { path = "../../runtime", default-features = false }
 
+[dev-dependencies]
+adze = { path = "../../runtime", default-features = false, features = ["ts-compat"] }
+serde_json = { workspace = true }
+
 [build-dependencies]
 adze-tool = { path = "../../tool" }
 
