@@ -989,6 +989,7 @@ version = "0.1.0"
 dependencies = [
  "adze",
  "adze-tool",
+ "serde_json",
 ]
 
 [[package]]
