@@ -89,7 +89,11 @@ mod edge_case_tests {
         // Deeply nested expression
         let source = "1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10";
         let result = grammar::parse(source);
-        assert!(result.is_ok(), "long expression should parse: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "long expression should parse: {:?}",
+            result.err()
+        );
     }
 
     #[test]
@@ -146,7 +150,11 @@ mod acceptance_tests {
 
         // Source rendering produces a caret-pointer diagnostic
         let rendered = first.display_with_source(source).to_string();
-        assert!(rendered.contains("expected one of:"), "rendered: {}", rendered);
+        assert!(
+            rendered.contains("expected one of:"),
+            "rendered: {}",
+            rendered
+        );
     }
 
     /// parse_document path: returns AdzeDocument for tooling projections
@@ -155,7 +163,10 @@ mod acceptance_tests {
         let doc = grammar::parse_document("1 + 2").expect("document should parse");
 
         // Document has diagnostics (empty for valid input)
-        assert!(doc.diagnostics().is_empty(), "valid input should have no diagnostics");
+        assert!(
+            doc.diagnostics().is_empty(),
+            "valid input should have no diagnostics"
+        );
 
         // Document can project to JSON (requires serialization feature)
         #[cfg(feature = "serialization")]
@@ -168,11 +179,7 @@ mod acceptance_tests {
         let ast: Expr = doc.ast().expect("AST projection should succeed");
         assert_eq!(
             ast,
-            Expr::Add(
-                Box::new(Expr::Number(1)),
-                (),
-                Box::new(Expr::Number(2)),
-            )
+            Expr::Add(Box::new(Expr::Number(1)), (), Box::new(Expr::Number(2)),)
         );
 
         // Document preserves source text
@@ -197,11 +204,7 @@ mod acceptance_tests {
         let result = grammar::parse("  1   +   2  ").expect("should parse with whitespace");
         assert_eq!(
             result,
-            Expr::Add(
-                Box::new(Expr::Number(1)),
-                (),
-                Box::new(Expr::Number(2)),
-            )
+            Expr::Add(Box::new(Expr::Number(1)), (), Box::new(Expr::Number(2)),)
         );
     }
 
@@ -224,7 +227,11 @@ mod document_projection_tests {
         let doc = grammar::parse_document("1 + 2").expect("should parse");
         let tree = doc.tree();
         // Root + Number(1) + '+' + Number(2) = at least 4 nodes
-        assert!(tree.node_count() >= 3, "tree should have at least 3 nodes, got {}", tree.node_count());
+        assert!(
+            tree.node_count() >= 3,
+            "tree should have at least 3 nodes, got {}",
+            tree.node_count()
+        );
     }
 
     /// Test that the document preserves source text correctly
@@ -252,34 +259,45 @@ mod document_projection_tests {
         let typed: Expr = grammar::parse(source).expect("typed parse should work");
         let doc = grammar::parse_document(source).expect("document parse should work");
         let from_doc: Expr = doc.ast().expect("AST projection should work");
-        assert_eq!(typed, from_doc, "typed parse and document AST projection should agree");
+        assert_eq!(
+            typed, from_doc,
+            "typed parse and document AST projection should agree"
+        );
     }
 
     /// Test that diagnostics are accessible and have correct structure
     #[test]
     fn document_diagnostics_have_structure() {
-        let doc = grammar::parse_document("1 +").expect("document should be created even for bad input");
+        let doc =
+            grammar::parse_document("1 +").expect("document should be created even for bad input");
         let diags = doc.diagnostics();
         assert!(!diags.is_empty(), "bad input should have diagnostics");
         let first = &diags[0];
         // Diagnostic should have a byte range
-        assert!(first.start_byte <= first.end_byte, "diagnostic range should be valid");
+        assert!(
+            first.start_byte <= first.end_byte,
+            "diagnostic range should be valid"
+        );
     }
 }
 
 #[cfg(test)]
 mod ts_compat_tests {
+    use super::grammar;
     use adze::ts_compat;
     use adze::ts_compat::{Language, Parser as TSParser};
     use std::sync::Arc;
-    use super::grammar;
 
     /// Build a ts-compat Language from the generated grammar data.
     fn make_language() -> Arc<Language> {
         let lang = grammar::language();
         let grammar_def = adze::decoder::decode_grammar(lang);
         let parse_table = adze::decoder::decode_parse_table(lang);
-        Arc::new(Language::new("downstream_arithmetic", grammar_def, parse_table))
+        Arc::new(Language::new(
+            "downstream_arithmetic",
+            grammar_def,
+            parse_table,
+        ))
     }
 
     /// Test: ts-compat from_document produces a tree with correct root node.
@@ -332,7 +350,10 @@ mod ts_compat_tests {
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
         assert!(parsed.is_ok(), "node-types JSON should parse: {}", json);
         let val = parsed.unwrap();
-        assert!(val.is_array(), "node-types JSON should be an array of node type descriptions");
+        assert!(
+            val.is_array(),
+            "node-types JSON should be an array of node type descriptions"
+        );
     }
 
     /// Test: error nodes are flagged correctly on bad input
@@ -344,7 +365,10 @@ mod ts_compat_tests {
         let tree = parser.parse("1 + @", None).expect("should produce tree");
         let root = tree.root_node();
         // The tree should report errors
-        assert!(tree.error_count() > 0 || root.has_error(), "bad input should report errors");
+        assert!(
+            tree.error_count() > 0 || root.has_error(),
+            "bad input should report errors"
+        );
     }
 
     /// Test: tree can be walked via TreeCursor
@@ -357,8 +381,10 @@ mod ts_compat_tests {
         let root = tree.root_node();
         let mut cursor = root.walk();
         // Should be able to descend into children
-        assert!(cursor.goto_first_child() || cursor.node().child_count() == 0,
-            "cursor should descend or node is leaf");
+        assert!(
+            cursor.goto_first_child() || cursor.node().child_count() == 0,
+            "cursor should descend or node is leaf"
+        );
     }
 
     /// Test: from_document creates a tree from AdzeDocument
@@ -368,7 +394,9 @@ mod ts_compat_tests {
         let doc = grammar::parse_document("1 + 2").expect("document should parse");
         let tree = ts_compat::Tree::from_document(lang, &doc);
         let root = tree.root_node();
-        assert!(!root.kind().is_empty(), "from_document tree should have root kind");
+        assert!(
+            !root.kind().is_empty(),
+            "from_document tree should have root kind"
+        );
     }
 }
-
