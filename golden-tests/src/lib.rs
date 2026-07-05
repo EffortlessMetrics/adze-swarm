@@ -500,16 +500,19 @@ mod tests {
 
     #[test]
     fn javascript_fixture_count() {
+        // #818 removed the stale tree-sitter-format JS fixtures on purpose;
+        // only the canary fixture remains until refreshed goldens exist.
         let fixtures_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("javascript/fixtures");
-        let count = fs::read_dir(&fixtures_dir)
+        let names: Vec<String> = fs::read_dir(&fixtures_dir)
             .expect("Cannot read fixtures dir")
             .filter_map(|e| e.ok())
             .filter(|e| e.path().extension().is_some_and(|ext| ext == "js"))
-            .count();
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
         assert!(
-            count >= 6,
-            "Expected at least 6 JavaScript fixtures, found {}",
-            count
+            names.iter().any(|name| name == "canary_expression.js"),
+            "Expected the canary_expression.js fixture, found {:?}",
+            names
         );
     }
 
