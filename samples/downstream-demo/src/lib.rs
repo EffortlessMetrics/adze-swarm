@@ -110,6 +110,7 @@ mod edge_case_tests {
     }
 }
 
+#[cfg(test)]
 mod acceptance_tests {
     use super::grammar::{self, Expr};
 
@@ -217,6 +218,7 @@ mod acceptance_tests {
     }
 }
 
+#[cfg(test)]
 mod document_projection_tests {
     use super::grammar;
     use super::grammar::Expr;
