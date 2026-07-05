@@ -111,6 +111,12 @@ pub struct Language {
     pub name: String,
     pub grammar: Grammar,
     pub table: ParseTable,
+    /// Original generated language, when this compatibility language was
+    /// built from one. `Parser::parse` uses it to route through the same
+    /// native document pipeline as generated `parse_document` functions;
+    /// decoded-only languages (via `new`) cannot, because token patterns
+    /// are not recoverable from the decoded grammar alone.
+    ts_language: Option<&'static pure_parser::TSLanguage>,
 }
 
 impl Language {
@@ -119,6 +125,25 @@ impl Language {
             name: name.into(),
             grammar,
             table,
+            ts_language: None,
+        }
+    }
+
+    /// Build a compatibility language directly from a generated `TSLanguage`.
+    ///
+    /// Prefer this over decoding grammar and parse table by hand:
+    /// `Parser::parse` on a language built this way produces the same tree
+    /// as `Tree::from_document` over the generated `parse_document` output.
+    #[cfg(feature = "pure-rust")]
+    pub fn from_ts_language(
+        name: impl Into<String>,
+        language: &'static pure_parser::TSLanguage,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            grammar: crate::decoder::decode_grammar(language),
+            table: crate::decoder::decode_parse_table(language),
+            ts_language: Some(language),
         }
     }
 
@@ -248,9 +273,21 @@ impl Parser {
     /// Note: Incremental parsing is currently disabled and falls back to fresh parsing
     /// for consistency. The `old` parameter is accepted for API compatibility but ignored.
     pub fn parse(&mut self, source: &str, _old: Option<&Tree>) -> Option<Tree> {
-        let core_parser = self.core.as_mut()?;
         let lang = self.lang.as_ref()?;
 
+        // Languages built from a generated TSLanguage parse through the same
+        // native document pipeline as generated parse_document functions.
+        // The decoded-grammar CoreParser below cannot lex generated languages
+        // (token patterns are absent after decoding) and would return a
+        // degenerate zero-width "end" root instead.
+        #[cfg(feature = "pure-rust")]
+        if let Some(ts_language) = lang.ts_language {
+            let document =
+                crate::__private::parse_document(source, || ts_language, &lang.name).ok()?;
+            return Some(Tree::from_document(Arc::clone(lang), &document));
+        }
+
+        let core_parser = self.core.as_mut()?;
         match core_parser.parse_document(source) {
             Ok(document) => Some(Tree::from_document(Arc::clone(lang), &document)),
             Err(_) => None,

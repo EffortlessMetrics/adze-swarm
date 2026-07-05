@@ -110,6 +110,7 @@ mod edge_case_tests {
     }
 }
 
+#[cfg(test)]
 mod acceptance_tests {
     use super::grammar::{self, Expr};
 
@@ -217,6 +218,7 @@ mod acceptance_tests {
     }
 }
 
+#[cfg(test)]
 mod document_projection_tests {
     use super::grammar;
     use super::grammar::Expr;
@@ -288,21 +290,15 @@ mod ts_compat_tests {
     use adze::ts_compat::{Language, Parser as TSParser};
     use std::sync::Arc;
 
-    /// Build a ts-compat Language from the generated grammar data.
+    /// Build a ts-compat Language from the generated language.
     fn make_language() -> Arc<Language> {
-        let lang = grammar::language();
-        let grammar_def = adze::decoder::decode_grammar(lang);
-        let parse_table = adze::decoder::decode_parse_table(lang);
-        Arc::new(Language::new(
+        Arc::new(Language::from_ts_language(
             "downstream_arithmetic",
-            grammar_def,
-            parse_table,
+            grammar::language(),
         ))
     }
 
     /// Test: ts-compat from_document produces a tree with correct root node.
-    /// NOTE: Parser::parse() has a known bug producing degenerate root (kind="end").
-    /// The from_document path works correctly and is the recommended approach.
     #[test]
     fn ts_compat_from_document_returns_tree_with_root() {
         let lang = make_language();
@@ -326,6 +322,36 @@ mod ts_compat_tests {
         assert!(!sexp.is_empty(), "S-expression should not be empty");
         assert!(sexp.starts_with('('), "S-expression should start with '('");
         assert!(sexp.ends_with(')'), "S-expression should end with ')'");
+        assert!(
+            !sexp.contains("MISSING"),
+            "clean input must not produce a MISSING root, got: {sexp}"
+        );
+    }
+
+    /// Test: Parser::parse produces the same root as the from_document path.
+    /// Regression coverage for the degenerate root (kind="end") bug.
+    #[test]
+    fn ts_compat_parse_root_matches_from_document() {
+        let lang = make_language();
+        let mut parser = TSParser::new();
+        parser
+            .set_language(Arc::clone(&lang))
+            .expect("set_language");
+        let parsed = parser.parse("1 + 2", None).expect("should parse");
+        let parsed_root = parsed.root_node();
+
+        let doc = grammar::parse_document("1 + 2").expect("document should parse");
+        let doc_tree = ts_compat::Tree::from_document(lang, &doc);
+        let doc_root = doc_tree.root_node();
+
+        assert_eq!(
+            parsed_root.kind(),
+            doc_root.kind(),
+            "root kinds should match"
+        );
+        assert_eq!(parsed_root.start_byte(), doc_root.start_byte());
+        assert_eq!(parsed_root.end_byte(), doc_root.end_byte());
+        assert_eq!(parsed_root.child_count(), doc_root.child_count());
     }
 
     /// Test: root node from document has children (the expression is not a leaf)
