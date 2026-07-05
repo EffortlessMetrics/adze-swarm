@@ -19,3 +19,4 @@ adze-tool = { path = "../../tool" }
 [features]
 default = ["pure-rust"]
 pure-rust = ["adze/pure-rust"]
+serialization = ["adze/serialization"]
