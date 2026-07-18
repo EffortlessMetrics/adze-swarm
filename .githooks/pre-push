@@ -131,8 +131,15 @@ echo -e "${GREEN}✓${NC} Clippy analysis passed (all non-quarantined packages)"
 # scripts/check-goto-indexing.sh was retired during the xtask migration. This
 # is the full-validation path, so run with no file args — xtask defaults to all
 # Git-tracked .rs files, matching pre-push's whole-workspace clippy/test gate.
+# `--offline` avoids a mid-push registry fetch; wrap in timeout(1) when present
+# so a first-run xtask compile can't hang the push (pre-push has no
+# run_with_timeout helper, so the guard is inline here).
 echo -e "${YELLOW}→${NC} Checking GOTO indexing patterns..."
-if ! cargo xtask check-goto-indexing; then
+goto_cmd=(cargo run -q --offline --package xtask -- check-goto-indexing)
+if command -v timeout >/dev/null 2>&1; then
+    goto_cmd=(timeout 300 "${goto_cmd[@]}")
+fi
+if ! "${goto_cmd[@]}"; then
     echo -e "${RED}✖ GOTO indexing check failed${NC}"
     echo "Use the remap helpers instead of assigning goto_indexing directly."
     exit 1

@@ -435,9 +435,13 @@ fi
 # Canonical check lives in xtask (xtask/src/goto_indexing.rs); the standalone
 # scripts/check-goto-indexing.sh was retired during the xtask migration. Pass
 # only staged Rust files so the fast path stays scoped to the commit; xtask
-# skips paths that no longer exist (e.g. staged deletions). Invoked via
-# `cargo run --offline` under run_with_timeout to match every other cargo call
-# in this hook: no unbounded inline xtask compile, no mid-commit registry fetch.
+# skips paths that no longer exist (e.g. staged deletions). xtask reads the
+# working tree, but Step 1 above rejects partially staged Rust files, so for
+# every path passed here the working-tree contents match the staged index.
+# Invoked as `cargo run -q --offline` under run_with_timeout, matching every
+# other cargo call in this hook: `--offline` avoids a mid-commit registry fetch,
+# and run_with_timeout bounds the (first-run) xtask compile whenever timeout(1)
+# is available (present on all supported dev platforms).
 if [ ${#STAGED_RUST_FILES[@]} -gt 0 ]; then
     echo -e "${YELLOW}→${NC} Checking GOTO indexing patterns..."
     if ! run_with_timeout 300 "goto-indexing check" \
