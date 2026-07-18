@@ -127,14 +127,17 @@ fi
 echo -e "${GREEN}✓${NC} Clippy analysis passed (all non-quarantined packages)"
 
 # Step 5: Run GOTO indexing check with full diagnostics
-if [ -f scripts/check-goto-indexing.sh ]; then
-    echo -e "${YELLOW}→${NC} Checking GOTO indexing patterns..."
-    if ! scripts/check-goto-indexing.sh; then
-        echo -e "${RED}✖ GOTO indexing check failed${NC}"
-        exit 1
-    fi
-    echo -e "${GREEN}✓${NC} GOTO indexing patterns verified"
+# Canonical check lives in xtask (xtask/src/goto_indexing.rs); the standalone
+# scripts/check-goto-indexing.sh was retired during the xtask migration. This
+# is the full-validation path, so run with no file args — xtask defaults to all
+# Git-tracked .rs files, matching pre-push's whole-workspace clippy/test gate.
+echo -e "${YELLOW}→${NC} Checking GOTO indexing patterns..."
+if ! cargo xtask check-goto-indexing; then
+    echo -e "${RED}✖ GOTO indexing check failed${NC}"
+    echo "Use the remap helpers instead of assigning goto_indexing directly."
+    exit 1
 fi
+echo -e "${GREEN}✓${NC} GOTO indexing patterns verified"
 
 # Step 6: Run test connectivity check
 if [ -f scripts/check-test-connectivity.sh ]; then
