@@ -42,7 +42,7 @@ git update-index --chmod=+x .githooks/pre-commit .githooks/pre-push \
 ```
 
 Alternatively, `.githooks/install.sh` symlinks the hooks into `.git/hooks/`
-and prints what each one validates:
+(backing up any pre-existing hooks) and prints a summary of what was installed:
 
 ```bash
 .githooks/install.sh
@@ -55,9 +55,10 @@ and prints what each one validates:
 ### Developer Tasks (`cargo xtask`)
 
 Repo automation — golden-test generation, policy checks, the GOTO-indexing
-check the hooks run, and roughly two dozen more — lives in the `xtask` crate.
-A cargo alias is preconfigured (`.cargo/config.toml`), so you don't need to
-remember the full `cargo run -p xtask --` form. List every task with:
+check the hooks run, and roughly three dozen tasks in all — lives in the
+`xtask` crate. A cargo alias is preconfigured (`.cargo/config.toml`), so you
+don't need to remember the full `cargo run -p xtask --` form. List every task
+with:
 
 ```bash
 cargo xtask --help
