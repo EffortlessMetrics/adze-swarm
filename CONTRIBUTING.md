@@ -41,9 +41,27 @@ git update-index --chmod=+x .githooks/pre-commit .githooks/pre-push \
   scripts/affected-crates.sh
 ```
 
+Alternatively, `.githooks/install.sh` symlinks the hooks into `.git/hooks/`
+and prints what each one validates:
+
+```bash
+.githooks/install.sh
+```
+
 **Pre-commit (fast path)** — formats staged files with `rustfmt`, runs clippy on affected crates, blocks conflict markers.
 
 **Pre-push (full validation)** — runs clippy across the entire workspace and tests the feature matrix.
+
+### Developer Tasks (`cargo xtask`)
+
+Repo automation — golden-test generation, policy checks, the GOTO-indexing
+check the hooks run, and roughly two dozen more — lives in the `xtask` crate.
+A cargo alias is preconfigured (`.cargo/config.toml`), so you don't need to
+remember the full `cargo run -p xtask --` form. List every task with:
+
+```bash
+cargo xtask --help
+```
 
 ## Building
 
