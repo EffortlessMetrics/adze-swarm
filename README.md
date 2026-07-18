@@ -178,6 +178,7 @@ Additional workspace areas include grammar crates, benchmarks, WASM demos, golde
 - [Architecture](./docs/explanations/architecture.md) — how the macro, tool, and runtime fit together
 - [Grammar Examples](./docs/reference/grammar-examples.md) — patterns for common constructs
 - [API Reference](https://docs.rs/adze) — generated docs on docs.rs
+- [Documentation Index](./NAVIGATION.md) — full map of root-level and `docs/` guides, by task and audience
 
 ## Contributing
 
