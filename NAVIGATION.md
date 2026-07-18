@@ -4,7 +4,7 @@ Find the right document for your needs. This is the index for the docs that
 live at the repository root and under [`docs/`](./docs/).
 
 > **Maintenance note:** links here are checked against the tree they ship with.
-> If you add, move, or retire a root-level doc, update this file in the same
+> If you add, move, or retire a root-level or `docs/` doc, update this file in the same
 > change so the index does not drift (this is exactly the sprawl #847 finding 7
 > called out).
 
@@ -67,14 +67,15 @@ live at the repository root and under [`docs/`](./docs/).
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | How to contribute |
 | [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) | Everyday development commands |
 | [docs/DEVELOPER_GUIDE.md](./docs/DEVELOPER_GUIDE.md) | Internal developer setup |
-| [docs/how-to/use-playground.md](./docs/how-to/use-playground.md) | Interactive grammar playground |
+| [docs/how-to/use-playground.md](./docs/how-to/use-playground.md) | Interactive grammar playground — **planned, not yet implemented**; use the local setup above for now |
 
 ### Status and Planning
 | Document | Purpose |
 |----------|---------|
 | [ROADMAP.md](./ROADMAP.md) | Future plans |
 | [CHANGELOG.md](./CHANGELOG.md) | Version history |
-| [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) | Tree-sitter → Adze migration |
+| [docs/reference/migrating-from-tree-sitter.md](./docs/reference/migrating-from-tree-sitter.md) | Current Tree-sitter → Adze migration guidance |
+| [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) | Legacy migration notes (written for v0.6.0; superseded by the guide above) |
 | [docs/status/](./docs/status/) | Support tiers, proof maps, known-red ledger |
 
 ### Repository Operations & Tracking
