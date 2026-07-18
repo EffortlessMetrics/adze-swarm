@@ -41,12 +41,16 @@ git update-index --chmod=+x .githooks/pre-commit .githooks/pre-push \
   scripts/affected-crates.sh
 ```
 
-Alternatively, `.githooks/install.sh` symlinks the hooks into `.git/hooks/`
-(backing up any pre-existing hooks) and prints a summary of what was installed:
+Alternatively, from a standard clone, `.githooks/install.sh` symlinks the hooks
+into `.git/hooks/` (backing up any pre-existing hooks) and prints a summary of
+what was installed:
 
 ```bash
 .githooks/install.sh
 ```
+
+(The `core.hooksPath` method above is the portable option — it also works from
+a linked `git worktree`, where `install.sh`'s `.git/hooks` assumption does not.)
 
 **Pre-commit (fast path)** — formats staged files with `rustfmt`, runs clippy on affected crates, blocks conflict markers.
 
