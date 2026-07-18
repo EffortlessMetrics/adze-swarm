@@ -432,9 +432,13 @@ if [ ${#pkg_args[@]} -gt 0 ]; then
 fi
 
 # Step 5: Run GOTO indexing check with full diagnostics
-if [ -f scripts/check-goto-indexing.sh ]; then
+# Canonical check lives in xtask (xtask/src/goto_indexing.rs); the standalone
+# scripts/check-goto-indexing.sh was retired during the xtask migration. Pass
+# only staged Rust files so the fast path stays scoped to the commit; xtask
+# skips paths that no longer exist (e.g. staged deletions).
+if [ ${#STAGED_RUST_FILES[@]} -gt 0 ]; then
     echo -e "${YELLOW}→${NC} Checking GOTO indexing patterns..."
-    if ! scripts/check-goto-indexing.sh; then
+    if ! cargo xtask check-goto-indexing "${STAGED_RUST_FILES[@]}"; then
         echo -e "${RED}✖ GOTO indexing check failed${NC}"
         echo ""
         echo "Direct enum flips detected. Use remap helpers instead."

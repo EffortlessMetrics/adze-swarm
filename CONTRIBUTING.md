@@ -38,7 +38,7 @@ git config core.hooksPath .githooks
 
 # Ensure scripts are executable
 git update-index --chmod=+x .githooks/pre-commit .githooks/pre-push \
-  scripts/affected-crates.sh scripts/check-goto-indexing.sh
+  scripts/affected-crates.sh
 ```
 
 **Pre-commit (fast path)** — formats staged files with `rustfmt`, runs clippy on affected crates, blocks conflict markers.
