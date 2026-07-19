@@ -10,8 +10,8 @@ Cargo-token, and crates.io receipt surface. The current research board is
 The active manifest is `adze-0.10-core-product-completion` for parent campaign
 [`adze-swarm#853`](https://github.com/EffortlessMetrics/adze-swarm/issues/853),
 with Gate A/B/C definitions recorded in the goal manifest and #853. Current
-queue after #848/#849 merge and #883 control-plane reset: 1 active (#883),
-1 ready (#854), 2 complete (#848/#849), and 5 blocked items including release
+queue after #848/#849 merge and #883 control-plane reset: 1 active (#854),
+3 complete (#848/#849/#883), and 5 blocked items including release
 authorization in
 [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325)
 and runner evidence in

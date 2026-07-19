@@ -6,8 +6,8 @@ promotion. Prior non-release lanes through first-use starter workspace
 hardening are closed or superseded. The current #617 research board and parent
 #853 0.10.0 campaign are now represented by `active.toml` campaign
 `adze-0.10-core-product-completion` after #848/#849 merged and #883 reset the
-control plane. Current queue: 1 active (#883), 1 ready (#854), 2 complete
-(#848/#849), and 5 blocked items including release authorization in
+control plane. Current queue: 1 active (#854), 3 complete (#848/#849/#883),
+and 5 blocked items including release authorization in
 adze-swarm#325 and runner evidence in adze-swarm#598. Gate A/B/C definitions
 live in #853 and the active goal manifest; this audit does not authorize release,
 support-tier promotion, or public `adze` implementation.
