@@ -2070,6 +2070,183 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_bytes_trailing_nul_not_equivalent_to_without() {
+        // Parser-level regression: `parse_bytes(b"a\0")` must not tokenize
+        // identically to `parse_bytes(b"a")`. Before the sentinel fix both
+        // inputs stopped lexing after the `a` byte because the real trailing
+        // NUL was mistaken for the EOF sentinel.
+        static PARSE_ACTIONS: [TSParseAction; 10] = [
+            TSParseAction {
+                action_type: 0,
+                extra: 0,
+                child_count: 0,
+                dynamic_precedence: 0,
+                symbol: 1,
+            },
+            TSParseAction {
+                action_type: 0,
+                extra: 0,
+                child_count: 0,
+                dynamic_precedence: 0,
+                symbol: 2,
+            },
+            TSParseAction {
+                action_type: 0,
+                extra: 0,
+                child_count: 0,
+                dynamic_precedence: 0,
+                symbol: 3,
+            },
+            TSParseAction {
+                action_type: 1,
+                extra: 0,
+                child_count: 1,
+                dynamic_precedence: 0,
+                symbol: 4,
+            },
+            TSParseAction {
+                action_type: 1,
+                extra: 0,
+                child_count: 3,
+                dynamic_precedence: 0,
+                symbol: 5,
+            },
+            TSParseAction {
+                action_type: 1,
+                extra: 0,
+                child_count: 3,
+                dynamic_precedence: 0,
+                symbol: 6,
+            },
+            TSParseAction {
+                action_type: 2,
+                extra: 0,
+                child_count: 0,
+                dynamic_precedence: 0,
+                symbol: 0,
+            },
+            TSParseAction {
+                action_type: 3,
+                extra: 0,
+                child_count: 0,
+                dynamic_precedence: 0,
+                symbol: 0,
+            },
+            TSParseAction {
+                action_type: 0,
+                extra: 0,
+                child_count: 0,
+                dynamic_precedence: 0,
+                symbol: 0,
+            },
+            TSParseAction {
+                action_type: 0,
+                extra: 0,
+                child_count: 0,
+                dynamic_precedence: 0,
+                symbol: 0,
+            },
+        ];
+        static PARSE_TABLE: [u16; 100] = [0; 100];
+        static SMALL_PARSE_TABLE: [u16; 100] = [0; 100];
+        static SMALL_PARSE_TABLE_MAP: [u32; 10] = [0; 10];
+        static LEX_MODES: [u32; 10] = [0; 10];
+        static PRODUCTION_ID_MAP: [u16; 10] = [0; 10];
+
+        static SYMBOL_NAME_EOF: &[u8] = b"end\0";
+        static SYMBOL_NAME_DIGIT: &[u8] = b"digit\0";
+        static SYMBOL_NAME_PLUS: &[u8] = b"+\0";
+        static SYMBOL_NAME_MULTIPLY: &[u8] = b"*\0";
+        static SYMBOL_NAME_NUMBER: &[u8] = b"number\0";
+        static SYMBOL_NAME_ADDITION: &[u8] = b"addition\0";
+        static SYMBOL_NAME_MULTIPLICATION: &[u8] = b"multiplication\0";
+
+        #[repr(transparent)]
+        struct SymbolNamesArray([*const u8; 7]);
+        // SAFETY: the wrapped pointers are `&'static [u8]` literals; no
+        // interior mutability is ever exposed through this type.
+        unsafe impl Sync for SymbolNamesArray {}
+        static SYMBOL_NAMES: SymbolNamesArray = SymbolNamesArray([
+            SYMBOL_NAME_EOF.as_ptr(),
+            SYMBOL_NAME_DIGIT.as_ptr(),
+            SYMBOL_NAME_PLUS.as_ptr(),
+            SYMBOL_NAME_MULTIPLY.as_ptr(),
+            SYMBOL_NAME_NUMBER.as_ptr(),
+            SYMBOL_NAME_ADDITION.as_ptr(),
+            SYMBOL_NAME_MULTIPLICATION.as_ptr(),
+        ]);
+        static SYMBOL_METADATA: [u8; 7] = [0x01, 0x01, 0x01, 0x01, 0x03, 0x03, 0x03];
+
+        static LANGUAGE: TSLanguage = TSLanguage {
+            version: 15,
+            symbol_count: 7,
+            alias_count: 0,
+            token_count: 4,
+            external_token_count: 0,
+            state_count: 10,
+            large_state_count: 5,
+            production_id_count: 3,
+            field_count: 0,
+            max_alias_sequence_length: 0,
+            eof_symbol: 0,
+            rules: std::ptr::null(),
+            rule_count: 0,
+            production_count: 3,
+            production_lhs_index: std::ptr::null(),
+            production_id_map: PRODUCTION_ID_MAP.as_ptr(),
+            parse_table: PARSE_TABLE.as_ptr(),
+            small_parse_table: SMALL_PARSE_TABLE.as_ptr(),
+            small_parse_table_map: SMALL_PARSE_TABLE_MAP.as_ptr(),
+            parse_actions: PARSE_ACTIONS.as_ptr(),
+            symbol_names: SYMBOL_NAMES.0.as_ptr(),
+            field_names: std::ptr::null(),
+            field_map_slices: std::ptr::null(),
+            field_map_entries: std::ptr::null(),
+            symbol_metadata: SYMBOL_METADATA.as_ptr(),
+            public_symbol_map: std::ptr::null(),
+            alias_map: std::ptr::null(),
+            alias_sequences: std::ptr::null(),
+            lex_modes: LEX_MODES.as_ptr() as *const _,
+            lex_fn: None,
+            keyword_lex_fn: None,
+            keyword_capture_token: 0,
+            external_scanner: ExternalScanner::default(),
+            primary_state_ids: std::ptr::null(),
+        };
+
+        let second_token = |source: &[u8]| {
+            let mut parser = Parser::new();
+            parser
+                .set_language(&LANGUAGE)
+                .expect("language should validate");
+            parser.parse_bytes(source);
+            let mut point = Point { row: 0, column: 0 };
+            let first = parser.lex_token(&LANGUAGE, 0, 0, &mut point);
+            assert_eq!(first.symbol, b'a' as u16);
+            assert_eq!(first.length, 1);
+            parser.lex_token(&LANGUAGE, 0, 1, &mut point)
+        };
+
+        let without_nul = second_token(b"a");
+        let with_trailing_nul = second_token(b"a\0");
+
+        assert_eq!(
+            without_nul.length, 0,
+            "byte after `a` in b\"a\" must be the EOF sentinel, not content"
+        );
+        assert_eq!(
+            with_trailing_nul.symbol, 0,
+            "trailing NUL must be tokenized as symbol 0"
+        );
+        assert_eq!(with_trailing_nul.length, 1);
+        assert_ne!(
+            (without_nul.symbol, without_nul.length),
+            (with_trailing_nul.symbol, with_trailing_nul.length),
+            "parse(b\"a\\0\") must not be equivalent to parse(b\"a\")"
+        );
+    }
+
+    #[test]
     fn test_parse_bytes_with_trailing_nul_appends_sentinel() {
         // Regression test for the trailing-NUL input-loss bug: `source` is
         // arbitrary bytes (not just UTF-8 text), so a real trailing 0x00
