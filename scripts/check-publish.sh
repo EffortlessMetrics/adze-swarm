@@ -2,6 +2,17 @@
 # check-publish.sh — Verify that core release crates pass `cargo package --list`
 # and have complete metadata for crates.io publishing.
 #
+# CANONICAL publishability check. This is the script wired into
+# `just check-publishable` and referenced by docs/reference/PUBLISH_CHECKLIST.md.
+# It tracks the current 8-crate publish set (see CORE_CRATES below, incl.
+# adze-cli). Two earlier overlapping variants — check-publish-ready.sh and
+# check-publish-readiness.sh — were removed in the #847 DevEx triage: both
+# carried crate lists out of sync with the publish contract (each omitted
+# adze-cli; check-publish-readiness.sh additionally listed runtime2:adze-runtime,
+# which is intentionally excluded from publishing as an experimental proving
+# ground — see docs/status/SUPPORT_TIERS.md), and neither was wired to any
+# tooling. MSRV consistency is covered separately by `just check-msrv`.
+#
 # Usage:
 #   ./scripts/check-publish.sh          # Check all core crates
 #   ./scripts/check-publish.sh adze-ir  # Check a single crate

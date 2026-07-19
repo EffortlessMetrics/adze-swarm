@@ -28,7 +28,7 @@ Adze (formerly `rust-sitter`) is a Rust-native grammar toolchain that turns Rust
 - ✅ **Error Message Quality**: Actionable diagnostics across parser, IR, and tablegen. Error display formatting tests.
 - ✅ **Fuzzing Targets**: 22 fuzz targets covering parser, lexer, external scanners, stack pool, and concurrency.
 - ✅ **CI Feature Matrix**: Crate × feature-flag test combinations with concurrency caps. Cross-platform advisory jobs for macOS/Windows.
-- ✅ **Cargo.toml Metadata**: Publish-ready metadata across workspace. Publish order documented. `check-publish-ready.sh` script.
+- ✅ **Cargo.toml Metadata**: Publish-ready metadata across workspace. Publish order documented. `scripts/check-publish.sh` (`just check-publishable`).
 - ✅ **Workspace Structure**: governance/support crates under `crates/`, benchmarks, fuzzing, golden-tests, and book scaffolding.
 - ✅ **Table Compression**: Optimized parse tables using Tree-sitter format (>10x reduction).
 - ✅ **Cross-Platform**: Linux verified, macOS/Windows CI advisory jobs in place.
