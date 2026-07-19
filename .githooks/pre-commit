@@ -234,7 +234,7 @@ while IFS= read -r -d '' file; do
     if [[ "$file" == *.rs ]]; then
         STAGED_RUST_FILES+=("$file")
     fi
-done < <(git diff --cached --name-only -z 2>/dev/null || true)
+done < <(git diff --cached --name-only --diff-filter=ACMRT -z 2>/dev/null || true)
 
 if [ ${#STAGED_RUST_FILES[@]} -eq 0 ]; then
     echo -e "${BLUE}→${NC} No staged Rust files found, skipping formatting"
@@ -432,12 +432,29 @@ if [ ${#pkg_args[@]} -gt 0 ]; then
 fi
 
 # Step 5: Run GOTO indexing check with full diagnostics
-if [ -f scripts/check-goto-indexing.sh ]; then
+# Canonical check lives in xtask (xtask/src/goto_indexing.rs); the standalone
+# scripts/check-goto-indexing.sh was retired during the xtask migration. Pass
+# only staged Rust files so the fast path stays scoped to the commit.
+# STAGED_RUST_FILES is filtered with --diff-filter=ACMRT (Step 2), so staged
+# deletions are excluded and every path passed here is present in the commit's
+# post-state — a path staged for deletion but recreated in the working tree is
+# not checked against its uncommitted contents. xtask reads the working tree,
+# and Step 1 rejects partially staged Rust files, so for every path passed here
+# the working-tree contents match the staged index. Invoked as
+# `cargo run -q --offline` under run_with_timeout, matching every other cargo
+# call in this hook: `--offline` avoids a mid-commit registry fetch, and
+# run_with_timeout bounds the (first-run) xtask compile whenever timeout(1) is
+# available (present on all supported dev platforms).
+if [ ${#STAGED_RUST_FILES[@]} -gt 0 ]; then
     echo -e "${YELLOW}→${NC} Checking GOTO indexing patterns..."
-    if ! scripts/check-goto-indexing.sh; then
+    if ! run_with_timeout 300 "goto-indexing check" \
+         cargo run -q --offline --package xtask -- check-goto-indexing "${STAGED_RUST_FILES[@]}"; then
         echo -e "${RED}✖ GOTO indexing check failed${NC}"
         echo ""
-        echo "Direct enum flips detected. Use remap helpers instead."
+        echo "Either a direct GOTO enum flip was found (use the remap helpers"
+        echo "instead of assigning goto_indexing directly), or the check itself"
+        echo "could not run. Re-run for full diagnostics:"
+        echo "  cargo xtask check-goto-indexing"
         echo ""
         exit 1
     fi

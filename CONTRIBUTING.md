@@ -38,12 +38,35 @@ git config core.hooksPath .githooks
 
 # Ensure scripts are executable
 git update-index --chmod=+x .githooks/pre-commit .githooks/pre-push \
-  scripts/affected-crates.sh scripts/check-goto-indexing.sh
+  scripts/affected-crates.sh
 ```
+
+Alternatively, from a standard clone, `.githooks/install.sh` symlinks the hooks
+into `.git/hooks/` (backing up any pre-existing hooks) and prints a summary of
+what was installed:
+
+```bash
+.githooks/install.sh
+```
+
+(The `core.hooksPath` method above is the portable option — it also works from
+a linked `git worktree`, where `install.sh`'s `.git/hooks` assumption does not.)
 
 **Pre-commit (fast path)** — formats staged files with `rustfmt`, runs clippy on affected crates, blocks conflict markers.
 
 **Pre-push (full validation)** — runs clippy across the entire workspace and tests the feature matrix.
+
+### Developer Tasks (`cargo xtask`)
+
+Repo automation — golden-test generation, policy checks, the GOTO-indexing
+check the hooks run, and roughly three dozen tasks in all — lives in the
+`xtask` crate. A cargo alias is preconfigured (`.cargo/config.toml`), so you
+don't need to remember the full `cargo run -p xtask --` form. List every task
+with:
+
+```bash
+cargo xtask --help
+```
 
 ## Building
 
