@@ -1,68 +1,94 @@
 # Navigation Guide
 
-Find the right document for your needs.
+Find the right document for your needs. This is the index for the docs that
+live at the repository root and under [`docs/`](./docs/).
+
+> **Maintenance note:** links here are checked against the tree they ship with.
+> If you add, move, or retire a root-level or `docs/` doc, update this file in the same
+> change so the index does not drift (this is exactly the sprawl #847 finding 7
+> called out).
 
 ---
 
 ## I Want To...
 
-### ...Start Using Adze (5 minutes)
-> **[QUICK_START.md](./QUICK_START.md)** - Get parsing in 5 minutes
+### ...Start Using Adze (5–10 minutes)
+> **[QUICK_START.md](./QUICK_START.md)** — get parsing fast, or
+> **[docs/tutorials/quickstart-10-minutes.md](./docs/tutorials/quickstart-10-minutes.md)** — first parser in 10 minutes
 
-### ...Learn Adze Properly (30 minutes)
-> **[docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md)** - Complete tutorial
+### ...Learn Adze Properly
+> **[docs/tutorials/getting-started.md](./docs/tutorials/getting-started.md)** — build your first parser end to end
 
 ### ...Understand How It Works
-> **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Visual architecture guide with diagrams
+> **[docs/explanations/architecture.md](./docs/explanations/architecture.md)** — how the macro, tool, and runtime fit together
 
 ### ...Answer a Specific Question
-> **[FAQ.md](./FAQ.md)** - Common questions answered
+> **[FAQ.md](./FAQ.md)** — common questions answered
 
 ### ...See Working Examples
-> **[example/src/](./example/src/)** - Real grammars (arithmetic, JSON, etc.)
+> **[example/src/](./example/src/)** — real grammars (arithmetic, JSON, etc.)
+
+### ...Choose an API
+> **[docs/reference/which-api-should-i-use.md](./docs/reference/which-api-should-i-use.md)** — typed parser, document, compatibility, query, JSON, and CLI paths
 
 ### ...Contribute to Adze
-> **[CONTRIBUTING.md](./CONTRIBUTING.md)** - Development setup and workflow
+> **[CONTRIBUTING.md](./CONTRIBUTING.md)** — development setup and workflow
 
 ### ...Know What's Planned
-> **[ROADMAP.md](./ROADMAP.md)** - v0.7.0 and beyond
-
-### ...Debug a Problem
-> **[FAQ.md](./FAQ.md)** - Common issues section
+> **[ROADMAP.md](./ROADMAP.md)** — milestones and beyond
 
 ### ...Look Up API Details
-> **[API_DOCUMENTATION.md](./API_DOCUMENTATION.md)** - Complete API reference
+> **[docs/reference/api.md](./docs/reference/api.md)** — API reference, or the generated docs at <https://docs.rs/adze>
 
 ---
 
 ## Documents by Purpose
 
 ### Getting Started
-| Document | Purpose | Time |
-|----------|---------|------|
-| [README.md](./README.md) | Project overview | 5 min |
-| [QUICK_START.md](./QUICK_START.md) | Get parsing now | 5 min |
-| [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md) | Full tutorial | 30 min |
-| [example/src/](./example/src/) | Working examples | 10 min |
+| Document | Purpose |
+|----------|---------|
+| [README.md](./README.md) | Project overview |
+| [QUICK_START.md](./QUICK_START.md) | Get parsing now |
+| [docs/tutorials/quickstart-10-minutes.md](./docs/tutorials/quickstart-10-minutes.md) | First parser in 10 minutes |
+| [docs/tutorials/getting-started.md](./docs/tutorials/getting-started.md) | Full tutorial |
+| [example/src/](./example/src/) | Working examples |
 
 ### Understanding
-| Document | Purpose | Time |
-|----------|---------|------|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | How components fit together | 15 min |
-| [FAQ.md](./FAQ.md) | Common questions | 10 min |
-| [API_DOCUMENTATION.md](./API_DOCUMENTATION.md) | API details | As needed |
+| Document | Purpose |
+|----------|---------|
+| [docs/explanations/architecture.md](./docs/explanations/architecture.md) | How components fit together |
+| [docs/reference/which-api-should-i-use.md](./docs/reference/which-api-should-i-use.md) | Pick the right API path |
+| [FAQ.md](./FAQ.md) | Common questions |
+| [docs/reference/api.md](./docs/reference/api.md) | API details |
 
 ### Contributing
-| Document | Purpose | Time |
-|----------|---------|------|
-| [CONTRIBUTING.md](./CONTRIBUTING.md) | How to contribute | 10 min |
-| [docs/dev-workflow.md](./docs/dev-workflow.md) | Dev commands | 5 min |
+| Document | Purpose |
+|----------|---------|
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | How to contribute |
+| [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) | Everyday development commands |
+| [docs/DEVELOPER_GUIDE.md](./docs/DEVELOPER_GUIDE.md) | Internal developer setup |
+| [docs/how-to/use-playground.md](./docs/how-to/use-playground.md) | Interactive grammar playground — **planned, not yet implemented**; use the local setup above for now |
 
 ### Status and Planning
-| Document | Purpose | Time |
-|----------|---------|------|
-| [ROADMAP.md](./ROADMAP.md) | Future plans | 10 min |
-| [CHANGELOG.md](./CHANGELOG.md) | Version history | As needed |
+| Document | Purpose |
+|----------|---------|
+| [ROADMAP.md](./ROADMAP.md) | Future plans |
+| [CHANGELOG.md](./CHANGELOG.md) | Version history |
+| [docs/reference/migrating-from-tree-sitter.md](./docs/reference/migrating-from-tree-sitter.md) | Current Tree-sitter → Adze migration guidance |
+| [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) | Legacy migration notes (written for v0.6.0; superseded by the guide above) |
+| [docs/status/](./docs/status/) | Support tiers, proof maps, known-red ledger |
+
+### Repository Operations & Tracking
+> These are **operational, agent-facing snapshots** used to coordinate the
+> swarm workflow. They are point-in-time working notes and can lag `main` —
+> treat `docs/status/` and the linked issues/PRs as the source of truth.
+
+| Document | Purpose |
+|----------|---------|
+| [PR_CLUSTER_MAP.md](./PR_CLUSTER_MAP.md) | Grouping of related in-flight PRs |
+| [PR_OVERLAP_MAP.md](./PR_OVERLAP_MAP.md) | Overlap between in-flight PRs |
+| [PR_QUEUE_PROGRESS.md](./PR_QUEUE_PROGRESS.md) | PR queue burn-down snapshot |
+| [CURRENT_FAILURE_MAP.md](./CURRENT_FAILURE_MAP.md) | Known-failure snapshot |
 
 ---
 
@@ -70,68 +96,34 @@ Find the right document for your needs.
 
 ### New Users
 1. Start: [QUICK_START.md](./QUICK_START.md)
-2. Learn: [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md)
+2. Learn: [docs/tutorials/getting-started.md](./docs/tutorials/getting-started.md)
 3. Examples: [example/src/](./example/src/)
 4. Questions: [FAQ.md](./FAQ.md)
 
 ### Grammar Authors
-1. Tutorial: [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md)
-2. API: [API_DOCUMENTATION.md](./API_DOCUMENTATION.md)
+1. Tutorial: [docs/tutorials/getting-started.md](./docs/tutorials/getting-started.md)
+2. API: [docs/reference/api.md](./docs/reference/api.md) · [Which API?](./docs/reference/which-api-should-i-use.md)
 3. Examples: [example/src/](./example/src/)
 
 ### Contributors
 1. Setup: [CONTRIBUTING.md](./CONTRIBUTING.md)
-2. Architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
-3. Roadmap: [ROADMAP.md](./ROADMAP.md)
-
----
-
-## File Organization
-
-### Root Directory
-```
-adze/
-├── README.md                    # Start here
-├── QUICK_START.md               # 5-minute guide
-├── FAQ.md                       # Common questions
-├── ARCHITECTURE.md              # System design
-├── CONTRIBUTING.md              # How to contribute
-├── ROADMAP.md                   # Long-term vision
-├── CHANGELOG.md                 # Version history
-├── API_DOCUMENTATION.md         # API reference
-└── NAVIGATION.md                # This file
-```
-
-### docs/ Directory
-```
-docs/
-├── GETTING_STARTED.md           # Full tutorial
-├── PLAYGROUND.md                # Playground (planned)
-├── dev-workflow.md              # Dev commands
-├── archive/                     # Historical documents
-└── ... (other guides)
-```
-
-### example/ Directory
-```
-example/src/
-├── arithmetic.rs                # Expression grammar
-├── repetition.rs                # List patterns
-└── ... (more examples)
-```
+2. Commands: [QUICK_REFERENCE.md](./QUICK_REFERENCE.md)
+3. Architecture: [docs/explanations/architecture.md](./docs/explanations/architecture.md)
+4. Roadmap: [ROADMAP.md](./ROADMAP.md)
 
 ---
 
 ## Quick Tips
 
 ### First Time Here?
-1. Read [README.md](./README.md) (5 min)
-2. Try [QUICK_START.md](./QUICK_START.md) (5 min)
-3. Browse [example/src/](./example/src/) (10 min)
+1. Read [README.md](./README.md)
+2. Try [QUICK_START.md](./QUICK_START.md)
+3. Browse [example/src/](./example/src/)
 
 ### Ready to Contribute?
-1. [CONTRIBUTING.md](./CONTRIBUTING.md) - Setup
-2. Browse [GitHub Issues](https://github.com/EffortlessMetrics/adze/issues)
+1. [CONTRIBUTING.md](./CONTRIBUTING.md) — setup
+2. [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) — everyday commands
+3. Browse [GitHub Issues](https://github.com/EffortlessMetrics/adze/issues)
 
 ### Stuck?
 1. Check [FAQ.md](./FAQ.md)
@@ -142,7 +134,8 @@ example/src/
 
 ## External Links
 
-- **GitHub**: https://github.com/EffortlessMetrics/adze
-- **Crates.io**: https://crates.io/crates/adze
-- **Issues**: https://github.com/EffortlessMetrics/adze/issues
-- **Discussions**: https://github.com/EffortlessMetrics/adze/discussions
+- **GitHub**: <https://github.com/EffortlessMetrics/adze>
+- **Crates.io**: <https://crates.io/crates/adze>
+- **Docs.rs**: <https://docs.rs/adze>
+- **Issues**: <https://github.com/EffortlessMetrics/adze/issues>
+- **Discussions**: <https://github.com/EffortlessMetrics/adze/discussions>
