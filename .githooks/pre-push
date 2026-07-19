@@ -141,7 +141,12 @@ if command -v timeout >/dev/null 2>&1; then
 fi
 if ! "${goto_cmd[@]}"; then
     echo -e "${RED}✖ GOTO indexing check failed${NC}"
-    echo "Use the remap helpers instead of assigning goto_indexing directly."
+    echo ""
+    echo "Either a direct GOTO enum flip was found (use the remap helpers"
+    echo "instead of assigning goto_indexing directly), or the check itself"
+    echo "could not run (e.g. build error or timeout). Re-run for full diagnostics:"
+    echo "  cargo xtask check-goto-indexing"
+    echo ""
     exit 1
 fi
 echo -e "${GREEN}✓${NC} GOTO indexing patterns verified"
