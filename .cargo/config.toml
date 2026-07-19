@@ -4,7 +4,16 @@
 # Number of parallel jobs, defaults to # of CPUs (0 is invalid, remove to use default)
 rustflags = [
   "--check-cfg=cfg(feature, values(\"perf-counters\",\"test-api\",\"strict-invariants\",\"memory-tests\",\"json-parity\",\"with-grammars\",\"external_scanners\",\"incremental_glr\",\"strict_docs\"))",
-  "-Awarnings"  # Suppress warnings for quieter builds (helps prevent Node wrapper crashes)
+  # `-Awarnings` silences ALL compiler warnings for plain local `cargo build` /
+  # `cargo check`. It is a deliberate workaround for Node-wrapper crashes on
+  # noisy output (see the `[term]` quieting below), NOT a signal that warnings
+  # are unimportant. It intentionally diverges from CI and pre-commit, which run
+  # with `-D warnings`, so a clean local build does NOT mean the code is
+  # warning-free — surface the real warnings before pushing with one of:
+  #   cargo ci        # the clippy `-D warnings` alias defined below
+  #   just clippy     # lint the core crates with `-D warnings`
+  #   just pre        # run the pre-commit checks locally
+  "-Awarnings"
 ]
 
 [term]
