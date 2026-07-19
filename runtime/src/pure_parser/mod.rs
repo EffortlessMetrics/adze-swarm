@@ -24,7 +24,7 @@
 mod helpers;
 mod types;
 
-use helpers::{advance_point, subtree_to_node};
+use helpers::{advance_point, append_sentinel, subtree_to_node};
 pub(crate) use types::Subtree;
 use types::{Lexer, StackEntry};
 pub use types::{ParseError, ParseResult, ParsedNode, ParsedNodeBuilder};
@@ -344,14 +344,11 @@ impl Parser {
             position: 0,
         });
 
-        // Initialize lexer with sentinel byte to prevent OOB reads
-        let mut input_with_sentinel = source.to_vec();
-        // Add a null byte sentinel if not already present
-        if input_with_sentinel.last().copied() != Some(0) {
-            input_with_sentinel.push(0);
-        }
+        // Initialize lexer with sentinel byte to prevent OOB reads. `source`
+        // is arbitrary bytes, so a real trailing 0x00 must not be mistaken
+        // for the sentinel (see `append_sentinel`).
         self.lexer = Some(Lexer {
-            input: input_with_sentinel,
+            input: append_sentinel(source),
             position: 0,
             external_scanner: None,
         });
