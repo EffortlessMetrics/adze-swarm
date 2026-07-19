@@ -16,11 +16,20 @@ adze, workflow, router, starter manifest, or support-tier surfaces.
 """
 
 handoff = """
-Superseded by #853 and the `adze-0.10-core-product-completion` active goal reset
-in #883. The selected implementation items `starter-workspace-escape` (#682) and
-`diagnostic-wording-polish` (#686) remain merged proof. Use #617 for research
-board context and `.adze/goals/adze-0.10-core-product-completion.toml` for the
-current one-work-item queue.
+Start from #617 and #680. The selected implementation item
+`starter-workspace-escape` was merged in #682 and made generated starter
+manifests standalone workspace roots with a focused nested-parent-workspace CLI
+test. The selected diagnostic implementation item
+`diagnostic-wording-polish` was merged in #686 and keeps non-EOF invalid source
+bytes such as `1 + @` from rendering as EOF/end while preserving true EOF
+wording, expected-token text, byte/point span contracts, UTF-8/multiline
+behavior, and document diagnostic projection coverage. No non-release
+implementation item is active or ready; return to #617 for the next decision
+packet before opening more implementation work. If release, promotion, tag,
+publish, signing, Cargo-token, crates.io install, public adze implementation,
+workflow/router changes, broad CI fanout, starter manifest changes, or
+support-tier promotion is requested, stop unless a separate source-of-truth
+issue explicitly selects that lane.
 """
 
 end_state = [

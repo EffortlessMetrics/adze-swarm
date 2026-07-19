@@ -1455,7 +1455,7 @@ links_to = [
 id = "plans/first-use-starter-workspace/implementation-plan.md"
 kind = "plan"
 path = "plans/first-use-starter-workspace/implementation-plan.md"
-status = "active"
+status = "complete"
 owner = "cli/product"
 milestone = "post-0.9"
 source_of_truth_for = ["first-use starter workspace robustness implementation sequence"]
@@ -1472,7 +1472,7 @@ links_to = [
 id = ".adze/goals/first-use-starter-workspace-hardening.toml"
 kind = "goal"
 path = ".adze/goals/first-use-starter-workspace-hardening.toml"
-status = "active"
+status = "superseded"
 owner = "cli/product"
 milestone = "post-0.9"
 source_of_truth_for = ["first-use starter workspace hardening agent work queue"]
@@ -1482,6 +1482,7 @@ links_to = [
   "ADZE-ADR-0001",
   "plans/first-use-starter-workspace/implementation-plan.md",
   ".adze/goals/active.toml",
+  ".adze/goals/archive/2026-07-19-first-use-starter-workspace-hardening.toml",
   "docs/status/SUPPORT_TIERS.md",
 ]
 
@@ -1908,4 +1909,34 @@ links_to = [
   ".adze/goals/query-upstream-differential.toml",
   "plans/query-upstream-differential/implementation-plan.md",
   "plans/query-upstream-differential/closeout.md",
+]
+
+[[artifact]]
+id = ".adze/goals/adze-0.10-core-product-completion.toml"
+kind = "goal"
+path = ".adze/goals/adze-0.10-core-product-completion.toml"
+status = "active"
+owner = "release/product"
+milestone = "0.10.0"
+source_of_truth_for = ["0.10.0 core product completion agent work queue", "Gate A/B/C execution queue"]
+links_to = [
+  "ADZE-SPEC-0011",
+  "ADZE-ADR-0001",
+  ".adze/goals/active.toml",
+  "docs/status/NOW_NEXT_LATER.md",
+  "docs/status/PRODUCT_OBJECTIVE_AUDIT.md",
+]
+
+[[artifact]]
+id = ".adze/goals/archive/2026-07-19-first-use-starter-workspace-hardening.toml"
+kind = "goal"
+path = ".adze/goals/archive/2026-07-19-first-use-starter-workspace-hardening.toml"
+status = "superseded"
+owner = "cli/product"
+milestone = "post-0.9"
+source_of_truth_for = ["archived first-use starter workspace hardening manifest"]
+links_to = [
+  "ADZE-PROP-0006",
+  "plans/first-use-starter-workspace/implementation-plan.md",
+  ".adze/goals/first-use-starter-workspace-hardening.toml",
 ]

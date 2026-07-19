@@ -1,34 +1,16 @@
 # Product Objective Audit
 
-**Last updated:** 2026-06-05
+**Last updated:** 2026-07-19
 **Status:** incomplete; use this as an audit checklist, not as a support-tier
-promotion. Routine product-proof, query/tooling, recovery, user-experience,
-parser/runtime maintainability, CLI parse-surface, static S-expression, static
-JSON/DOT, dynamic parse boundary, adoption-hardening, release-candidate bundle,
-post-adoption standby hygiene, stale-queue control-plane follow-up, first-use
-starter workspace hardening, runtime S-expression parser, and canonical
-S-expression formatter proof-boundary lanes are closed out. The current #617
-research board was refreshed on June 5 after #680 was closed as completed by
-#681/#682/#683 and #685/#686/#688, after #690/#691 converted the stale accuracy
-proof-map test queue into a current ledger/stop-rule receipt, after #692/#693
-refreshed checked-in status ledgers, after #694/#695 refreshed product
-proof-map receipt pointers, after #696/#697 refreshed rolling receipt wording,
-after #702/#704 closed the focused `parse_sexpr` parser gap, and after the
-#706/#708 canonical `SExpr` implementation and #709/#710 checked-in
-support/API proof-boundary docs landed without selecting a new implementation
-lane. A later June 5 docs/projection cleanup pass closed #729/#732, #730/#731,
-#733/#735, and #736/#734, replacing stale `as_tree_sitter` and direct
-`doc.root()` examples with the current `AdzeDocument` projection/root API
-shape. Subsequent June 5 docs/status work closed #738/#740 with the post-#734
-ledger refresh and #739/#741 with the root README release-surface install-shape
-alignment for the intended 0.9.0 package surface, without adding any
-crates.io-install claim. `active.toml` remains paused as
-`first-use-starter-workspace-hardening` with no active or ready implementation
-lane selected: 3 complete, 0 active, 0 ready, 1 blocked. Release/publish work
-remains separate and blocked on explicit authorization in adze-swarm#325; the
-CX53 runner investigation remains blocked on adze-swarm#598 pending
-admin/runner context; and public `adze` still has no routine development PR
-lane.
+promotion. Prior non-release lanes through first-use starter workspace
+hardening are closed or superseded. The current #617 research board and parent
+#853 0.10.0 campaign are now represented by `active.toml` campaign
+`adze-0.10-core-product-completion` after #848/#849 merged and #883 reset the
+control plane. Current queue: 1 active (#883), 1 ready (#854), 2 complete
+(#848/#849), and 5 blocked items including release authorization in
+adze-swarm#325 and runner evidence in adze-swarm#598. Gate A/B/C definitions
+live in #853 and the active goal manifest; this audit does not authorize release,
+support-tier promotion, or public `adze` implementation.
 **Source of truth:** [`SUPPORT_TIERS.md`](./SUPPORT_TIERS.md) remains the
 authoritative support-tier ledger.
 

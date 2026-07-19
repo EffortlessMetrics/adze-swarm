@@ -72,7 +72,7 @@ remains tracked by #325.
 | Near-term CI-efficiency rules landed. | PR #538 merged. | Complete. |
 | Self-hosted implementation routing landed and runner/tooling assumptions fixed. | PRs #539, #543, #545, #577, #580, #591, #595, #603, #607, #608, #610, #611, #628, #629, #630, and #631 merged; #577 isolated Rust Small Cargo homes, #580 aligned CPX42 route labels, #591 removed the Windows `cygpath` dependency from `just check-msrv`, #595 removed the Windows `just build` PDB collision warning, #603 quarantined CX53 from Rust Small route selection while preserving candidate diagnostics, #607 excludes the routed Rust Small router's current route runner from idle counts when relevant, #608 aligns contributor-facing CI docs with the current capacity-policy behavior, #610 records CX53 label/group and planned rust-large diagnostics, #611 adds a manual CX53 rust-large diagnostic workflow, #628 hardens stale advisory and aggregate cancellation guards, #629 moves routing/result control-plane work off self-hosted capacity while keeping implementation lanes self-hosted by default, #630 moves serialized CI Policy source-of-truth checks to hosted control-plane runners, and #631 records the closeout. Issue #598 tracks whether CX53 should regain Rust Small eligibility after a stale selected-lane queue in #597; issue #604 is complete after post-merge CI Policy runs `26705001774` and `26705164480` passed on `main`. | Complete for current routing/tooling assumptions; #598 remains blocked on admin runner/control-plane evidence. |
 | Duplicate same-scope PRs collapsed. | PR #542 merged; duplicate document SRP PRs were not all merged. | Complete for the observed queue. |
-| Current active goal complete/paused/superseded before new goal. | `first-use-starter-workspace-hardening` is paused after #680 closed through #681/#682/#683 and #685/#686/#688; #690/#691 refreshed the accuracy proof-map queue as a ledger/stop-rule receipt without selecting implementation; current `active.toml` reports 3 complete, 0 active, 0 ready, 1 blocked. #617 is the current research board, #325 is the remaining active-goal blocker, and #598 remains the standing runner evidence/admin-decision issue. | Complete. |
+| Current active goal complete/paused/superseded before new goal. | `first-use-starter-workspace-hardening` was superseded on 2026-07-19 by `adze-0.10-core-product-completion` (#853/#883). Archived manifest: `.adze/goals/archive/2026-07-19-first-use-starter-workspace-hardening.toml`. Current `active.toml` reports 2 complete, 1 active (#883), 1 ready (#854), and 5 blocked including #325 and #598. | Complete. |
 | Public `adze` remains clean unless promotion/release. | Live `gh pr list` checks for public `adze` returned no open PRs on 2026-06-05. | Covered at audit time. |
 
 ## Current evidence snapshot
@@ -171,12 +171,13 @@ Current active manifest:
 
 ```text
 .adze/goals/active.toml
-  id = "first-use-starter-workspace-hardening"
-  status = "paused"
-  complete = 3
-  active = 0
-  ready = 0
-  blocked = 1
+  id = "adze-0.10-core-product-completion"
+  status = "active"
+  parent = #853
+  complete = 2
+  active = 1
+  ready = 1
+  blocked = 5
 ```
 
 Current live blockers:
