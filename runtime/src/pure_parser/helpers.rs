@@ -17,6 +17,20 @@ pub(super) fn advance_point(mut point: Point, text: &[u8]) -> Point {
     point
 }
 
+/// Append the lexer's end-of-input sentinel byte to `source`.
+///
+/// The pure-Rust lexer treats `position >= lexer.input.len() - 1` as EOF, so
+/// every input buffer must carry exactly one synthetic trailing byte beyond
+/// the caller's real content. `source` is arbitrary bytes (not just UTF-8
+/// text), so a real trailing `0x00` byte supplied by the caller must not be
+/// mistaken for the sentinel — the sentinel is always appended.
+pub(super) fn append_sentinel(source: &[u8]) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(source.len() + 1);
+    buf.extend_from_slice(source);
+    buf.push(0);
+    buf
+}
+
 /// Convert an internal [`Subtree`] to a public [`ParsedNode`].
 pub(super) fn subtree_to_node(subtree: Subtree, language: Option<*const TSLanguage>) -> ParsedNode {
     // Determine if the node is named based on symbol metadata
@@ -53,5 +67,27 @@ pub(super) fn subtree_to_node(subtree: Subtree, language: Option<*const TSLangua
         is_named,
         field_id: subtree.field_id,
         language,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::append_sentinel;
+
+    #[test]
+    fn test_append_sentinel_any_input_grows_length_by_one_byte() {
+        assert_eq!(append_sentinel(b"").len(), 1);
+        assert_eq!(append_sentinel(b"a").len(), 2);
+        assert_eq!(append_sentinel(b"hello").len(), 6);
+    }
+
+    #[test]
+    fn test_append_sentinel_with_trailing_nul_preserves_input_byte() {
+        // `source` is arbitrary bytes, so a genuine trailing 0x00 supplied by
+        // the caller must be kept intact, with the sentinel appended after it
+        // rather than treated as the sentinel itself.
+        let with_trailing_nul = append_sentinel(b"a\0");
+        assert_eq!(with_trailing_nul, vec![b'a', 0, 0]);
+        assert_eq!(with_trailing_nul.len(), 3);
     }
 }
