@@ -75,14 +75,14 @@ mod tests {
     use super::append_sentinel;
 
     #[test]
-    fn append_sentinel_always_grows_input_by_one_byte() {
+    fn test_append_sentinel_any_input_grows_length_by_one_byte() {
         assert_eq!(append_sentinel(b"").len(), 1);
         assert_eq!(append_sentinel(b"a").len(), 2);
         assert_eq!(append_sentinel(b"hello").len(), 6);
     }
 
     #[test]
-    fn append_sentinel_preserves_a_real_trailing_nul_byte() {
+    fn test_append_sentinel_with_trailing_nul_preserves_input_byte() {
         // `source` is arbitrary bytes, so a genuine trailing 0x00 supplied by
         // the caller must be kept intact, with the sentinel appended after it
         // rather than treated as the sentinel itself.

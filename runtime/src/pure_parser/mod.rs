@@ -2070,7 +2070,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_bytes_appends_sentinel_even_when_source_ends_in_nul() {
+    fn test_parse_bytes_with_trailing_nul_appends_sentinel() {
         // Regression test for the trailing-NUL input-loss bug: `source` is
         // arbitrary bytes (not just UTF-8 text), so a real trailing 0x00
         // byte supplied by the caller must not be mistaken for the lexer's
