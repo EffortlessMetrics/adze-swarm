@@ -426,6 +426,58 @@ fn product_proof_workflow_routes_stable_claim_surfaces() {
 }
 
 #[test]
+fn product_proof_stable_canaries_execute_exactly_once() {
+    let script = include_str!("../../scripts/ci-product-stable.sh");
+    let declared = parse_ci_product_stable_canary_labels(script);
+
+    assert!(
+        !script.contains("STABLE_CANARIES"),
+        "scripts/ci-product-stable.sh must use one authoritative CANARIES collection; \
+         do not append canaries to a separate array that the execution loop skips"
+    );
+    assert!(
+        script.contains(r#"for entry in "${CANARIES[@]}""#),
+        "scripts/ci-product-stable.sh must execute the authoritative CANARIES collection"
+    );
+
+    let dry_run_labels = simulate_ci_product_stable_dry_run_labels(script);
+
+    assert_eq!(
+        declared, dry_run_labels,
+        "dry-run plan must list every declared stable canary exactly once"
+    );
+    assert_eq!(
+        declared.len(),
+        declared
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len(),
+        "declared stable canary labels must be unique"
+    );
+
+    for required in [
+        "downstream acceptance tests",
+        "downstream edge case tests",
+        "downstream document projection tests",
+    ] {
+        assert!(
+            declared.iter().any(|label| label == required),
+            "missing required stable canary: {required}"
+        );
+    }
+
+    #[cfg(unix)]
+    {
+        let dry_run = run_ci_product_stable_dry_run();
+        let bash_labels = parse_ci_product_stable_dry_run_labels(&dry_run);
+        assert_eq!(
+            declared, bash_labels,
+            "bash --dry-run output must match the authoritative CANARIES collection"
+        );
+    }
+}
+
+#[test]
 fn cargo_install_adze_cli_claims_stay_release_surface_bounded() {
     let docs = [
         ("README.md", include_str!("../../README.md")),
@@ -1003,6 +1055,72 @@ fn repo_root() -> PathBuf {
         .parent()
         .expect("cli crate has workspace parent")
         .to_path_buf()
+}
+
+fn parse_ci_product_stable_canary_labels(script: &str) -> Vec<String> {
+    let start = script
+        .find("CANARIES=(")
+        .expect("scripts/ci-product-stable.sh must declare CANARIES");
+    let rest = &script[start + "CANARIES=(".len()..];
+    let end = rest
+        .find("\n)\n")
+        .or_else(|| rest.find("\n)\r\n"))
+        .expect("scripts/ci-product-stable.sh must close CANARIES");
+    let body = &rest[..end];
+
+    body.lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if !line.starts_with('"') {
+                return None;
+            }
+            let content = line.trim_start_matches('"');
+            let content = content.split('"').next()?;
+            let (label, _) = content.split_once('|')?;
+            Some(label.to_string())
+        })
+        .collect()
+}
+
+fn simulate_ci_product_stable_dry_run_labels(script: &str) -> Vec<String> {
+    let labels = parse_ci_product_stable_canary_labels(script);
+    let loop_body = script
+        .split(r#"for entry in "${CANARIES[@]}""#)
+        .nth(1)
+        .expect("scripts/ci-product-stable.sh must iterate CANARIES in dry-run and execute modes");
+    assert!(
+        loop_body.contains("printf '\\n[stable] %s\\n' \"$label\""),
+        "scripts/ci-product-stable.sh must print one [stable] line per CANARIES entry before execution"
+    );
+    labels
+}
+
+fn parse_ci_product_stable_dry_run_labels(output: &str) -> Vec<String> {
+    output
+        .lines()
+        .filter_map(|line| line.strip_prefix("[stable] "))
+        .map(str::to_string)
+        .collect()
+}
+
+fn run_ci_product_stable_dry_run() -> String {
+    let repo_root = repo_root();
+    let script = repo_root.join("scripts/ci-product-stable.sh");
+    let output = Command::new("bash")
+        .arg(&script)
+        .arg("--dry-run")
+        .current_dir(&repo_root)
+        .output()
+        .expect("run scripts/ci-product-stable.sh --dry-run");
+
+    assert!(
+        output.status.success(),
+        "scripts/ci-product-stable.sh --dry-run must succeed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    String::from_utf8_lossy(&output.stdout).into_owned()
 }
 
 fn toml_path(path: PathBuf) -> String {
