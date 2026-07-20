@@ -75,6 +75,19 @@ later `Product Proof Result` required-gate promotion. Current branch protection
 requires `Product Proof Result`; the path-selected `ci-product stable canaries`
 implementation job remains selected by path, schedule, or manual dispatch.
 
+Latest local receipt after Stable Product Proof correction
+[#854](https://github.com/EffortlessMetrics/adze-swarm/issues/854): `just
+ci-product-stable` passed on 2026-07-19 from local `adze-swarm` work at
+`cbb25d3e` (pre-merge base) on branch `cursor/854-stable-product-proof`. The
+corrected `scripts/ci-product-stable.sh` now executes all 17 declared stable
+canaries, including downstream acceptance, edge-case, and document-projection
+suites that were previously appended to `STABLE_CANARIES` but skipped by the
+`CANARIES` execution loop. Guardrail:
+`cargo test -p adze-cli product_proof_stable_canaries_execute_exactly_once
+-- --exact --nocapture`. This receipt is stable-product proof-integrity
+evidence, not support-tier promotion, release authorization, or crates.io install
+proof.
+
 Current referenced research-board state:
 adze-swarm#617 records the June 5 paused-forge state after the completed
 starter workspace robustness (#681/#682/#683), diagnostic wording polish

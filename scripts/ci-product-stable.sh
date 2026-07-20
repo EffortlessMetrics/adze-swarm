@@ -23,10 +23,6 @@ CANARIES=(
   "operator precedence core shape|cargo test -p adze-glr-core --test ambiguity_detection_comprehensive test_precedence_resolves_add_mul -- --exact --nocapture"
   "core parse-table serialization doctests|cargo test -p adze-glr-core --features serialization --doc"
   "core parse-table serialization roundtrip|cargo test -p adze-glr-core --features serialization --test serialization_v9 sv9_complex_precedence_roundtrip -- --exact --nocapture"
-)
-
-# Also check the downstream-demo acceptance tests (added in the product-readiness campaign)
-STABLE_CANARIES+=(
   "downstream acceptance tests|cargo test -p downstream-demo --lib acceptance -- --nocapture"
   "downstream edge case tests|cargo test -p downstream-demo --lib edge_case -- --nocapture"
   "downstream document projection tests|cargo test -p downstream-demo --lib document_projection -- --nocapture"
