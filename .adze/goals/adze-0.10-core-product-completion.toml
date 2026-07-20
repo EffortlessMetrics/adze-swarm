@@ -105,9 +105,10 @@ commands = [
 
 [[work_item]]
 id = "stable-product-proof-correction"
-status = "active"
+status = "complete"
 spec = "ADZE-SPEC-0011"
 issues = [854]
+prs = [854]
 commands = [
   "bash -n scripts/ci-product-stable.sh",
   "scripts/ci-product-stable.sh --dry-run",
@@ -117,12 +118,14 @@ commands = [
 
 [[work_item]]
 id = "release-crate-graph"
-status = "blocked"
+status = "active"
 spec = "ADZE-SPEC-0011"
-blocked_by = ["stable-product-proof-correction"]
 issues = [855]
 commands = [
-  "just check-publishable",
+  "bash -n scripts/check-publish-stance.sh",
+  "./scripts/check-publish-stance.sh",
+  "cargo run -q -p xtask -- check-package-boundary --mode blocking-allowlist",
+  "cargo metadata --format-version 1 --locked --no-deps",
   "git diff --check",
 ]
 

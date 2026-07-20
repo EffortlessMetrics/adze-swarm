@@ -9,6 +9,7 @@ description = "GLR runtime for Adze parsers"
 repository = "https://github.com/EffortlessMetrics/adze"
 keywords = ["parser", "parsing", "glr", "tree-sitter", "incremental"]
 categories = ["parsing", "compilers"]
+publish = false
 
 [dependencies]
 # Core dependencies
