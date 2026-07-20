@@ -296,6 +296,8 @@ enum Commands {
     GenerateReleaseGraph,
     /// Verify the committed release graph matches the ledger-selected order.
     CheckReleaseGraph,
+    /// Print committed release-graph ordered crate names (one per line).
+    PrintReleaseGraph,
     /// Verify a published crates.io CLI install in an isolated temp root.
     ///
     /// This is intended as a post-publish receipt, not a pre-publish package
@@ -625,6 +627,9 @@ fn main() -> Result<()> {
         }
         Commands::CheckReleaseGraph => {
             release_graph::run_check()?;
+        }
+        Commands::PrintReleaseGraph => {
+            release_graph::run_print()?;
         }
         Commands::VerifyCratesIoInstall {
             crate_name,

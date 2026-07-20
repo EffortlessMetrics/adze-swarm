@@ -2,6 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+RELEASE_GRAPH_ARTIFACT="${RELEASE_GRAPH_ARTIFACT:-${ROOT_DIR}/policy/release-graph.toml}"
 RELEASE_CRATE_FILE="${RELEASE_CRATE_FILE:-${SCRIPT_DIR}/release-crates.txt}"
 RELEASE_SURFACE_MODE="${RELEASE_SURFACE_MODE:-fixed}"
 STRICT_PUBLISH_SURFACE="${STRICT_PUBLISH_SURFACE:-0}"
@@ -39,7 +41,8 @@ echo "=== Release helper ==="
 echo "Tag: ${tag}"
 echo "Dry run: ${DRY_RUN}"
 echo "Release surface mode: ${RELEASE_SURFACE_MODE}"
-echo "Release crate file: ${RELEASE_CRATE_FILE}"
+echo "Release graph artifact: ${RELEASE_GRAPH_ARTIFACT}"
+echo "Derived crate list: ${RELEASE_CRATE_FILE}"
 echo "Strict publish surface: ${STRICT_PUBLISH_SURFACE}"
 echo "Package-boundary release gate: ${PACKAGE_BOUNDARY_RELEASE_GATE}"
 echo

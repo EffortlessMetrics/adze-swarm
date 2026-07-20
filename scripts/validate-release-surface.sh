@@ -2,7 +2,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 STRICT_PUBLISH_SURFACE="${STRICT_PUBLISH_SURFACE:-0}"
+RELEASE_GRAPH_ARTIFACT="${RELEASE_GRAPH_ARTIFACT:-${ROOT_DIR}/policy/release-graph.toml}"
 RELEASE_CRATE_FILE="${RELEASE_CRATE_FILE:-${SCRIPT_DIR}/release-crates.txt}"
 RELEASE_SURFACE_MODE="${RELEASE_SURFACE_MODE:-fixed}"
 PACKAGE_BOUNDARY_RELEASE_GATE="${PACKAGE_BOUNDARY_RELEASE_GATE:-0}"
@@ -128,11 +130,11 @@ done
 if [[ "$RELEASE_SURFACE_MODE" == "fixed" && $has_failure == 0 ]] && (( ${#extra_publishable[@]} > 0 )); then
   extra_count="${#extra_publishable[@]}"
   if (( extra_count <= 12 )); then
-    echo "::warning::Extra publishable crates are not in ${RELEASE_CRATE_FILE}: ${extra_publishable[*]}" >&2
+    echo "::warning::Extra publishable crates are not in ${RELEASE_GRAPH_ARTIFACT}: ${extra_publishable[*]}" >&2
   else
     shown=("${extra_publishable[@]:0:12}")
     remaining=$(( extra_count - 12 ))
-    echo "::warning::Extra publishable crates are not in ${RELEASE_CRATE_FILE}: ${shown[*]}" >&2
+    echo "::warning::Extra publishable crates are not in ${RELEASE_GRAPH_ARTIFACT}: ${shown[*]}" >&2
     echo "::warning::... and ${remaining} more publishable crates" >&2
   fi
 fi

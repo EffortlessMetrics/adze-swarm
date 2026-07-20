@@ -12,6 +12,7 @@ use std::path::Path;
 use crate::policy::{self, package_boundary};
 
 pub const ARTIFACT_PATH: &str = "policy/release-graph.toml";
+pub const RELEASE_CRATES_TXT_PATH: &str = "scripts/release-crates.txt";
 const TARGET_ARTIFACT_DIR: &str = "target/xtask/release-graph";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -67,6 +68,7 @@ pub fn run_generate() -> Result<()> {
     }
     std::fs::copy(&target_path, &committed_path)
         .with_context(|| format!("refreshing {}", committed_path.display()))?;
+    write_release_crates_txt(&root, &graph.ordered_crates)?;
 
     println!(
         "release-graph: refreshed {} ({} crate(s))",
@@ -107,6 +109,48 @@ pub fn run_check() -> Result<()> {
         committed.ordered_crates.len()
     );
     Ok(())
+}
+
+pub fn run_print() -> Result<()> {
+    let root = policy::workspace_root()?;
+    let graph = load_committed(&root)?;
+    for crate_name in &graph.ordered_crates {
+        println!("{crate_name}");
+    }
+    Ok(())
+}
+
+pub fn load_committed(root: &Path) -> Result<ReleaseGraph> {
+    let committed_path = root.join(ARTIFACT_PATH);
+    let committed_text = std::fs::read_to_string(&committed_path)
+        .with_context(|| format!("reading {}", committed_path.display()))?;
+    parse_artifact(&committed_text).with_context(|| format!("parsing {}", committed_path.display()))
+}
+
+pub fn ordered_crate_names(root: &Path) -> Result<Vec<String>> {
+    Ok(load_committed(root)?.ordered_crates)
+}
+
+fn write_release_crates_txt(root: &Path, ordered_crates: &[String]) -> Result<()> {
+    let path = root.join(RELEASE_CRATES_TXT_PATH);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating {}", parent.display()))?;
+    }
+    std::fs::write(&path, render_release_crates_txt(ordered_crates)?)
+        .with_context(|| format!("writing {}", path.display()))?;
+    Ok(())
+}
+
+fn render_release_crates_txt(ordered_crates: &[String]) -> Result<String> {
+    let mut out = String::new();
+    out.push_str("# Generated from policy/release-graph.toml. Do not hand-edit.\n");
+    out.push_str("# Regenerate: cargo xtask generate-release-graph\n\n");
+    for crate_name in ordered_crates {
+        out.push_str(crate_name);
+        out.push('\n');
+    }
+    Ok(out)
 }
 
 pub fn compute_release_graph(root: &Path) -> Result<ReleaseGraph> {
@@ -376,6 +420,40 @@ mod tests {
                 .iter()
                 .any(|name| name == "adze-runtime")
         );
+    }
+
+    #[test]
+    fn print_release_graph_matches_committed_artifact() {
+        let root = policy::workspace_root().expect("workspace root");
+        let graph = load_committed(&root).expect("committed release graph");
+        let computed = compute_release_graph(&root).expect("computed release graph");
+
+        assert_eq!(graph.ordered_crates, computed.ordered_crates);
+        assert_eq!(graph.ordered_crates.len(), 12);
+    }
+
+    #[test]
+    fn release_crates_txt_render_is_deterministic() {
+        let ordered = vec!["alpha".to_string(), "beta".to_string()];
+        let rendered = render_release_crates_txt(&ordered).expect("render");
+        assert!(rendered.contains("# Generated from policy/release-graph.toml"));
+        assert!(rendered.contains("alpha\nbeta\n"));
+    }
+
+    #[test]
+    fn committed_release_crates_txt_matches_graph() {
+        let root = policy::workspace_root().expect("workspace root");
+        let graph = load_committed(&root).expect("committed release graph");
+        let path = root.join(RELEASE_CRATES_TXT_PATH);
+        let text = std::fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("reading {}: {err}", path.display()));
+        let listed: Vec<String> = text
+            .lines()
+            .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
+            .map(str::to_string)
+            .collect();
+
+        assert_eq!(listed, graph.ordered_crates);
     }
 
     #[test]

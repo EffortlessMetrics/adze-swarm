@@ -1062,7 +1062,7 @@ jobs:
 
       - name: Validate package manifests (FR-012)
         run: |
-          # Validate the releasable workspace surface defined in scripts/release-crates.txt.
+          # Validate the releasable workspace surface from policy/release-graph.toml.
           RELEASE_SURFACE_MODE=fixed ./scripts/validate-release-surface.sh
 
           mapfile -t CRATES_TO_PUBLISH < <(./scripts/release-surface.sh)

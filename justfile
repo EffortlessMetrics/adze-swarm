@@ -115,6 +115,10 @@ generate-release-graph:
 check-release-graph:
     cargo run -q -p xtask -- check-release-graph
 
+# Print committed release-graph ordered crate names (one per line)
+print-release-graph:
+    cargo run -q -p xtask -- print-release-graph
+
 # Verify a crate package with local patches for unpublished co-release crates
 package-local crate:
     ./scripts/package-local-release.sh {{crate}}
