@@ -1,39 +1,23 @@
 # Now / Next / Later
 
-**Last updated:** 2026-06-05
-**Status:** **Adze-swarm forge remains paused; release remains
-unauthorized** — `adze-swarm` remains the operating repo for non-release
-research, proof, docs, CI, implementation, and release-candidate preparation,
-while public `adze` remains the release, public-intake, promotion, tag,
-publish, signing, Cargo-token, and crates.io receipt surface. The current
-research board is [`adze-swarm#617`](https://github.com/EffortlessMetrics/adze-swarm/issues/617),
-whose body was refreshed on June 5 after #680 was closed as completed through
-the starter workspace robustness and diagnostic wording polish closeouts, after
-#690/#691 refreshed the accuracy proof-map queue into a current ledger state,
-after #692/#693 refreshed checked-in status ledgers, and after #694/#695
-refreshed product proof-map receipt pointers, then after #696/#697 refreshed
-rolling receipt wording, after #699/#700 refreshed board-reference durability,
-after #702/#704 closed the focused runtime `parse_sexpr` parser gap, and after
-the #706/#708 canonical `SExpr` implementation and #709/#710 checked-in
-proof-boundary docs landed without support-tier promotion. A later June 5
-docs/projection cleanup pass closed #729/#732, #730/#731, #733/#735, and
-#736/#734, removing stale `as_tree_sitter` examples and aligning current
-document-root examples with `AdzeDocument::tree().root()` and native
-`NodeKind` shape. The post-#734 ledger refresh closed #738/#740, and
-#739/#741 aligned the root README release-surface install-shape snippet with
-the intended 0.9.0 package shape while preserving the no-crates.io-install
-claim boundary. The active manifest is paused as
-`first-use-starter-workspace-hardening` with 3 complete, 0 active, 0 ready, and
-1 blocked item. The remaining blocked decision/evidence lanes are release
-authorization/install receipts in
+**Last updated:** 2026-07-19
+**Status:** **0.10.0 campaign active; release remains unauthorized** —
+`adze-swarm` remains the operating repo for non-release research, proof, docs,
+CI, implementation, and release-candidate preparation, while public `adze`
+remains the release, public-intake, promotion, tag, publish, signing,
+Cargo-token, and crates.io receipt surface. The current research board is
+[`adze-swarm#617`](https://github.com/EffortlessMetrics/adze-swarm/issues/617).
+The active manifest is `adze-0.10-core-product-completion` for parent campaign
+[`adze-swarm#853`](https://github.com/EffortlessMetrics/adze-swarm/issues/853),
+with Gate A/B/C definitions recorded in the goal manifest and #853. Current
+queue after #848/#849 merge and #883 control-plane reset: 1 active (#854),
+3 complete (#848/#849/#883), and 5 blocked items including release
+authorization in
 [`adze-swarm#325`](https://github.com/EffortlessMetrics/adze-swarm/issues/325)
-and standing CX53 runner state in
-[`adze-swarm#598`](https://github.com/EffortlessMetrics/adze-swarm/issues/598),
-now narrowed to admin/runner context after repo-visible API checks.
-Open swarm PRs #662 and #663 are draft/behind and not treated as ready; queued
-and in-progress swarm runs were empty after the post-#741 queue check. No
-routine release, publish, signing, Cargo-token, public promotion, or crates.io
-install receipt work is authorized.
+and runner evidence in
+[`adze-swarm#598`](https://github.com/EffortlessMetrics/adze-swarm/issues/598).
+Open swarm PR count was 0 at reset time. No routine release, publish, signing,
+Cargo-token, public promotion, or crates.io install receipt work is authorized.
 
 Adze status and rolling execution plan. For recurring pain points, see [`docs/status/FRICTION_LOG.md`](./FRICTION_LOG.md). For API stability guarantees per crate, see [`docs/status/API_STABILITY.md`](./API_STABILITY.md). For support-tier proof commands, see [`docs/status/SUPPORT_TIERS.md`](./SUPPORT_TIERS.md).
 
