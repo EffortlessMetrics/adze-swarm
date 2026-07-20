@@ -125,6 +125,8 @@ commands = [
   "bash -n scripts/check-publish-stance.sh",
   "./scripts/check-publish-stance.sh",
   "cargo run -q -p xtask -- check-package-boundary --mode blocking-allowlist",
+  "cargo run -q -p xtask -- check-release-graph",
+  "cargo test -p xtask release_graph -- --nocapture",
   "cargo metadata --format-version 1 --locked --no-deps",
   "git diff --check",
 ]

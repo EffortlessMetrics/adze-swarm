@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 
 use super::{Mode, ensure_report_dir, workspace_root};
 
-const POLICY_PATH: &str = "policy/package-boundary.toml";
+pub const POLICY_PATH: &str = "policy/package-boundary.toml";
 
 #[derive(Debug, Default, Deserialize)]
 struct PackageBoundaryFile {
@@ -147,6 +147,18 @@ pub fn run_check(mode: Mode, release_gate: bool) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Ledger-published crate names (`category = "published"`), sorted deterministically.
+pub fn published_package_names(root: &Path) -> Result<BTreeSet<String>> {
+    let ledger = load_ledger(root)?;
+    let mut names = BTreeSet::new();
+    for entry in &ledger.packages {
+        if Category::parse(&entry.category) == Some(Category::Published) {
+            names.insert(entry.name.clone());
+        }
+    }
+    Ok(names)
 }
 
 fn load_ledger(root: &Path) -> Result<PackageBoundaryFile> {

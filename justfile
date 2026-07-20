@@ -107,6 +107,14 @@ check-publishable:
 check-publish-stance:
     ./scripts/check-publish-stance.sh
 
+# Generate policy/release-graph.toml from ledger-published crates
+generate-release-graph:
+    cargo run -q -p xtask -- generate-release-graph
+
+# Verify committed release graph matches ledger-selected dependency order
+check-release-graph:
+    cargo run -q -p xtask -- check-release-graph
+
 # Verify a crate package with local patches for unpublished co-release crates
 package-local crate:
     ./scripts/package-local-release.sh {{crate}}
