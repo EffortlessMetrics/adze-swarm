@@ -1,0 +1,26 @@
+# Generated release graph. Do not hand-edit.
+# Regenerate: cargo xtask generate-release-graph
+
+schema_version = "1.0"
+policy = "release-graph"
+source_ledger = "policy/package-boundary.toml"
+selection = "ledger-published"
+dependency_kinds = [
+    "normal",
+    "build",
+]
+ordered_crates = [
+    "adze-bdd-governance-core",
+    "adze-common-type-ops-core",
+    "adze-common",
+    "adze-ir",
+    "adze-glr-core",
+    "adze-linecol-core",
+    "adze-macro",
+    "adze-parsetable-metadata",
+    "adze-tablegen",
+    "adze",
+    "adze-tool",
+    "adze-cli",
+]
+

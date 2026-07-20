@@ -20,6 +20,7 @@ mod perf_receipt;
 mod policy;
 mod profile;
 mod publish_install;
+mod release_graph;
 mod ripr;
 mod test_grammars;
 mod test_local_grammars;
@@ -291,6 +292,10 @@ enum Commands {
         #[arg(long)]
         release_gate: bool,
     },
+    /// Generate policy/release-graph.toml from the ledger-published crate set.
+    GenerateReleaseGraph,
+    /// Verify the committed release graph matches the ledger-selected order.
+    CheckReleaseGraph,
     /// Verify a published crates.io CLI install in an isolated temp root.
     ///
     /// This is intended as a post-publish receipt, not a pre-publish package
@@ -614,6 +619,12 @@ fn main() -> Result<()> {
         Commands::CheckPackageBoundary { mode, release_gate } => {
             let mode = policy::Mode::parse(&mode)?;
             policy::package_boundary::run_check(mode, release_gate)?;
+        }
+        Commands::GenerateReleaseGraph => {
+            release_graph::run_generate()?;
+        }
+        Commands::CheckReleaseGraph => {
+            release_graph::run_check()?;
         }
         Commands::VerifyCratesIoInstall {
             crate_name,
