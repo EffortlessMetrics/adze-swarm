@@ -2,7 +2,14 @@
 //!
 //! Verifies that every Cargo workspace package is classified in
 //! `policy/package-boundary.toml` as a published crate, dev-only crate, or
-//! owner-module migration target.
+//! owner-module migration target, and that each manifest's explicit Cargo
+//! `publish` stance matches the ledger category.
+//!
+//! Production/public scope is derived from the ledger (not from Cargo alone):
+//! - `public_publish_scope`: packages with `category = "published"` (intended
+//!   crates.io or equivalent public surfaces);
+//! - `production_scope`: packages with `production_use = true` (runtime or
+//!   support surfaces used by production code paths).
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -57,11 +64,16 @@ struct CargoPackage {
     id: String,
     name: String,
     manifest_path: PathBuf,
+    /// `None` (JSON null) means unrestricted publish; `Some([])` means
+    /// `publish = false`; `Some(["crates.io"])` means registry-scoped publish.
+    publish: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 struct WorkspacePackage {
     path: String,
+    explicit_publish_declared: bool,
+    cargo_publishable: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -97,6 +109,10 @@ struct PackageBoundaryReport {
     workspace_packages: usize,
     ledger_packages: usize,
     by_category: BTreeMap<String, usize>,
+    /// Ledger-derived public publish surfaces (`category = published`).
+    public_publish_scope: Vec<String>,
+    /// Ledger-derived production-used packages (`production_use = true`).
+    production_scope: Vec<String>,
     findings: Vec<Finding>,
 }
 
@@ -171,9 +187,43 @@ fn load_workspace_packages(root: &Path) -> Result<BTreeMap<String, WorkspacePack
             .parent()
             .with_context(|| format!("manifest has no parent for {}", package.name))?;
         let path = relative_path(root, manifest_dir)?;
-        packages.insert(package.name.clone(), WorkspacePackage { path });
+        let explicit_publish_declared = manifest_declares_explicit_publish(&package.manifest_path)?;
+        let cargo_publishable = cargo_metadata_publishable(package.publish.as_ref());
+        packages.insert(
+            package.name.clone(),
+            WorkspacePackage {
+                path,
+                explicit_publish_declared,
+                cargo_publishable,
+            },
+        );
     }
     Ok(packages)
+}
+
+fn manifest_declares_explicit_publish(manifest_path: &Path) -> Result<bool> {
+    let text = std::fs::read_to_string(manifest_path)
+        .with_context(|| format!("reading {}", manifest_path.display()))?;
+    let doc: toml::Table =
+        toml::from_str(&text).with_context(|| format!("parsing {}", manifest_path.display()))?;
+    Ok(doc
+        .get("package")
+        .and_then(toml::Value::as_table)
+        .is_some_and(|package| package.contains_key("publish")))
+}
+
+fn cargo_metadata_publishable(publish: Option<&Vec<String>>) -> bool {
+    match publish {
+        None => true,
+        Some(registries) => !registries.is_empty(),
+    }
+}
+
+fn expected_cargo_publishable(category: Category) -> bool {
+    match category {
+        Category::Published => true,
+        Category::DevOnly | Category::OwnerModuleMigrationTarget => false,
+    }
 }
 
 fn relative_path(root: &Path, path: &Path) -> Result<String> {
@@ -248,6 +298,7 @@ fn validate(
                         ),
                     ));
                 }
+                validate_publish_alignment(entry, package, category, &mut report);
             }
             None => report.findings.push(finding(
                 "error",
@@ -259,6 +310,7 @@ fn validate(
         }
 
         validate_category_contract(entry, category, release_gate, &mut report);
+        record_scope_entry(entry, category, &mut report);
     }
 
     for package in workspace_packages.keys() {
@@ -360,6 +412,52 @@ fn required_entry_field(
     }
 }
 
+fn validate_publish_alignment(
+    entry: &PackageEntry,
+    package: &WorkspacePackage,
+    category: Category,
+    report: &mut PackageBoundaryReport,
+) {
+    if !package.explicit_publish_declared {
+        report.findings.push(finding(
+            "error",
+            "missing-explicit-publish",
+            Some(&entry.name),
+            Some("publish"),
+            "manifest must declare an explicit Cargo publish key (no omission/inheritance-only stance)",
+        ));
+    }
+
+    let expected = expected_cargo_publishable(category);
+    if package.cargo_publishable != expected {
+        report.findings.push(finding(
+            "error",
+            "publish-stance-mismatch",
+            Some(&entry.name),
+            Some("publish"),
+            &format!(
+                "ledger category `{}` requires cargo publishable={}, but cargo metadata resolves to publishable={}",
+                category.as_str(),
+                expected,
+                package.cargo_publishable
+            ),
+        ));
+    }
+}
+
+fn record_scope_entry(
+    entry: &PackageEntry,
+    category: Category,
+    report: &mut PackageBoundaryReport,
+) {
+    if category == Category::Published {
+        report.public_publish_scope.push(entry.name.clone());
+    }
+    if entry.production_use == Some(true) {
+        report.production_scope.push(entry.name.clone());
+    }
+}
+
 fn validate_category_contract(
     entry: &PackageEntry,
     category: Category,
@@ -453,6 +551,14 @@ fn write_reports(dir: &Path, report: &PackageBoundaryReport) -> Result<()> {
     ));
     md.push_str(&format!("- ledger packages: {}\n", report.ledger_packages));
     md.push_str(&format!(
+        "- public publish scope: {} package(s)\n",
+        report.public_publish_scope.len()
+    ));
+    md.push_str(&format!(
+        "- production scope: {} package(s)\n",
+        report.production_scope.len()
+    ));
+    md.push_str(&format!(
         "- findings: {} error(s), {} warning(s)\n",
         count_severity(report, "error"),
         count_severity(report, "warning")
@@ -486,6 +592,11 @@ fn print_summary(report: &PackageBoundaryReport) {
     println!("  release gate:      {}", report.release_gate);
     println!("  workspace packages: {}", report.workspace_packages);
     println!("  ledger packages:    {}", report.ledger_packages);
+    println!(
+        "  public publish scope: {}",
+        report.public_publish_scope.len()
+    );
+    println!("  production scope:     {}", report.production_scope.len());
     println!("  errors:             {}", count_severity(report, "error"));
     println!(
         "  warnings:           {}",
@@ -529,14 +640,27 @@ fn finding(
 mod tests {
     use super::*;
 
+    fn workspace(path: &str, explicit_publish: bool, cargo_publishable: bool) -> WorkspacePackage {
+        WorkspacePackage {
+            path: path.to_string(),
+            explicit_publish_declared: explicit_publish,
+            cargo_publishable,
+        }
+    }
+
     fn entry(name: &str, category: &str) -> PackageEntry {
+        let publish_intent = if category == "dev-only" {
+            "none"
+        } else {
+            "public"
+        };
         PackageEntry {
             name: name.to_string(),
             path: name.to_string(),
             category: category.to_string(),
             owner: "test/owner".to_string(),
             production_use: Some(category != "dev-only"),
-            publish_intent: "public".to_string(),
+            publish_intent: publish_intent.to_string(),
             support_tier_impact: "test impact".to_string(),
             ci_impact: "test ci".to_string(),
             migration_target: (category == "owner-module-migration-target")
@@ -577,24 +701,9 @@ mod tests {
             ],
         };
         let workspace = BTreeMap::from([
-            (
-                "known".to_string(),
-                WorkspacePackage {
-                    path: "known".to_string(),
-                },
-            ),
-            (
-                "missing".to_string(),
-                WorkspacePackage {
-                    path: "missing".to_string(),
-                },
-            ),
-            (
-                "migration".to_string(),
-                WorkspacePackage {
-                    path: "migration".to_string(),
-                },
-            ),
+            ("known".to_string(), workspace("known", true, true)),
+            ("missing".to_string(), workspace("missing", true, false)),
+            ("migration".to_string(), workspace("migration", true, false)),
         ]);
 
         let report = validate(&ledger, &workspace, Mode::BlockingAllowlist, false);
@@ -616,16 +725,86 @@ mod tests {
             updated: "2026-05-12".to_string(),
             packages: vec![entry("migration", "owner-module-migration-target")],
         };
-        let workspace = BTreeMap::from([(
-            "migration".to_string(),
-            WorkspacePackage {
-                path: "migration".to_string(),
-            },
-        )]);
+        let workspace =
+            BTreeMap::from([("migration".to_string(), workspace("migration", true, false))]);
 
         let report = validate(&ledger, &workspace, Mode::BlockingAllowlist, true);
         let codes: BTreeSet<_> = report.findings.iter().map(|f| f.code).collect();
 
         assert!(codes.contains("release-blocking-migration-target"));
+    }
+
+    #[test]
+    fn publish_alignment_accepts_matching_stances() {
+        let ledger = PackageBoundaryFile {
+            schema_version: "1.0".to_string(),
+            policy: "package-boundary".to_string(),
+            owner: "test".to_string(),
+            status: "advisory".to_string(),
+            updated: "2026-05-12".to_string(),
+            packages: vec![
+                entry("published", "published"),
+                entry("dev-only", "dev-only"),
+            ],
+        };
+        let workspace = BTreeMap::from([
+            ("published".to_string(), workspace("published", true, true)),
+            ("dev-only".to_string(), workspace("dev-only", true, false)),
+        ]);
+
+        let report = validate(&ledger, &workspace, Mode::BlockingAllowlist, false);
+        let codes: BTreeSet<_> = report.findings.iter().map(|f| f.code).collect();
+
+        assert!(!codes.contains("publish-stance-mismatch"));
+        assert!(!codes.contains("missing-explicit-publish"));
+        assert_eq!(report.public_publish_scope, vec!["published".to_string()]);
+        assert!(report.production_scope.contains(&"published".to_string()));
+        assert!(!report.production_scope.contains(&"dev-only".to_string()));
+    }
+
+    #[test]
+    fn publish_alignment_reports_category_cargo_mismatch() {
+        let ledger = PackageBoundaryFile {
+            schema_version: "1.0".to_string(),
+            policy: "package-boundary".to_string(),
+            owner: "test".to_string(),
+            status: "advisory".to_string(),
+            updated: "2026-05-12".to_string(),
+            packages: vec![entry("drift", "published")],
+        };
+        let workspace = BTreeMap::from([("drift".to_string(), workspace("drift", true, false))]);
+
+        let report = validate(&ledger, &workspace, Mode::BlockingAllowlist, false);
+        let codes: BTreeSet<_> = report.findings.iter().map(|f| f.code).collect();
+
+        assert!(codes.contains("publish-stance-mismatch"));
+    }
+
+    #[test]
+    fn publish_alignment_reports_missing_explicit_publish() {
+        let ledger = PackageBoundaryFile {
+            schema_version: "1.0".to_string(),
+            policy: "package-boundary".to_string(),
+            owner: "test".to_string(),
+            status: "advisory".to_string(),
+            updated: "2026-05-12".to_string(),
+            packages: vec![entry("implicit", "dev-only")],
+        };
+        let workspace =
+            BTreeMap::from([("implicit".to_string(), workspace("implicit", false, false))]);
+
+        let report = validate(&ledger, &workspace, Mode::BlockingAllowlist, false);
+        let codes: BTreeSet<_> = report.findings.iter().map(|f| f.code).collect();
+
+        assert!(codes.contains("missing-explicit-publish"));
+    }
+
+    #[test]
+    fn cargo_metadata_publishable_interprets_null_empty_and_registry_lists() {
+        assert!(cargo_metadata_publishable(None));
+        assert!(!cargo_metadata_publishable(Some(&vec![])));
+        assert!(cargo_metadata_publishable(Some(&vec![
+            "crates.io".to_string()
+        ])));
     }
 }
