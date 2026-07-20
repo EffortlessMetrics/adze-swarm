@@ -3,6 +3,7 @@ name = "adze-lsp-generator"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 edition = "2024"
+publish = false
 
 [dependencies]
 adze-ir = { path = "../ir" }

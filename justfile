@@ -103,6 +103,10 @@ publish-order:
 check-publishable:
     ./scripts/check-publish.sh
 
+# Verify every workspace package declares an explicit Cargo publish key
+check-publish-stance:
+    ./scripts/check-publish-stance.sh
+
 # Verify a crate package with local patches for unpublished co-release crates
 package-local crate:
     ./scripts/package-local-release.sh {{crate}}
