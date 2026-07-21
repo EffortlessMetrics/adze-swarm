@@ -6,6 +6,9 @@
 #![cfg(all(feature = "pure-rust", feature = "glr", feature = "runtime-e2e"))]
 
 use adze::decoder::decode_parse_table;
+use adze::glr_streaming_internal_lexer::{
+    StreamingInternalLexError, lex_generated_internal_at, make_generated_internal_streaming_lexer,
+};
 use adze::glr_streaming_lex_contract::{
     StreamingLexContractViolationKind, audit_fixed_mode_pretokenization_bridge,
     distinct_internal_lex_states, external_scanner_mask_union_covers_active_stacks,
@@ -268,4 +271,72 @@ fn streaming_lex_modes_generated_lexer_fn_is_available_for_adapter_slices() {
     let language = streaming_lex_modes_language();
     let lex_fn = language.lex_fn.expect("generated lexer fn");
     let _lex_fn: unsafe extern "C" fn(*mut c_void, adze::pure_parser::TSLexState) -> bool = lex_fn;
+}
+
+#[test]
+fn streaming_lex_modes_internal_adapter_preserves_meaningful_newline_token() {
+    let language = streaming_lex_modes_language();
+    let table = streaming_lex_modes_contract_table();
+    let mode = table.lex_mode(StateId(0));
+
+    let token = lex_generated_internal_at(language, "1+2\n", 3, mode)
+        .expect("adapter should lex newline token")
+        .expect("newline token expected at byte 3");
+
+    assert_eq!(token.start, 3);
+    assert_eq!(token.end, 4);
+}
+
+#[test]
+fn streaming_lex_modes_internal_adapter_does_not_hard_code_ascii_whitespace_skip() {
+    let language = streaming_lex_modes_language();
+    let table = streaming_lex_modes_contract_table();
+    let mode = table.lex_mode(StateId(0));
+
+    // Unlike the fixed bridge, the adapter does not pre-skip spaces before lexing.
+    let at_space = lex_generated_internal_at(language, "1 + 2", 1, mode);
+    assert!(
+        matches!(
+            at_space,
+            Err(StreamingInternalLexError::NoProgress { pos: 1 })
+        ),
+        "adapter should not hard-code ASCII skip; got {at_space:?}"
+    );
+}
+
+#[test]
+fn streaming_lex_modes_internal_adapter_rejects_no_progress_structured_error() {
+    let language = streaming_lex_modes_language();
+    let table = streaming_lex_modes_contract_table();
+    let mode = table.lex_mode(StateId(0));
+
+    let err = lex_generated_internal_at(language, "1+2@", 3, mode).expect_err("invalid byte");
+    assert_eq!(
+        err,
+        StreamingInternalLexError::NoProgress { pos: 3 },
+        "unexpected error: {err:?}"
+    );
+}
+
+#[test]
+fn streaming_lex_modes_internal_adapter_is_deterministic_for_position_and_mode() {
+    let language = streaming_lex_modes_language();
+    let table = streaming_lex_modes_contract_table();
+    let mode = table.lex_mode(StateId(0));
+
+    let first = lex_generated_internal_at(language, "1+2", 0, mode).expect("first call");
+    let second = lex_generated_internal_at(language, "1+2", 0, mode).expect("second call");
+    assert_eq!(first, second);
+}
+
+#[test]
+fn streaming_lex_modes_internal_adapter_closure_lexes_without_pretokenization() {
+    let language = streaming_lex_modes_language();
+    let table = streaming_lex_modes_contract_table();
+    let mode = table.lex_mode(StateId(0));
+    let mut lexer = make_generated_internal_streaming_lexer(language);
+
+    let token = lexer("1+2", 0, mode).expect("adapter closure should lex first token");
+    assert_eq!(token.start, 0);
+    assert_eq!(token.end, 1);
 }
