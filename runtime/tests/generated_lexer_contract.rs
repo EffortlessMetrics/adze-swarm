@@ -51,7 +51,10 @@ fn keyword_boundary_rejects_glued_identifier_prefix() {
 #[test]
 fn invalid_lexical_input_returns_bounded_errors_without_panic() {
     let errors = grammar::parse("1 + @").expect_err("invalid token should fail typed parse");
-    assert!(!errors.is_empty(), "expected at least one structured parse error");
+    assert!(
+        !errors.is_empty(),
+        "expected at least one structured parse error"
+    );
     assert!(
         errors.iter().all(|error| error.end >= error.start),
         "diagnostic spans must be bounded"
@@ -97,10 +100,6 @@ fn conflict_free_glr_routing_uses_generated_lexer_path() {
     let typed = grammar::parse("3 + 4").expect("glr-routed conflict-free parse");
     assert_eq!(
         typed,
-        Expr::Add(
-            Box::new(Expr::Number(3)),
-            (),
-            Box::new(Expr::Number(4)),
-        )
+        Expr::Add(Box::new(Expr::Number(3)), (), Box::new(Expr::Number(4)),)
     );
 }
