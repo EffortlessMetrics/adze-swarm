@@ -6,7 +6,7 @@
 #![cfg(all(feature = "glr", feature = "pure-rust"))]
 
 use adze_glr_core::{LexMode, ParseTable};
-use adze_ir::StateId;
+use adze_ir::{Grammar, StateId};
 use core::ffi::c_void;
 use std::collections::BTreeSet;
 
@@ -53,6 +53,38 @@ pub fn required_lex_modes_for_active_stacks(
     modes
 }
 
+/// Whether any GLR conflict shift fork requires distinct lexer modes.
+pub fn conflict_shift_targets_require_distinct_lex_modes(parse_table: &ParseTable) -> bool {
+    use adze_glr_core::Action;
+    use adze_glr_core::conflict_inspection::cell_has_conflict;
+
+    for row in &parse_table.action_table {
+        if !row.iter().any(|cell| cell_has_conflict(cell)) {
+            continue;
+        }
+
+        let shift_targets = row
+            .iter()
+            .flat_map(|cell| {
+                cell.iter().filter_map(|action| match action {
+                    Action::Shift(target) => Some(*target),
+                    _ => None,
+                })
+            })
+            .collect::<Vec<_>>();
+
+        if shift_targets.len() < 2 {
+            continue;
+        }
+
+        if required_lex_modes_for_active_stacks(parse_table, &shift_targets).len() >= 2 {
+            return true;
+        }
+    }
+
+    false
+}
+
 /// Whether the fixed-mode bridge always selects parser-state-0 lex mode.
 pub fn fixed_mode_bridge_uses_only_state_zero_lex_mode(language: &TSLanguage) -> bool {
     if language.lex_modes.is_null() || language.state_count <= 1 {
@@ -71,6 +103,26 @@ pub fn fixed_mode_bridge_uses_only_state_zero_lex_mode(language: &TSLanguage) ->
 /// Whether the fixed-mode bridge skips ASCII whitespace before invoking the lexer.
 pub fn fixed_mode_bridge_skips_ascii_whitespace() -> bool {
     true
+}
+
+/// Whether the decoded grammar encodes the stack-aware lex fixture contract.
+pub fn grammar_requires_stack_aware_streaming_lex_contract(grammar: &Grammar) -> bool {
+    grammar_has_explicit_newline_terminal(grammar)
+}
+
+/// Whether the grammar defines whitespace/comments as extras instead of bridge skips.
+pub fn grammar_has_inline_whitespace_extra(grammar: &Grammar) -> bool {
+    !grammar.extras.is_empty()
+}
+
+/// Whether the grammar treats newline as a meaningful terminal token.
+pub fn grammar_has_explicit_newline_terminal(grammar: &Grammar) -> bool {
+    use adze_ir::TokenPattern;
+
+    grammar
+        .tokens
+        .values()
+        .any(|token| matches!(&token.pattern, TokenPattern::String(text) if text == "\n"))
 }
 
 /// Audit the current pretokenization bridge against the streaming contract.

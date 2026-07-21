@@ -116,6 +116,14 @@ pub fn decode_grammar(lang: &'static TSLanguage) -> Grammar {
     decode_grammar_with_patterns(lang, &HashMap::new())
 }
 
+#[cfg(feature = "glr")]
+pub(crate) fn decode_rule_fields(
+    lang: &'static TSLanguage,
+    rule_index: usize,
+) -> Vec<(adze_ir::FieldId, usize)> {
+    fields::decode_rule_fields(lang, rule_index)
+}
+
 /// Decode a Grammar from a TSLanguage struct with token patterns from grammar.json
 pub fn decode_grammar_with_patterns(
     lang: &'static TSLanguage,

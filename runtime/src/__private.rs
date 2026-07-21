@@ -377,6 +377,87 @@ fn parse_table_has_conflicts(parse_table: &adze_glr_core::ParseTable) -> bool {
 }
 
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn parse_document_with_streaming_true_glr_runtime(
+    input: &str,
+    language: &'static crate::pure_parser::TSLanguage,
+    grammar_name: &str,
+    grammar: adze_ir::Grammar,
+    parse_table: adze_glr_core::ParseTable,
+) -> core::result::Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
+    let parsed = match crate::glr_streaming_runtime::parse_with_streaming_driver(
+        input,
+        language,
+        parse_table.clone(),
+        &grammar,
+    ) {
+        Ok(parsed) => parsed,
+        Err(error) => {
+            let errors = crate::glr_streaming_runtime::glr_error_to_parse_errors(input, error);
+            return Ok(parse_document_from_glr_errors(
+                input,
+                language,
+                grammar_name,
+                &grammar,
+                &parse_table,
+                errors,
+            ));
+        }
+    };
+
+    let root = convert_subtree_to_document_node(&parsed.root, language);
+    let ambiguities = parsed.ambiguities.into_iter().collect::<Vec<_>>();
+
+    Ok(
+        crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
+            input,
+            root,
+            0,
+            crate::document::DocumentRuntime {
+                language_name: grammar_name,
+                grammar: &grammar,
+                parse_table: &parse_table,
+                pure_language: Some(language),
+            },
+            Vec::new(),
+            ambiguities,
+        ),
+    )
+}
+
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
+    parsed_node: crate::pure_parser::ParsedNode,
+    source: &[u8],
+) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
+    let non_extra_root_children: Vec<_> = parsed_node
+        .children
+        .iter()
+        .filter(|child| !child.is_extra)
+        .collect();
+    let extract_node = if parsed_node.kind() == "source_file" && non_extra_root_children.len() == 1
+    {
+        non_extra_root_children[0]
+    } else {
+        &parsed_node
+    };
+
+    if extract_node.has_error() {
+        let mut errors = vec![];
+        crate::errors::collect_parsing_errors(extract_node, source, &mut errors);
+        if !errors.is_empty() {
+            return Err(errors);
+        }
+    }
+
+    Ok(<T as crate::Extract<_>>::extract(
+        Some(extract_node),
+        source,
+        0,
+        None,
+    ))
+}
+
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
 fn parse_document_with_true_glr_runtime(
     input: &str,
     language: &'static crate::pure_parser::TSLanguage,
@@ -384,6 +465,22 @@ fn parse_document_with_true_glr_runtime(
     grammar: adze_ir::Grammar,
     parse_table: adze_glr_core::ParseTable,
 ) -> core::result::Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
+    if language.lex_fn.is_some()
+        && crate::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
+            language,
+            &parse_table,
+        )
+    {
+        return parse_document_with_streaming_true_glr_runtime(
+            input,
+            language,
+            grammar_name,
+            grammar,
+            parse_table,
+        );
+    }
+
+    crate::glr_streaming_runtime::record_fixed_bridge_route();
     let source = input.as_bytes();
     let mut runtime_parse_table = parse_table.clone();
     align_true_glr_parse_table_to_language_symbols(language, &mut runtime_parse_table);
@@ -704,6 +801,27 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
     language: &'static crate::pure_parser::TSLanguage,
     mut parse_table: adze_glr_core::ParseTable,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
+    if language.lex_fn.is_some()
+        && crate::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
+            language,
+            &parse_table,
+        )
+    {
+        let grammar = crate::decoder::decode_grammar(language);
+        let parsed = crate::glr_streaming_runtime::parse_with_streaming_driver(
+            input,
+            language,
+            parse_table,
+            &grammar,
+        )
+        .map_err(|error| crate::glr_streaming_runtime::glr_error_to_parse_errors(input, error))?;
+
+        let source = input.as_bytes();
+        let parsed_node = convert_subtree_to_pure(&parsed.root, language, source);
+        return finish_typed_extract_from_parsed_node(parsed_node, source);
+    }
+
+    crate::glr_streaming_runtime::record_fixed_bridge_route();
     let source = input.as_bytes();
     align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
     let grammar = crate::decoder::decode_grammar(language);
@@ -755,32 +873,7 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
     };
 
     let parsed_node = convert_subtree_to_pure(&root_node, language, source);
-    let non_extra_root_children: Vec<_> = parsed_node
-        .children
-        .iter()
-        .filter(|c| !c.is_extra)
-        .collect();
-    let extract_node = if parsed_node.kind() == "source_file" && non_extra_root_children.len() == 1
-    {
-        non_extra_root_children[0]
-    } else {
-        &parsed_node
-    };
-
-    if extract_node.has_error() {
-        let mut errors = vec![];
-        crate::errors::collect_parsing_errors(extract_node, source, &mut errors);
-        if !errors.is_empty() {
-            return Err(errors);
-        }
-    }
-
-    Ok(<T as crate::Extract<_>>::extract(
-        Some(extract_node),
-        source,
-        0,
-        None,
-    ))
+    finish_typed_extract_from_parsed_node(parsed_node, source)
 }
 
 #[cfg(all(feature = "glr", feature = "pure-rust"))]

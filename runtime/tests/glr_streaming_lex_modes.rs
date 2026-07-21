@@ -15,6 +15,7 @@ use adze::glr_streaming_lex_contract::{
     fixed_mode_bridge_uses_only_state_zero_lex_mode, required_lex_modes_for_active_stacks,
     tokenize_with_fixed_mode_bridge,
 };
+use adze::glr_streaming_runtime::{TrueGlrParseRoute, last_true_glr_parse_route};
 use adze::pure_parser::TSLanguage;
 use adze_example::ambiguous_expr::grammar as ambiguous_expr_grammar;
 use adze_example::external_word_example::grammar as external_word_grammar;
@@ -112,28 +113,57 @@ fn streaming_lex_modes_fixed_bridge_drops_meaningful_newline_token() {
 }
 
 #[test]
-#[ignore = "streaming adapter lands in #857 PR4"]
 fn streaming_lex_modes_meaningful_newline_preserves_selected_parse_under_glr() {
     let parsed = streaming_lex_modes_grammar::parse("1+2\n");
     assert!(
         parsed.is_ok(),
         "streaming contract expects selected parse to succeed for fixture line: {parsed:?}"
     );
+    assert_eq!(
+        last_true_glr_parse_route(),
+        Some(TrueGlrParseRoute::StreamingDriver),
+        "conflicted generated fixture must route through streaming driver"
+    );
 }
 
 #[test]
-#[ignore = "streaming adapter lands in #857 PR4"]
 fn streaming_lex_modes_meaningful_newline_survives_tokenization() {
-    let language = streaming_lex_modes_language();
-    let source = b"1+2\n";
-    let lex_fn = language.lex_fn.expect("generated lexer fn");
-    let tokens = tokenize_with_fixed_mode_bridge(language, lex_fn, source)
-        .expect("streaming tokenization should succeed once adapter lands");
-    let offsets = tokens
-        .iter()
-        .map(|token| token.byte_offset)
-        .collect::<BTreeSet<_>>();
-    assert!(offsets.contains(&3));
+    let document = streaming_lex_modes_grammar::parse_document("1+2\n")
+        .expect("streaming parse_document should preserve newline-separated input");
+    let root_range = document.tree().root().byte_range();
+    assert!(
+        root_range.end >= 4,
+        "newline byte should survive streaming lexing in document span: {root_range:?}"
+    );
+    assert_eq!(
+        last_true_glr_parse_route(),
+        Some(TrueGlrParseRoute::StreamingDriver),
+        "fixture tokenization proof should execute through streaming driver routing"
+    );
+}
+
+#[test]
+fn reduce_reduce_route_gate_stays_on_fixed_bridge() {
+    let language = adze_example::reduce_reduce::grammar::language();
+    let table = decode_parse_table(language);
+    assert!(
+        !adze::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
+            language, &table
+        ),
+        "reduce/reduce fixtures stay on GLRParser until ambiguity parity (#891 PR6)"
+    );
+}
+
+#[test]
+fn ambiguous_expr_route_gate_stays_on_fixed_bridge() {
+    let language = ambiguous_expr_grammar::language();
+    let table = decode_parse_table(language);
+    assert!(
+        !adze::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
+            language, &table
+        ),
+        "ambiguous_expr should remain on GLRParser until driver parity (#891 PR6)"
+    );
 }
 
 #[test]

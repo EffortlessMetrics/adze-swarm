@@ -197,7 +197,7 @@ fn lex_once(
 /// Build a `Driver::parse_streaming` internal-lexer closure for a generated language.
 pub fn make_generated_internal_streaming_lexer(
     language: &'static TSLanguage,
-) -> impl FnMut(&str, usize, LexMode) -> Option<NextToken> + '_ {
+) -> impl FnMut(&str, usize, LexMode) -> Option<NextToken> + 'static {
     move |input, pos, mode| {
         lex_generated_internal_at(language, input, pos, mode)
             .ok()

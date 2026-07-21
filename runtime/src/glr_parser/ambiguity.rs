@@ -58,7 +58,7 @@ pub(super) struct SelectedCompleteStack {
     pub(super) reason: SelectionReason,
 }
 
-pub(super) fn subtree_selection_key(node: &Subtree) -> SubtreeSelectionKey {
+pub(crate) fn subtree_selection_key(node: &Subtree) -> SubtreeSelectionKey {
     let mut key = Vec::new();
     append_subtree_selection_key(node, &mut key);
     key
@@ -79,7 +79,7 @@ fn append_subtree_selection_key(node: &Subtree, key: &mut SubtreeSelectionKey) {
     }
 }
 
-pub(super) fn subtree_node_count(node: &Subtree) -> usize {
+pub(crate) fn subtree_node_count(node: &Subtree) -> usize {
     1 + node
         .children
         .iter()

@@ -142,15 +142,14 @@ mod recovery;
 mod telemetry;
 
 pub use ambiguity::{AlternativeSummary, AmbiguitySummary, SelectionReason};
+pub(crate) use ambiguity::{subtree_node_count, subtree_selection_key};
 #[allow(unused_imports)]
 pub use config::{DEFAULT_SAFE_DEDUP_THRESHOLD, safe_dedup_threshold};
 pub use parse_stack::ParseStack;
 #[cfg(feature = "glr_telemetry")]
 use telemetry::TelemetryCounters;
 
-use ambiguity::{
-    SelectedCompleteStack, subtree_node_count, subtree_selection_key, version_selection_reason,
-};
+use ambiguity::{SelectedCompleteStack, version_selection_reason};
 
 /// Recovery event for tracking what recovery actions were taken
 #[derive(Clone, Copy, Debug)]
