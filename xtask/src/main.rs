@@ -15,6 +15,7 @@ mod golden;
 mod goto_indexing;
 mod grammar_json;
 mod lint;
+mod local_release_install;
 mod no_mangle;
 mod perf_receipt;
 mod policy;
@@ -298,6 +299,24 @@ enum Commands {
     CheckReleaseGraph,
     /// Print committed release-graph ordered crate names (one per line).
     PrintReleaseGraph,
+    /// Prove the package-first starter flow from an isolated local registry.
+    ///
+    /// Pre-release evidence only (#856). Use `--dry-run` to inspect the plan
+    /// without creating registries or publishing packages.
+    VerifyLocalReleaseInstall {
+        /// Exact workspace version to publish into the local registry.
+        #[arg(long)]
+        version: String,
+        /// CLI package to install from the local registry.
+        #[arg(long, default_value = local_release_install::DEFAULT_CLI_CRATE)]
+        cli_crate: String,
+        /// Binary expected after install.
+        #[arg(long, default_value = local_release_install::DEFAULT_CLI_BIN)]
+        bin: String,
+        /// Print the command plan without touching registries.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Verify a published crates.io CLI install in an isolated temp root.
     ///
     /// This is intended as a post-publish receipt, not a pre-publish package
@@ -630,6 +649,14 @@ fn main() -> Result<()> {
         }
         Commands::PrintReleaseGraph => {
             release_graph::run_print()?;
+        }
+        Commands::VerifyLocalReleaseInstall {
+            version,
+            cli_crate,
+            bin,
+            dry_run,
+        } => {
+            local_release_install::run(&version, &cli_crate, &bin, dry_run)?;
         }
         Commands::VerifyCratesIoInstall {
             crate_name,

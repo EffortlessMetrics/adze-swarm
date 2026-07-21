@@ -143,7 +143,8 @@ issues = [856]
 blocked_by = ["release-crate-graph"]
 commands = [
   "cargo run -q -p xtask -- check-release-graph",
-  "cargo run -q -p xtask -- print-release-graph",
+  "cargo run -q -p xtask -- verify-local-release-install --version 0.10.0 --dry-run",
+  "cargo test -p xtask local_release_install -- --nocapture",
   "git diff --check",
 ]
 
