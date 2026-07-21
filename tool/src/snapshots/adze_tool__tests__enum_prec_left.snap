@@ -1,6 +1,5 @@
 ---
 source: tool/src/lib.rs
-assertion_line: 464
 expression: grammar
 ---
-{"name":"test","word":null,"rules":{"source_file":{"type":"SYMBOL","name":"Expression"},"Expression_Sub":{"type":"PREC_LEFT","value":1,"content":{"type":"SEQ","members":[{"type":"FIELD","name":"Expression_Sub_0","content":{"type":"SYMBOL","name":"Expression"}},{"type":"STRING","value":"-"},{"type":"FIELD","name":"Expression_Sub_2","content":{"type":"SYMBOL","name":"Expression"}}]}},"Expression":{"type":"CHOICE","members":[{"type":"PATTERN","value":"\\d+"},{"type":"SYMBOL","name":"Expression_Sub"}]}},"extras":[]}
+{"name":"test","start_symbol":"Expression","word":null,"rules":{"source_file":{"type":"SYMBOL","name":"Expression"},"Expression_Sub":{"type":"PREC_LEFT","value":1,"content":{"type":"SEQ","members":[{"type":"FIELD","name":"Expression_Sub_0","content":{"type":"SYMBOL","name":"Expression"}},{"type":"STRING","value":"-"},{"type":"FIELD","name":"Expression_Sub_2","content":{"type":"SYMBOL","name":"Expression"}}]}},"Expression":{"type":"CHOICE","members":[{"type":"PATTERN","value":"\\d+"},{"type":"SYMBOL","name":"Expression_Sub"}]}},"extras":[]}

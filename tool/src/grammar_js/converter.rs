@@ -1,6 +1,7 @@
 //! Converter from Grammar.js to Adze IR
 
 use super::{GrammarJs, Rule as JsRule};
+use crate::grammar_js::helpers::hidden_pattern_token_name;
 use adze_ir::{
     Associativity, ConflictDeclaration, ConflictResolution, ExternalToken, FieldId, Grammar,
     PrecedenceKind, ProductionId, Rule, RuleId, Symbol, SymbolId, Token, TokenPattern,
@@ -107,6 +108,8 @@ impl GrammarJsConverter {
         // Convert rules to IR rules
         self.convert_rules(&mut grammar)?;
 
+        self.apply_compiler_identity(&mut grammar)?;
+
         // Handle inline rules
         for inline in &self.grammar_js.inline {
             if let Some(&symbol_id) = self.symbol_names.get(inline) {
@@ -193,6 +196,57 @@ impl GrammarJsConverter {
         }
 
         Ok(grammar)
+    }
+
+    fn apply_compiler_identity(&self, grammar: &mut Grammar) -> Result<()> {
+        if let Some(start_name) = &self.grammar_js.start_symbol {
+            let start_id = self
+                .symbol_names
+                .get(start_name)
+                .copied()
+                .with_context(|| {
+                    format!(
+                        "explicit start_symbol '{start_name}' does not reference an existing rule"
+                    )
+                })?;
+            grammar.set_start_symbol(start_id);
+        }
+
+        for (wrapper_name, token_key) in &self.grammar_js.wrapper_token_relations {
+            let wrapper_id = self
+                .symbol_names
+                .get(wrapper_name)
+                .copied()
+                .with_context(|| {
+                    format!(
+                        "wrapper_token_relations wrapper '{wrapper_name}' does not reference an existing rule"
+                    )
+                })?;
+            let token_id = self
+                .resolve_token_symbol(grammar, token_key)
+                .with_context(|| {
+                    format!(
+                        "wrapper_token_relations token '{token_key}' for wrapper '{wrapper_name}' was not found"
+                    )
+                })?;
+            grammar.set_wrapper_token_relation(wrapper_id, token_id);
+        }
+
+        Ok(())
+    }
+
+    fn resolve_token_symbol(&self, grammar: &Grammar, token_key: &str) -> Option<SymbolId> {
+        if let Some(&symbol_id) = self.symbol_names.get(token_key)
+            && grammar.tokens.contains_key(&symbol_id)
+        {
+            return Some(symbol_id);
+        }
+
+        grammar
+            .tokens
+            .iter()
+            .find(|(_, token)| token.name == token_key)
+            .map(|(id, _)| *id)
     }
 
     fn collect_symbols(&mut self, grammar: &mut Grammar) -> Result<()> {
@@ -692,10 +746,6 @@ impl GrammarJsConverter {
 
         Ok(symbol_id)
     }
-}
-
-pub(super) fn hidden_pattern_token_name(pattern: &str) -> String {
-    format!("_/{pattern}/")
 }
 
 fn is_generated_tuple_field_name(name: &str) -> bool {

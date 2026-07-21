@@ -1,6 +1,5 @@
 ---
 source: tool/src/lib.rs
-assertion_line: 498
 expression: grammar
 ---
-{"name":"test","word":null,"rules":{"source_file":{"type":"SYMBOL","name":"Expression"},"Expression":{"type":"CHOICE","members":[{"type":"PATTERN","value":"\\d+"}]},"Whitespace__whitespace":{"type":"PATTERN","value":"\\s"},"Whitespace":{"type":"FIELD","name":"_whitespace","content":{"type":"SYMBOL","name":"Whitespace__whitespace"}}},"extras":[{"type":"SYMBOL","name":"Whitespace"}]}
+{"name":"test","start_symbol":"Expression","word":null,"rules":{"source_file":{"type":"SYMBOL","name":"Expression"},"Expression":{"type":"CHOICE","members":[{"type":"PATTERN","value":"\\d+"}]},"Whitespace__whitespace":{"type":"PATTERN","value":"\\s"},"Whitespace":{"type":"FIELD","name":"_whitespace","content":{"type":"SYMBOL","name":"Whitespace__whitespace"}}},"extras":[{"type":"SYMBOL","name":"Whitespace"}],"wrapper_token_relations":{"Whitespace__whitespace":"_/\\s/"}}

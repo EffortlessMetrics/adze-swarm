@@ -72,11 +72,11 @@ fn parse_document_tree_topology_matches_parser_expectations() {
         source
     );
 
-    // Root is a source_file with at least one child
-    assert_eq!(root.kind_name(), Some("source_file"));
+    // Root is the explicit #[adze::language] start symbol with at least one child
+    assert_eq!(root.kind_name(), Some("Expr"));
     assert!(
         root.child_count() >= 1,
-        "source_file should have at least one child expression"
+        "Expr root should have at least one child expression"
     );
 
     // Collect full topology
@@ -84,7 +84,7 @@ fn parse_document_tree_topology_matches_parser_expectations() {
     collect_topology(&root, &mut topology);
 
     // Tree should have a reasonable number of nodes for "1 + 2 + 3"
-    // source_file > Expr(Add) > Expr(Add), Expr(Number), Expr(Number)
+    // Expr(Add) > Expr(Add), Expr(Number), Expr(Number)
     assert!(
         topology.len() >= 5,
         "tree should have at least root + expression + number nodes, got {}",

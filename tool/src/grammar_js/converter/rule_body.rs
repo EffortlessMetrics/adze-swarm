@@ -1,4 +1,6 @@
-use super::{GrammarJsConverter, JsRule, hidden_pattern_token_name};
+use super::GrammarJsConverter;
+use super::JsRule;
+use crate::grammar_js::helpers::hidden_pattern_token_name;
 use adze_ir::{
     Associativity, Grammar, PrecedenceKind, Symbol, SymbolId, TOKEN_WRAPPER_PRIORITY, TokenPattern,
 };

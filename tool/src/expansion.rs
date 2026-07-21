@@ -3,10 +3,20 @@
 use std::collections::HashSet;
 
 use adze_common::*;
+use indexmap::IndexMap;
 use serde_json::{Map, Value, json};
 use syn::{parse::Parse, punctuated::Punctuated, spanned::Spanned, *};
 
 use crate::error::{Result as ToolResult, ToolError};
+use crate::grammar_js::hidden_pattern_token_name;
+
+fn record_wrapper_token_relation(
+    wrapper_relations: &mut IndexMap<String, String>,
+    wrapper: &str,
+    token: &str,
+) {
+    wrapper_relations.insert(wrapper.to_string(), token.to_string());
+}
 
 #[cfg(not(debug_assertions))]
 macro_rules! debug_trace {
@@ -32,6 +42,7 @@ fn gen_field(
     leaf_attrs: Vec<Attribute>,
     word_rule: &mut Option<String>,
     out: &mut Map<String, Value>,
+    wrapper_relations: &mut IndexMap<String, String>,
 ) -> ToolResult<(Value, bool)> {
     let leaf_attr = leaf_attrs
         .iter()
@@ -92,6 +103,11 @@ fn gen_field(
                         "value": s.value(),
                     }),
                 );
+                record_wrapper_token_relation(
+                    wrapper_relations,
+                    &path,
+                    &hidden_pattern_token_name(&s.value()),
+                );
 
                 Ok((
                     json!({
@@ -118,6 +134,7 @@ fn gen_field(
                         "value": s.value(),
                     }),
                 );
+                record_wrapper_token_relation(wrapper_relations, &path, &s.value());
 
                 Ok((
                     json!({
@@ -178,6 +195,7 @@ fn gen_field(
             leaf_attrs.clone(),
             word_rule,
             out,
+            wrapper_relations,
         )?;
 
         let delimited_attr = leaf_attrs
@@ -194,6 +212,7 @@ fn gen_field(
                 p.field.attrs,
                 word_rule,
                 out,
+                wrapper_relations,
             )?)
         } else {
             None
@@ -312,8 +331,14 @@ fn gen_field(
         Ok((reference, false)) // Never mark as optional since we handle it in the reference
     } else {
         // is_option
-        let (field_json, field_optional) =
-            gen_field(path, inner_type_option, leaf_attrs, word_rule, out)?;
+        let (field_json, field_optional) = gen_field(
+            path,
+            inner_type_option,
+            leaf_attrs,
+            word_rule,
+            out,
+            wrapper_relations,
+        )?;
 
         if field_optional {
             return Err(ToolError::NestedOptionType);
@@ -584,6 +609,7 @@ fn gen_struct_or_variant(
     out: &mut Map<String, Value>,
     word_rule: &mut Option<String>,
     inline: bool, // If true, return rule instead of inserting into out
+    wrapper_relations: &mut IndexMap<String, String>,
 ) -> ToolResult<Option<Value>> {
     // Check if this is a single-leaf variant (enum variant with a single leaf field)
     if let Fields::Unnamed(fields_unnamed) = &fields
@@ -620,7 +646,12 @@ fn gen_struct_or_variant(
                             return Ok(Some(pattern_rule));
                         } else {
                             // Not inline: create named rule
-                            out.insert(path, pattern_rule);
+                            out.insert(path.clone(), pattern_rule);
+                            record_wrapper_token_relation(
+                                wrapper_relations,
+                                &path,
+                                &hidden_pattern_token_name(&s.value()),
+                            );
                             return Ok(None);
                         }
                     }
@@ -642,7 +673,8 @@ fn gen_struct_or_variant(
                         return Ok(Some(string_rule));
                     } else {
                         // Not inline: create named rule
-                        out.insert(path, string_rule);
+                        out.insert(path.clone(), string_rule);
+                        record_wrapper_token_relation(wrapper_relations, &path, &s.value());
                         return Ok(None);
                     }
                 }
@@ -663,6 +695,7 @@ fn gen_struct_or_variant(
         word_rule: &mut Option<String>,
         out: &mut Map<String, Value>,
         ident_str: String,
+        wrapper_relations: &mut IndexMap<String, String>,
     ) -> ToolResult<Value> {
         let (field_contents, is_option) = gen_field(
             format!("{path}_{ident_str}"),
@@ -670,6 +703,7 @@ fn gen_struct_or_variant(
             field.attrs.clone(),
             word_rule,
             out,
+            wrapper_relations,
         )?;
 
         let core = json!({
@@ -795,7 +829,14 @@ fn gen_struct_or_variant(
                     });
 
                     let ident_str_clone = ident_str.clone();
-                    match gen_field_optional(&path, field, word_rule, out, ident_str) {
+                    match gen_field_optional(
+                        &path,
+                        field,
+                        word_rule,
+                        out,
+                        ident_str,
+                        wrapper_relations,
+                    ) {
                         Ok(result) => Some(result),
                         Err(e) => {
                             debug_trace!("Error generating field {}: {:?}", ident_str_clone, e);
@@ -820,7 +861,14 @@ fn gen_struct_or_variant(
                     elems: Punctuated::new(),
                 }),
             };
-            gen_field_optional(&path, &dummy_field, word_rule, out, "unit".to_owned())?
+            gen_field_optional(
+                &path,
+                &dummy_field,
+                word_rule,
+                out,
+                "unit".to_owned(),
+                wrapper_relations,
+            )?
         }
         _ => {
             // If all children are optional, we need at least one to be present
@@ -888,6 +936,7 @@ fn gen_struct_or_variant(
 
 pub fn generate_grammar(module: &ItemMod) -> ToolResult<Value> {
     let mut rules_map = Map::new();
+    let mut wrapper_relations = IndexMap::new();
     // for some reason, source_file must be the first key for things to work
     // We'll insert it after we find the root type
 
@@ -974,6 +1023,7 @@ pub fn generate_grammar(module: &ItemMod) -> ToolResult<Value> {
                         &mut rules_map,
                         &mut word_rule,
                         inline, // Pass inline flag
+                        &mut wrapper_relations,
                     )?;
 
                     // Add to CHOICE members
@@ -1045,6 +1095,7 @@ pub fn generate_grammar(module: &ItemMod) -> ToolResult<Value> {
                         &mut rules_map,
                         &mut word_rule,
                         false, // Structs are never inlined (only enum variants can be inlined)
+                        &mut wrapper_relations,
                     )?;
                 }
 
@@ -1092,10 +1143,22 @@ pub fn generate_grammar(module: &ItemMod) -> ToolResult<Value> {
 
     let mut grammar = json!({
         "name": grammar_name,
+        "start_symbol": root_type,
         "word": word_rule,
         "rules": rules_map,
         "extras": extras_list
     });
+
+    if !wrapper_relations.is_empty() {
+        let relations_json: Map<String, Value> = wrapper_relations
+            .into_iter()
+            .map(|(wrapper, token)| (wrapper, Value::String(token)))
+            .collect();
+        grammar.as_object_mut().unwrap().insert(
+            "wrapper_token_relations".to_string(),
+            Value::Object(relations_json),
+        );
+    }
 
     // Only include externals if there are any
     if !externals_list.is_empty() {

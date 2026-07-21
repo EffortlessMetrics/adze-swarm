@@ -1,6 +1,12 @@
 use super::Rule;
 use anyhow::{Result, bail};
 
+/// Hidden diagnostic token name for a wrapped regex pattern rule.
+#[must_use]
+pub fn hidden_pattern_token_name(pattern: &str) -> String {
+    format!("_/{pattern}/")
+}
+
 /// Common helper functions used in Tree-sitter grammars
 pub struct HelperFunctions;
 

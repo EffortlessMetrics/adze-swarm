@@ -17,6 +17,7 @@ pub mod parser_v2_test;
 pub mod parser_v3;
 
 pub use converter::GrammarJsConverter;
+pub use helpers::hidden_pattern_token_name;
 pub use parser::parse_grammar_js;
 pub use parser_v2::parse_grammar_js_v2;
 pub use parser_v3::GrammarJsParserV3;
@@ -50,6 +51,14 @@ pub struct GrammarJs {
 
     /// Supertypes for the grammar
     pub supertypes: Vec<String>,
+
+    /// Explicit start symbol from `#[adze::language]` or imported grammar metadata.
+    #[serde(default)]
+    pub start_symbol: Option<String>,
+
+    /// Explicit pattern-wrapper nonterminal to backing-token relations by name.
+    #[serde(default)]
+    pub wrapper_token_relations: IndexMap<String, String>,
 }
 
 /// Represents a grammar rule
@@ -149,6 +158,8 @@ impl GrammarJs {
             precedences: Vec::new(),
             rules: IndexMap::new(),
             supertypes: Vec::new(),
+            start_symbol: None,
+            wrapper_token_relations: IndexMap::new(),
         }
     }
 
