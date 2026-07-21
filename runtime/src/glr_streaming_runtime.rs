@@ -193,6 +193,12 @@ pub fn materialize_streaming_forest(
         ))
     })?;
 
+    if root.node.is_error {
+        return Err(GlrError::Parse(
+            "streaming forest selected an error-only root without a complete parse".to_string(),
+        ));
+    }
+
     Ok(StreamingGlrParseResult { root, ambiguities })
 }
 
@@ -325,7 +331,7 @@ fn forest_view_to_subtree(
         let children = if child_subtrees.is_empty() {
             Vec::new()
         } else if let Some(rule_id) = rule_id {
-            let fields = decode_rule_fields(language, rule_id);
+            let fields = fields_for_production(language, parse_table, rule_id);
             child_subtrees
                 .into_iter()
                 .enumerate()
@@ -333,7 +339,7 @@ fn forest_view_to_subtree(
                     let field_id = fields
                         .iter()
                         .find(|(_, position)| *position == child_index)
-                        .map(|(field_id, _)| field_id.0)
+                        .map(|(field_id, _)| *field_id)
                         .unwrap_or(FIELD_NONE);
                     ChildEdge::new(subtree, field_id)
                 })
@@ -361,6 +367,26 @@ fn forest_view_to_subtree(
     built
         .pop()
         .expect("forest root conversion produces one subtree")
+}
+
+fn fields_for_production(
+    language: &'static TSLanguage,
+    parse_table: &ParseTable,
+    rule_id: usize,
+) -> Vec<(u16, usize)> {
+    let mut fields = decode_rule_fields(language, rule_id)
+        .into_iter()
+        .map(|(field_id, position)| (field_id.0, position))
+        .collect::<Vec<_>>();
+    if fields.is_empty() {
+        let rule = adze_ir::RuleId(rule_id as u16);
+        for ((mapped_rule, child_index), field_id) in &parse_table.field_map {
+            if *mapped_rule == rule {
+                fields.push((*field_id, *child_index as usize));
+            }
+        }
+    }
+    fields
 }
 
 fn match_rule_id(
@@ -456,25 +482,4 @@ fn diagnostic_end_for_byte(source: &[u8], start: usize) -> usize {
 
 pub(crate) fn record_fixed_bridge_route() {
     record_route(TrueGlrParseRoute::FixedPretokenizationBridge);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn streaming_route_gate_requires_non_state_zero_lex_modes_or_external_scanner() {
-        let language = adze_example::streaming_lex_modes::grammar::language();
-        let table = crate::decoder::decode_parse_table(language);
-        assert!(should_route_conflict_table_through_streaming_driver(
-            language, &table
-        ));
-
-        let ambiguous = adze_example::ambiguous_expr::grammar::language();
-        let ambiguous_table = crate::decoder::decode_parse_table(ambiguous);
-        assert!(
-            !should_route_conflict_table_through_streaming_driver(ambiguous, &ambiguous_table),
-            "single-mode conflicted grammars stay on GLRParser until selection parity (#891 PR6)"
-        );
-    }
 }

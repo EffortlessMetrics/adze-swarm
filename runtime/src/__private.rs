@@ -424,7 +424,7 @@ pub fn adze_document_from_streaming_parse(
     grammar: &adze_ir::Grammar,
     parse_table: &adze_glr_core::ParseTable,
 ) -> crate::document::AdzeDocument {
-    let root = convert_subtree_to_document_node(&parsed.root, language);
+    let root = convert_subtree_to_document_node(&parsed.root, language, parse_table, grammar);
     let ambiguities = parsed.ambiguities.into_iter().collect::<Vec<_>>();
 
     crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
@@ -588,7 +588,7 @@ fn parse_document_with_true_glr_runtime(
         .flatten()
         .into_iter()
         .collect::<Vec<_>>();
-    let root = convert_subtree_to_document_node(&root_node, language);
+    let root = convert_subtree_to_document_node(&root_node, language, &parse_table, &grammar);
 
     Ok(
         crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
@@ -1162,21 +1162,50 @@ fn convert_subtree_to_pure(
 fn convert_subtree_to_document_node(
     subtree: &crate::subtree::Subtree,
     language: &'static crate::pure_parser::TSLanguage,
+    parse_table: &adze_glr_core::ParseTable,
+    grammar: &adze_ir::Grammar,
 ) -> crate::parser_v4::ParseNode {
-    let children = subtree
+    let mut children = subtree
         .children
         .iter()
         .map(|child| {
-            let mut parsed_child = convert_subtree_to_document_node(&child.subtree, language);
+            let mut parsed_child =
+                convert_subtree_to_document_node(&child.subtree, language, parse_table, grammar);
             parsed_child.field_name = if child.field_id == crate::subtree::FIELD_NONE {
                 None
             } else {
-                field_name_by_id(language, child.field_id)
+                field_name_for_child_edge(language, parse_table, child.field_id)
             };
             parsed_child
         })
-        .collect();
-    let symbol_id = public_symbol_id_for_index(language, subtree.node.symbol_id.0);
+        .collect::<Vec<_>>();
+
+    let child_symbols = subtree
+        .children
+        .iter()
+        .map(|child| child.subtree.node.symbol_id)
+        .collect::<Vec<_>>();
+    if let Some(rule_id) =
+        match_production_rule_id(parse_table, grammar, subtree.node.symbol_id, &child_symbols)
+    {
+        if let Some(alias_sequence) = parse_table.alias_sequences.get(rule_id) {
+            for (child_index, alias_symbol_id) in alias_sequence.iter().enumerate() {
+                let Some(alias_symbol_id) = alias_symbol_id else {
+                    continue;
+                };
+                let Some(child) = children.get_mut(child_index) else {
+                    continue;
+                };
+                child.alias_symbol_id = Some(*alias_symbol_id);
+            }
+        }
+    }
+
+    let symbol_id = if subtree.node.is_error {
+        adze_ir::SymbolId(0)
+    } else {
+        public_symbol_id_for_index(language, subtree.node.symbol_id.0)
+    };
 
     crate::parser_v4::ParseNode {
         symbol: symbol_id,
@@ -1187,6 +1216,70 @@ fn convert_subtree_to_document_node(
         alias_symbol_id: None,
         children,
     }
+}
+
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn field_name_for_child_edge(
+    language: &'static crate::pure_parser::TSLanguage,
+    parse_table: &adze_glr_core::ParseTable,
+    field_id: u16,
+) -> Option<String> {
+    field_name_by_id(language, field_id)
+        .or_else(|| parse_table.field_names.get(field_id as usize).cloned())
+}
+
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn match_production_rule_id(
+    parse_table: &adze_glr_core::ParseTable,
+    grammar: &adze_ir::Grammar,
+    lhs: adze_ir::SymbolId,
+    child_symbols: &[adze_ir::SymbolId],
+) -> Option<usize> {
+    use adze_ir::Symbol;
+
+    if child_symbols.is_empty() {
+        return parse_table
+            .rules
+            .iter()
+            .enumerate()
+            .find(|(_, rule)| rule.lhs == lhs && rule.rhs_len == 0)
+            .map(|(index, _)| index);
+    }
+
+    for (rule_id, parse_rule) in parse_table.rules.iter().enumerate() {
+        if parse_rule.lhs != lhs || parse_rule.rhs_len as usize != child_symbols.len() {
+            continue;
+        }
+        if let Some(candidates) = grammar.rules.get(&lhs) {
+            for rule in candidates {
+                if rule.production_id.0 as usize != rule_id {
+                    continue;
+                }
+                if production_rhs_symbol_ids(&rule.rhs) == child_symbols {
+                    return Some(rule_id);
+                }
+            }
+        }
+    }
+
+    parse_table
+        .rules
+        .iter()
+        .enumerate()
+        .find(|(_, rule)| rule.lhs == lhs && rule.rhs_len as usize == child_symbols.len())
+        .map(|(index, _)| index)
+}
+
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn production_rhs_symbol_ids(rhs: &[adze_ir::Symbol]) -> Vec<adze_ir::SymbolId> {
+    use adze_ir::Symbol;
+
+    rhs.iter()
+        .filter_map(|symbol| match symbol {
+            Symbol::Terminal(id) | Symbol::NonTerminal(id) | Symbol::External(id) => Some(*id),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Convert parser_v4::ParseNode to pure_parser::ParsedNode
