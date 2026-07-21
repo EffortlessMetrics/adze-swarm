@@ -156,6 +156,8 @@ pub mod glr_streaming_external_scanner;
 pub mod glr_streaming_internal_lexer;
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
 pub mod glr_streaming_lex_contract;
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+pub mod glr_streaming_runtime;
 /// Bridge between GLR parser and Tree-sitter trees.
 pub mod glr_tree_bridge;
 /// Validation utilities for GLR parsing.
