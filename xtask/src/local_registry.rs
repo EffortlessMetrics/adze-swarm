@@ -100,9 +100,14 @@ impl IsolatedRegistry {
             }
 
             let checksum = sha256_hex_file(&crate_path)?;
-            let dest = self
+            let dest_dir = self
                 .crate_dir
-                .join(format!("{crate_name}-{}.crate", package.version));
+                .join(crate_name)
+                .join(&package.version);
+            fs::create_dir_all(&dest_dir).with_context(|| {
+                format!("creating local registry crate dir {}", dest_dir.display())
+            })?;
+            let dest = dest_dir.join("download");
             fs::copy(&crate_path, &dest).with_context(|| {
                 format!("copying packaged crate `{}` into local registry", dest.display())
             })?;
@@ -119,6 +124,7 @@ impl IsolatedRegistry {
             );
         }
 
+        finalize_git_index(&self.index_dir)?;
         Ok(())
     }
 }
@@ -128,7 +134,7 @@ fn write_registry_config(
     index_dir: &Path,
     crate_dir: &Path,
 ) -> Result<()> {
-    let index_url = path_to_sparse_file_url(index_dir)?;
+    let index_url = path_to_file_url(index_dir)?;
     let dl_url = path_to_file_url(crate_dir)?;
     let config = format!(
         r#"[registries.{REGISTRY_NAME}]
@@ -148,6 +154,41 @@ index = "{index_url}"
     Ok(())
 }
 
+fn finalize_git_index(index_dir: &Path) -> Result<()> {
+    if index_dir.join(".git").is_dir() {
+        return Ok(());
+    }
+    run_git(index_dir, ["init", "-b", "master"])?;
+    run_git(index_dir, ["add", "."])?;
+    run_git(index_dir, ["commit", "-m", "adze-local registry index"])?;
+    Ok(())
+}
+
+fn run_git(index_dir: &Path, args: impl IntoIterator<Item = &'static str>) -> Result<()> {
+    let mut command = Command::new("git");
+    command
+        .args([
+            "-c",
+            "user.email=adze-local@example.com",
+            "-c",
+            "user.name=adze-local",
+        ])
+        .args(args)
+        .current_dir(index_dir)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    let status = command
+        .status()
+        .context("running git for local registry index")?;
+    if !status.success() {
+        bail!(
+            "git command in {} failed with status {status}",
+            index_dir.display()
+        );
+    }
+    Ok(())
+}
+
 fn write_registry_credentials(cargo_home: &TempDir) -> Result<()> {
     let credentials = format!(
         r#"[registries.{REGISTRY_NAME}]
@@ -164,6 +205,9 @@ fn path_to_file_url(path: &Path) -> Result<String> {
     let absolute = fs::canonicalize(path)
         .with_context(|| format!("canonicalizing {}", path.display()))?;
     let mut url = absolute.display().to_string().replace('\\', "/");
+    if let Some(stripped) = url.strip_prefix("//?/") {
+        url = stripped.to_string();
+    }
     if url
         .as_bytes()
         .get(1)
@@ -175,10 +219,6 @@ fn path_to_file_url(path: &Path) -> Result<String> {
         url.push('/');
     }
     Ok(format!("file://{url}"))
-}
-
-fn path_to_sparse_file_url(path: &Path) -> Result<String> {
-    Ok(format!("sparse+{}", path_to_file_url(path)?))
 }
 
 fn package_crate(
@@ -556,7 +596,10 @@ fn index_dependency(dep: &CargoDependency, published_set: &BTreeSet<String>) -> 
         Value::String(dep.kind.clone().unwrap_or_else(|| "normal".to_string())),
     );
     if published_set.contains(&dep.name) {
-        dep_entry.insert("registry".to_string(), Value::String(REGISTRY_NAME.to_string()));
+        dep_entry.insert(
+            "registry".to_string(),
+            Value::String(REGISTRY_NAME.to_string()),
+        );
     } else {
         dep_entry.insert("registry".to_string(), Value::Null);
     }
