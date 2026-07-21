@@ -63,7 +63,7 @@ The package-boundary ledger already supports this release state through the
 
 - These four packages must keep release metadata, publish intent, and package
   boundary entries current.
-- They remain eligible for `scripts/release-crates.txt`.
+- They remain in the ledger-published release graph (`policy/release-graph.toml`).
 - They must not be used as a shortcut for stable product claims. Stable claims
   still map through `docs/status/SUPPORT_TIERS.md`.
 - If any package stops being a cross-crate production contract, it should be

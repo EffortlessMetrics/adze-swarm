@@ -153,7 +153,9 @@ must be documented in the implementation plan.
 Expected implementation surfaces:
 
 - `policy/package-boundary.toml` for package classification;
+- `policy/release-graph.toml` for the generated ledger-published, dependency-ordered release graph;
 - an xtask verifier such as `cargo run -q -p xtask -- check-package-boundary`;
+- release-graph generator/checker commands such as `cargo run -q -p xtask -- generate-release-graph` and `cargo run -q -p xtask -- check-release-graph`;
 - `Cargo.toml` workspace metadata only when a later implementation PR changes
   package membership or release metadata;
 - `docs/status/SUPPORT_TIERS.md` when stable product claims change;
@@ -181,6 +183,8 @@ The release-candidate proof adds:
 
 ```bash
 cargo run -q -p xtask -- check-package-boundary --release-gate
+cargo run -q -p xtask -- check-release-graph
+./scripts/check-release-consumers.sh
 PACKAGE_BOUNDARY_RELEASE_GATE=1 ./scripts/validate-release-surface.sh
 ```
 

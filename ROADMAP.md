@@ -28,7 +28,7 @@ Adze (formerly `rust-sitter`) is a Rust-native grammar toolchain that turns Rust
 - ✅ **Error Message Quality**: Actionable diagnostics across parser, IR, and tablegen. Error display formatting tests.
 - ✅ **Fuzzing Targets**: 22 fuzz targets covering parser, lexer, external scanners, stack pool, and concurrency.
 - ✅ **CI Feature Matrix**: Crate × feature-flag test combinations with concurrency caps. Cross-platform advisory jobs for macOS/Windows.
-- ✅ **Cargo.toml Metadata**: Publish-ready metadata across workspace. Publish order documented. `scripts/check-publish.sh` (`just check-publishable`).
+- ✅ **Cargo.toml Metadata**: Publish-ready metadata across workspace. Publish order documented in `policy/release-graph.toml` (`just check-release-graph`, `just check-publishable`).
 - ✅ **Workspace Structure**: governance/support crates under `crates/`, benchmarks, fuzzing, golden-tests, and book scaffolding.
 - ✅ **Table Compression**: Optimized parse tables using Tree-sitter format (>10x reduction).
 - ✅ **Cross-Platform**: Linux verified, macOS/Windows CI advisory jobs in place.
@@ -62,19 +62,22 @@ standalone crate remains acceptable only when it is a published public surface,
 a durable published support surface recorded by ADR, or genuine dev-only
 tooling.
 
-Current supported/publishable core remains seven crates until a follow-up
-implementation PR changes Cargo metadata, release scripts, support docs, and CI
-routing together.
+The exact ledger-published release graph lives in `policy/release-graph.toml`
+(twelve crates as of #855). Regenerate with `cargo xtask generate-release-graph`
+and verify with `cargo xtask check-release-graph`. Do not maintain competing
+crate lists in docs or scripts.
 
 | Crate | Role | Current status | Target review |
 |-------|------|----------------|---------------|
 | `adze` (runtime) | parsing, typed extraction, documents, diagnostics, ts-compat | publishable supported core | keep public |
 | `adze-macro` | proc-macro attributes | publishable supported core | keep public |
 | `adze-tool` | build-time code generation | publishable supported core | keep public/tooling |
+| `adze-cli` | CLI scaffolding and parse projections | publishable product shell | keep public |
 | `adze-common` | shared grammar expansion (consumed by macro + tool) | publishable supported core | evaluate internal seam after consumer audit |
 | `adze-ir` | grammar IR (consumed by glr-core + tablegen) | publishable supported core | evaluate internal seam after tablegen/glr-core boundary review |
 | `adze-glr-core` | GLR parser generation | publishable supported core | evaluate internal seam after public API/release impact review |
 | `adze-tablegen` | table compression, FFI generation | publishable supported core | evaluate internal seam after codegen/release impact review |
+| durable support crates | see `ADZE-ADR-0005` | publishable support surface | keep public while core depends on them |
 
 The collapse record lives in `plans/0.9.0/microcrate-collapse.md`. The durable
 architecture rule lives in

@@ -425,7 +425,7 @@ CI enforces that every crate has non-zero test counts and no `.rs.disabled` file
   - `cargo fmt --all --check`
   - `cargo clippy --all -- -D warnings`
   - `cargo test --all-features`
-- [ ] Decide and set release-surface mode (`RELEASE_SURFACE_MODE=fixed` or `auto`) and optional `RELEASE_CRATE_FILE` before validating.
+- [ ] Decide and set release-surface mode (`RELEASE_SURFACE_MODE=fixed` or `auto`) before validating. Fixed mode reads `policy/release-graph.toml` via `scripts/release-graph-crates.sh`; optional `RELEASE_CRATE_FILE` only names a derived list path.
 - [ ] Decide fixed-mode release-surface strictness (`strict_publish_surface` in workflow or `STRICT_PUBLISH_SURFACE` locally) before running the Release workflow.
 - [ ] If using manual Release workflow dispatch, set `release_surface_mode` and `release_crate_file` as needed.
 - [ ] Run release validation for crates scheduled for publish (`cargo publish --dry-run -p <crate>`).

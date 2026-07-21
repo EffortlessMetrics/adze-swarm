@@ -12,10 +12,30 @@ Use workflow dispatch with these inputs to perform the full, canonical path:
 
 Workflow inputs:
 - `version` (required): release version (e.g. `0.10.0`).
-- `release_surface_mode` (default: `fixed`): `fixed` (use allowlist order) or `auto` (compute publishable crates).
-- `release_crate_file` (optional): custom allowlist path used with fixed mode or sync regeneration.
+- `release_surface_mode` (default: `fixed`): `fixed` (use committed release graph) or `auto` (recompute publishable crates from metadata).
+- `release_crate_file` (optional): override derived list path used by shell helpers (defaults to `scripts/release-crates.txt`).
 - `dry_run` (default: `true`): run all validation and checks without publishing.
-- `strict_publish_surface` (default: `false`): in `fixed` mode, fail release if extra publishable crates are not in the release allowlist.
+- `strict_publish_surface` (default: `false`): in `fixed` mode, fail release if extra publishable crates are not in the release graph.
+
+## Release graph authority
+
+One graph drives every release consumer:
+
+```text
+policy/package-boundary.toml
+  -> policy/release-graph.toml
+  -> scripts/release-crates.txt (derived; do not hand-edit)
+```
+
+Regenerate and verify:
+
+```bash
+cargo run -q -p xtask -- generate-release-graph
+cargo run -q -p xtask -- check-release-graph
+./scripts/check-release-consumers.sh
+```
+
+See also `docs/reference/PUBLISH_CHECKLIST.md`.
 
 Legacy local helpers are kept for ad-hoc use only:
 - [`scripts/update-versions.sh`](../../../scripts/update-versions.sh)
@@ -24,14 +44,14 @@ Legacy local helpers are kept for ad-hoc use only:
 
 For local helper runs, set:
 - `RELEASE_SURFACE_MODE=fixed|auto`
-- `RELEASE_CRATE_FILE=<path>`
+- `RELEASE_GRAPH_ARTIFACT=<path>` (default: `policy/release-graph.toml`)
+- `RELEASE_CRATE_FILE=<path>` (default: `scripts/release-crates.txt`)
 - `STRICT_PUBLISH_SURFACE=true|false` (fixed mode only; default `false`)
 - `RELEASE_CRATE_SYNC=true` (only meaningful in `auto` mode)
 
 `release.toml` is still used for changelog/version replacement metadata.
 
-`release.sh` and `dry-run-publish.sh` now support two release-surface modes:
-- `RELEASE_SURFACE_MODE=fixed` (default): use `scripts/release-crates.txt` as a strict allowlist and publish order.
+`release.sh` and `dry-run-publish.sh` support two release-surface modes:
+- `RELEASE_SURFACE_MODE=fixed` (default): read crates from `policy/release-graph.toml` via `cargo xtask print-release-graph`.
 - `RELEASE_SURFACE_MODE=auto`: compute publishable workspace crates and auto-resolve dependency order.
-- Optional override: `RELEASE_CRATE_FILE` to point at an alternate allowlist file (defaults to `scripts/release-crates.txt`).
-- `RELEASE_CRATE_SYNC=true` with `RELEASE_SURFACE_MODE=auto`: regenerate the selected allowlist file from metadata.
+- `RELEASE_CRATE_SYNC=true` with `RELEASE_SURFACE_MODE=auto`: regenerate `RELEASE_CRATE_FILE` from metadata.

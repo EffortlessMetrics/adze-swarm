@@ -9,12 +9,30 @@ That issue is a tracker, not authorization by itself.
 
 ## Publish Order
 
-Crates **must** be published in dependency order. The source of truth for the
-release surface and publish order is:
+Crates **must** be published in dependency order. The source of truth for
+membership and order is the committed release graph:
 
 ```text
-scripts/release-crates.txt
+policy/release-graph.toml
 ```
+
+Regenerate and verify it from the ledger-published set:
+
+```bash
+cargo run -q -p xtask -- generate-release-graph
+cargo run -q -p xtask -- check-release-graph
+```
+
+Shell helpers and derived artifacts read that graph; they do not define their
+own lists:
+
+| Role | Command / path |
+|------|----------------|
+| Print ordered crate names | `cargo run -q -p xtask -- print-release-graph` |
+| Shell reader | `scripts/release-graph-crates.sh` |
+| Derived one-name-per-line list | `scripts/release-crates.txt` (generated; do not hand-edit) |
+| Publishability metadata check | `just check-publishable` (`scripts/check-publish.sh`) |
+| Release surface validation | `RELEASE_SURFACE_MODE=fixed ./scripts/validate-release-surface.sh` |
 
 The 0.9 microcrate-to-SRP transition is complete. Temporary
 `owner-module-migration-target` packages are not allowed in the release surface;
@@ -22,30 +40,27 @@ the release gate must pass before publishing.
 
 ```bash
 cargo run -q -p xtask -- check-package-boundary --release-gate
+cargo run -q -p xtask -- check-release-graph
 PACKAGE_BOUNDARY_RELEASE_GATE=1 ./scripts/validate-release-surface.sh
 ```
 
 Durable support crates that remain standalone are recorded by
-`docs/adr/ADZE-ADR-0005-durable-published-support-crates.md` and must remain in
-the release surface while core crates depend on them:
+`docs/adr/ADZE-ADR-0005-durable-published-support-crates.md` and are included
+in the release graph while core crates depend on them:
 
 - `adze-bdd-governance-core`
+- `adze-common-type-ops-core`
 - `adze-linecol-core`
 - `adze-parsetable-metadata`
 
-The following table is a compact dependency reminder for the core pipeline, not
-the complete release surface.
+To inspect the current ledger-selected publish order:
 
-| Step | Crate | Directory | Key deps |
-|------|-------|-----------|----------|
-| 1 | `adze-common` | `common/` | *(external only)* |
-| 2 | `adze-ir` | `ir/` | *(external only)* |
-| 3 | durable support crates | `crates/*` | see `ADZE-ADR-0005` |
-| 4 | `adze-glr-core` | `glr-core/` | `adze-ir` |
-| 5 | `adze-tablegen` | `tablegen/` | `adze-ir`, `adze-glr-core`, durable support crates |
-| 6 | `adze-macro` | `macro/` | `adze-common` |
-| 7 | `adze-tool` | `tool/` | `adze-common`, `adze-ir`, `adze-glr-core`, `adze-tablegen` |
-| 8 | `adze` | `runtime/` | `adze-macro`, `adze-ir`, `adze-glr-core`, `adze-tablegen`, durable support crates |
+```bash
+cargo run -q -p xtask -- print-release-graph
+```
+
+Do not maintain a separate hand-written crate list in documentation or scripts.
+The graph above is the complete 12-crate release surface for 0.10.0 work.
 
 ## Pre-publish verification
 
@@ -72,6 +87,8 @@ Treat a non-empty diff as a release blocker, not as a reason to publish from
 just check-publishable
 
 # Validate the release surface and the microcrate-to-SRP release gate
+cargo run -q -p xtask -- check-release-graph
+./scripts/check-release-consumers.sh
 PACKAGE_BOUNDARY_RELEASE_GATE=1 ./scripts/validate-release-surface.sh
 
 # Full packaging test (requires all deps on crates.io already)
@@ -108,21 +125,22 @@ git status  # should be clean
 
 # 4. Run the publish and release-surface checks
 ./scripts/check-publish.sh
+cargo run -q -p xtask -- check-release-graph
+./scripts/check-release-consumers.sh
 PACKAGE_BOUNDARY_RELEASE_GATE=1 ./scripts/validate-release-surface.sh
 
 # 5. Commit the version bump
 git commit -am "release: vX.Y.Z"
 git tag vX.Y.Z
 
-# 6. Publish in scripts/release-crates.txt order.
-#    Prefer the release helper; otherwise publish each listed crate manually and
+# 6. Publish in release-graph order (`policy/release-graph.toml`).
+#    Prefer the release helper; otherwise publish each graph crate manually and
 #    wait for each to appear on crates.io before publishing dependents.
 ./scripts/release.sh
 # or:
 # while read -r crate; do
-#   [[ -z "$crate" || "$crate" == \#* ]] && continue
 #   cargo publish -p "$crate"
-# done < scripts/release-crates.txt
+# done < <(cargo run -q -p xtask -- print-release-graph)
 
 # 7. Verify the published CLI installs from crates.io in an isolated temp root.
 #    Run this only after the crate is visible on crates.io.
