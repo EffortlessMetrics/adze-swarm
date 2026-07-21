@@ -754,7 +754,6 @@ fn parse_with_glr<T: Extract<T>>(
     input: &str,
     language: impl Fn() -> &'static crate::pure_parser::TSLanguage,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
-    use crate::parser_v4::Parser;
     use adze_glr_core::conflict_inspection::state_has_conflicts;
     use adze_ir::StateId;
 
@@ -768,49 +767,9 @@ fn parse_with_glr<T: Extract<T>>(
         return parse_with_true_glr_runtime::<T>(input, lang, parse_table);
     }
 
-    // Create parser from TSLanguage with the correct grammar name for external scanner lookup
-    let mut parser = Parser::from_language(lang, T::GRAMMAR_NAME.to_string());
-
-    // Parse to get root ParseNode and parser error count.
-    let source_bytes = input.as_bytes();
-    let (root_node, error_count) = parser.parse_tree_with_error_count(input).map_err(|e| {
-        vec![crate::errors::ParseError {
-            reason: crate::errors::ParseErrorReason::UnexpectedToken(e.to_string()),
-            start: 0,
-            end: 0,
-            expected: vec![],
-        }]
-    })?;
-
-    if error_count > 0 {
-        // Fallback for grammars/inputs where parser_v4 still reports recoveries.
-        // Keep GLR as default routing, but preserve user-visible correctness.
-        return parse_with_pure_parser::<T>(input, language);
-    }
-
-    // Convert parser_v4::ParseNode to pure_parser::ParsedNode
-    let parsed_node = convert_parse_node_v4_to_pure(&root_node, lang, source_bytes);
-
-    // Match pure parser behavior: unwrap source_file wrapper when present.
-    let non_extra_root_children: Vec<_> = parsed_node
-        .children
-        .iter()
-        .filter(|c| !c.is_extra)
-        .collect();
-    let extract_node = if parsed_node.kind() == "source_file" && non_extra_root_children.len() == 1
-    {
-        non_extra_root_children[0]
-    } else {
-        &parsed_node
-    };
-
-    // Extract typed AST using the Extract trait
-    Ok(<T as crate::Extract<_>>::extract(
-        Some(extract_node),
-        input.as_bytes(),
-        0,
-        None,
-    ))
+    // Conflict-free generated grammars must use the mode-aware generated lexer on the
+    // deterministic product path (#927), matching parse_document() routing.
+    parse_with_pure_parser::<T>(input, language)
 }
 
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
