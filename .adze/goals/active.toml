@@ -41,9 +41,11 @@ bounded implementation slice at a time.
 
 After #883 lands, activate #854 Stable Product Proof correction as the sole
 implementation slice. #854 and #855 (#904–#907, PR5 docs) are merged.
-#856 package-first local-registry harness is now the sole active implementation
-slice. Do not mark multiple overlapping implementation issues active
-simultaneously. Refresh the open PR queue before starting each slice.
+#856 package-first local-registry harness PR1–PR4 are merged (#909, #910, #911, #912).
+Issue #856 stays open until a scheduled/manual Linux full-receipt run lands.
+#857 GLR streaming lexing is now the sole active implementation slice. Do not mark
+multiple overlapping implementation issues active simultaneously. Refresh the open
+PR queue before starting each slice.
 Release, publish, signing, Cargo-token, public promotion, and crates.io install
 work remain blocked on explicit human authorization in #325. Runner
 fallback/quarantine changes remain infrastructure decisions tracked by #598.
@@ -137,20 +139,20 @@ commands = [
 
 [[work_item]]
 id = "package-first-local-registry"
-status = "active"
+status = "complete"
 spec = "ADZE-SPEC-0011"
 issues = [856]
 blocked_by = ["release-crate-graph"]
 commands = [
   "cargo run -q -p xtask -- check-release-graph",
   "cargo run -q -p xtask -- verify-local-release-install --version 0.10.0 --dry-run",
-  "cargo test -p xtask local_release_install -- --nocapture",
+  "cargo test -p xtask local_release -- --nocapture",
   "git diff --check",
 ]
 
 [[work_item]]
 id = "glr-streaming-lexing"
-status = "blocked"
+status = "active"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0003"
 blocked_by = ["release-crate-graph"]
