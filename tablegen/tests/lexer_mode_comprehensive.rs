@@ -193,7 +193,10 @@ fn keywords_precede_single_char_operators() {
     ]);
     let pos_kw = better_match_pos(&code, 2).unwrap();
     let pos_op = better_match_pos(&code, 1).unwrap();
-    assert!(pos_kw < pos_op, "longer keyword candidate before single-char operator");
+    assert!(
+        pos_kw < pos_op,
+        "longer keyword candidate before single-char operator"
+    );
 }
 
 #[test]
@@ -486,7 +489,11 @@ fn duplicate_regex_patterns_deduplicated_in_mode() {
         (1, "d1", TokenPattern::Regex(r"\d+".into())),
         (2, "d2", TokenPattern::Regex(r"\d+".into())),
     ]);
-    assert_eq!(candidate_registration_count(&code), 2, "distinct duplicate candidates");
+    assert_eq!(
+        candidate_registration_count(&code),
+        2,
+        "distinct duplicate candidates"
+    );
 }
 
 #[test]
@@ -495,7 +502,11 @@ fn duplicate_string_patterns_deduplicated_in_mode() {
         (1, "p1", TokenPattern::String("+".into())),
         (2, "p2", TokenPattern::String("+".into())),
     ]);
-    assert_eq!(candidate_registration_count(&code), 2, "distinct duplicate candidates");
+    assert_eq!(
+        candidate_registration_count(&code),
+        2,
+        "distinct duplicate candidates"
+    );
 }
 
 #[test]
@@ -514,5 +525,8 @@ fn mixed_mode_ordering_kw_str_regex_ident() {
     let pr = better_match_pos(&code, 2).unwrap();
     let pk = better_match_pos(&code, 3).unwrap();
     let ps = better_match_pos(&code, 4).unwrap();
-    assert!(pi < pr && pr < pk && pk < ps, "maximal patterns before shorter literals");
+    assert!(
+        pi < pr && pr < pk && pk < ps,
+        "maximal patterns before shorter literals"
+    );
 }
