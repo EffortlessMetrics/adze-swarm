@@ -493,6 +493,7 @@ pub fn build_lr1_automaton(
     normalize_action_table(&mut action_table);
 
     let index_to_symbol = build_reverse_symbol_index(&symbol_to_index);
+    let lex_modes = lex_modes::build_lex_modes(&action_table, &external_scanner_states);
 
     let mut table = ParseTable {
         action_table,
@@ -512,13 +513,7 @@ pub fn build_lr1_automaton(
         initial_state: StateId(0), // Default initial state
         token_count,
         external_token_count,
-        lex_modes: vec![
-            LexMode {
-                lex_state: 0,
-                external_lex_state: 0
-            };
-            state_count
-        ],
+        lex_modes,
         extras: vec![],             // TODO: Get from grammar metadata
         dynamic_prec_by_rule,       // Now properly populated from grammar rules
         rule_assoc_by_rule,         // Now properly populated from grammar rules
