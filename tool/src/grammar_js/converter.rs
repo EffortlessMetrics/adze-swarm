@@ -655,28 +655,34 @@ impl GrammarJsConverter {
         name: &str,
         pattern: TokenPattern,
     ) -> Result<SymbolId> {
-        validate_token_pattern(name, &pattern)
-            .with_context(|| format!("invalid lexical pattern for token '{name}'"))?;
+        self.get_or_create_token_named(grammar, name, name, pattern)
+    }
+
+    fn get_or_create_token_named(
+        &mut self,
+        grammar: &mut Grammar,
+        registry_key: &str,
+        token_name: &str,
+        pattern: TokenPattern,
+    ) -> Result<SymbolId> {
+        validate_token_pattern(token_name, &pattern)
+            .with_context(|| format!("invalid lexical pattern for token '{token_name}'"))?;
 
         // Reuse only an existing token. Never promote a rule/non-terminal SymbolId
         // into a token — that collapses identities and can erase GLR conflicts.
-        if let Some(&symbol_id) = self.symbol_names.get(name)
+        if let Some(&symbol_id) = self.symbol_names.get(registry_key)
             && grammar.tokens.contains_key(&symbol_id)
         {
             return Ok(symbol_id);
         }
 
-        let mut map_key = name.to_string();
-        if self.symbol_names.contains_key(&map_key) {
-            map_key = format!("__tok_{name}");
-        }
-
         let symbol_id = SymbolId(self.next_symbol_id.try_into().unwrap());
-        self.symbol_names.insert(map_key, symbol_id);
+        self.symbol_names
+            .insert(registry_key.to_string(), symbol_id);
         self.next_symbol_id += 1;
 
         let token = Token {
-            name: name.to_string(),
+            name: token_name.to_string(),
             pattern,
             fragile: false,
         };
@@ -686,7 +692,7 @@ impl GrammarJsConverter {
     }
 }
 
-fn hidden_pattern_token_name(pattern: &str) -> String {
+pub(super) fn hidden_pattern_token_name(pattern: &str) -> String {
     format!("_/{pattern}/")
 }
 

@@ -1,4 +1,4 @@
-use super::{GrammarJsConverter, JsRule};
+use super::{GrammarJsConverter, JsRule, hidden_pattern_token_name};
 use adze_ir::{
     Associativity, Grammar, PrecedenceKind, Symbol, SymbolId, TOKEN_WRAPPER_PRIORITY, TokenPattern,
 };
@@ -84,16 +84,22 @@ impl GrammarJsConverter {
         value: &str,
     ) -> Result<()> {
         // Keep a dedicated token SymbolId so the owning rule stays a non-terminal
-        // wrapper. Include the rule name so equal regex text keeps distinct identities.
+        // wrapper. Registry keys are rule-scoped so equal regex text keeps distinct
+        // identities, while ABI/diagnostic names stay pattern-shaped.
         let rule_name = self
             .symbol_names
             .iter()
             .find(|(_, id)| **id == lhs)
             .map(|(name, _)| name.as_str())
             .unwrap_or("pattern");
-        let token_name = format!("_/{rule_name}/");
-        let token_id =
-            self.get_or_create_token(grammar, &token_name, TokenPattern::Regex(value.to_string()))?;
+        let token_name = hidden_pattern_token_name(value);
+        let registry_key = format!("__pattern::{rule_name}");
+        let token_id = self.get_or_create_token_named(
+            grammar,
+            &registry_key,
+            &token_name,
+            TokenPattern::Regex(value.to_string()),
+        )?;
         self.token_symbols.insert(lhs, token_id);
         self.add_rule(grammar, lhs, vec![Symbol::Terminal(token_id)], None, None);
         Ok(())
