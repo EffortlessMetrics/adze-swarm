@@ -1,7 +1,7 @@
 #![cfg_attr(feature = "strict_docs", allow(missing_docs))]
 //! Parse table compression using Tree-sitter's encoding scheme.
 
-use crate::{Result, TableGenError, goto_run_codec::GotoRunCodec};
+use crate::{Result, TableGenError, conflict_abi::abi_leaf_actions, goto_run_codec::GotoRunCodec};
 use adze_glr_core::{Action, ParseTable};
 use adze_ir::{StateId, SymbolId};
 use std::collections::{BTreeMap, HashMap};
@@ -335,11 +335,10 @@ impl TableCompressor {
             Action::Accept => Ok(0xFFFF),
             Action::Error => Ok(0xFFFE),
             Action::Recover => Ok(0xFFFD), // Use distinct value for Recover
-            Action::Fork(_) => {
-                // GLR fork points need special handling
-                // For now, treat as error
-                Ok(0xFFFE)
-            }
+            Action::Fork(_) => Err(TableGenError::Compression(
+                "Fork actions must be flattened with effective_actions before small-table encoding"
+                    .to_string(),
+            )),
             _ => {
                 // Unknown action type // Expected: V for Recover
                 crate::util::unexpected_action(action, "encode_action_as_u16");
@@ -578,20 +577,11 @@ impl TableCompressor {
             row_offsets.push(Self::checked_u16(entries.len(), "action row offset")?);
 
             for (index, action_cell) in action_row.iter().enumerate() {
-                // Process each action in the cell
-                for action in action_cell {
-                    if action == &Action::Error {
-                        // Still skip explicit Error actions to save space
-                        continue;
-                    }
-
-                    // Use the mapped index directly, not the original symbol ID
-                    // This ensures terminals (index < token_count) are correctly identified
-                    let symbol_id = Self::checked_u16(index, "action symbol id")?;
-
+                let symbol_id = Self::checked_u16(index, "action symbol id")?;
+                for action in abi_leaf_actions(action_cell) {
                     entries.push(CompressedActionEntry {
                         symbol: symbol_id,
-                        action: action.clone(),
+                        action,
                     });
                 }
             }

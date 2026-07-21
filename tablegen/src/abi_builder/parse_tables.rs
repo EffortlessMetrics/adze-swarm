@@ -1,4 +1,5 @@
 use super::AbiLanguageBuilder;
+use crate::conflict_abi::{abi_leaf_actions, encode_leaf_action};
 use adze_glr_core::Action;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -30,9 +31,11 @@ impl<'a> AbiLanguageBuilder<'a> {
                 for entry in &compressed.action_table.data[action_start..action_end] {
                     let symbol = entry.symbol;
                     action_symbols.insert(symbol);
-                    table_data.push(quote! { #symbol });
-                    if let Ok(encoded) = self.encode_action(&entry.action) {
-                        table_data.push(quote! { #encoded });
+                    for action in abi_leaf_actions(std::slice::from_ref(&entry.action)) {
+                        table_data.push(quote! { #symbol });
+                        if let Ok(encoded) = encode_leaf_action(&action) {
+                            table_data.push(quote! { #encoded });
+                        }
                     }
                 }
 
@@ -112,8 +115,8 @@ impl<'a> AbiLanguageBuilder<'a> {
                             && symbol_idx < self.parse_table.action_table[state_idx].len()
                         {
                             let actions = &self.parse_table.action_table[state_idx][symbol_idx];
-                            for action in actions {
-                                record_action(symbol_idx, action);
+                            for action in abi_leaf_actions(actions) {
+                                non_error_actions.push((symbol_idx, action));
                             }
                         }
                     } else if state_idx < self.parse_table.goto_table.len()
@@ -148,45 +151,9 @@ impl<'a> AbiLanguageBuilder<'a> {
     }
     /// Encode an action as u16
     pub(super) fn encode_action(&self, action: &Action) -> Result<u16, String> {
-        match action {
-            Action::Shift(state) => Ok(state.0),
-            Action::Reduce(rule) => {
-                // Tree-sitter uses 1-based production IDs in reduce actions
-                // The runtime will map through PRODUCTION_ID_MAP to get the actual index
-                Ok(0x8000 | (rule.0 + 1))
-            }
-            Action::Accept => Ok(0xFFFF), // Use 0xFFFF for accept (must match decoder in pure_parser.rs)
-            Action::Error => Ok(0),       // Use 0 for error to match parser expectation
-            Action::Recover => Ok(0xFFFD), // Use distinct value for Recover
-            Action::Fork(actions) => {
-                // For Fork actions, we need to choose one action from the fork
-                // For now, let's prefer reduce actions over shift actions
-                // This is a simplified conflict resolution strategy
-
-                // First, try to find a reduce action
-                for action in actions {
-                    if let Action::Reduce(_) = action {
-                        return self.encode_action(action);
-                    }
-                }
-
-                // If no reduce action, take the first non-error action
-                for action in actions {
-                    if !matches!(action, Action::Error) {
-                        return self.encode_action(action);
-                    }
-                }
-
-                // If all actions are errors (shouldn't happen), return error
-                Ok(0)
-            }
-            _ => {
-                // Unknown action type // Expected: V for Recover
-                crate::util::unexpected_action(action, "encode_action");
-                Ok(0)
-            }
-        }
+        encode_leaf_action(action)
     }
+
     /// Generate parse actions
     pub(super) fn generate_parse_actions(&self) -> Vec<TokenStream> {
         // Generate production information for reduce actions

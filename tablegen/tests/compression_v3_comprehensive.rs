@@ -1086,11 +1086,10 @@ fn t81_compressed_tables_validate() {
 }
 
 #[test]
-fn t82_encode_fork_returns_error_code() {
+fn t82_encode_fork_requires_flattening() {
     let compressor = TableCompressor::new();
     let fork = Action::Fork(vec![Action::Shift(StateId(1))]);
-    let encoded = compressor.encode_action_small(&fork).unwrap();
-    assert_eq!(encoded, 0xFFFE, "Fork should encode as error placeholder");
+    assert!(compressor.encode_action_small(&fork).is_err());
 }
 
 #[test]

@@ -1035,15 +1035,16 @@ fn encode_recover_value() {
 }
 
 #[test]
-fn encode_fork_treated_as_error() {
+fn encode_fork_requires_flattening() {
     let compressor = TableCompressor::new();
-    let encoded = compressor
-        .encode_action_small(&Action::Fork(vec![
-            Action::Shift(StateId(1)),
-            Action::Reduce(RuleId(0)),
-        ]))
-        .unwrap();
-    assert_eq!(encoded, 0xFFFE, "Fork should be encoded as Error");
+    assert!(
+        compressor
+            .encode_action_small(&Action::Fork(vec![
+                Action::Shift(StateId(1)),
+                Action::Reduce(RuleId(0)),
+            ]))
+            .is_err()
+    );
 }
 
 #[test]

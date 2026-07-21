@@ -484,11 +484,10 @@ fn encode_recover_is_0xfffd() {
 }
 
 #[test]
-fn encode_fork_maps_to_error() {
+fn encode_fork_requires_flattening() {
     let c = TableCompressor::new();
     let fork = Action::Fork(vec![Action::Shift(StateId(1)), Action::Reduce(RuleId(0))]);
-    // Fork actions are mapped to error encoding
-    assert_eq!(c.encode_action_small(&fork).unwrap(), 0xFFFE);
+    assert!(c.encode_action_small(&fork).is_err());
 }
 
 proptest! {

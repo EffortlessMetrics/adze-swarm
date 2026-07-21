@@ -679,6 +679,62 @@ mod tests {
     }
 
     #[test]
+    fn test_fallback_parse_table_preserves_fork_action_cell() {
+        let mut table = crate::empty_table!(states: 2, terms: 1, nonterms: 1);
+        let start = table.start_symbol;
+        let t = SymbolId(1);
+
+        for row in &mut table.goto_table {
+            row.fill(StateId(0));
+        }
+        table.action_table[0][1] = vec![Action::Fork(vec![
+            Action::Shift(StateId(1)),
+            Action::Reduce(RuleId(0)),
+        ])];
+
+        let mut grammar = Grammar::new("fallback_fork_conflict".to_string());
+        grammar.rule_names.insert(start, "start".to_string());
+        grammar.tokens.insert(
+            t,
+            Token {
+                name: "t".to_string(),
+                pattern: TokenPattern::String("t".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.add_rule(Rule {
+            lhs: start,
+            rhs: vec![Symbol::Terminal(t)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let (table_data, table_map) = builder.generate_parse_tables();
+        let values: Vec<u16> = table_data.iter().map(token_stream_u16).collect();
+        let offsets: Vec<u32> = table_map
+            .iter()
+            .map(|token| token.to_string().trim_end_matches("u32").parse().unwrap())
+            .collect();
+
+        assert_eq!(offsets[0], 0, "state 0 starts at the first pair");
+        assert_eq!(offsets[1], 4, "state 1 starts after both state 0 pairs");
+        assert_eq!(values.len(), 4, "fork cell must emit two direct pairs");
+        assert_eq!(values[0], 1, "first entry symbol");
+        assert_eq!(
+            values[1],
+            builder.encode_action(&Action::Shift(StateId(1))).unwrap()
+        );
+        assert_eq!(values[2], 1, "second entry symbol");
+        assert_eq!(
+            values[3],
+            builder.encode_action(&Action::Reduce(RuleId(0))).unwrap()
+        );
+    }
+
+    #[test]
     fn test_fallback_parse_table_emits_goto_once() {
         let mut table = crate::empty_table!(states: 2, terms: 1, nonterms: 1);
         let start = table.start_symbol;

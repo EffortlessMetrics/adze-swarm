@@ -753,11 +753,10 @@ fn encode_small_reduce_boundary_max_valid() {
 }
 
 #[test]
-fn encode_small_fork_treated_as_error() {
+fn encode_small_fork_requires_flattening() {
     let tc = TableCompressor::new();
     let fork = Action::Fork(vec![Action::Shift(StateId(1))]);
-    let encoded = tc.encode_action_small(&fork).unwrap();
-    assert_eq!(encoded, 0xFFFE);
+    assert!(tc.encode_action_small(&fork).is_err());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

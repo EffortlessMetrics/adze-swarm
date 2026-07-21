@@ -5,6 +5,7 @@
 // This module creates a valid Tree-sitter Language structure from our IR
 
 use crate::abi::TREE_SITTER_LANGUAGE_VERSION;
+use crate::conflict_abi::{abi_leaf_actions, encode_leaf_action};
 use adze_glr_core::ParseTable;
 use adze_ir::Grammar;
 use proc_macro2::TokenStream;
@@ -32,18 +33,19 @@ mod compressed_tables {
     pub(super) fn collect_non_error_actions<FAction, FIsError>(
         state: usize,
         symbol_count: usize,
-        mut get_action: FAction,
+        mut get_actions: FAction,
         mut is_error_action: FIsError,
     ) -> Vec<(usize, u16)>
     where
-        FAction: FnMut(usize, usize) -> u16,
+        FAction: FnMut(usize, usize) -> Vec<u16>,
         FIsError: FnMut(u16) -> bool,
     {
         let mut non_error_actions = Vec::new();
         for symbol in 0..symbol_count {
-            let action = get_action(state, symbol);
-            if !is_error_action(action) {
-                non_error_actions.push((symbol, action));
+            for action in get_actions(state, symbol) {
+                if !is_error_action(action) {
+                    non_error_actions.push((symbol, action));
+                }
             }
         }
         non_error_actions
@@ -352,7 +354,7 @@ impl<'a> LanguageGenerator<'a> {
             let non_error_actions = compressed_tables::collect_non_error_actions(
                 state,
                 self.parse_table.symbol_count,
-                |state, symbol| self.get_action(state, symbol),
+                |state, symbol| self.get_encoded_actions(state, symbol),
                 |action| self.is_error_action(action),
             );
             compressed_tables::append_small_state_data(
@@ -379,31 +381,24 @@ impl<'a> LanguageGenerator<'a> {
         0
     }
 
-    fn get_action(&self, state: usize, symbol: usize) -> u16 {
-        // Get the action from parse table
-        if state < self.parse_table.action_table.len()
-            && symbol < self.parse_table.action_table[state].len()
+    fn get_encoded_actions(&self, state: usize, symbol: usize) -> Vec<u16> {
+        if state >= self.parse_table.action_table.len()
+            || symbol >= self.parse_table.action_table[state].len()
         {
-            let action_cell = &self.parse_table.action_table[state][symbol];
-            // For Tree-sitter compatibility, we need to pick one action
-            // Use the first action if multiple exist (GLR conflicts)
-            if action_cell.is_empty() {
-                0xFFFE // Error action
-            } else {
-                let action = &action_cell[0];
-                match action {
-                    adze_glr_core::Action::Shift(s) => s.0,
-                    adze_glr_core::Action::Reduce(r) => 0x8000 | (r.0 + 1),
-                    adze_glr_core::Action::Accept => 0xFFFF,
-                    adze_glr_core::Action::Error => 0xFFFE,
-                    adze_glr_core::Action::Recover => 0xFFFD, // Use distinct value for Recover
-                    adze_glr_core::Action::Fork(_) => 0xFFFE, // TODO: Handle GLR forks
-                    _ => 0xFFFE, // Unknown action type // Expected: V for Recover
-                }
-            }
-        } else {
-            0xFFFE // Error action
+            return Vec::new();
         }
+
+        abi_leaf_actions(&self.parse_table.action_table[state][symbol])
+            .into_iter()
+            .filter_map(|action| encode_leaf_action(&action).ok())
+            .collect()
+    }
+
+    fn get_action(&self, state: usize, symbol: usize) -> u16 {
+        self.get_encoded_actions(state, symbol)
+            .into_iter()
+            .next()
+            .unwrap_or(0xFFFE)
     }
 
     fn encode_action(&self, action: u16) -> u16 {
