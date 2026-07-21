@@ -129,18 +129,32 @@ pub fn parse_with_streaming_driver(
     let forest =
         parse_with_optional_external_scanner(&mut driver, input, language, &mut internal_lexer)?;
 
+    materialize_streaming_forest(&forest, language, &parse_table, grammar)
+}
+
+/// Select a complete alternative from an already-produced streaming [`Forest`].
+///
+/// This is the #930 adapter seam: production routing produces a forest, then this
+/// function materializes deterministic selected-tree + ambiguity facts without
+/// depending on lexer/driver token commitment.
+pub fn materialize_streaming_forest(
+    forest: &adze_glr_core::Forest,
+    language: &'static TSLanguage,
+    parse_table: &ParseTable,
+    grammar: &Grammar,
+) -> Result<StreamingGlrParseResult, GlrError> {
     let view = forest.view();
     let roots = view.roots();
     if roots.is_empty() {
         return Err(GlrError::Parse(
-            "streaming driver produced no complete parse roots".to_string(),
+            "streaming forest produced no complete parse roots".to_string(),
         ));
     }
 
     let mut alternatives = Vec::with_capacity(roots.len());
     let mut subtrees = Vec::with_capacity(roots.len());
     for (index, &root_id) in roots.iter().enumerate() {
-        let subtree = forest_view_to_subtree(view, root_id, language, &parse_table, grammar);
+        let subtree = forest_view_to_subtree(view, root_id, language, parse_table, grammar);
         let span = view.span(root_id);
         alternatives.push(AlternativeSummary {
             index,
@@ -172,13 +186,37 @@ pub fn parse_with_streaming_driver(
         None
     };
 
-    Ok(StreamingGlrParseResult {
-        root: subtrees
-            .into_iter()
-            .nth(selected_index)
-            .expect("selected index verified against subtrees"),
-        ambiguities,
-    })
+    let root = subtrees.get(selected_index).cloned().ok_or_else(|| {
+        GlrError::Parse(format!(
+            "streaming forest selected index {selected_index} is out of range for {} roots",
+            roots.len()
+        ))
+    })?;
+
+    Ok(StreamingGlrParseResult { root, ambiguities })
+}
+
+/// Materialize an [`crate::document::AdzeDocument`] from a streaming forest (#930).
+///
+/// Callable independently of production parser routing: callers supply an already
+/// produced forest plus language metadata.
+pub fn materialize_streaming_forest_document(
+    source: &str,
+    forest: &adze_glr_core::Forest,
+    language: &'static TSLanguage,
+    grammar_name: &str,
+    grammar: &Grammar,
+    parse_table: &ParseTable,
+) -> Result<crate::document::AdzeDocument, GlrError> {
+    let parsed = materialize_streaming_forest(forest, language, parse_table, grammar)?;
+    Ok(crate::__private::adze_document_from_streaming_parse(
+        source,
+        parsed,
+        language,
+        grammar_name,
+        grammar,
+        parse_table,
+    ))
 }
 
 fn parse_with_optional_external_scanner<L>(

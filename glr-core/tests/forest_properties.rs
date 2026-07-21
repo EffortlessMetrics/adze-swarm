@@ -229,12 +229,8 @@ fn is_dag(view: &dyn ForestView, roots: &[u32]) -> bool {
         for &child in view.best_children(id) {
             match color.get(&child).copied().unwrap_or(0) {
                 1 => return false, // back-edge → cycle
-                0 => {
-                    if !dfs(child, view, color) {
-                        return false;
-                    }
-                }
-                _ => {} // already finished
+                0 if !dfs(child, view, color) => return false,
+                _ => {} // already finished or DFS succeeded
             }
         }
         color.insert(id, 2);

@@ -404,23 +404,41 @@ fn parse_document_with_streaming_true_glr_runtime(
         }
     };
 
+    Ok(adze_document_from_streaming_parse(
+        input,
+        parsed,
+        language,
+        grammar_name,
+        &grammar,
+        &parse_table,
+    ))
+}
+
+/// Build an [`crate::document::AdzeDocument`] from a materialized streaming parse (#930).
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+pub fn adze_document_from_streaming_parse(
+    source: &str,
+    parsed: crate::glr_streaming_runtime::StreamingGlrParseResult,
+    language: &'static crate::pure_parser::TSLanguage,
+    grammar_name: &str,
+    grammar: &adze_ir::Grammar,
+    parse_table: &adze_glr_core::ParseTable,
+) -> crate::document::AdzeDocument {
     let root = convert_subtree_to_document_node(&parsed.root, language);
     let ambiguities = parsed.ambiguities.into_iter().collect::<Vec<_>>();
 
-    Ok(
-        crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
-            input,
-            root,
-            0,
-            crate::document::DocumentRuntime {
-                language_name: grammar_name,
-                grammar: &grammar,
-                parse_table: &parse_table,
-                pure_language: Some(language),
-            },
-            Vec::new(),
-            ambiguities,
-        ),
+    crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
+        source,
+        root,
+        0,
+        crate::document::DocumentRuntime {
+            language_name: grammar_name,
+            grammar,
+            parse_table,
+            pure_language: Some(language),
+        },
+        Vec::new(),
+        ambiguities,
     )
 }
 
