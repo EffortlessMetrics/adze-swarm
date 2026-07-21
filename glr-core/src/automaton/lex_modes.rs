@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 
 /// Assign one internal lex state per distinct shiftable-terminal signature and
 /// pack external-scanner validity into `external_lex_state` bitmasks.
-pub fn build_lex_modes(
+pub(crate) fn build_lex_modes(
     action_table: &[Vec<Vec<Action>>],
     external_scanner_states: &[Vec<bool>],
 ) -> Vec<LexMode> {

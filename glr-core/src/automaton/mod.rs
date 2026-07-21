@@ -1,6 +1,6 @@
 pub(crate) mod actions;
 mod augmentation;
-pub mod lex_modes;
+pub(crate) mod lex_modes;
 mod metadata;
 mod precedence;
 mod symbols;
