@@ -3,8 +3,8 @@
 use super::{GrammarJs, Rule as JsRule};
 use adze_ir::{
     Associativity, ConflictDeclaration, ConflictResolution, ExternalToken, FieldId, Grammar,
-    PrecedenceKind, ProductionId, Rule, RuleId, Symbol, SymbolId, Token,
-    TokenPattern, validate_token_pattern,
+    PrecedenceKind, ProductionId, Rule, RuleId, Symbol, SymbolId, Token, TokenPattern,
+    validate_token_pattern,
 };
 use anyhow::{Context, Result};
 use indexmap::IndexMap;
