@@ -152,28 +152,48 @@ pub fn tokenize_with_fixed_mode_bridge(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use adze_glr_core::{Action, ParseRule};
+    use adze_glr_core::{Action, GotoIndexing, ParseRule};
     use adze_ir::{Grammar, RuleId, SymbolId};
+    use std::collections::BTreeMap;
 
     fn tiny_table(lex_modes: Vec<LexMode>) -> ParseTable {
-        let mut table = ParseTable::new(Grammar::new("contract".to_string()));
-        table.state_count = lex_modes.len();
-        table.lex_modes = lex_modes;
-        table.action_table = vec![
-            vec![vec![], vec![Action::Shift(StateId(1))], vec![]],
-            vec![vec![Action::Reduce(RuleId(0))], vec![], vec![]],
-            vec![vec![Action::Accept], vec![], vec![]],
-        ];
-        table.goto_table = vec![
-            vec![StateId(u16::MAX); 3],
-            vec![StateId(u16::MAX); 3],
-            vec![StateId(u16::MAX); 3],
-        ];
-        table.rules = vec![ParseRule {
-            lhs: SymbolId(2),
-            rhs_len: 1,
-        }];
-        table
+        ParseTable {
+            action_table: vec![
+                vec![vec![], vec![Action::Shift(StateId(1))], vec![]],
+                vec![vec![Action::Reduce(RuleId(0))], vec![], vec![]],
+                vec![vec![Action::Accept], vec![], vec![]],
+            ],
+            goto_table: vec![
+                vec![StateId(u16::MAX); 3],
+                vec![StateId(u16::MAX); 3],
+                vec![StateId(u16::MAX); 3],
+            ],
+            symbol_metadata: vec![],
+            state_count: lex_modes.len(),
+            symbol_count: 3,
+            symbol_to_index: BTreeMap::new(),
+            index_to_symbol: vec![],
+            external_scanner_states: vec![],
+            rules: vec![ParseRule {
+                lhs: SymbolId(2),
+                rhs_len: 1,
+            }],
+            nonterminal_to_index: BTreeMap::new(),
+            goto_indexing: GotoIndexing::NonterminalMap,
+            eof_symbol: SymbolId(0),
+            start_symbol: SymbolId(2),
+            grammar: Grammar::new("contract".to_string()),
+            initial_state: StateId(0),
+            token_count: 2,
+            external_token_count: 0,
+            lex_modes,
+            extras: vec![],
+            dynamic_prec_by_rule: vec![0],
+            rule_assoc_by_rule: vec![0],
+            alias_sequences: vec![],
+            field_names: vec![],
+            field_map: BTreeMap::new(),
+        }
     }
 
     #[test]

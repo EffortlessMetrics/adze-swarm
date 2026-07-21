@@ -150,6 +150,8 @@ pub mod glr_lexer;
 pub mod glr_parser;
 /// Query support for GLR parse forests.
 pub mod glr_query;
+#[cfg(all(feature = "glr", feature = "pure-rust", feature = "external_scanners"))]
+pub mod glr_streaming_external_scanner;
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
 pub mod glr_streaming_internal_lexer;
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
