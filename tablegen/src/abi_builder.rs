@@ -129,6 +129,10 @@ impl<'a> AbiLanguageBuilder<'a> {
         let alias_tables = &alias_pieces.tables;
         let alias_map_ptr = &alias_pieces.map_ptr;
         let alias_sequences_ptr = &alias_pieces.sequences_ptr;
+        let keyword_capture_token = crate::lexical_abi::keyword_capture_index(
+            self.grammar,
+            &self.parse_table.symbol_to_index,
+        );
 
         quote! {
             use adze::pure_parser::{TSLanguage, TSParseAction, TSRule, SyncPtr, TREE_SITTER_LANGUAGE_VERSION, ExternalScanner, TSLexState};
@@ -227,7 +231,7 @@ impl<'a> AbiLanguageBuilder<'a> {
                 lex_modes: LEX_MODES.as_ptr(),
                 lex_fn: Some(lexer_fn),
                 keyword_lex_fn: None,
-                keyword_capture_token: 0,
+                keyword_capture_token: #keyword_capture_token,
                 external_scanner: #external_scanner_struct,
                 primary_state_ids: PRIMARY_STATE_IDS.as_ptr(),
                 production_lhs_index: PRODUCTION_LHS_INDEX.as_ptr(),

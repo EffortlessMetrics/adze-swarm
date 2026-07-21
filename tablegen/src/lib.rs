@@ -42,6 +42,8 @@ pub mod helpers;
 pub mod language_gen;
 /// Lexer generation utilities
 pub mod lexer_gen;
+/// Lexical metadata propagation into generated ABI artifacts (#924).
+pub(crate) mod lexical_abi;
 /// NODE_TYPES JSON metadata generation.
 pub mod node_types;
 /// Parser template and parse table code generation.

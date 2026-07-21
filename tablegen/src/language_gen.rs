@@ -126,6 +126,10 @@ impl<'a> LanguageGenerator<'a> {
         let external_token_count = self.parse_table.external_token_count as u32;
         let large_state_count = self.determine_large_state_count() as u32;
         let production_id_count = self.count_production_ids() as u32;
+        let keyword_capture_token = crate::lexical_abi::keyword_capture_index(
+            self.grammar,
+            &self.parse_table.symbol_to_index,
+        );
 
         quote! {
             use adze::tree_sitter as ts;
@@ -202,7 +206,7 @@ impl<'a> LanguageGenerator<'a> {
                 lex_modes: LEX_MODES.as_ptr(),
                 lex_fn: None, // TODO: Implement custom lexer
                 keyword_lex_fn: None,
-                keyword_capture_token: TSSymbol(0),
+                keyword_capture_token: TSSymbol(#keyword_capture_token),
                 external_scanner: EXTERNAL_SCANNER,
                 primary_state_ids: PRIMARY_STATE_IDS.as_ptr(),
             };

@@ -165,10 +165,12 @@ mod symbol_metadata {
     fn push_tokens(grammar: &Grammar, metadata: &mut Vec<u8>) {
         let mut tokens: Vec<_> = grammar.tokens.iter().collect();
         tokens.sort_by_key(|(id, _)| id.0);
-        for (_, token) in tokens {
+        for (symbol_id, token) in tokens {
             let visible = !token.name.starts_with('_');
             let named = visible && matches!(&token.pattern, adze_ir::TokenPattern::Regex(_));
-            metadata.push(create_symbol_metadata(visible, named, false, false, false));
+            metadata.push(crate::lexical_abi::symbol_metadata_byte(
+                grammar, *symbol_id, visible, named, false, false,
+            ));
         }
     }
 
