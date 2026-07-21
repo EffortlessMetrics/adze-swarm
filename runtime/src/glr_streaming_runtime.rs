@@ -186,7 +186,10 @@ fn parse_with_optional_external_scanner<L>(
     input: &str,
     #[cfg_attr(
         not(feature = "external_scanners"),
-        expect(unused_variables, reason = "policy:pr4-external-gate: language only needed when external_scanners is enabled")
+        expect(
+            unused_variables,
+            reason = "policy:pr4-external-gate: language only needed when external_scanners is enabled"
+        )
     )]
     language: &'static TSLanguage,
     internal_lexer: L,
