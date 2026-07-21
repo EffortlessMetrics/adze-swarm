@@ -28,43 +28,30 @@ mod runtime_conflict_preservation {
     /// - runtime::decoder::decode_parse_table (decoding)
     #[test]
     fn test_ambiguous_expr_conflicts_survive_encoding() {
-        // This test documents the expected behavior
-        // Once example grammars expose LANGUAGE and SMALL_PARSE_TABLE, we can:
-        //
-        // 1. Load LANGUAGE from generated parser
-        // 2. Decode ParseTable using runtime decoder
-        // 3. Run conflict inspection
-        // 4. Assert shift_reduce >= 1
-
-        eprintln!("Runtime Conflict Preservation Test:");
-        eprintln!("  Grammar: ambiguous_expr");
-        eprintln!("  Expected: At least 1 S/R conflict preserved through encode/decode");
-        eprintln!("  Status: Awaiting example grammar integration");
-
-        // TODO: Implement once example grammars export LANGUAGE symbols
-        /*
         use adze::decoder::decode_parse_table;
+        use adze_example::ambiguous_expr::grammar;
 
-        // Get LANGUAGE from generated parser
-        let lang = unsafe { &adze_example::ambiguous_expr::generated::LANGUAGE };
-
-        // Decode runtime ParseTable
+        let lang = grammar::language();
         let table = decode_parse_table(lang);
-
-        // Run conflict inspection
         let summary = count_conflicts(&table);
 
-        // Validate conflicts were preserved
         assert!(
             summary.shift_reduce >= 1,
             "ambiguous_expr must preserve at least 1 S/R conflict after encode/decode, got {summary:?}"
         );
 
-        eprintln!("✅ Conflicts preserved:");
-        eprintln!("  States: {}", table.state_count);
-        eprintln!("  S/R conflicts: {}", summary.shift_reduce);
-        eprintln!("  R/R conflicts: {}", summary.reduce_reduce);
-        */
+        let mut direct_multi_action_cells = 0usize;
+        for state_actions in &table.action_table {
+            for cell in state_actions {
+                if cell.len() > 1 {
+                    direct_multi_action_cells += 1;
+                }
+            }
+        }
+        assert!(
+            direct_multi_action_cells >= 1,
+            "ambiguous_expr decode must retain multi-action cells through ABI roundtrip"
+        );
     }
 
     /// Test: Dangling Else Grammar Conflicts Survive Encoding/Decoding

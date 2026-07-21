@@ -520,3 +520,49 @@ fn combined_tslanguage_decode_preserves_metadata_fields_aliases_externals_and_le
     assert_eq!(decoded.lex_modes[1].external_lex_state, 1);
     assert_eq!(decoded.lex_modes[2].lex_state, 3);
 }
+
+/// Generated grammar path: build-time tablegen ABI must preserve GLR conflict cells
+/// after runtime decode (closes #929 PR3 roundtrip receipt).
+#[test]
+fn generated_ambiguous_expr_decode_preserves_glr_conflict_cells() {
+    use adze_example::ambiguous_expr::grammar;
+
+    let lang = grammar::language();
+    assert!(
+        !lang.small_parse_table.is_null(),
+        "generated ambiguous_expr must expose compressed small parse-table rows"
+    );
+
+    let decoded = decode_parse_table(lang);
+    let summary = count_conflicts(&decoded);
+
+    assert!(
+        summary.shift_reduce > 0,
+        "generated ambiguous_expr decode must preserve shift/reduce conflicts, got {summary:?}"
+    );
+
+    let mut direct_multi_action_cells = 0usize;
+    let mut shift_reduce_cells = 0usize;
+    for state_actions in &decoded.action_table {
+        for cell in state_actions {
+            if cell.len() > 1 {
+                direct_multi_action_cells += 1;
+            }
+            if cell_has_conflict(cell)
+                && cell.iter().any(|a| matches!(a, Action::Shift(_)))
+                && cell.iter().any(|a| matches!(a, Action::Reduce(_)))
+            {
+                shift_reduce_cells += 1;
+            }
+        }
+    }
+
+    assert!(
+        direct_multi_action_cells > 0,
+        "decoded table must retain duplicate symbol entries as multi-action cells, not first-action fallback"
+    );
+    assert!(
+        shift_reduce_cells > 0,
+        "decoded ambiguous_expr table must preserve at least one shift/reduce conflict cell"
+    );
+}
