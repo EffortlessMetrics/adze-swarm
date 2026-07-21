@@ -658,22 +658,21 @@ impl GrammarJsConverter {
         validate_token_pattern(name, &pattern)
             .with_context(|| format!("invalid lexical pattern for token '{name}'"))?;
 
-        if let Some(&symbol_id) = self.symbol_names.get(name) {
-            if grammar.tokens.contains_key(&symbol_id) {
-                return Ok(symbol_id);
-            }
-
-            let token = Token {
-                name: name.to_string(),
-                pattern: pattern.clone(),
-                fragile: false,
-            };
-            grammar.tokens.insert(symbol_id, token);
+        // Reuse only an existing token. Never promote a rule/non-terminal SymbolId
+        // into a token — that collapses identities and can erase GLR conflicts.
+        if let Some(&symbol_id) = self.symbol_names.get(name)
+            && grammar.tokens.contains_key(&symbol_id)
+        {
             return Ok(symbol_id);
         }
 
+        let mut map_key = name.to_string();
+        if self.symbol_names.contains_key(&map_key) {
+            map_key = format!("__tok_{name}");
+        }
+
         let symbol_id = SymbolId(self.next_symbol_id.try_into().unwrap());
-        self.symbol_names.insert(name.to_string(), symbol_id);
+        self.symbol_names.insert(map_key, symbol_id);
         self.next_symbol_id += 1;
 
         let token = Token {

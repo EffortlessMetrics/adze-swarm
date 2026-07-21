@@ -107,9 +107,15 @@ fn duplicate_regex_patterns_keep_distinct_token_names() {
         .values()
         .map(|token| token.name.as_str())
         .collect();
-    assert!(names.contains(&"id_a"));
-    assert!(names.contains(&"id_b"));
+    assert!(names.contains(&"_/id_a/"));
+    assert!(names.contains(&"_/id_b/"));
     assert_eq!(grammar.tokens.len(), 2);
+    assert!(
+        grammar.tokens.values().all(
+            |token| matches!(&token.pattern, adze_ir::TokenPattern::Regex(p) if p == "[a-z]+")
+        ),
+        "duplicate textual patterns must retain distinct token identities"
+    );
 }
 
 #[test]

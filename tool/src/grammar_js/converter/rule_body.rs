@@ -83,12 +83,15 @@ impl GrammarJsConverter {
         lhs: SymbolId,
         value: &str,
     ) -> Result<()> {
-        let token_name = self
+        // Keep a dedicated token SymbolId so the owning rule stays a non-terminal
+        // wrapper. Include the rule name so equal regex text keeps distinct identities.
+        let rule_name = self
             .symbol_names
             .iter()
             .find(|(_, id)| **id == lhs)
-            .map(|(name, _)| name.clone())
-            .unwrap_or_else(|| hidden_pattern_token_name(value));
+            .map(|(name, _)| name.as_str())
+            .unwrap_or("pattern");
+        let token_name = format!("_/{rule_name}/");
         let token_id =
             self.get_or_create_token(grammar, &token_name, TokenPattern::Regex(value.to_string()))?;
         self.token_symbols.insert(lhs, token_id);
