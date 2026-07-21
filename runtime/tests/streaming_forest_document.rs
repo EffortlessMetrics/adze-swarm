@@ -24,11 +24,8 @@ unsafe impl Sync for SymbolNames {}
 static SYMBOL_EOF: &[u8] = b"end\0";
 static SYMBOL_A: &[u8] = b"a\0";
 static SYMBOL_S: &[u8] = b"s\0";
-static SYMBOL_NAMES: SymbolNames = SymbolNames([
-    SYMBOL_EOF.as_ptr(),
-    SYMBOL_A.as_ptr(),
-    SYMBOL_S.as_ptr(),
-]);
+static SYMBOL_NAMES: SymbolNames =
+    SymbolNames([SYMBOL_EOF.as_ptr(), SYMBOL_A.as_ptr(), SYMBOL_S.as_ptr()]);
 static LEX_MODES: [TSLexState; 1] = [TSLexState {
     lex_state: 0,
     external_lex_state: 0,
@@ -101,9 +98,7 @@ fn leaf(id: usize, symbol: SymbolId, span: (usize, usize)) -> ForestNode {
 /// Two complete roots with distinct structural keys so selection is forced.
 fn constructed_ambiguous_forest(grammar: Grammar) -> Forest {
     let start = grammar.start_symbol().expect("start symbol");
-    let token_a = grammar
-        .find_symbol_by_name("a")
-        .expect("token a");
+    let token_a = grammar.find_symbol_by_name("a").expect("token a");
 
     // Prefer the shorter/earlier structural key: root 0 wins over root 1.
     let root0 = ForestNode {
