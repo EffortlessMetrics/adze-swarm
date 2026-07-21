@@ -87,7 +87,7 @@ pub struct ExternalScanner {
 }
 
 /// Token produced by the lexer
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NextToken {
     pub kind: u32,
     pub start: u32,
