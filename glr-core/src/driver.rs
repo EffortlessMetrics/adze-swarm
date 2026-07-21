@@ -1,8 +1,8 @@
 //! Public driver that runs the GLR engine and returns a trait-object forest.
 
 use crate::debug_trace;
-use crate::lexical_commitment::{CandidateOrigin, TokenCandidate, select_global_lexical_candidate};
 use crate::forest_view::{Forest, ForestView, Span};
+use crate::lexical_commitment::{CandidateOrigin, TokenCandidate, select_global_lexical_candidate};
 use crate::parse_forest::{ForestAlternative, ForestNode, ParseForest};
 use crate::{Action, ParseTable, RuleId, StateId, SymbolId};
 use smallvec::SmallVec;
@@ -236,8 +236,7 @@ impl<'t> Driver<'t> {
                     })
                     .collect();
 
-                select_global_lexical_candidate(self.tables, &token_candidates, &stack_tops)?
-                    .token
+                select_global_lexical_candidate(self.tables, &token_candidates, &stack_tops)?.token
             };
 
             // Process this token through the GLR parser

@@ -123,7 +123,10 @@ pub fn select_global_lexical_candidate(
             has_action_for_any_stack(tables, stack_tops, best_candidate.token.kind);
 
         if cand_actionable && !best_actionable {
-            best = Some((*candidate, LexicalSelectionReason::ActionableOverNonActionable));
+            best = Some((
+                *candidate,
+                LexicalSelectionReason::ActionableOverNonActionable,
+            ));
             continue;
         }
         if !cand_actionable && best_actionable {

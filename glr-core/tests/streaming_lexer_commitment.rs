@@ -53,18 +53,8 @@ fn divergent_mode_table() -> ParseTable {
             vec![],
             vec![],
         ],
-        vec![
-            vec![],
-            vec![Action::Shift(StateId(3))],
-            vec![],
-            vec![],
-        ],
-        vec![
-            vec![],
-            vec![],
-            vec![Action::Shift(StateId(4))],
-            vec![],
-        ],
+        vec![vec![], vec![Action::Shift(StateId(3))], vec![], vec![]],
+        vec![vec![], vec![], vec![Action::Shift(StateId(4))], vec![]],
         vec![vec![Action::Accept], vec![], vec![], vec![]],
         vec![vec![Action::Accept], vec![], vec![], vec![]],
     ];
