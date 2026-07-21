@@ -9,7 +9,7 @@ use adze_glr_core::lexical_commitment::{
 };
 use adze_glr_core::ts_lexer::NextToken;
 use adze_glr_core::{Action, Driver, GotoIndexing, LexMode, ParseRule, ParseTable, SymbolMetadata};
-use adze_ir::{Grammar, RuleId, StateId, SymbolId};
+use adze_ir::{Grammar, StateId, SymbolId};
 use std::collections::BTreeMap;
 
 const INV: StateId = StateId(65535);
