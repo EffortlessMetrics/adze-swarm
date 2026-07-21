@@ -17,5 +17,7 @@ expression: grammar_json(&grammar)
   "production_ids": {},
   "max_alias_sequence_length": 0,
   "rule_names": {},
-  "symbol_registry": null
+  "symbol_registry": null,
+  "word_token": null,
+  "lexical_metadata": {}
 }

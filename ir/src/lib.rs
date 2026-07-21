@@ -33,6 +33,13 @@ pub mod symbol_registry;
 pub use symbol_registry::{SymbolInfo, SymbolRegistry};
 /// Builder API for programmatically constructing grammars
 pub mod builder;
+/// Lexical metadata and pattern validation for the generated-lexer contract.
+pub mod lexical;
+/// Lexical metadata types and validation helpers.
+pub use lexical::{
+    LexicalMetadata, LexicalPatternError, TOKEN_WRAPPER_PRIORITY, compare_lexical_priority,
+    sorted_lexical_metadata, validate_token_pattern,
+};
 
 /// Core grammar representation supporting all Tree-sitter features including GLR
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -67,6 +74,12 @@ pub struct Grammar {
     pub rule_names: IndexMap<SymbolId, String>,
     /// Centralized symbol registry
     pub symbol_registry: Option<SymbolRegistry>,
+    /// Authoritative word-token symbol for keyword-versus-identifier resolution.
+    #[serde(default)]
+    pub word_token: Option<SymbolId>,
+    /// Per-token lexical metadata (immediate flag, lexical priority).
+    #[serde(default)]
+    pub lexical_metadata: IndexMap<SymbolId, LexicalMetadata>,
 }
 
 impl Grammar {
@@ -442,6 +455,8 @@ impl Grammar {
             max_alias_sequence_length: 0,
             rule_names: IndexMap::new(),
             symbol_registry: None,
+            word_token: None,
+            lexical_metadata: IndexMap::new(),
         }
     }
 

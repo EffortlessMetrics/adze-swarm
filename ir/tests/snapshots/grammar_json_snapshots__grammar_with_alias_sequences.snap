@@ -74,5 +74,7 @@ expression: grammar_json(&grammar)
   "rule_names": {
     "4": "assignment"
   },
-  "symbol_registry": null
+  "symbol_registry": null,
+  "word_token": null,
+  "lexical_metadata": {}
 }

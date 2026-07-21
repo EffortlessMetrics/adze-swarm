@@ -68,4 +68,6 @@ Grammar {
         ): "expr",
     },
     symbol_registry: None,
+    word_token: None,
+    lexical_metadata: {},
 }

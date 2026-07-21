@@ -156,6 +156,8 @@ pub fn decode_grammar_with_patterns(
         max_alias_sequence_length: 0,
         rule_names,
         symbol_registry: None,
+        word_token: None,
+        lexical_metadata: IndexMap::new(),
     }
 }
 

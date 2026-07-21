@@ -686,6 +686,8 @@ mod tests {
             rule_names: indexmap::IndexMap::new(),
             max_alias_sequence_length: 0,
             symbol_registry: None,
+            word_token: None,
+            lexical_metadata: indexmap::IndexMap::new(),
         };
 
         // Add tokens
