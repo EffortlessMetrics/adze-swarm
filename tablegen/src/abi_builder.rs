@@ -112,8 +112,11 @@ impl<'a> AbiLanguageBuilder<'a> {
         self.log_lexer_token_mapping(&counts);
 
         // Generate lexer function with symbol mapping
-        let lexer_code =
-            crate::lexer_gen::generate_lexer(self.grammar, &self.parse_table.symbol_to_index);
+        let lexer_code = crate::lexer_gen::generate_lexer_with_table(
+            self.grammar,
+            &self.parse_table.symbol_to_index,
+            Some(self.parse_table),
+        );
 
         // Bind LanguageCounts fields and alias fragments into named locals so
         // the `quote!` template below can interpolate them directly.
