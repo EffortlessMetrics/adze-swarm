@@ -2,7 +2,7 @@
 
 #[allow(dead_code)]
 #[adze::grammar("python_like")]
-mod grammar {
+pub mod grammar {
     #[adze::language]
     pub enum Statement {
         If(IfStatement),

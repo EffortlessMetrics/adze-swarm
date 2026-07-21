@@ -148,6 +148,8 @@ pub mod glr_incremental;
 pub mod glr_lexer;
 /// GLR parser implementation.
 pub mod glr_parser;
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+pub mod glr_streaming_lex_contract;
 /// Query support for GLR parse forests.
 pub mod glr_query;
 /// Bridge between GLR parser and Tree-sitter trees.
