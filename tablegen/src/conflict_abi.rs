@@ -5,12 +5,11 @@
 
 use adze_glr_core::Action;
 use adze_glr_core::conflict_inspection::effective_actions;
-use adze_ir::{RuleId, StateId};
 
 /// Encode one leaf parse action for Tree-sitter small-table ABI emission.
 ///
 /// `Action::Fork` must be flattened with [`effective_actions`] before calling this.
-pub fn encode_leaf_action(action: &Action) -> Result<u16, String> {
+pub(crate) fn encode_leaf_action(action: &Action) -> Result<u16, String> {
     match action {
         Action::Shift(state) => Ok(state.0),
         Action::Reduce(rule) => Ok(0x8000 | (rule.0 + 1)),
@@ -31,7 +30,7 @@ pub fn encode_leaf_action(action: &Action) -> Result<u16, String> {
 
 /// Expand one action cell into deterministic leaf actions suitable for ABI emission.
 #[must_use]
-pub fn abi_leaf_actions(action_cell: &[Action]) -> Vec<Action> {
+pub(crate) fn abi_leaf_actions(action_cell: &[Action]) -> Vec<Action> {
     let mut out = Vec::new();
     for action in action_cell {
         match action {
@@ -46,6 +45,7 @@ pub fn abi_leaf_actions(action_cell: &[Action]) -> Vec<Action> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use adze_ir::{RuleId, StateId};
 
     #[test]
     fn fork_flattens_to_duplicate_symbol_pairs() {
