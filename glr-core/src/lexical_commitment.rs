@@ -98,9 +98,6 @@ pub fn select_global_lexical_candidate(
 
     for candidate in candidates {
         let token = candidate.token;
-        if token.end <= token.start {
-            continue;
-        }
 
         let Some((best_candidate, _best_reason)) = best else {
             best = Some((*candidate, LexicalSelectionReason::SoleCandidate));
