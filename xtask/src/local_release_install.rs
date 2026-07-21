@@ -83,7 +83,9 @@ pub fn run(version: &str, cli_crate: &str, cli_bin: &str, dry_run: bool) -> Resu
     println!("starter project: {}", starter.project_dir.display());
 
     println!();
-    println!("claim boundary: local-registry publish + CLI install + registry-backed starter scaffold");
+    println!(
+        "claim boundary: local-registry publish + CLI install + registry-backed starter scaffold"
+    );
     println!("next: starter test/parse/invalid-input receipt remains in #856 PR4");
     Ok(())
 }
