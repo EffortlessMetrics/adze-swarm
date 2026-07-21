@@ -15,6 +15,7 @@ mod golden;
 mod goto_indexing;
 mod grammar_json;
 mod lint;
+mod local_registry;
 mod local_release_install;
 mod no_mangle;
 mod perf_receipt;
