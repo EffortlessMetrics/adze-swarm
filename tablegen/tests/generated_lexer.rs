@@ -139,7 +139,7 @@ fn generated_lexer_duplicate_patterns_keep_distinct_symbols() {
     let map = BTreeMap::from([(SymbolId(1), 1usize), (SymbolId(2), 2usize)]);
     let code = generate_lexer_with_table(&grammar, &map, None).to_string();
     assert!(
-        code.matches("if let Some").count() >= 2,
+        code.matches("better_match").count() >= 2,
         "duplicate literals should register distinct candidates"
     );
 }
