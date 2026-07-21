@@ -109,5 +109,7 @@ expression: grammar_json(&grammar)
     "4": "expr",
     "5": "_binary_op"
   },
-  "symbol_registry": null
+  "symbol_registry": null,
+  "word_token": null,
+  "lexical_metadata": {}
 }

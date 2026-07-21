@@ -52,5 +52,7 @@ expression: json2
   "rule_names": {
     "3": "start"
   },
-  "symbol_registry": null
+  "symbol_registry": null,
+  "word_token": null,
+  "lexical_metadata": {}
 }

@@ -118,5 +118,7 @@ expression: grammar_json(&grammar)
     "5": "expression",
     "6": "literal"
   },
-  "symbol_registry": null
+  "symbol_registry": null,
+  "word_token": null,
+  "lexical_metadata": {}
 }
