@@ -25,15 +25,18 @@ fn generated_parse_document_helper_feeds_generated_syntax_module() {
     );
     assert_eq!(document.metadata().error_count, 0);
 
-    let syntax = adze_example::typed_ast_contract::grammar::syntax::source_file(&document)
-        .expect("generated syntax root should cast from document root");
+    let syntax = adze_example::typed_ast_contract::grammar::syntax::Expr::cast(
+        &document,
+        document.tree().root_id(),
+    )
+    .expect("generated syntax root should cast from document root");
 
     assert_eq!(syntax.node_id(), document.tree().root_id());
-    assert_eq!(syntax.kind_name(), Some("source_file"));
+    assert_eq!(syntax.kind_name(), Some("Expr"));
     assert_eq!(syntax.text(), Some(source));
     assert!(
         syntax.child(0).is_some(),
-        "source_file wrapper should expose the parsed expression child"
+        "Expr wrapper should expose the parsed expression child"
     );
 }
 
@@ -318,8 +321,11 @@ fn generated_typed_cst_wrappers_cast_generic_document_nodes() {
         .expect("generated parse_document helper should return an AdzeDocument");
     let root = document.tree().root();
 
-    let syntax = adze_example::typed_ast_contract::grammar::syntax::source_file(&document)
-        .expect("generated source_file wrapper should cast the generic root");
+    let syntax = adze_example::typed_ast_contract::grammar::syntax::Expr::cast(
+        &document,
+        document.tree().root_id(),
+    )
+    .expect("generated Expr wrapper should cast the generic root");
     assert_same_node(syntax, root);
 
     let add_node = find_node(root, "Expr_Add", source)
@@ -347,8 +353,11 @@ fn generated_typed_cst_wrappers_share_document_point_ranges() {
     let document = adze_example::typed_ast_contract::grammar::parse_document(source)
         .expect("generated parse_document helper should return a multiline AdzeDocument");
     let root = document.tree().root();
-    let syntax = adze_example::typed_ast_contract::grammar::syntax::source_file(&document)
-        .expect("generated source_file wrapper should cast the generic root");
+    let syntax = adze_example::typed_ast_contract::grammar::syntax::Expr::cast(
+        &document,
+        document.tree().root_id(),
+    )
+    .expect("generated Expr wrapper should cast the generic root");
 
     assert_eq!(syntax.point_range(), Some(root.point_range()));
     assert_eq!(root.point_range().start.row, 0);
