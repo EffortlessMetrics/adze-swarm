@@ -53,12 +53,7 @@ pub fn generate_lexer_with_table(
         .map(|(lex_state, candidates)| generate_mode_arm(*lex_state, candidates))
         .collect::<Vec<_>>();
 
-    let has_multiple_modes = mode_candidates.len() > 1;
-    let unknown_mode_arm = if has_multiple_modes {
-        quote! { _ => false, }
-    } else {
-        TokenStream::new()
-    };
+    let unknown_mode_arm = quote! { _ => false, };
 
     quote! {
         /// SAFETY: Runtime adapters store `TsLexer.data` as a pointer to a backing
@@ -72,28 +67,32 @@ pub fn generate_lexer_with_table(
 
         /// SAFETY: `lexer` is a valid `TsLexer` for the duration of the call.
         unsafe fn lexer_view(lexer: *mut adze::lex::TsLexer) -> *mut LexerBackingView {
-            (*lexer).data as *mut LexerBackingView
+            unsafe { (*lexer).data as *mut LexerBackingView }
         }
 
         /// SAFETY: `lexer` is valid and its backing view matches `LexerBackingView`.
         unsafe fn lexer_byte_at_rel(lexer: *mut adze::lex::TsLexer, rel: usize) -> u32 {
-            let view = &*lexer_view(lexer);
-            let idx = view.pos.saturating_add(rel);
-            if idx < view.input_len {
-                *view.input_ptr.add(idx) as u32
-            } else {
-                0
+            unsafe {
+                let view = &*lexer_view(lexer);
+                let idx = view.pos.saturating_add(rel);
+                if idx < view.input_len {
+                    *view.input_ptr.add(idx) as u32
+                } else {
+                    0
+                }
             }
         }
 
         /// SAFETY: `lexer` is valid and its backing view matches `LexerBackingView`.
         unsafe fn lexer_pos(lexer: *mut adze::lex::TsLexer) -> usize {
-            (*lexer_view(lexer)).pos
+            unsafe { (*lexer_view(lexer)).pos }
         }
 
         /// SAFETY: `lexer` is valid and its backing view matches `LexerBackingView`.
         unsafe fn lexer_set_pos(lexer: *mut adze::lex::TsLexer, pos: usize) {
-            (*lexer_view(lexer)).pos = pos;
+            unsafe {
+                (*lexer_view(lexer)).pos = pos;
+            }
         }
 
         #[inline]
@@ -176,7 +175,12 @@ fn build_mode_candidates(
     for (lex_state, columns) in eligibility {
         let mode_candidates = all_candidates
             .iter()
-            .filter(|candidate| columns.contains(&(candidate.symbol_index as usize)))
+            .filter(|candidate| {
+                matches!(
+                    candidate.pattern,
+                    CandidatePattern::Literal(_) | CandidatePattern::CharClass(_)
+                ) || columns.contains(&(candidate.symbol_index as usize))
+            })
             .cloned()
             .collect::<Vec<_>>();
         if !mode_candidates.is_empty() {
@@ -231,7 +235,7 @@ fn pattern_to_candidate(pattern: &TokenPattern, is_word_token: bool) -> Option<C
                 r"\d+" => Some(CandidatePattern::DigitPlus),
                 r"\w+" => Some(CandidatePattern::WordPlus),
                 r"[a-z]+" => Some(CandidatePattern::LowerPlus),
-                r"[-+*/]" => Some(CandidatePattern::CharClass(&[b'-', b'+', b'*', b'/'])),
+                r"[-+*/]" => Some(CandidatePattern::CharClass(b"-+*/")),
                 r"\s" | r"\s+" | r"\s*" => Some(CandidatePattern::Whitespace),
                 _ => None,
             }
@@ -289,6 +293,8 @@ fn generate_mode_arm(lex_state: u16, candidates: &[LexCandidate]) -> TokenStream
                 }
             )*
 
+            let _ = best_pri;
+
             if let Some(sym) = best_sym {
                 let start = unsafe { lexer_pos(lexer) };
                 unsafe {
@@ -309,8 +315,8 @@ fn generate_candidate_block(candidate: &LexCandidate) -> TokenStream {
     let match_expr = generate_match_expr(&candidate.pattern);
 
     quote! {
-        if let Some(len) = (|| unsafe { #match_expr })() {
-            if len > 0 {
+        match (|| unsafe { #match_expr })() {
+            Some(len) if len > 0 => {
                 let replace = match best_sym {
                     None => true,
                     Some(old_sym) => better_match(#sym, len, #pri, old_sym, best_len, best_pri),
@@ -321,6 +327,7 @@ fn generate_candidate_block(candidate: &LexCandidate) -> TokenStream {
                     best_pri = #pri;
                 }
             }
+            _ => {}
         }
     }
 }

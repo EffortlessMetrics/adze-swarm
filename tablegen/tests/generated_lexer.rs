@@ -2,7 +2,7 @@
 
 use adze_glr_core::{FirstFollowSets, build_lr1_automaton};
 use adze_ir::builder::GrammarBuilder;
-use adze_ir::{Grammar, LexicalMetadata, SymbolId, Token, TokenPattern};
+use adze_ir::{Grammar, LexicalMetadata, SymbolId};
 use adze_tablegen::lexer_gen::{generate_lexer, generate_lexer_with_table};
 use std::collections::BTreeMap;
 
