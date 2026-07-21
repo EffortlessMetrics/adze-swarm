@@ -5,6 +5,7 @@
 
 use anyhow::{Result, bail};
 
+use crate::local_registry;
 use crate::policy;
 use crate::release_graph;
 
@@ -52,7 +53,31 @@ pub fn run(version: &str, cli_crate: &str, cli_bin: &str, dry_run: bool) -> Resu
         return Ok(());
     }
 
-    bail!("local-registry install receipt execution is not implemented yet (#856); use --dry-run");
+    println!("local-registry package-first receipt");
+    println!("version: {}", plan.version);
+    println!("authority: {}", release_graph::ARTIFACT_PATH);
+    println!();
+
+    let mut registry = local_registry::IsolatedRegistry::new()?;
+    registry.publish_release_graph(&root, &plan.ordered_crates)?;
+
+    println!();
+    println!(
+        "published {} crate(s) into isolated registry `{}`",
+        registry.published_crates().len(),
+        local_registry::REGISTRY_NAME
+    );
+    for published in registry.published_crates() {
+        println!(
+            "  - {} {} ({})",
+            published.name, published.version, published.checksum
+        );
+    }
+
+    println!();
+    println!("claim boundary: published release-graph crates into isolated local registry");
+    println!("next: install CLI and starter receipt remain in #856 PR3/PR4");
+    Ok(())
 }
 
 fn print_plan(plan: &LocalReleasePlan) {
