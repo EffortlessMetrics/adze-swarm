@@ -552,6 +552,8 @@ fn test_empty_collections_roundtrip() {
         symbol_registry: None,
         word_token: None,
         lexical_metadata: IndexMap::new(),
+        start_symbol: None,
+        wrapper_token_relations: IndexMap::new(),
     };
 
     let g2 = roundtrip_json(&g);

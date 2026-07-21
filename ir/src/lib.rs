@@ -40,6 +40,10 @@ pub use lexical::{
     LexicalMetadata, LexicalPatternError, TOKEN_WRAPPER_PRIORITY, compare_lexical_priority,
     sorted_lexical_metadata, validate_token_pattern,
 };
+/// Compiler-significant start-symbol and wrapper-token identity metadata.
+pub mod compiler_identity;
+/// Compiler identity metadata types and helpers.
+pub use compiler_identity::{WrapperTokenRelation, sorted_wrapper_token_relations};
 
 /// Core grammar representation supporting all Tree-sitter features including GLR
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -80,6 +84,12 @@ pub struct Grammar {
     /// Per-token lexical metadata (immediate flag, lexical priority).
     #[serde(default)]
     pub lexical_metadata: IndexMap<SymbolId, LexicalMetadata>,
+    /// Authoritative start symbol declared at grammar-definition or import time.
+    #[serde(default)]
+    pub start_symbol: Option<SymbolId>,
+    /// Explicit pattern-wrapper nonterminal to backing-token relations.
+    #[serde(default)]
+    pub wrapper_token_relations: IndexMap<SymbolId, SymbolId>,
 }
 
 impl Grammar {
@@ -98,8 +108,19 @@ impl Grammar {
         self.rules.values().flat_map(|rules| rules.iter())
     }
 
-    /// Get the start symbol (LHS of the first rule)
+    /// Get the start symbol for this grammar.
+    ///
+    /// Returns the explicit [`start_symbol`](Self::start_symbol) field when set.
+    /// Otherwise falls back to legacy name/order heuristics until #862 PR6 removes
+    /// the supported-path fallback.
     pub fn start_symbol(&self) -> Option<SymbolId> {
+        if let Some(explicit) = self.start_symbol
+            && self.rules.contains_key(&explicit)
+        {
+            return Some(explicit);
+        }
+
+        // Legacy heuristic fallback — removed from the supported path in #862 PR6.
         // For Tree-sitter compatibility, look for "source_file" symbol
         if let Some(source_file_id) = self.find_symbol_by_name("source_file")
             && self.rules.contains_key(&source_file_id)
@@ -457,6 +478,8 @@ impl Grammar {
             symbol_registry: None,
             word_token: None,
             lexical_metadata: IndexMap::new(),
+            start_symbol: None,
+            wrapper_token_relations: IndexMap::new(),
         }
     }
 
