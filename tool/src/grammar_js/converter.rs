@@ -86,6 +86,8 @@ impl GrammarJsConverter {
             symbol_registry: None,
             word_token: None,
             lexical_metadata: IndexMap::new(),
+            start_symbol: None,
+            wrapper_token_relations: IndexMap::new(),
         };
 
         // First pass: collect all symbols (rules and tokens)
