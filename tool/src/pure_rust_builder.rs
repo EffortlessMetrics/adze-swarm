@@ -150,6 +150,18 @@ fn desugar_pattern_wrappers(grammar: &mut Grammar) -> Result<()> {
     // Track non-terminals that need unit rules to tokens
     let mut wrappers_needing_rules = Vec::new();
 
+    // First pass: honor explicit wrapper-to-token relations.
+    for (wrapper_id, token_id) in &grammar.wrapper_token_relations {
+        let has_rules = grammar
+            .rules
+            .get(wrapper_id)
+            .map(|rules| !rules.is_empty())
+            .unwrap_or(false);
+        if !has_rules {
+            wrappers_needing_rules.push((*wrapper_id, *token_id));
+        }
+    }
+
     // First pass: Find non-terminals with no rules at all
     let all_nonterminals: Vec<SymbolId> = grammar
         .rule_names
@@ -159,6 +171,10 @@ fn desugar_pattern_wrappers(grammar: &mut Grammar) -> Result<()> {
         .collect();
 
     for nt_id in all_nonterminals {
+        if grammar.wrapper_token_relations.contains_key(&nt_id) {
+            continue;
+        }
+
         let has_rules = grammar
             .rules
             .get(&nt_id)

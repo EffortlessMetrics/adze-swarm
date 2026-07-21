@@ -110,6 +110,38 @@ pub fn from_tree_sitter_json(value: &Value) -> Result<GrammarJs> {
         }
     }
 
+    if let Some(start_symbol) = obj.get("start_symbol").and_then(|v| v.as_str()) {
+        grammar_js.start_symbol = Some(start_symbol.to_string());
+    }
+
+    if let Some(relations) = obj.get("wrapper_token_relations") {
+        if let Some(relations_obj) = relations.as_object() {
+            for (wrapper, token) in relations_obj {
+                if let Some(token_name) = token.as_str() {
+                    grammar_js
+                        .wrapper_token_relations
+                        .insert(wrapper.clone(), token_name.to_string());
+                }
+            }
+        } else if let Some(relations_arr) = relations.as_array() {
+            for entry in relations_arr {
+                if let Some(entry_obj) = entry.as_object() {
+                    let wrapper = entry_obj
+                        .get("wrapper")
+                        .and_then(|v| v.as_str())
+                        .context("wrapper_token_relations entry missing 'wrapper'")?;
+                    let token = entry_obj
+                        .get("token")
+                        .and_then(|v| v.as_str())
+                        .context("wrapper_token_relations entry missing 'token'")?;
+                    grammar_js
+                        .wrapper_token_relations
+                        .insert(wrapper.to_string(), token.to_string());
+                }
+            }
+        }
+    }
+
     Ok(grammar_js)
 }
 
