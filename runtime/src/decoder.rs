@@ -116,6 +116,7 @@ pub fn decode_grammar(lang: &'static TSLanguage) -> Grammar {
     decode_grammar_with_patterns(lang, &HashMap::new())
 }
 
+#[cfg(feature = "glr")]
 pub(crate) fn decode_rule_fields(
     lang: &'static TSLanguage,
     rule_index: usize,
