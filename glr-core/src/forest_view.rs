@@ -55,6 +55,15 @@ impl Forest {
         &*self.view
     }
 
+    /// Wrap a constructed [`ParseForest`] for adapter/unit tests (#930).
+    ///
+    /// Not part of the supported runtime surface; available only with
+    /// `test-api` / `test_helpers` or inside this crate's tests.
+    #[cfg(any(test, feature = "test-api", feature = "test_helpers"))]
+    pub fn from_parse_forest_for_test(forest: crate::parse_forest::ParseForest) -> Self {
+        crate::driver::Driver::wrap_forest(forest)
+    }
+
     /// Test helper: returns (has_error_chunks, missing_terminals, total_error_cost)
     /// Only available in test builds. Not part of the stable runtime API.
     #[cfg(any(test, feature = "test-api", feature = "test_helpers"))]
