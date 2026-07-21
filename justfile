@@ -119,6 +119,10 @@ check-release-graph:
 print-release-graph:
     cargo run -q -p xtask -- print-release-graph
 
+# Inspect isolated local-registry package-first receipt plan (#856)
+verify-local-release-install version:
+    cargo run -q -p xtask -- verify-local-release-install --version {{version}} --dry-run
+
 # Verify a crate package with local patches for unpublished co-release crates
 package-local crate:
     ./scripts/package-local-release.sh {{crate}}
