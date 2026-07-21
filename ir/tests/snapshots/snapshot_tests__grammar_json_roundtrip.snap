@@ -67,5 +67,7 @@ expression: json
   "rule_names": {
     "3": "expr"
   },
-  "symbol_registry": null
+  "symbol_registry": null,
+  "word_token": null,
+  "lexical_metadata": {}
 }
