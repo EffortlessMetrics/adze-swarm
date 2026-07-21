@@ -19,5 +19,7 @@ expression: grammar_json(&grammar)
   "rule_names": {},
   "symbol_registry": null,
   "word_token": null,
-  "lexical_metadata": {}
+  "lexical_metadata": {},
+  "start_symbol": null,
+  "wrapper_token_relations": {}
 }
