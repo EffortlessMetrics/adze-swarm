@@ -567,8 +567,7 @@ mod tests {
 
         let lang = build_serializable_language(&grammar, &parse_table, Some(&compressed));
 
-        // The serializer emits (symbol, encoded_action) pairs per entry.
-        // 6 entries -> 12 u16 values.
+        // Error cells are omitted; Fork flattens to duplicate symbol/action pairs.
         assert_eq!(lang.parse_table.len(), 12);
         // Shift(7) -> raw 7.
         assert_eq!(lang.parse_table[0], 1);
@@ -579,18 +578,17 @@ mod tests {
         // Accept -> 0xFFFF.
         assert_eq!(lang.parse_table[4], 3);
         assert_eq!(lang.parse_table[5], 0xFFFF);
-        // Error -> 0xFFFE.
-        assert_eq!(lang.parse_table[6], 4);
-        assert_eq!(lang.parse_table[7], 0xFFFE);
-        // Recover -> 0xFFFD.
-        assert_eq!(lang.parse_table[8], 5);
-        assert_eq!(lang.parse_table[9], 0xFFFD);
-        // Fork -> 0xFFFE (treated as error sentinel by this simplified encoder).
+        // Recover -> 0xFFFD (Error entry skipped by abi_leaf_actions).
+        assert_eq!(lang.parse_table[6], 5);
+        assert_eq!(lang.parse_table[7], 0xFFFD);
+        // Fork(Shift(1), Accept) -> duplicate symbol 6 pairs.
+        assert_eq!(lang.parse_table[8], 6);
+        assert_eq!(lang.parse_table[9], 1);
         assert_eq!(lang.parse_table[10], 6);
-        assert_eq!(lang.parse_table[11], 0xFFFE);
+        assert_eq!(lang.parse_table[11], 0xFFFF);
 
-        // small_parse_table_map mirrors row_offsets widened to u32.
-        assert_eq!(lang.small_parse_table_map, vec![0u32, 6u32]);
+        // small_parse_table_map mirrors emitted row length.
+        assert_eq!(lang.small_parse_table_map, vec![0u32, 12u32]);
     }
 
     #[test]
