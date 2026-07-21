@@ -32,6 +32,11 @@ pub trait ForestView: sealed::Sealed + Send + Sync {
     fn span(&self, id: u32) -> Span;
     /// Children chosen for the best family.
     fn best_children(&self, id: u32) -> &[u32];
+    /// Recovery metadata for a node id (missing terminals, error chunks, cost).
+    fn error_meta(&self, id: u32) -> crate::parse_forest::ErrorMeta {
+        let _ = id;
+        crate::parse_forest::ErrorMeta::default()
+    }
 }
 
 /// Test hooks for Forest (only available in test builds).
