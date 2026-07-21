@@ -75,8 +75,18 @@ pub fn run(version: &str, cli_crate: &str, cli_bin: &str, dry_run: bool) -> Resu
     }
 
     println!();
-    println!("claim boundary: published release-graph crates into isolated local registry");
-    println!("next: install CLI and starter receipt remain in #856 PR3/PR4");
+    println!("install:");
+    let install = registry.install_cli(&plan.cli_crate, &plan.cli_bin, version)?;
+    println!("installed binary: {}", install.binary_path.display());
+
+    let starter = registry.init_starter_project(&install.binary_path, &root, "calc")?;
+    println!("starter project: {}", starter.project_dir.display());
+
+    println!();
+    println!(
+        "claim boundary: local-registry publish + CLI install + registry-backed starter scaffold"
+    );
+    println!("next: starter test/parse/invalid-input receipt remains in #856 PR4");
     Ok(())
 }
 

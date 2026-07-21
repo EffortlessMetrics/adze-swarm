@@ -25,6 +25,16 @@ pub struct PublishedCrate {
     pub checksum: String,
 }
 
+pub struct LocalCliInstall {
+    pub _install_root: TempDir,
+    pub binary_path: PathBuf,
+}
+
+pub struct StarterProject {
+    pub _parent: TempDir,
+    pub project_dir: PathBuf,
+}
+
 pub struct IsolatedRegistry {
     _root: TempDir,
     cargo_home: TempDir,
@@ -66,11 +76,23 @@ impl IsolatedRegistry {
         })
     }
 
+    pub fn finalize_index(&self) -> Result<()> {
+        Ok(())
+    }
+
     pub fn published_crates(&self) -> &[PublishedCrate] {
         &self.published
     }
 
     pub fn publish_release_graph(
+        &mut self,
+        workspace_root: &Path,
+        ordered_crates: &[String],
+    ) -> Result<()> {
+        self.write_index_entries(workspace_root, ordered_crates)
+    }
+
+    fn write_index_entries(
         &mut self,
         workspace_root: &Path,
         ordered_crates: &[String],
@@ -100,16 +122,16 @@ impl IsolatedRegistry {
             }
 
             let checksum = sha256_hex_file(&crate_path)?;
-            let dest_dir = self
-                .crate_dir
-                .join(crate_name)
-                .join(&package.version);
+            let dest_dir = self.crate_dir.join(crate_name).join(&package.version);
             fs::create_dir_all(&dest_dir).with_context(|| {
                 format!("creating local registry crate dir {}", dest_dir.display())
             })?;
             let dest = dest_dir.join("download");
             fs::copy(&crate_path, &dest).with_context(|| {
-                format!("copying packaged crate `{}` into local registry", dest.display())
+                format!(
+                    "copying packaged crate `{}` into local registry",
+                    dest.display()
+                )
             })?;
             write_sparse_index_entry(&self.index_dir, package, &published_set, &checksum)?;
             self.published.push(PublishedCrate {
@@ -127,13 +149,137 @@ impl IsolatedRegistry {
         finalize_git_index(&self.index_dir)?;
         Ok(())
     }
+
+    pub fn install_cli(
+        &self,
+        cli_crate: &str,
+        bin: &str,
+        version: &str,
+    ) -> Result<LocalCliInstall> {
+        let published = self
+            .published_crates()
+            .iter()
+            .find(|published| published.name == cli_crate)
+            .with_context(|| {
+                format!("CLI crate `{cli_crate}` was not published to {REGISTRY_NAME}")
+            })?;
+        if published.version != version {
+            bail!(
+                "CLI crate `{cli_crate}` was published as {} but install requested {version}",
+                published.version
+            );
+        }
+
+        let install_root = tempfile::Builder::new()
+            .prefix("adze-local-install-root-")
+            .tempdir()
+            .context("creating temporary cargo install root")?;
+        let index_url = path_to_file_url(&self.index_dir)?;
+        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
+        let status = Command::new(cargo)
+            .args([
+                "install",
+                "--index",
+                &index_url,
+                cli_crate,
+                "--bin",
+                bin,
+                "--version",
+                version,
+                "--root",
+            ])
+            .arg(install_root.path())
+            .env("CARGO_HOME", self.cargo_home.path())
+            .env("CARGO_TARGET_DIR", self.target_dir.path())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .with_context(|| format!("installing `{cli_crate}` from {REGISTRY_NAME}"))?;
+        if !status.success() {
+            bail!("cargo install `{cli_crate}` from {REGISTRY_NAME} failed with status {status}");
+        }
+
+        let binary_path = installed_binary_path(install_root.path(), bin);
+        if !binary_path.is_file() {
+            bail!(
+                "expected installed binary `{}` was not created",
+                binary_path.display()
+            );
+        }
+
+        Ok(LocalCliInstall {
+            _install_root: install_root,
+            binary_path,
+        })
+    }
+
+    pub fn init_starter_project(
+        &self,
+        adze_binary: &Path,
+        workspace_root: &Path,
+        project_name: &str,
+    ) -> Result<StarterProject> {
+        let parent = tempfile::Builder::new()
+            .prefix("adze-local-starter-")
+            .tempdir()
+            .context("creating starter project parent directory")?;
+        let parent_path = fs::canonicalize(parent.path())
+            .with_context(|| format!("canonicalizing {}", parent.path().display()))?;
+        let workspace_root = fs::canonicalize(workspace_root)
+            .with_context(|| format!("canonicalizing {}", workspace_root.display()))?;
+        if parent_path.starts_with(&workspace_root) {
+            bail!("starter project parent must be outside the source workspace");
+        }
+
+        let status = Command::new(adze_binary)
+            .args(["init", project_name, "--output"])
+            .arg(&parent_path)
+            .env("CARGO_HOME", self.cargo_home.path())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .with_context(|| format!("running `{}` init", adze_binary.display()))?;
+        if !status.success() {
+            bail!(
+                "`{}` init {project_name} failed with status {status}",
+                adze_binary.display()
+            );
+        }
+
+        let project_dir = parent_path.join(project_name);
+        if !project_dir.join("Cargo.toml").is_file() {
+            bail!(
+                "expected generated starter at {} was not created",
+                project_dir.display()
+            );
+        }
+        let manifest = fs::read_to_string(project_dir.join("Cargo.toml")).with_context(|| {
+            format!(
+                "reading generated {}",
+                project_dir.join("Cargo.toml").display()
+            )
+        })?;
+        if manifest_contains_path_dependency(&manifest) {
+            bail!(
+                "generated starter at {} still resolves path dependencies; expected registry versions",
+                project_dir.display()
+            );
+        }
+
+        Ok(StarterProject {
+            _parent: parent,
+            project_dir,
+        })
+    }
 }
 
-fn write_registry_config(
-    cargo_home: &TempDir,
-    index_dir: &Path,
-    crate_dir: &Path,
-) -> Result<()> {
+fn installed_binary_path(root: &Path, bin_name: &str) -> PathBuf {
+    let mut binary = bin_name.to_owned();
+    binary.push_str(std::env::consts::EXE_SUFFIX);
+    root.join("bin").join(binary)
+}
+
+fn write_registry_config(cargo_home: &TempDir, index_dir: &Path, crate_dir: &Path) -> Result<()> {
     let index_url = path_to_file_url(index_dir)?;
     let dl_url = path_to_file_url(crate_dir)?;
     let config = format!(
@@ -145,12 +291,9 @@ index = "{index_url}"
     fs::write(&config_path, config)
         .with_context(|| format!("writing {}", config_path.display()))?;
 
-    let config_json = format!(
-        "{{\"dl\":\"{dl_url}\",\"api\":null}}\n",
-        dl_url = dl_url
-    );
+    let config_json = format!("{{\"dl\":\"{dl_url}\",\"api\":null}}\n", dl_url = dl_url);
     fs::write(index_dir.join("config.json"), config_json)
-        .context("writing sparse registry config.json")?;
+        .context("writing registry config.json")?;
     Ok(())
 }
 
@@ -202,17 +345,13 @@ token = "local"
 }
 
 fn path_to_file_url(path: &Path) -> Result<String> {
-    let absolute = fs::canonicalize(path)
-        .with_context(|| format!("canonicalizing {}", path.display()))?;
+    let absolute =
+        fs::canonicalize(path).with_context(|| format!("canonicalizing {}", path.display()))?;
     let mut url = absolute.display().to_string().replace('\\', "/");
     if let Some(stripped) = url.strip_prefix("//?/") {
         url = stripped.to_string();
     }
-    if url
-        .as_bytes()
-        .get(1)
-        .is_some_and(|byte| *byte == b':')
-    {
+    if url.as_bytes().get(1).is_some_and(|byte| *byte == b':') {
         url = format!("/{url}");
     }
     if !url.ends_with('/') {
@@ -232,18 +371,14 @@ fn package_crate(
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
     let mut command = Command::new(cargo);
     command
-        .args([
-            "package",
-            "-p",
-            crate_name,
-            "--allow-dirty",
-            "--no-verify",
-        ])
+        .args(["package", "-p", crate_name, "--allow-dirty", "--no-verify"])
         .current_dir(workspace_root)
         .env("CARGO_HOME", cargo_home)
         .env("CARGO_TARGET_DIR", target_dir);
 
-    for patch_arg in package_patch_config_args(workspace_root, crate_name, ordered_crates, metadata)? {
+    for patch_arg in
+        package_patch_config_args(workspace_root, crate_name, ordered_crates, metadata)?
+    {
         command.arg("--config").arg(patch_arg);
     }
 
@@ -269,7 +404,10 @@ fn package_crate(
                     .is_some_and(|name| name.starts_with(crate_name))
         })
         .with_context(|| {
-            format!("packaged .crate for `{crate_name}` not found under {}", package_dir.display())
+            format!(
+                "packaged .crate for `{crate_name}` not found under {}",
+                package_dir.display()
+            )
         })?;
     Ok(crate_path)
 }
@@ -292,20 +430,15 @@ fn package_patch_config_args(
         let package_dir = manifest_path
             .parent()
             .with_context(|| format!("missing parent for {}", manifest_path.display()))?;
-        let relative = package_dir
-            .strip_prefix(workspace_root)
-            .with_context(|| {
-                format!(
-                    "package path {} is outside workspace {}",
-                    package_dir.display(),
-                    workspace_root.display()
-                )
-            })?;
+        let relative = package_dir.strip_prefix(workspace_root).with_context(|| {
+            format!(
+                "package path {} is outside workspace {}",
+                package_dir.display(),
+                workspace_root.display()
+            )
+        })?;
         let relative = relative.to_string_lossy().replace('\\', "/");
-        args.push(format!(
-            "patch.crates-io.{}.path=\"{relative}\"",
-            sibling
-        ));
+        args.push(format!("patch.crates-io.{}.path=\"{relative}\"", sibling));
     }
     Ok(args)
 }
@@ -370,8 +503,8 @@ fn manifest_contains_path_dependency(manifest: &str) -> bool {
 }
 
 fn sha256_hex_file(path: &Path) -> Result<String> {
-    let mut file = File::open(path)
-        .with_context(|| format!("opening {} for checksum", path.display()))?;
+    let mut file =
+        File::open(path).with_context(|| format!("opening {} for checksum", path.display()))?;
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)
         .with_context(|| format!("reading {} for checksum", path.display()))?;
@@ -399,7 +532,9 @@ fn sha256_hex_openssl(bytes: &[u8]) -> Result<String> {
         let mut stdin = child.stdin.take().context("openssl stdin unavailable")?;
         stdin.write_all(bytes)?;
     }
-    let output = child.wait_with_output().context("waiting for openssl dgst")?;
+    let output = child
+        .wait_with_output()
+        .context("waiting for openssl dgst")?;
     if !output.status.success() {
         bail!("openssl sha256 failed");
     }
@@ -438,7 +573,9 @@ fn sha256_hex_powershell(bytes: &[u8]) -> Result<String> {
             String::from_utf8_lossy(&output.stderr)
         );
     }
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_ascii_lowercase())
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .to_ascii_lowercase())
 }
 
 #[cfg(not(windows))]
@@ -557,7 +694,8 @@ fn write_sparse_index_entry(
         .open(&index_file)
         .with_context(|| format!("opening {}", index_file.display()))?;
     serde_json::to_writer(&mut file, &entry).context("writing sparse index entry")?;
-    file.write_all(b"\n").context("terminating sparse index entry")?;
+    file.write_all(b"\n")
+        .context("terminating sparse index entry")?;
     Ok(())
 }
 
