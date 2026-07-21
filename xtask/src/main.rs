@@ -17,6 +17,7 @@ mod grammar_json;
 mod lint;
 mod local_registry;
 mod local_release_install;
+mod local_release_receipt;
 mod no_mangle;
 mod perf_receipt;
 mod policy;
@@ -317,6 +318,9 @@ enum Commands {
         /// Print the command plan without touching registries.
         #[arg(long)]
         dry_run: bool,
+        /// Write the machine-readable receipt JSON to this path.
+        #[arg(long)]
+        receipt_out: Option<std::path::PathBuf>,
     },
     /// Verify a published crates.io CLI install in an isolated temp root.
     ///
@@ -656,8 +660,15 @@ fn main() -> Result<()> {
             cli_crate,
             bin,
             dry_run,
+            receipt_out,
         } => {
-            local_release_install::run(&version, &cli_crate, &bin, dry_run)?;
+            local_release_install::run(
+                &version,
+                &cli_crate,
+                &bin,
+                dry_run,
+                receipt_out.as_deref(),
+            )?;
         }
         Commands::VerifyCratesIoInstall {
             crate_name,
