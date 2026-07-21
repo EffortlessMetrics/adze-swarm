@@ -252,7 +252,10 @@ fn serialize_error_action_encoding() {
     let pt = make_empty_table(1, 0, 0, 0);
     let json = serialize_language(&grammar, &pt, Some(&compressed)).unwrap();
     let deser: SerializableLanguage = serde_json::from_str(&json).unwrap();
-    assert_eq!(deser.parse_table[1], 0xFFFE);
+    assert!(
+        deser.parse_table.is_empty(),
+        "error-only ABI rows are omitted from serialized small tables"
+    );
 }
 
 #[test]
@@ -285,8 +288,15 @@ fn serialize_fork_action_encoding() {
     let pt = make_empty_table(1, 0, 0, 0);
     let json = serialize_language(&grammar, &pt, Some(&compressed)).unwrap();
     let deser: SerializableLanguage = serde_json::from_str(&json).unwrap();
-    // Fork is encoded as 0xFFFE (same as Error)
-    assert_eq!(deser.parse_table[1], 0xFFFE);
+    assert_eq!(
+        deser.parse_table.len(),
+        4,
+        "fork must flatten to two ABI pairs"
+    );
+    assert_eq!(deser.parse_table[0], 4);
+    assert_eq!(deser.parse_table[1], 1);
+    assert_eq!(deser.parse_table[2], 4);
+    assert_eq!(deser.parse_table[3], 0x8001);
 }
 
 // =========================================================================
@@ -988,7 +998,7 @@ fn serialize_preserves_accept_on_eof_in_compressed_rows() {
     for state in accepting_states {
         let row_start = deser.small_parse_table_map[state] as usize;
         let row_end = deser.small_parse_table_map[state + 1] as usize;
-        let row_words = &deser.parse_table[row_start * 2..row_end * 2];
+        let row_words = &deser.parse_table[row_start..row_end];
 
         let has_accept_on_eof = row_words
             .chunks_exact(2)

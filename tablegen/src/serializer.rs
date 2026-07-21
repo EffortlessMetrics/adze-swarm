@@ -6,6 +6,7 @@
 
 use crate::abi::*;
 use crate::compress::CompressedTables;
+use crate::conflict_abi::{abi_leaf_actions, encode_leaf_action};
 use adze_glr_core::ParseTable;
 use adze_ir::Grammar;
 use serde::{Deserialize, Serialize};
@@ -123,27 +124,21 @@ fn generate_parse_table_data(compressed: Option<&CompressedTables>) -> (Vec<u16>
         let mut table_data = Vec::new();
         let mut map_data = Vec::new();
 
-        // Simplified: just collect basic data
-        for entry in &compressed.action_table.data {
-            table_data.push(entry.symbol);
-            // Encode action based on Tree-sitter format
-            match &entry.action {
-                adze_glr_core::Action::Shift(state) => table_data.push(state.0),
-                adze_glr_core::Action::Reduce(rule) => {
-                    // Tree-sitter uses 1-based production IDs
-                    table_data.push(0x8000 | (rule.0 + 1))
+        for state_idx in 0..compressed.action_table.row_offsets.len().saturating_sub(1) {
+            map_data.push(table_data.len() as u32);
+            let start = compressed.action_table.row_offsets[state_idx] as usize;
+            let end = compressed.action_table.row_offsets[state_idx + 1] as usize;
+
+            for entry in &compressed.action_table.data[start..end] {
+                for action in abi_leaf_actions(std::slice::from_ref(&entry.action)) {
+                    table_data.push(entry.symbol);
+                    let encoded = encode_leaf_action(&action).unwrap_or(0);
+                    table_data.push(encoded);
                 }
-                adze_glr_core::Action::Accept => table_data.push(0xFFFF),
-                adze_glr_core::Action::Error => table_data.push(0xFFFE),
-                adze_glr_core::Action::Recover => table_data.push(0xFFFD),
-                adze_glr_core::Action::Fork(_) => table_data.push(0xFFFE),
-                _ => table_data.push(0xFFFE), // Unknown action type // Expected: V for Recover
             }
         }
 
-        for &offset in &compressed.action_table.row_offsets {
-            map_data.push(offset as u32);
-        }
+        map_data.push(table_data.len() as u32);
 
         (table_data, map_data)
     } else {
@@ -572,8 +567,7 @@ mod tests {
 
         let lang = build_serializable_language(&grammar, &parse_table, Some(&compressed));
 
-        // The serializer emits (symbol, encoded_action) pairs per entry.
-        // 6 entries -> 12 u16 values.
+        // Error cells are omitted; Fork flattens to duplicate symbol/action pairs.
         assert_eq!(lang.parse_table.len(), 12);
         // Shift(7) -> raw 7.
         assert_eq!(lang.parse_table[0], 1);
@@ -584,18 +578,17 @@ mod tests {
         // Accept -> 0xFFFF.
         assert_eq!(lang.parse_table[4], 3);
         assert_eq!(lang.parse_table[5], 0xFFFF);
-        // Error -> 0xFFFE.
-        assert_eq!(lang.parse_table[6], 4);
-        assert_eq!(lang.parse_table[7], 0xFFFE);
-        // Recover -> 0xFFFD.
-        assert_eq!(lang.parse_table[8], 5);
-        assert_eq!(lang.parse_table[9], 0xFFFD);
-        // Fork -> 0xFFFE (treated as error sentinel by this simplified encoder).
+        // Recover -> 0xFFFD (Error entry skipped by abi_leaf_actions).
+        assert_eq!(lang.parse_table[6], 5);
+        assert_eq!(lang.parse_table[7], 0xFFFD);
+        // Fork(Shift(1), Accept) -> duplicate symbol 6 pairs.
+        assert_eq!(lang.parse_table[8], 6);
+        assert_eq!(lang.parse_table[9], 1);
         assert_eq!(lang.parse_table[10], 6);
-        assert_eq!(lang.parse_table[11], 0xFFFE);
+        assert_eq!(lang.parse_table[11], 0xFFFF);
 
-        // small_parse_table_map mirrors row_offsets widened to u32.
-        assert_eq!(lang.small_parse_table_map, vec![0u32, 6u32]);
+        // small_parse_table_map mirrors emitted row length.
+        assert_eq!(lang.small_parse_table_map, vec![0u32, 12u32]);
     }
 
     #[test]

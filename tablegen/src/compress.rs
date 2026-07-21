@@ -1,7 +1,11 @@
 #![cfg_attr(feature = "strict_docs", allow(missing_docs))]
 //! Parse table compression using Tree-sitter's encoding scheme.
 
-use crate::{Result, TableGenError, conflict_abi::abi_leaf_actions, goto_run_codec::GotoRunCodec};
+use crate::{
+    Result, TableGenError,
+    conflict_abi::{abi_leaf_actions, validate_abi_cell},
+    goto_run_codec::GotoRunCodec,
+};
 use adze_glr_core::{Action, ParseTable};
 use adze_ir::{StateId, SymbolId};
 use std::collections::{BTreeMap, HashMap};
@@ -413,9 +417,11 @@ impl TableCompressor {
         if let Some(state0_actions) = parse_table.action_table.first() {
             // Check if any token column has a shift action
             let has_token_shift = token_indices.iter().any(|&idx| {
-                state0_actions
-                    .get(idx)
-                    .is_some_and(|cell| cell.iter().any(|a| matches!(a, Action::Shift(_))))
+                state0_actions.get(idx).is_some_and(|cell| {
+                    abi_leaf_actions(cell)
+                        .iter()
+                        .any(|a| matches!(a, Action::Shift(_)))
+                })
             });
 
             // If no token shifts, and start is nullable, allow ACCEPT/REDUCE on EOF column
@@ -577,6 +583,7 @@ impl TableCompressor {
             row_offsets.push(Self::checked_u16(entries.len(), "action row offset")?);
 
             for (index, action_cell) in action_row.iter().enumerate() {
+                validate_abi_cell(action_cell)?;
                 let symbol_id = Self::checked_u16(index, "action symbol id")?;
                 for action in abi_leaf_actions(action_cell) {
                     entries.push(CompressedActionEntry {
