@@ -4,6 +4,7 @@
 //! adze's generate_grammars to the GrammarJs intermediate format.
 
 use super::{ExternalToken, GrammarJs, Rule};
+use crate::grammar_js::infer_imported_compiler_identity;
 use anyhow::{Context, Result};
 use serde_json::Value;
 
@@ -141,6 +142,8 @@ pub fn from_tree_sitter_json(value: &Value) -> Result<GrammarJs> {
             }
         }
     }
+
+    infer_imported_compiler_identity(&mut grammar_js);
 
     Ok(grammar_js)
 }

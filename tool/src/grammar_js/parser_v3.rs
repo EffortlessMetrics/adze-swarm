@@ -6,6 +6,7 @@ use regex::Regex;
 
 use super::helpers::HelperFunctions;
 use super::{ExternalToken, GrammarJs, Rule};
+use crate::grammar_js::infer_imported_compiler_identity;
 
 #[cfg(not(debug_assertions))]
 macro_rules! eprintln {
@@ -114,6 +115,8 @@ impl GrammarJsParserV3 {
 
         // Extract rules
         grammar.rules = self.extract_rules(content)?;
+
+        infer_imported_compiler_identity(&mut grammar);
 
         Ok(grammar)
     }

@@ -10,6 +10,7 @@ use serde_json::Value;
 
 pub mod converter;
 pub mod helpers;
+pub mod imported_identity;
 pub mod json_converter;
 pub mod parser;
 pub mod parser_v2;
@@ -18,6 +19,7 @@ pub mod parser_v3;
 
 pub use converter::GrammarJsConverter;
 pub use helpers::hidden_pattern_token_name;
+pub use imported_identity::infer_imported_compiler_identity;
 pub use parser::parse_grammar_js;
 pub use parser_v2::parse_grammar_js_v2;
 pub use parser_v3::GrammarJsParserV3;
