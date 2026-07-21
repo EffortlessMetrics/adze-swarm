@@ -69,7 +69,8 @@ fn generated_lexer_enforces_lex_mode_dispatch() {
     assert!(
         code.contains("lex_mode") && code.contains("lex_state"),
         "generated lexer must read lex_mode; code snippet: {}",
-        &code[code.find("lexer_fn").unwrap_or(0)..code.len().min(code.find("lexer_fn").unwrap_or(0) + 400)]
+        &code[code.find("lexer_fn").unwrap_or(0)
+            ..code.len().min(code.find("lexer_fn").unwrap_or(0) + 400)]
     );
 }
 

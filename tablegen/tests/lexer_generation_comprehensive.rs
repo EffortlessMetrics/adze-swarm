@@ -227,7 +227,10 @@ fn duplicate_regex_patterns_deduplicated() {
         (1, "num1", TokenPattern::Regex(r"\d+".into())),
         (2, "num2", TokenPattern::Regex(r"\d+".into())),
     ]);
-    assert!(code.contains("is_ascii_digit"), "should have digit matching");
+    assert!(
+        code.contains("is_ascii_digit"),
+        "should have digit matching"
+    );
     assert!(
         candidate_for_symbol(&code, 1) && candidate_for_symbol(&code, 2),
         "duplicate regex patterns keep distinct symbol identities (#924)"
@@ -244,7 +247,10 @@ fn named_tokens_processed_before_auto_generated() {
     ]);
     assert!(code.contains("43u32"), "plus char candidate");
     assert!(code.contains("45u32"), "minus char candidate");
-    assert!(candidate_for_symbol(&code, 10), "auto-generated token candidate");
+    assert!(
+        candidate_for_symbol(&code, 10),
+        "auto-generated token candidate"
+    );
     assert!(candidate_for_symbol(&code, 11), "named token candidate");
 }
 
@@ -288,10 +294,7 @@ fn lexer_fn_has_correct_signature() {
         code.contains("state_ptr"),
         "should take state_ptr parameter"
     );
-    assert!(
-        code.contains("lex_mode"),
-        "should take lex_mode parameter"
-    );
+    assert!(code.contains("lex_mode"), "should take lex_mode parameter");
     assert!(code.contains("-> bool"), "should return bool");
 }
 
@@ -517,8 +520,13 @@ fn many_tokens_all_present() {
         symbol_to_index.insert(SymbolId(*id), *id as usize);
     }
     let code = generate_lexer(&grammar, &symbol_to_index).to_string();
-    let present = (0u16..20).filter(|id| candidate_for_symbol(&code, *id)).count();
-    assert_eq!(present, 20, "all 20 unique tokens should produce candidates");
+    let present = (0u16..20)
+        .filter(|id| candidate_for_symbol(&code, *id))
+        .count();
+    assert_eq!(
+        present, 20,
+        "all 20 unique tokens should produce candidates"
+    );
 }
 
 // ── 33. Deduplication prefers first occurrence (named) ────────────

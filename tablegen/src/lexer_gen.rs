@@ -46,8 +46,7 @@ pub fn generate_lexer_with_table(
     parse_table: Option<&ParseTable>,
 ) -> TokenStream {
     let word_token = grammar.word_token_symbol();
-    let mode_candidates =
-        build_mode_candidates(grammar, symbol_to_index, parse_table, word_token);
+    let mode_candidates = build_mode_candidates(grammar, symbol_to_index, parse_table, word_token);
 
     let mode_match_arms = mode_candidates
         .iter()
@@ -250,10 +249,7 @@ fn build_lex_state_eligibility(parse_table: &ParseTable) -> BTreeMap<u16, BTreeS
             .unwrap_or(0);
         let entry = map.entry(lex_state).or_default();
         for (col_idx, cell) in row.iter().enumerate() {
-            if cell
-                .iter()
-                .any(|action| matches!(action, Action::Shift(_)))
-            {
+            if cell.iter().any(|action| matches!(action, Action::Shift(_))) {
                 entry.insert(col_idx);
             }
         }
@@ -342,10 +338,8 @@ fn generate_match_expr(pattern: &CandidatePattern) -> TokenStream {
                 }
             });
             let len = bytes.len();
-            let is_keyword = bytes
-                .iter()
-                .all(|b| b.is_ascii_alphabetic() || *b == b'_')
-                && bytes.len() > 1;
+            let is_keyword =
+                bytes.iter().all(|b| b.is_ascii_alphabetic() || *b == b'_') && bytes.len() > 1;
             if is_keyword {
                 quote! {
                     #(#byte_checks)*
