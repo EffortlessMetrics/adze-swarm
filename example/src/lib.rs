@@ -21,6 +21,7 @@ pub mod performance_test;
 pub mod reduce_reduce;
 pub mod regex_grammar;
 pub mod repetitions;
+pub mod streaming_lex_modes;
 pub mod test_precedence;
 pub mod test_whitespace;
 pub mod typed_ast_contract;

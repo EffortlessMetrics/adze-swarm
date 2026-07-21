@@ -318,6 +318,14 @@ pub use parse_table::{
     Action, ActionCell, GotoIndexing, LexMode, ParseRule, ParseTable, SymbolMetadata,
 };
 
+/// Assign lex modes from shiftable-terminal signatures (contract helper for #857 fixtures).
+pub fn build_lex_modes_from_shiftable_terminals(
+    action_table: &[Vec<Vec<Action>>],
+    external_scanner_states: &[Vec<bool>],
+) -> Vec<LexMode> {
+    crate::automaton::lex_modes::build_lex_modes(action_table, external_scanner_states)
+}
+
 /// Error types for GLR processing
 #[derive(Debug, thiserror::Error)]
 #[cfg_attr(feature = "strict_docs", allow(missing_docs))]

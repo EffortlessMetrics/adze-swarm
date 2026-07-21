@@ -150,6 +150,8 @@ pub mod glr_lexer;
 pub mod glr_parser;
 /// Query support for GLR parse forests.
 pub mod glr_query;
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+pub mod glr_streaming_lex_contract;
 /// Bridge between GLR parser and Tree-sitter trees.
 pub mod glr_tree_bridge;
 /// Validation utilities for GLR parsing.
