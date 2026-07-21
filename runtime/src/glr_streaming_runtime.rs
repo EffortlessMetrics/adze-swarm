@@ -314,6 +314,7 @@ fn forest_view_to_subtree(
 
         let span = view.span(node.id);
         let symbol = SymbolId(view.kind(node.id) as u16);
+        let error_meta = view.error_meta(node.id);
         let child_ids = view.best_children(node.id);
         let split_at = built.len().saturating_sub(child_ids.len());
         let child_subtrees = built.split_off(split_at);
@@ -351,12 +352,18 @@ fn forest_view_to_subtree(
                 .collect()
         };
 
-        let is_error = symbol == ERROR_SYMBOL;
+        let is_error = symbol == ERROR_SYMBOL || error_meta.is_error || error_meta.missing;
+        let byte_range = if error_meta.missing {
+            let pos = span.start as usize;
+            pos..pos
+        } else {
+            span.start as usize..span.end as usize
+        };
         let subtree = Arc::new(Subtree::with_dynamic_prec_and_fields(
             SubtreeNode {
                 symbol_id: symbol,
                 is_error,
-                byte_range: span.start as usize..span.end as usize,
+                byte_range,
             },
             children,
             dynamic_prec,

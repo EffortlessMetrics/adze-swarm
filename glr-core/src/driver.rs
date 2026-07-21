@@ -1146,4 +1146,12 @@ impl ForestView for ParseForestView {
             .map(|v| v.as_slice())
             .unwrap_or(&[])
     }
+
+    fn error_meta(&self, id: u32) -> crate::parse_forest::ErrorMeta {
+        self.forest
+            .nodes
+            .get(&(id as usize))
+            .map(|node| node.error_meta)
+            .unwrap_or_default()
+    }
 }

@@ -1127,6 +1127,22 @@ fn convert_subtree_to_pure(
     } else {
         true
     };
+    let is_extra = if (subtree.node.symbol_id.0 as usize) < language.symbol_count as usize
+        && !language.symbol_metadata.is_null()
+    {
+        // SAFETY: `symbol_metadata` is a pointer to `symbol_count` entries.
+        // `subtree.node.symbol_id` was checked to be in bounds above.
+        let metadata = unsafe {
+            *language
+                .symbol_metadata
+                .add(subtree.node.symbol_id.0 as usize)
+        };
+        (metadata & 0x04) != 0
+    } else {
+        false
+    };
+    let is_missing =
+        subtree.node.is_error && subtree.node.byte_range.is_empty() && subtree.children.is_empty();
 
     let children = subtree
         .children
@@ -1149,9 +1165,9 @@ fn convert_subtree_to_pure(
         end_byte: subtree.node.byte_range.end,
         start_point: byte_to_point(source, subtree.node.byte_range.start),
         end_point: byte_to_point(source, subtree.node.byte_range.end),
-        is_extra: false,
+        is_extra,
         is_error: subtree.node.is_error,
-        is_missing: false,
+        is_missing,
         is_named,
         field_id: None,
         language: Some(language as *const _),

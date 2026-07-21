@@ -12,7 +12,7 @@ use adze::glr_streaming_runtime::{
     materialize_streaming_forest, materialize_streaming_forest_document,
 };
 use adze::pure_parser::{ExternalScanner, TSLanguage, TSLexState, TSParseAction, TSRule};
-use adze_glr_core::parse_forest::{ErrorMeta, ForestAlternative};
+use adze_glr_core::parse_forest::{ERROR_SYMBOL, ErrorMeta, ForestAlternative};
 use adze_glr_core::{Forest, ForestNode, ParseForest, ParseTable};
 use adze_ir::builder::GrammarBuilder;
 use adze_ir::{Grammar, StateId, Symbol, SymbolId};
@@ -609,8 +609,24 @@ fn test_materialize_streaming_forest_document_fielded_pair_preserves_native_edge
     assert_eq!(&source[right_range], "+");
 }
 
+fn table_symbol_for_public_grammar_id(language: &TSLanguage, public_id: SymbolId) -> SymbolId {
+    if !language.public_symbol_map.is_null() {
+        let public_symbols = unsafe {
+            std::slice::from_raw_parts(language.public_symbol_map, language.symbol_count as usize)
+        };
+        if let Some(index) = public_symbols
+            .iter()
+            .position(|candidate| *candidate == public_id.0)
+        {
+            return SymbolId(index as u16);
+        }
+    }
+    public_id
+}
+
 fn forest_from_reference_document(
     reference: &adze::document::AdzeDocument,
+    language: &'static TSLanguage,
     grammar: Grammar,
 ) -> Forest {
     let source = reference.source_text().to_string();
@@ -620,6 +636,7 @@ fn forest_from_reference_document(
     fn build_node(
         node: adze::document::AdzeNode<'_>,
         id: usize,
+        language: &'static TSLanguage,
         nodes: &mut HashMap<usize, ForestNode>,
         next_id: &mut usize,
     ) -> ForestNode {
@@ -629,20 +646,26 @@ fn forest_from_reference_document(
             let child_id = *next_id;
             *next_id += 1;
             children.push(child_id);
-            let child_node = build_node(child, child_id, nodes, next_id);
+            let child_node = build_node(child, child_id, language, nodes, next_id);
             nodes.insert(child_id, child_node);
         }
         let range = node.byte_range();
         ForestNode {
             id,
-            symbol: node.grammar_id(),
+            symbol: table_symbol_for_public_grammar_id(language, node.grammar_id()),
             span: (range.start, range.end),
             alternatives: vec![ForestAlternative { children }],
             error_meta: ErrorMeta::default(),
         }
     }
 
-    let root_node = build_node(reference.tree().root(), 0, &mut nodes, &mut next_id);
+    let root_node = build_node(
+        reference.tree().root(),
+        0,
+        language,
+        &mut nodes,
+        &mut next_id,
+    );
     nodes.insert(0, root_node.clone());
     Forest::from_parse_forest_for_test(ParseForest {
         roots: vec![root_node],
@@ -661,7 +684,7 @@ fn test_materialize_streaming_forest_document_preserves_reference_tree_shape() {
     let parse_table = decode_parse_table(language);
     let reference = adze_example::typed_ast_contract::grammar::parse_document(source)
         .expect("reference parse_document should succeed for typed_ast fixture");
-    let forest = forest_from_reference_document(&reference, grammar.clone());
+    let forest = forest_from_reference_document(&reference, language, grammar.clone());
 
     let document = materialize_streaming_forest_document(
         source,
@@ -756,4 +779,244 @@ fn test_materialize_streaming_forest_document_error_forest_blocks_typed_extracti
             .contains("error-only root without a complete parse"),
         "unexpected error: {materialize_error}"
     );
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct NodeFlagRecord {
+    kind: Option<String>,
+    byte_range: std::ops::Range<usize>,
+    extra: bool,
+    error: bool,
+    missing: bool,
+}
+
+fn collect_node_flags(node: adze::document::AdzeNode<'_>, out: &mut Vec<NodeFlagRecord>) {
+    out.push(NodeFlagRecord {
+        kind: node.kind_name().map(str::to_string),
+        byte_range: node.byte_range(),
+        extra: node.is_extra(),
+        error: node.is_error(),
+        missing: node.is_missing(),
+    });
+    for index in 0..node.child_count() {
+        if let Some(child) = node.child(index) {
+            collect_node_flags(child, out);
+        }
+    }
+}
+
+fn constructed_recovered_parse_with_error_chunk(grammar: Grammar, source: &str) -> Forest {
+    let start = grammar.start_symbol().expect("start symbol");
+    let token_a = grammar.find_symbol_by_name("a").expect("token a");
+
+    let root = ForestNode {
+        id: 0,
+        symbol: start,
+        span: (0, source.len()),
+        alternatives: vec![ForestAlternative {
+            children: vec![1, 2, 3],
+        }],
+        error_meta: ErrorMeta::default(),
+    };
+    let left = leaf(1, token_a, (0, 1));
+    let error = ForestNode {
+        id: 2,
+        symbol: ERROR_SYMBOL,
+        span: (1, 2),
+        alternatives: vec![ForestAlternative { children: vec![] }],
+        error_meta: ErrorMeta {
+            is_error: true,
+            missing: false,
+            cost: 1,
+        },
+    };
+    let right = leaf(3, token_a, (2, source.len()));
+
+    let mut nodes = HashMap::new();
+    nodes.insert(0, root.clone());
+    nodes.insert(1, left);
+    nodes.insert(2, error);
+    nodes.insert(3, right);
+
+    Forest::from_parse_forest_for_test(ParseForest {
+        roots: vec![root],
+        nodes,
+        grammar,
+        source: source.to_string(),
+        next_node_id: 4,
+    })
+}
+
+fn constructed_recovered_parse_with_missing_terminal(grammar: Grammar, source: &str) -> Forest {
+    let start = grammar.start_symbol().expect("start symbol");
+    let token_a = grammar.find_symbol_by_name("a").expect("token a");
+
+    let root = ForestNode {
+        id: 0,
+        symbol: start,
+        span: (0, source.len()),
+        alternatives: vec![ForestAlternative {
+            children: vec![1, 2, 3],
+        }],
+        error_meta: ErrorMeta::default(),
+    };
+    let left = leaf(1, token_a, (0, 1));
+    let missing = ForestNode {
+        id: 2,
+        symbol: token_a,
+        span: (1, 1),
+        alternatives: vec![ForestAlternative { children: vec![] }],
+        error_meta: ErrorMeta {
+            missing: true,
+            is_error: false,
+            cost: 1,
+        },
+    };
+    let right = leaf(3, token_a, (2, source.len()));
+
+    let mut nodes = HashMap::new();
+    nodes.insert(0, root.clone());
+    nodes.insert(1, left);
+    nodes.insert(2, missing);
+    nodes.insert(3, right);
+
+    Forest::from_parse_forest_for_test(ParseForest {
+        roots: vec![root],
+        nodes,
+        grammar,
+        source: source.to_string(),
+        next_node_id: 4,
+    })
+}
+
+#[test]
+fn test_materialize_streaming_forest_document_preserves_error_and_missing_flags() {
+    let grammar = tiny_grammar();
+    let parse_table = empty_parse_table(grammar.clone());
+    let source = "aba";
+
+    let error_forest = constructed_recovered_parse_with_error_chunk(grammar.clone(), source);
+    let error_document = materialize_streaming_forest_document(
+        source,
+        &error_forest,
+        &TEST_LANGUAGE,
+        "streaming_forest_document",
+        &grammar,
+        &parse_table,
+    )
+    .expect("recovered forest with error chunk should materialize");
+
+    let mut error_flags = Vec::new();
+    collect_node_flags(error_document.tree().root(), &mut error_flags);
+    assert!(
+        error_flags
+            .iter()
+            .any(|record| record.error && !record.missing),
+        "expected spanning error node, got {error_flags:?}"
+    );
+    assert!(
+        error_flags.iter().any(|record| record.error),
+        "error chunk should surface error facts on the tree"
+    );
+
+    let missing_forest = constructed_recovered_parse_with_missing_terminal(grammar.clone(), source);
+    let missing_document = materialize_streaming_forest_document(
+        source,
+        &missing_forest,
+        &TEST_LANGUAGE,
+        "streaming_forest_document",
+        &grammar,
+        &parse_table,
+    )
+    .expect("recovered forest with missing terminal should materialize");
+
+    let mut missing_flags = Vec::new();
+    collect_node_flags(missing_document.tree().root(), &mut missing_flags);
+    assert!(
+        missing_flags
+            .iter()
+            .any(|record| record.missing && record.error && record.byte_range.is_empty()),
+        "expected zero-width missing error node, got {missing_flags:?}"
+    );
+    assert!(
+        missing_flags.iter().any(|record| record.error),
+        "missing recovery should surface error facts on the tree"
+    );
+}
+
+#[test]
+fn test_materialize_streaming_forest_document_preserves_extras_from_reference() {
+    let source = "1 + 2";
+    let language = adze_example::typed_ast_contract::grammar::language();
+    let grammar = decode_grammar(language);
+    let parse_table = decode_parse_table(language);
+    let reference = adze_example::typed_ast_contract::grammar::parse_document(source)
+        .expect("reference parse_document should succeed for spaced fixture");
+    let forest = forest_from_reference_document(&reference, language, grammar.clone());
+
+    let document = materialize_streaming_forest_document(
+        source,
+        &forest,
+        language,
+        "typed_ast_contract",
+        &grammar,
+        &parse_table,
+    )
+    .expect("spaced typed_ast forest should materialize");
+
+    let mut reference_flags = Vec::new();
+    collect_node_flags(reference.tree().root(), &mut reference_flags);
+    let mut materialized_flags = Vec::new();
+    collect_node_flags(document.tree().root(), &mut materialized_flags);
+
+    let reference_extra_ranges: Vec<_> = reference_flags
+        .iter()
+        .filter(|record| record.extra)
+        .map(|record| record.byte_range.clone())
+        .collect();
+    let materialized_extra_ranges: Vec<_> = materialized_flags
+        .iter()
+        .filter(|record| record.extra)
+        .map(|record| record.byte_range.clone())
+        .collect();
+
+    assert!(
+        !reference_extra_ranges.is_empty(),
+        "reference fixture should include grammar extras: {reference_flags:?}"
+    );
+    for extra_range in reference_extra_ranges {
+        assert!(
+            materialized_extra_ranges.contains(&extra_range),
+            "materializer should preserve each reference extra span; got {materialized_extra_ranges:?}"
+        );
+    }
+}
+
+#[test]
+fn test_materialize_streaming_forest_document_typed_ast_agrees_with_reference() {
+    let source = "1 + 2 + 3";
+    let language = adze_example::typed_ast_contract::grammar::language();
+    let grammar = decode_grammar(language);
+    let parse_table = decode_parse_table(language);
+    let reference = adze_example::typed_ast_contract::grammar::parse_document(source)
+        .expect("reference parse_document should succeed for typed_ast fixture");
+    let forest = forest_from_reference_document(&reference, language, grammar.clone());
+
+    let document = materialize_streaming_forest_document(
+        source,
+        &forest,
+        language,
+        "typed_ast_contract",
+        &grammar,
+        &parse_table,
+    )
+    .expect("typed_ast forest should materialize into a document");
+
+    let materialized_ast = document
+        .ast::<adze_example::typed_ast_contract::grammar::Expr>()
+        .expect("materialized document should support typed extraction");
+    let reference_ast = adze_example::typed_ast_contract::grammar::parse(source)
+        .expect("reference typed parse should succeed");
+
+    assert_eq!(materialized_ast, reference_ast);
 }
