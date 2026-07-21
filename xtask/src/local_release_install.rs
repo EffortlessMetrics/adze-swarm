@@ -3,9 +3,12 @@
 //! Pre-release evidence only. This is not a crates.io install claim and must
 //! not touch public release credentials.
 
-use anyhow::{Result, bail};
+use std::path::Path;
+
+use anyhow::{Context, Result, bail};
 
 use crate::local_registry;
+use crate::local_release_receipt::{self, LocalReleaseReceipt};
 use crate::policy;
 use crate::release_graph;
 
@@ -20,7 +23,13 @@ pub struct LocalReleasePlan {
     pub cli_bin: String,
 }
 
-pub fn run(version: &str, cli_crate: &str, cli_bin: &str, dry_run: bool) -> Result<()> {
+pub fn run(
+    version: &str,
+    cli_crate: &str,
+    cli_bin: &str,
+    dry_run: bool,
+    receipt_out: Option<&Path>,
+) -> Result<()> {
     let version = version.trim();
     if version.is_empty() {
         bail!("--version is required for local-registry install receipt");
@@ -83,10 +92,44 @@ pub fn run(version: &str, cli_crate: &str, cli_bin: &str, dry_run: bool) -> Resu
     println!("starter project: {}", starter.project_dir.display());
 
     println!();
+    println!("starter proof:");
+    let starter_commands = starter.run_starter_proof(&registry)?;
+    for command in &starter_commands {
+        println!(
+            "  - {}: exit={} success={}",
+            command.name,
+            command.exit_code,
+            command.success()
+        );
+    }
+
+    let receipt = local_release_receipt::build_receipt(
+        &root,
+        version,
+        release_graph::ARTIFACT_PATH,
+        local_registry::REGISTRY_NAME,
+        registry.published_crates(),
+        &starter.project_dir,
+        &starter_commands,
+    )?;
+    emit_receipt(&receipt, receipt_out)?;
+
+    println!();
     println!(
-        "claim boundary: local-registry publish + CLI install + registry-backed starter scaffold"
+        "claim boundary: local-registry publish + CLI install + registry-backed starter proof"
     );
-    println!("next: starter test/parse/invalid-input receipt remains in #856 PR4");
+    Ok(())
+}
+
+fn emit_receipt(receipt: &LocalReleaseReceipt, receipt_out: Option<&Path>) -> Result<()> {
+    let json =
+        serde_json::to_string_pretty(receipt).context("serializing local release receipt")?;
+    if let Some(path) = receipt_out {
+        local_release_receipt::write_receipt(path, receipt)?;
+        println!("receipt written: {}", path.display());
+    }
+    println!("receipt-json:");
+    println!("{json}");
     Ok(())
 }
 
@@ -123,7 +166,12 @@ fn print_plan(plan: &LocalReleasePlan) {
     println!("  adze init calc");
     println!("  cargo test");
     println!("  cargo run --example parse -- \"1 + 2 * 3\"");
-    println!("  cargo run --example invalid_input");
+    println!("  cargo run --example parse -- \"1 + @\"");
+    println!();
+    println!("receipt:");
+    println!(
+        "  machine-readable JSON with source commit, rustc version, target, crate checksums, and command results"
+    );
     println!();
     println!("claim boundary: pre-release local-registry evidence only; not crates.io proof");
 }
@@ -153,13 +201,13 @@ mod tests {
 
     #[test]
     fn missing_version_is_rejected() {
-        let err = run("", DEFAULT_CLI_CRATE, DEFAULT_CLI_BIN, true).expect_err("version");
+        let err = run("", DEFAULT_CLI_CRATE, DEFAULT_CLI_BIN, true, None).expect_err("version");
         assert!(err.to_string().contains("--version is required"));
     }
 
     #[test]
     fn cli_not_in_graph_is_rejected() {
-        let err = run("0.10.0", "xtask", DEFAULT_CLI_BIN, true).expect_err("cli");
+        let err = run("0.10.0", "xtask", DEFAULT_CLI_BIN, true, None).expect_err("cli");
         assert!(err.to_string().contains("not in the release graph"));
     }
 }

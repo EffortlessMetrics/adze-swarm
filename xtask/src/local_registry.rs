@@ -35,6 +35,21 @@ pub struct StarterProject {
     pub project_dir: PathBuf,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapturedCommand {
+    pub name: String,
+    pub argv: Vec<String>,
+    pub exit_code: i32,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+impl CapturedCommand {
+    pub fn success(&self) -> bool {
+        self.exit_code == 0
+    }
+}
+
 pub struct IsolatedRegistry {
     _root: TempDir,
     cargo_home: TempDir,
@@ -270,6 +285,60 @@ impl IsolatedRegistry {
             _parent: parent,
             project_dir,
         })
+    }
+
+    pub fn run_cargo_capture(
+        &self,
+        cwd: &Path,
+        name: &str,
+        args: &[&str],
+    ) -> Result<CapturedCommand> {
+        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
+        let mut argv = vec!["cargo".to_string()];
+        argv.extend(args.iter().map(|arg| (*arg).to_string()));
+
+        let output = Command::new(cargo)
+            .args(args)
+            .current_dir(cwd)
+            .env("CARGO_HOME", self.cargo_home.path())
+            .env("CARGO_TARGET_DIR", self.target_dir.path())
+            .output()
+            .with_context(|| format!("running cargo {} in {}", args.join(" "), cwd.display()))?;
+
+        Ok(CapturedCommand {
+            name: name.to_string(),
+            argv,
+            exit_code: output.status.code().unwrap_or(-1),
+            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        })
+    }
+}
+
+impl StarterProject {
+    pub fn run_starter_proof(&self, registry: &IsolatedRegistry) -> Result<Vec<CapturedCommand>> {
+        let mut commands = Vec::new();
+
+        let test =
+            registry.run_cargo_capture(&self.project_dir, "starter-cargo-test", &["test"])?;
+        commands.push(test);
+
+        let parse_ok = registry.run_cargo_capture(
+            &self.project_dir,
+            "starter-parse-valid",
+            &["run", "--example", "parse", "--", "1 + 2 * 3"],
+        )?;
+        commands.push(parse_ok);
+
+        let parse_bad = registry.run_cargo_capture(
+            &self.project_dir,
+            "starter-parse-invalid",
+            &["run", "--example", "parse", "--", "1 + @"],
+        )?;
+        commands.push(parse_bad);
+
+        crate::local_release_receipt::validate_starter_proof(&commands)?;
+        Ok(commands)
     }
 }
 
