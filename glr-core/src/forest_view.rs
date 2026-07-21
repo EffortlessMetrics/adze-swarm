@@ -60,7 +60,7 @@ impl Forest {
         &*self.view
     }
 
-    /// Wrap a constructed [`ParseForest`] for adapter/unit tests (#930).
+    /// Wrap a constructed [`crate::parse_forest::ParseForest`] for adapter/unit tests (#930).
     ///
     /// Not part of the supported runtime surface; intended for constructed-forest
     /// proof and harnesses only.

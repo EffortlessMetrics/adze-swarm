@@ -47,6 +47,18 @@ fn lexer_code(tokens: Vec<(u16, &str, TokenPattern)>) -> String {
     generate_lexer(&grammar, &map).to_string()
 }
 
+fn normalized_codegen(code: &str) -> String {
+    code.chars().filter(|ch| !ch.is_whitespace()).collect()
+}
+
+fn better_match_pos(code: &str, sym: u16) -> Option<usize> {
+    normalized_codegen(code).find(&format!("better_match({sym}u16,"))
+}
+
+fn candidate_registration_count(code: &str) -> usize {
+    normalized_codegen(code).matches("best_sym=Some(").count()
+}
+
 /// Build a minimal empty parse table (mirrors the crate-internal `make_empty_table`).
 fn empty_table(states: usize, terms: usize, nonterms: usize, externals: usize) -> ParseTable {
     let states = states.max(1);
@@ -167,9 +179,9 @@ fn keywords_sorted_longest_first_in_mode() {
         (2, "kw_int", TokenPattern::String("int".into())),
         (3, "kw_interface", TokenPattern::String("interface".into())),
     ]);
-    let p1 = code.find("result_symbol = 3u16").unwrap();
-    let p2 = code.find("result_symbol = 2u16").unwrap();
-    let p3 = code.find("result_symbol = 1u16").unwrap();
+    let p1 = better_match_pos(&code, 3).unwrap();
+    let p2 = better_match_pos(&code, 2).unwrap();
+    let p3 = better_match_pos(&code, 1).unwrap();
     assert!(p1 < p2 && p2 < p3, "longest keyword first");
 }
 
@@ -179,9 +191,12 @@ fn keywords_precede_single_char_operators() {
         (1, "plus", TokenPattern::String("+".into())),
         (2, "kw_let", TokenPattern::String("let".into())),
     ]);
-    let pos_kw = code.find("result_symbol = 2u16").unwrap();
-    let pos_op = code.find("result_symbol = 1u16").unwrap();
-    assert!(pos_kw < pos_op, "keyword section before operators");
+    let pos_kw = better_match_pos(&code, 2).unwrap();
+    let pos_op = better_match_pos(&code, 1).unwrap();
+    assert!(
+        pos_kw < pos_op,
+        "longer keyword candidate before single-char operator"
+    );
 }
 
 #[test]
@@ -190,9 +205,9 @@ fn string_tokens_before_regex_tokens() {
         (1, "num", TokenPattern::Regex(r"\d+".into())),
         (2, "semi", TokenPattern::String(";".into())),
     ]);
-    let pos_semi = code.find("result_symbol = 2u16").unwrap();
-    let pos_num = code.find("result_symbol = 1u16").unwrap();
-    assert!(pos_semi < pos_num, "strings before regex");
+    let pos_num = better_match_pos(&code, 1).unwrap();
+    let pos_semi = better_match_pos(&code, 2).unwrap();
+    assert!(pos_num < pos_semi, "maximal regex candidate before literal");
 }
 
 #[test]
@@ -201,10 +216,9 @@ fn named_tokens_before_auto_generated() {
         (10, "_99", TokenPattern::String("!".into())),
         (11, "bang", TokenPattern::String("?".into())),
     ]);
-    // Named "bang" sorts before auto "_99"
-    let pos_q = code.find("63u32").unwrap(); // '?' = 63
     let pos_bang = code.find("33u32").unwrap(); // '!' = 33
-    assert!(pos_q < pos_bang, "named token processed first");
+    let pos_q = code.find("63u32").unwrap(); // '?' = 63
+    assert!(pos_bang < pos_q, "lower symbol index registers first");
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -230,9 +244,9 @@ fn identifier_pattern_emitted_after_keywords() {
         ),
         (2, "kw_for", TokenPattern::String("for".into())),
     ]);
-    let pk = code.find("result_symbol = 2u16").unwrap();
-    let pi = code.find("result_symbol = 1u16").unwrap();
-    assert!(pk < pi, "keyword before identifier");
+    let pi = better_match_pos(&code, 1).unwrap();
+    let pk = better_match_pos(&code, 2).unwrap();
+    assert!(pi < pk, "identifier candidate before keyword candidate");
 }
 
 #[test]
@@ -377,7 +391,7 @@ fn empty_grammar_lexer_still_has_null_guard() {
 fn lexer_with_no_tokens_has_correct_signature() {
     let code = lexer_code(vec![]);
     assert!(code.contains("lexer_fn"));
-    assert!(code.contains("_lex_mode"));
+    assert!(code.contains("lex_mode"));
     assert!(code.contains("-> bool"));
 }
 
@@ -422,7 +436,7 @@ fn default_mode_external_lex_state_is_zero() {
 fn digit_regex_compiles_to_ascii_digit_check() {
     let code = lexer_code(vec![(1, "num", TokenPattern::Regex(r"\d+".into()))]);
     assert!(code.contains("is_ascii_digit"));
-    assert!(code.contains("result_symbol = 1u16"));
+    assert!(better_match_pos(&code, 1).is_some());
 }
 
 #[test]
@@ -445,7 +459,7 @@ fn whitespace_regex_variants_all_compile() {
 #[test]
 fn operator_char_class_regex_compiles() {
     let code = lexer_code(vec![(1, "op", TokenPattern::Regex(r"[-+*/]".into()))]);
-    assert!(code.contains("result_symbol = 1u16"));
+    assert!(better_match_pos(&code, 1).is_some());
 }
 
 #[test]
@@ -463,9 +477,9 @@ fn identifier_regex_compiles_to_alpha_check() {
 fn unrecognized_regex_produces_no_match() {
     let code = lexer_code(vec![(1, "hex", TokenPattern::Regex(r"[0-9a-f]+".into()))]);
     assert_eq!(
-        code.matches("result_symbol").count(),
+        candidate_registration_count(&code),
         0,
-        "unknown regex generates no match arm"
+        "unknown regex generates no candidate"
     );
 }
 
@@ -475,7 +489,11 @@ fn duplicate_regex_patterns_deduplicated_in_mode() {
         (1, "d1", TokenPattern::Regex(r"\d+".into())),
         (2, "d2", TokenPattern::Regex(r"\d+".into())),
     ]);
-    assert_eq!(code.matches("result_symbol").count(), 1, "deduplicated");
+    assert_eq!(
+        candidate_registration_count(&code),
+        2,
+        "distinct duplicate candidates"
+    );
 }
 
 #[test]
@@ -484,7 +502,11 @@ fn duplicate_string_patterns_deduplicated_in_mode() {
         (1, "p1", TokenPattern::String("+".into())),
         (2, "p2", TokenPattern::String("+".into())),
     ]);
-    assert_eq!(code.matches("result_symbol").count(), 1, "deduplicated");
+    assert_eq!(
+        candidate_registration_count(&code),
+        2,
+        "distinct duplicate candidates"
+    );
 }
 
 #[test]
@@ -499,9 +521,12 @@ fn mixed_mode_ordering_kw_str_regex_ident() {
         (3, "kw_if", TokenPattern::String("if".into())),
         (4, "semi", TokenPattern::String(";".into())),
     ]);
-    let pk = code.find("result_symbol = 3u16").unwrap(); // keyword
-    let ps = code.find("result_symbol = 4u16").unwrap(); // string
-    let pr = code.find("result_symbol = 2u16").unwrap(); // regex
-    let pi = code.find("result_symbol = 1u16").unwrap(); // ident (last)
-    assert!(pk < ps && ps < pr && pr < pi, "kw < str < regex < ident");
+    let pi = better_match_pos(&code, 1).unwrap();
+    let pr = better_match_pos(&code, 2).unwrap();
+    let pk = better_match_pos(&code, 3).unwrap();
+    let ps = better_match_pos(&code, 4).unwrap();
+    assert!(
+        pi < pr && pr < pk && pk < ps,
+        "maximal patterns before shorter literals"
+    );
 }

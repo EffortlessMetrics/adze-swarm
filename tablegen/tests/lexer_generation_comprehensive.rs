@@ -5,8 +5,8 @@
 
 //! Comprehensive tests for `adze_tablegen::lexer_gen::generate_lexer`.
 //!
-//! Validates that the generated `lexer_fn` token stream handles keywords,
-//! string literals, regex patterns, deduplication, ordering, and edge cases.
+//! Validates that the generated mode-aware `lexer_fn` handles keywords,
+//! string literals, regex patterns, candidate registration, ordering, and edge cases.
 
 use adze_ir::{Grammar, SymbolId, Token, TokenPattern};
 use adze_tablegen::lexer_gen::generate_lexer;
@@ -42,6 +42,18 @@ fn generate(tokens: Vec<(u16, &str, TokenPattern)>) -> String {
     generate_lexer(&grammar, &map).to_string()
 }
 
+fn normalized_codegen(code: &str) -> String {
+    code.chars().filter(|ch| !ch.is_whitespace()).collect()
+}
+
+fn better_match_pos(code: &str, sym: u16) -> Option<usize> {
+    normalized_codegen(code).find(&format!("better_match({sym}u16,"))
+}
+
+fn candidate_registration_count(code: &str) -> usize {
+    normalized_codegen(code).matches("best_sym=Some(").count()
+}
+
 // ── 1. Empty grammar ────────────────────────────────────────────────
 
 #[test]
@@ -69,10 +81,10 @@ fn keywords_sorted_longest_first() {
         (2, "int_kw", TokenPattern::String("int".into())),
         (3, "interface_kw", TokenPattern::String("interface".into())),
     ]);
-    // "interface" (9 chars) should appear before "int" (3 chars) and "in" (2 chars)
-    let pos_interface = code.find("result_symbol = 3u16").expect("interface match");
-    let pos_int = code.find("result_symbol = 2u16").expect("int match");
-    let pos_in = code.find("result_symbol = 1u16").expect("in match");
+    // Longest literals are registered first for maximal-munch evaluation.
+    let pos_interface = better_match_pos(&code, 3).expect("interface match");
+    let pos_int = better_match_pos(&code, 2).expect("int match");
+    let pos_in = better_match_pos(&code, 1).expect("in match");
     assert!(
         pos_interface < pos_int,
         "interface should precede int in output"
@@ -130,8 +142,8 @@ fn lowercase_alpha_regex_generates_lowercase_loop() {
         "[a-z]+ regex should use is_ascii_lowercase"
     );
     assert!(
-        code.contains("result_symbol = 1u16"),
-        "[a-z]+ regex should set the mapped result symbol"
+        better_match_pos(&code, 1).is_some(),
+        "[a-z]+ regex should register the mapped result symbol"
     );
 }
 
@@ -196,18 +208,18 @@ fn identifier_regex_is_emitted_last() {
             TokenPattern::Regex(r"[a-zA-Z_][a-zA-Z0-9_]*".into()),
         ),
     ]);
-    // Identifier should be after digit regex
+    // Both are maximal patterns; registration order follows tablegen sort, not legacy ident-last.
     let pos_digit = code.find("is_ascii_digit").expect("digit pattern");
     let pos_ident = code
-        .find("is_ascii_alphabetic")
+        .find("is_identifier_start")
         .expect("identifier pattern");
     assert!(
-        pos_digit < pos_ident,
-        "identifier pattern should come after digit pattern"
+        pos_ident < pos_digit,
+        "identifier candidate is emitted before digit candidate in mode-aware codegen"
     );
 }
 
-// ── 13. Duplicate string patterns are deduplicated ────────────────
+// ── 13. Duplicate string patterns register distinct candidates ────
 
 #[test]
 fn duplicate_string_patterns_deduplicated() {
@@ -215,12 +227,14 @@ fn duplicate_string_patterns_deduplicated() {
         (1, "plus1", TokenPattern::String("+".into())),
         (2, "plus2", TokenPattern::String("+".into())),
     ]);
-    let count = code.matches("result_symbol").count();
-    // Only one match for '+', not two
-    assert_eq!(count, 1, "duplicate string patterns should be deduplicated");
+    assert_eq!(
+        candidate_registration_count(&code),
+        2,
+        "duplicate literals should register distinct candidates for better_match"
+    );
 }
 
-// ── 14. Duplicate regex patterns are deduplicated ─────────────────
+// ── 14. Duplicate regex patterns register distinct candidates ─────
 
 #[test]
 fn duplicate_regex_patterns_deduplicated() {
@@ -228,29 +242,31 @@ fn duplicate_regex_patterns_deduplicated() {
         (1, "num1", TokenPattern::Regex(r"\d+".into())),
         (2, "num2", TokenPattern::Regex(r"\d+".into())),
     ]);
-    let count = code.matches("is_ascii_digit").count();
-    // Only one set of digit-checking code
-    assert!(count > 0, "should have digit matching");
-    // The second duplicate should not add another block
-    let result_count = code.matches("result_symbol").count();
-    assert_eq!(result_count, 1, "duplicate regex should be deduplicated");
+    assert!(
+        code.contains("is_ascii_digit"),
+        "should have digit matching"
+    );
+    assert_eq!(
+        candidate_registration_count(&code),
+        2,
+        "duplicate regex patterns should register distinct candidates"
+    );
 }
 
 // ── 15. Named tokens take priority over auto-generated names ──────
 
 #[test]
 fn named_tokens_processed_before_auto_generated() {
-    // Named token "plus" should appear before auto-generated "_42"
     let code = generate(vec![
         (10, "_42", TokenPattern::String("+".into())),
         (11, "plus", TokenPattern::String("-".into())),
     ]);
-    // "plus" (named) should be processed first; "-" is 45, "+" is 43
-    let pos_minus = code.find("45u32").expect("minus char");
+    // Candidate order follows lexical priority, length, then symbol index.
     let pos_plus = code.find("43u32").expect("plus char");
+    let pos_minus = code.find("45u32").expect("minus char");
     assert!(
-        pos_minus < pos_plus,
-        "named token '-' should appear before auto-generated '+'"
+        pos_plus < pos_minus,
+        "lower symbol index should register before higher symbol index"
     );
 }
 
@@ -294,10 +310,7 @@ fn lexer_fn_has_correct_signature() {
         code.contains("state_ptr"),
         "should take state_ptr parameter"
     );
-    assert!(
-        code.contains("_lex_mode"),
-        "should take _lex_mode parameter"
-    );
+    assert!(code.contains("lex_mode"), "should take lex_mode parameter");
     assert!(code.contains("-> bool"), "should return bool");
 }
 
@@ -315,15 +328,15 @@ fn mixed_tokens_order_keywords_then_strings_then_regex_then_ident() {
         (3, "if_kw", TokenPattern::String("if".into())),
         (4, "plus", TokenPattern::String("+".into())),
     ]);
-    // Order: keywords, then other strings, then regex patterns, then identifier
-    let pos_kw = code.find("result_symbol = 3u16").expect("keyword match");
-    let pos_plus = code.find("result_symbol = 4u16").expect("plus match");
-    let pos_number = code.find("result_symbol = 2u16").expect("number match");
-    let pos_ident = code.find("result_symbol = 1u16").expect("ident match");
+    // Registration order: longest/maximal patterns first, then symbol index.
+    let pos_ident = better_match_pos(&code, 1).expect("ident match");
+    let pos_number = better_match_pos(&code, 2).expect("number match");
+    let pos_kw = better_match_pos(&code, 3).expect("keyword match");
+    let pos_plus = better_match_pos(&code, 4).expect("plus match");
 
-    assert!(pos_kw < pos_plus, "keyword before string");
-    assert!(pos_plus < pos_number, "string before regex");
-    assert!(pos_number < pos_ident, "regex before identifier");
+    assert!(pos_ident < pos_number, "identifier before number");
+    assert!(pos_number < pos_kw, "number before keyword");
+    assert!(pos_kw < pos_plus, "keyword before single-char string");
 }
 
 // ── 20. Token not in symbol_to_index is skipped ───────────────────
@@ -345,9 +358,9 @@ fn token_not_in_symbol_map_is_skipped() {
     // Should still produce lexer_fn but with no match arms
     assert!(code.contains("lexer_fn"));
     assert_eq!(
-        code.matches("result_symbol").count(),
+        candidate_registration_count(&code),
         0,
-        "unmapped token should not produce match"
+        "unmapped token should not register a candidate"
     );
 }
 
@@ -366,18 +379,18 @@ fn multiple_single_char_tokens() {
     assert!(code.contains("44u32"), "should match ','");
 }
 
-// ── 22. Keyword advance calls match length ────────────────────────
+// ── 22. Keyword uses non-destructive byte checks ──────────────────
 
 #[test]
 fn keyword_advance_calls_match_keyword_length() {
     let code = generate(vec![(1, "for_kw", TokenPattern::String("for".into()))]);
-    // "for" has 3 bytes, so there should be 3 advance calls in the keyword closure
-    // Each byte becomes a lookahead check + advance
-    let advance_count = code.matches("advance").count();
-    // At least 3 advance calls for the 3-char keyword
     assert!(
-        advance_count >= 3,
-        "3-char keyword needs at least 3 advance calls, got {advance_count}"
+        code.contains("lexer_byte_at_rel") && code.contains("0usize") && code.contains("2usize"),
+        "3-char keyword should peek each byte without destructive advance"
+    );
+    assert!(
+        !code.contains("advance)(lexer"),
+        "mode-aware lexer must not call destructive advance in candidates"
     );
 }
 
@@ -404,9 +417,9 @@ fn unrecognized_regex_produces_no_extra_match() {
     )]);
     // The function only handles specific known patterns (\d+, \w+, \s+, etc.)
     assert_eq!(
-        code.matches("result_symbol").count(),
+        candidate_registration_count(&code),
         0,
-        "unrecognized regex should not produce match"
+        "unrecognized regex should not register a candidate"
     );
 }
 
@@ -420,14 +433,14 @@ fn identifier_regex_standalone() {
         TokenPattern::Regex(r"[a-zA-Z_][a-zA-Z0-9_]*".into()),
     )]);
     assert!(
-        code.contains("is_ascii_alphabetic"),
-        "should check alpha start"
+        code.contains("is_identifier_start"),
+        "should check identifier start"
     );
+    assert!(code.contains("is_word_char"), "should loop on word chars");
     assert!(
-        code.contains("is_ascii_alphanumeric"),
-        "should loop on alphanumeric"
+        better_match_pos(&code, 5).is_some(),
+        "should register symbol 5"
     );
-    assert!(code.contains("result_symbol = 5u16"), "should use symbol 5");
 }
 
 // ── 26. Keywords with underscores are still keywords ──────────────
@@ -473,8 +486,8 @@ fn operator_regex_matches_all_operators() {
     let code = generate(vec![(1, "op", TokenPattern::Regex(r"[-+*/]".into()))]);
     // Should produce comparisons for '-', '+', '*', '/'
     assert!(
-        code.contains("result_symbol = 1u16"),
-        "should set result_symbol"
+        better_match_pos(&code, 1).is_some(),
+        "should register operator candidate"
     );
 }
 
@@ -535,10 +548,11 @@ fn many_tokens_all_present() {
         symbol_to_index.insert(SymbolId(*id), *id as usize);
     }
     let code = generate_lexer(&grammar, &symbol_to_index).to_string();
-    // All 20 tokens should have result_symbol assignments
-    // (2-char alphabetic strings are keywords, and they're all unique)
-    let count = code.matches("result_symbol").count();
-    assert_eq!(count, 20, "all 20 unique tokens should produce matches");
+    assert_eq!(
+        candidate_registration_count(&code),
+        20,
+        "all 20 unique tokens should register candidates"
+    );
 }
 
 // ── 33. Deduplication prefers first occurrence (named) ────────────
@@ -551,12 +565,14 @@ fn deduplication_uses_first_named_occurrence() {
         (1, "_99", TokenPattern::String("+".into())),
         (2, "plus", TokenPattern::String("+".into())),
     ]);
-    let count = code.matches("result_symbol").count();
-    assert_eq!(count, 1, "deduplicated to one match");
-    // Named "plus" (id=2) should be used since named tokens sort first
+    assert_eq!(
+        candidate_registration_count(&code),
+        2,
+        "duplicate literals should register both symbol candidates"
+    );
     assert!(
-        code.contains("result_symbol = 2u16"),
-        "named token should win"
+        better_match_pos(&code, 1).is_some() && better_match_pos(&code, 2).is_some(),
+        "both duplicate symbols should be present"
     );
 }
 
@@ -572,10 +588,13 @@ fn keyword_precedes_identifier_match() {
         ),
         (2, "while_kw", TokenPattern::String("while".into())),
     ]);
-    // Keyword "while" should be checked before identifier
-    let pos_kw = code.find("result_symbol = 2u16").expect("keyword");
-    let pos_ident = code.find("result_symbol = 1u16").expect("identifier");
-    assert!(pos_kw < pos_ident, "keyword before identifier");
+    // Identifier registers before keyword due to maximal-length ordering.
+    let pos_ident = better_match_pos(&code, 1).expect("identifier");
+    let pos_kw = better_match_pos(&code, 2).expect("keyword");
+    assert!(
+        pos_ident < pos_kw,
+        "identifier candidate before keyword candidate"
+    );
 }
 
 // ── 35. Lexer returns false at end ────────────────────────────────
