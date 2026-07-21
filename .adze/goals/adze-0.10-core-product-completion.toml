@@ -40,8 +40,10 @@ reset (#883) makes #853 the checked-in active goal and selects exactly one
 bounded implementation slice at a time.
 
 After #883 lands, activate #854 Stable Product Proof correction as the sole
-implementation slice. Do not mark multiple overlapping implementation issues
-active simultaneously. Refresh the open PR queue before starting each slice.
+implementation slice. #854 and #855 (#904–#907, PR5 docs) are merged.
+#856 package-first local-registry harness is now the sole active implementation
+slice. Do not mark multiple overlapping implementation issues active
+simultaneously. Refresh the open PR queue before starting each slice.
 Release, publish, signing, Cargo-token, public promotion, and crates.io install
 work remain blocked on explicit human authorization in #325. Runner
 fallback/quarantine changes remain infrastructure decisions tracked by #598.
@@ -118,16 +120,30 @@ commands = [
 
 [[work_item]]
 id = "release-crate-graph"
-status = "active"
+status = "complete"
 spec = "ADZE-SPEC-0011"
 issues = [855]
+prs = [904, 905, 906, 907]
 commands = [
   "bash -n scripts/check-publish-stance.sh",
   "./scripts/check-publish-stance.sh",
   "cargo run -q -p xtask -- check-package-boundary --mode blocking-allowlist",
   "cargo run -q -p xtask -- check-release-graph",
   "cargo test -p xtask release_graph -- --nocapture",
+  "./scripts/check-release-consumers.sh",
   "cargo metadata --format-version 1 --locked --no-deps",
+  "git diff --check",
+]
+
+[[work_item]]
+id = "package-first-local-registry"
+status = "active"
+spec = "ADZE-SPEC-0011"
+issues = [856]
+blocked_by = ["release-crate-graph"]
+commands = [
+  "cargo run -q -p xtask -- check-release-graph",
+  "cargo run -q -p xtask -- print-release-graph",
   "git diff --check",
 ]
 
