@@ -47,6 +47,7 @@ pub fn generate_lexer_with_table(
 ) -> TokenStream {
     let word_token = grammar.word_token_symbol();
     let mode_candidates = build_mode_candidates(grammar, symbol_to_index, parse_table, word_token);
+    let helper_needs = helper_needs_for(&mode_candidates);
 
     let mode_match_arms = mode_candidates
         .iter()
@@ -54,6 +55,28 @@ pub fn generate_lexer_with_table(
         .collect::<Vec<_>>();
 
     let unknown_mode_arm = quote! { _ => false, };
+
+    let is_word_char_fn = if helper_needs.word_char {
+        quote! {
+            #[inline]
+            fn is_word_char(byte: u32) -> bool {
+                byte != 0 && ((byte as u8).is_ascii_alphanumeric() || byte == b'_' as u32)
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    let is_identifier_start_fn = if helper_needs.identifier_start {
+        quote! {
+            #[inline]
+            fn is_identifier_start(byte: u32) -> bool {
+                byte != 0 && ((byte as u8).is_ascii_alphabetic() || byte == b'_' as u32)
+            }
+        }
+    } else {
+        quote! {}
+    };
 
     quote! {
         /// SAFETY: Runtime adapters store `TsLexer.data` as a pointer to a backing
@@ -95,15 +118,9 @@ pub fn generate_lexer_with_table(
             }
         }
 
-        #[inline]
-        fn is_word_char(byte: u32) -> bool {
-            byte != 0 && ((byte as u8).is_ascii_alphanumeric() || byte == b'_' as u32)
-        }
+        #is_word_char_fn
 
-        #[inline]
-        fn is_identifier_start(byte: u32) -> bool {
-            byte != 0 && ((byte as u8).is_ascii_alphabetic() || byte == b'_' as u32)
-        }
+        #is_identifier_start_fn
 
         #[inline]
         fn better_match(
@@ -140,6 +157,39 @@ pub fn generate_lexer_with_table(
             }
         }
     }
+}
+
+#[derive(Debug, Default)]
+struct HelperNeeds {
+    word_char: bool,
+    identifier_start: bool,
+}
+
+fn helper_needs_for(mode_candidates: &BTreeMap<u16, Vec<LexCandidate>>) -> HelperNeeds {
+    let mut needs = HelperNeeds::default();
+    for candidates in mode_candidates.values() {
+        for candidate in candidates {
+            match &candidate.pattern {
+                CandidatePattern::WordPlus => needs.word_char = true,
+                CandidatePattern::Identifier => {
+                    needs.word_char = true;
+                    needs.identifier_start = true;
+                }
+                CandidatePattern::Literal(bytes) => {
+                    let is_keyword = bytes.iter().all(|b| b.is_ascii_alphabetic() || *b == b'_')
+                        && bytes.len() > 1;
+                    if is_keyword {
+                        needs.word_char = true;
+                    }
+                }
+                CandidatePattern::DigitPlus
+                | CandidatePattern::LowerPlus
+                | CandidatePattern::CharClass(_)
+                | CandidatePattern::Whitespace => {}
+            }
+        }
+    }
+    needs
 }
 
 fn build_mode_candidates(
