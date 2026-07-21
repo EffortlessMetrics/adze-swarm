@@ -43,6 +43,7 @@ pub struct GrammarBuilder {
     rule_names: IndexMap<SymbolId, String>,
     word_token: Option<SymbolId>,
     lexical_metadata: IndexMap<SymbolId, LexicalMetadata>,
+    pending_wrapper_relations: Vec<(SymbolId, SymbolId)>,
 }
 
 impl GrammarBuilder {
@@ -65,6 +66,7 @@ impl GrammarBuilder {
             rule_names: IndexMap::new(),
             word_token: None,
             lexical_metadata: IndexMap::new(),
+            pending_wrapper_relations: Vec::new(),
         }
     }
 
@@ -308,6 +310,14 @@ impl GrammarBuilder {
         self
     }
 
+    /// Record an explicit wrapper-to-token relation in the built grammar.
+    pub fn wrapper_token(mut self, wrapper: &str, token: &str) -> Self {
+        let wrapper_id = self.get_or_create_symbol(wrapper);
+        let token_id = self.get_or_create_symbol(token);
+        self.pending_wrapper_relations.push((wrapper_id, token_id));
+        self
+    }
+
     /// Build the final grammar
     pub fn build(mut self) -> Grammar {
         // If a start symbol was specified, ensure its rules come first
@@ -322,6 +332,11 @@ impl GrammarBuilder {
         // Add remaining rules
         for (id, rules) in self.rules {
             ordered_rules.insert(id, rules);
+        }
+
+        let mut wrapper_token_relations = IndexMap::new();
+        for (wrapper, token) in self.pending_wrapper_relations {
+            wrapper_token_relations.insert(wrapper, token);
         }
 
         Grammar {
@@ -342,6 +357,8 @@ impl GrammarBuilder {
             symbol_registry: None,
             word_token: self.word_token,
             lexical_metadata: self.lexical_metadata,
+            start_symbol: self.start_symbol,
+            wrapper_token_relations,
         }
     }
 }

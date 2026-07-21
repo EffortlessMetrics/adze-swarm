@@ -688,6 +688,8 @@ mod tests {
             symbol_registry: None,
             word_token: None,
             lexical_metadata: indexmap::IndexMap::new(),
+            start_symbol: None,
+            wrapper_token_relations: indexmap::IndexMap::new(),
         };
 
         // Add tokens

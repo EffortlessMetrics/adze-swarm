@@ -28,6 +28,8 @@ fn create_simple_arithmetic_grammar() -> Grammar {
         symbol_registry: None,
         word_token: None,
         lexical_metadata: indexmap::IndexMap::new(),
+        start_symbol: None,
+        wrapper_token_relations: indexmap::IndexMap::new(),
     };
 
     // Define symbol IDs

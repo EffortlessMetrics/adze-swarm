@@ -143,4 +143,10 @@ Grammar {
     symbol_registry: None,
     word_token: None,
     lexical_metadata: {},
+    start_symbol: Some(
+        SymbolId(
+            4,
+        ),
+    ),
+    wrapper_token_relations: {},
 }

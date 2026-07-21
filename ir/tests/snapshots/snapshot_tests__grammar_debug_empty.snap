@@ -20,4 +20,6 @@ Grammar {
     symbol_registry: None,
     word_token: None,
     lexical_metadata: {},
+    start_symbol: None,
+    wrapper_token_relations: {},
 }

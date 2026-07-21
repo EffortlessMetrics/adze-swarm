@@ -69,5 +69,7 @@ expression: json
   },
   "symbol_registry": null,
   "word_token": null,
-  "lexical_metadata": {}
+  "lexical_metadata": {},
+  "start_symbol": 3,
+  "wrapper_token_relations": {}
 }

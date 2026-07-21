@@ -158,6 +158,8 @@ pub fn decode_grammar_with_patterns(
         symbol_registry: None,
         word_token: None,
         lexical_metadata: IndexMap::new(),
+        start_symbol: None,
+        wrapper_token_relations: IndexMap::new(),
     }
 }
 

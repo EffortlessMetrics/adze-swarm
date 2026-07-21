@@ -46,6 +46,8 @@ pub fn load_arithmetic_grammar() -> (Grammar, ParseTable) {
         symbol_registry: None,
         word_token: None,
         lexical_metadata: IndexMap::new(),
+        start_symbol: None,
+        wrapper_token_relations: IndexMap::new(),
     };
 
     // Add tokens
