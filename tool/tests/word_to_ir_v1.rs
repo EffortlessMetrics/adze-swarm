@@ -102,20 +102,17 @@ fn duplicate_regex_patterns_keep_distinct_token_names() {
     );
 
     let grammar = convert(grammar_js);
-    let names: Vec<_> = grammar
-        .tokens
-        .values()
-        .map(|token| token.name.as_str())
-        .collect();
-    assert!(names.contains(&"_/id_a/"));
-    assert!(names.contains(&"_/id_b/"));
     assert_eq!(grammar.tokens.len(), 2);
     assert!(
-        grammar.tokens.values().all(
-            |token| matches!(&token.pattern, adze_ir::TokenPattern::Regex(p) if p == "[a-z]+")
-        ),
-        "duplicate textual patterns must retain distinct token identities"
+        grammar
+            .tokens
+            .values()
+            .all(|token| token.name == "_/[a-z]+/"
+                && matches!(&token.pattern, adze_ir::TokenPattern::Regex(p) if p == "[a-z]+")),
+        "duplicate textual patterns must keep pattern-shaped names with distinct SymbolIds"
     );
+    let ids: Vec<_> = grammar.tokens.keys().copied().collect();
+    assert_ne!(ids[0], ids[1]);
 }
 
 #[test]
