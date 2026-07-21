@@ -4,8 +4,8 @@
 //! and integration scenarios without dealing with the internal complexity.
 
 use crate::{
-    Associativity, ConflictDeclaration, ExternalToken, Grammar, Precedence, PrecedenceKind,
-    ProductionId, Rule, Symbol, SymbolId, Token, TokenPattern,
+    Associativity, ConflictDeclaration, ExternalToken, Grammar, LexicalMetadata, Precedence,
+    PrecedenceKind, ProductionId, Rule, Symbol, SymbolId, Token, TokenPattern,
 };
 use indexmap::IndexMap;
 
@@ -41,6 +41,8 @@ pub struct GrammarBuilder {
     supertypes: Vec<SymbolId>,
     conflicts: Vec<ConflictDeclaration>,
     rule_names: IndexMap<SymbolId, String>,
+    word_token: Option<SymbolId>,
+    lexical_metadata: IndexMap<SymbolId, LexicalMetadata>,
 }
 
 impl GrammarBuilder {
@@ -61,6 +63,8 @@ impl GrammarBuilder {
             supertypes: Vec::new(),
             conflicts: Vec::new(),
             rule_names: IndexMap::new(),
+            word_token: None,
+            lexical_metadata: IndexMap::new(),
         }
     }
 
@@ -271,6 +275,39 @@ impl GrammarBuilder {
         self
     }
 
+    /// Mark the authoritative word token for keyword-versus-identifier resolution.
+    pub fn word_token(mut self, name: &str) -> Self {
+        let id = self.get_or_create_symbol(name);
+        self.word_token = Some(id);
+        self
+    }
+
+    /// Mark a token as immediate (no leading extras before matching).
+    pub fn immediate_token(mut self, name: &str, pattern: &str) -> Self {
+        let symbol_id = self.get_or_create_symbol(name);
+        let token_pattern = if pattern == name {
+            TokenPattern::String(pattern.to_string())
+        } else {
+            TokenPattern::Regex(pattern.to_string())
+        };
+        self.tokens.insert(
+            symbol_id,
+            Token {
+                name: name.to_string(),
+                pattern: token_pattern,
+                fragile: false,
+            },
+        );
+        self.lexical_metadata.insert(
+            symbol_id,
+            LexicalMetadata {
+                immediate: true,
+                lexical_priority: 0,
+            },
+        );
+        self
+    }
+
     /// Build the final grammar
     pub fn build(mut self) -> Grammar {
         // If a start symbol was specified, ensure its rules come first
@@ -303,6 +340,8 @@ impl GrammarBuilder {
             max_alias_sequence_length: 0,
             rule_names: self.rule_names,
             symbol_registry: None,
+            word_token: self.word_token,
+            lexical_metadata: self.lexical_metadata,
         }
     }
 }

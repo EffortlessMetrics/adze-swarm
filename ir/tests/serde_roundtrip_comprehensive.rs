@@ -284,7 +284,8 @@ fn test_grammar_with_word_json_roundtrip() {
         },
     );
 
-    // Tree-sitter uses "word" field; we don't have it in IR but can test grammar persistence
+    // Tree-sitter uses "word" field; IR now preserves it as word_token.
+    grammar.word_token = Some(ident_id);
     grammar
         .rule_names
         .insert(ident_id, "IDENTIFIER".to_string());

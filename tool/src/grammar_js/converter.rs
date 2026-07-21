@@ -3,7 +3,8 @@
 use super::{GrammarJs, Rule as JsRule};
 use adze_ir::{
     Associativity, ConflictDeclaration, ConflictResolution, ExternalToken, FieldId, Grammar,
-    PrecedenceKind, ProductionId, Rule, RuleId, Symbol, SymbolId, Token, TokenPattern,
+    PrecedenceKind, ProductionId, Rule, RuleId, Symbol, SymbolId, TOKEN_WRAPPER_PRIORITY, Token,
+    TokenPattern, validate_token_pattern,
 };
 use anyhow::{Context, Result};
 use indexmap::IndexMap;
@@ -83,10 +84,23 @@ impl GrammarJsConverter {
             max_alias_sequence_length: 0,
             rule_names: IndexMap::new(),
             symbol_registry: None,
+            word_token: None,
+            lexical_metadata: IndexMap::new(),
         };
 
         // First pass: collect all symbols (rules and tokens)
         self.collect_symbols(&mut grammar)?;
+
+        if let Some(word_rule) = &self.grammar_js.word {
+            if let Some(&symbol_id) = self.symbol_names.get(word_rule) {
+                grammar.word_token = Some(symbol_id);
+            } else {
+                anyhow::bail!(
+                    "grammar word token '{}' does not reference an existing rule",
+                    word_rule
+                );
+            }
+        }
 
         // Convert rules to IR rules
         self.convert_rules(&mut grammar)?;
@@ -543,12 +557,13 @@ impl GrammarJsConverter {
 
         let rule = self.grammar_js.rules.get(name)?.clone();
         let token_id = match rule {
-            JsRule::String { value } => {
-                self.get_or_create_token(grammar, &value, TokenPattern::String(value.clone()))
-            }
+            JsRule::String { value } => self
+                .get_or_create_token(grammar, &value, TokenPattern::String(value.clone()))
+                .ok()?,
             JsRule::Pattern { value } => {
                 let token_name = hidden_pattern_token_name(&value);
                 self.get_or_create_token(grammar, &token_name, TokenPattern::Regex(value.clone()))
+                    .ok()?
             }
             _ => return None,
         };
@@ -639,13 +654,24 @@ impl GrammarJsConverter {
         grammar: &mut Grammar,
         name: &str,
         pattern: TokenPattern,
-    ) -> SymbolId {
-        // Check if token already exists
+    ) -> Result<SymbolId> {
+        validate_token_pattern(name, &pattern)
+            .with_context(|| format!("invalid lexical pattern for token '{name}'"))?;
+
         if let Some(&symbol_id) = self.symbol_names.get(name) {
-            return symbol_id;
+            if grammar.tokens.contains_key(&symbol_id) {
+                return Ok(symbol_id);
+            }
+
+            let token = Token {
+                name: name.to_string(),
+                pattern: pattern.clone(),
+                fragile: false,
+            };
+            grammar.tokens.insert(symbol_id, token);
+            return Ok(symbol_id);
         }
 
-        // Create new token
         let symbol_id = SymbolId(self.next_symbol_id.try_into().unwrap());
         self.symbol_names.insert(name.to_string(), symbol_id);
         self.next_symbol_id += 1;
@@ -657,7 +683,7 @@ impl GrammarJsConverter {
         };
         grammar.tokens.insert(symbol_id, token);
 
-        symbol_id
+        Ok(symbol_id)
     }
 }
 

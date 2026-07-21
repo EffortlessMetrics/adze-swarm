@@ -1,5 +1,7 @@
 use super::{GrammarJsConverter, JsRule, hidden_pattern_token_name};
-use adze_ir::{Associativity, Grammar, PrecedenceKind, Symbol, SymbolId, TokenPattern};
+use adze_ir::{
+    Associativity, Grammar, PrecedenceKind, Symbol, SymbolId, TOKEN_WRAPPER_PRIORITY, TokenPattern,
+};
 use anyhow::Result;
 
 impl GrammarJsConverter {
@@ -40,6 +42,20 @@ impl GrammarJsConverter {
                 Some(PrecedenceKind::Static(*value as i16)),
                 Some(Associativity::Right),
             ),
+            JsRule::ImmediateToken { content } => {
+                self.convert_rule_body(grammar, content, lhs)?;
+                if let Some(&token_id) = self.token_symbols.get(&lhs) {
+                    grammar.mark_token_immediate(token_id);
+                }
+                Ok(())
+            }
+            JsRule::Token { content } => {
+                self.convert_rule_body(grammar, content, lhs)?;
+                if let Some(&token_id) = self.token_symbols.get(&lhs) {
+                    grammar.boost_token_lexical_priority(token_id, TOKEN_WRAPPER_PRIORITY);
+                }
+                Ok(())
+            }
             _ => {
                 // For other rule types, add a simple rule.
                 self.add_rule(grammar, lhs, vec![], None, None);
@@ -55,7 +71,7 @@ impl GrammarJsConverter {
         value: &str,
     ) -> Result<()> {
         let token_id =
-            self.get_or_create_token(grammar, value, TokenPattern::String(value.to_string()));
+            self.get_or_create_token(grammar, value, TokenPattern::String(value.to_string()))?;
         self.token_symbols.insert(lhs, token_id);
         self.add_rule(grammar, lhs, vec![Symbol::Terminal(token_id)], None, None);
         Ok(())
@@ -67,9 +83,14 @@ impl GrammarJsConverter {
         lhs: SymbolId,
         value: &str,
     ) -> Result<()> {
-        let token_name = hidden_pattern_token_name(value);
+        let token_name = self
+            .symbol_names
+            .iter()
+            .find(|(_, id)| **id == lhs)
+            .map(|(name, _)| name.clone())
+            .unwrap_or_else(|| hidden_pattern_token_name(value));
         let token_id =
-            self.get_or_create_token(grammar, &token_name, TokenPattern::Regex(value.to_string()));
+            self.get_or_create_token(grammar, &token_name, TokenPattern::Regex(value.to_string()))?;
         self.token_symbols.insert(lhs, token_id);
         self.add_rule(grammar, lhs, vec![Symbol::Terminal(token_id)], None, None);
         Ok(())

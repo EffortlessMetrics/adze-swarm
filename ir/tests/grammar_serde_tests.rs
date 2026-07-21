@@ -550,6 +550,8 @@ fn test_empty_collections_roundtrip() {
         max_alias_sequence_length: 0,
         rule_names: IndexMap::new(),
         symbol_registry: None,
+        word_token: None,
+        lexical_metadata: IndexMap::new(),
     };
 
     let g2 = roundtrip_json(&g);
