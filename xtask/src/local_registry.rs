@@ -25,6 +25,16 @@ pub struct PublishedCrate {
     pub checksum: String,
 }
 
+pub struct LocalCliInstall {
+    pub _install_root: TempDir,
+    pub binary_path: PathBuf,
+}
+
+pub struct StarterProject {
+    pub _parent: TempDir,
+    pub project_dir: PathBuf,
+}
+
 pub struct IsolatedRegistry {
     _root: TempDir,
     cargo_home: TempDir,
@@ -66,11 +76,23 @@ impl IsolatedRegistry {
         })
     }
 
+    pub fn finalize_index(&self) -> Result<()> {
+        Ok(())
+    }
+
     pub fn published_crates(&self) -> &[PublishedCrate] {
         &self.published
     }
 
     pub fn publish_release_graph(
+        &mut self,
+        workspace_root: &Path,
+        ordered_crates: &[String],
+    ) -> Result<()> {
+        self.write_index_entries(workspace_root, ordered_crates)
+    }
+
+    fn write_index_entries(
         &mut self,
         workspace_root: &Path,
         ordered_crates: &[String],
@@ -127,6 +149,125 @@ impl IsolatedRegistry {
         finalize_git_index(&self.index_dir)?;
         Ok(())
     }
+
+    pub fn install_cli(&self, cli_crate: &str, bin: &str, version: &str) -> Result<LocalCliInstall> {
+        let published = self
+            .published_crates()
+            .iter()
+            .find(|published| published.name == cli_crate)
+            .with_context(|| format!("CLI crate `{cli_crate}` was not published to {REGISTRY_NAME}"))?;
+        if published.version != version {
+            bail!(
+                "CLI crate `{cli_crate}` was published as {} but install requested {version}",
+                published.version
+            );
+        }
+
+        let install_root = tempfile::Builder::new()
+            .prefix("adze-local-install-root-")
+            .tempdir()
+            .context("creating temporary cargo install root")?;
+        let index_url = path_to_file_url(&self.index_dir)?;
+        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
+        let status = Command::new(cargo)
+            .args([
+                "install",
+                "--index",
+                &index_url,
+                cli_crate,
+                "--bin",
+                bin,
+                "--version",
+                version,
+                "--root",
+            ])
+            .arg(install_root.path())
+            .env("CARGO_HOME", self.cargo_home.path())
+            .env("CARGO_TARGET_DIR", self.target_dir.path())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .with_context(|| format!("installing `{cli_crate}` from {REGISTRY_NAME}"))?;
+        if !status.success() {
+            bail!("cargo install `{cli_crate}` from {REGISTRY_NAME} failed with status {status}");
+        }
+
+        let binary_path = installed_binary_path(install_root.path(), bin);
+        if !binary_path.is_file() {
+            bail!(
+                "expected installed binary `{}` was not created",
+                binary_path.display()
+            );
+        }
+
+        Ok(LocalCliInstall {
+            _install_root: install_root,
+            binary_path,
+        })
+    }
+
+    pub fn init_starter_project(
+        &self,
+        adze_binary: &Path,
+        workspace_root: &Path,
+        project_name: &str,
+    ) -> Result<StarterProject> {
+        let parent = tempfile::Builder::new()
+            .prefix("adze-local-starter-")
+            .tempdir()
+            .context("creating starter project parent directory")?;
+        let parent_path = fs::canonicalize(parent.path())
+            .with_context(|| format!("canonicalizing {}", parent.path().display()))?;
+        let workspace_root = fs::canonicalize(workspace_root)
+            .with_context(|| format!("canonicalizing {}", workspace_root.display()))?;
+        if parent_path.starts_with(&workspace_root) {
+            bail!("starter project parent must be outside the source workspace");
+        }
+
+        let status = Command::new(adze_binary)
+            .args(["init", project_name, "--output"])
+            .arg(&parent_path)
+            .env("CARGO_HOME", self.cargo_home.path())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .with_context(|| format!("running `{}` init", adze_binary.display()))?;
+        if !status.success() {
+            bail!(
+                "`{}` init {project_name} failed with status {status}",
+                adze_binary.display()
+            );
+        }
+
+        let project_dir = parent_path.join(project_name);
+        if !project_dir.join("Cargo.toml").is_file() {
+            bail!(
+                "expected generated starter at {} was not created",
+                project_dir.display()
+            );
+        }
+        let manifest =
+            fs::read_to_string(project_dir.join("Cargo.toml")).with_context(|| {
+                format!("reading generated {}", project_dir.join("Cargo.toml").display())
+            })?;
+        if manifest_contains_path_dependency(&manifest) {
+            bail!(
+                "generated starter at {} still resolves path dependencies; expected registry versions",
+                project_dir.display()
+            );
+        }
+
+        Ok(StarterProject {
+            _parent: parent,
+            project_dir,
+        })
+    }
+}
+
+fn installed_binary_path(root: &Path, bin_name: &str) -> PathBuf {
+    let mut binary = bin_name.to_owned();
+    binary.push_str(std::env::consts::EXE_SUFFIX);
+    root.join("bin").join(binary)
 }
 
 fn write_registry_config(
@@ -150,7 +291,7 @@ index = "{index_url}"
         dl_url = dl_url
     );
     fs::write(index_dir.join("config.json"), config_json)
-        .context("writing sparse registry config.json")?;
+        .context("writing registry config.json")?;
     Ok(())
 }
 
