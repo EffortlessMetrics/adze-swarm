@@ -1,6 +1,7 @@
 //! Public driver that runs the GLR engine and returns a trait-object forest.
 
 use crate::debug_trace;
+use crate::lexical_commitment::{CandidateOrigin, TokenCandidate, select_global_lexical_candidate};
 use crate::forest_view::{Forest, ForestView, Span};
 use crate::parse_forest::{ForestAlternative, ForestNode, ParseForest};
 use crate::{Action, ParseTable, RuleId, StateId, SymbolId};
@@ -210,16 +211,33 @@ impl<'t> Driver<'t> {
                     }
                 }
 
-                // Choose best candidate (longest match, prefer actionable, then lowest symbol)
+                // Choose best candidate using the documented global lexical commitment policy (#928)
                 if candidates.is_empty() {
-                    // No valid token - this is an error
                     return Err(GlrError::Parse(format!(
                         "cannot lex at byte {}: no valid tokens",
                         pos
                     )));
                 }
 
-                self.pick_best_candidate(&candidates, &state.stacks)?
+                let stack_tops: Vec<StateId> = state
+                    .stacks
+                    .iter()
+                    .filter_map(|stk| stk.top_state().ok())
+                    .collect();
+                let token_candidates: Vec<TokenCandidate> = candidates
+                    .iter()
+                    .map(|(token, is_external)| TokenCandidate {
+                        token: *token,
+                        origin: if *is_external {
+                            CandidateOrigin::External
+                        } else {
+                            CandidateOrigin::Internal
+                        },
+                    })
+                    .collect();
+
+                select_global_lexical_candidate(self.tables, &token_candidates, &stack_tops)?
+                    .token
             };
 
             // Process this token through the GLR parser
@@ -383,54 +401,6 @@ impl<'t> Driver<'t> {
         Err(GlrError::Parse(
             "input not accepted: no valid parse".to_string(),
         ))
-    }
-
-    /// Pick the best token candidate based on Tree-sitter's rules
-    fn pick_best_candidate(
-        &self,
-        candidates: &[(crate::ts_lexer::NextToken, bool)],
-        stacks: &[ParseStack],
-    ) -> Result<crate::ts_lexer::NextToken, GlrError> {
-        let mut best: Option<(crate::ts_lexer::NextToken, bool)> = None;
-
-        for &(ref tok, is_ext) in candidates {
-            if let Some((ref b, _)) = best {
-                let b_len = (b.end - b.start) as i64;
-                let t_len = (tok.end - tok.start) as i64;
-
-                // Longest match wins
-                if t_len < b_len {
-                    continue;
-                }
-                if t_len == b_len {
-                    // Prefer tokens that have actions in at least one stack
-                    let t_ok = self.has_action_for_any_stack(tok.kind, stacks);
-                    if !t_ok {
-                        continue;
-                    }
-                    // Final tie-break: smaller symbol id
-                    if tok.kind >= b.kind {
-                        continue;
-                    }
-                }
-            }
-            best = Some((*tok, is_ext));
-        }
-
-        best.map(|(t, _)| t)
-            .ok_or_else(|| GlrError::Parse("no valid token candidate".to_string()))
-    }
-
-    /// Check if any stack has an action for this symbol
-    #[must_use]
-    fn has_action_for_any_stack(&self, kind: u32, stacks: &[ParseStack]) -> bool {
-        let sym = SymbolId(kind as u16);
-        stacks.iter().any(|stk| {
-            stk.top_state()
-                .ok()
-                .map(|top| !self.tables.actions(top, sym).is_empty())
-                .unwrap_or(false)
-        })
     }
 
     fn push_limited_stack(
