@@ -2,6 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+RELEASE_GRAPH_ARTIFACT="${RELEASE_GRAPH_ARTIFACT:-${ROOT_DIR}/policy/release-graph.toml}"
 RELEASE_CRATE_FILE="${RELEASE_CRATE_FILE:-${SCRIPT_DIR}/release-crates.txt}"
 RELEASE_SURFACE_MODE="${RELEASE_SURFACE_MODE:-fixed}"
 RELEASE_CRATE_SYNC="${RELEASE_CRATE_SYNC:-0}"
@@ -11,11 +13,12 @@ usage() {
 Usage: release-surface.sh [--mode fixed|auto] [--sync]
 
 Modes:
-  fixed   Read crates from RELEASE_CRATE_FILE (default: scripts/release-crates.txt)
+  fixed   Read crates from policy/release-graph.toml via xtask (default)
   auto    Recompute publishable crates from workspace metadata and topo-sort them
 
 Options:
-  --sync  In auto mode, write the computed order back to RELEASE_CRATE_FILE.
+  --sync  Write the committed release graph order to RELEASE_CRATE_FILE
+          (default: scripts/release-crates.txt).
 EOF
 }
 
@@ -58,22 +61,23 @@ case "${RELEASE_SURFACE_MODE,,}" in
     ;;
 esac
 
-emit_fixed_crates() {
-  if [[ ! -f "$RELEASE_CRATE_FILE" ]]; then
-    echo "::error::Missing allowlist file: ${RELEASE_CRATE_FILE}" >&2
+emit_graph_crates() {
+  if [[ ! -f "$RELEASE_GRAPH_ARTIFACT" ]]; then
+    echo "::error::Missing release graph artifact: ${RELEASE_GRAPH_ARTIFACT}" >&2
+    echo "::error::Run \`cargo xtask generate-release-graph\`." >&2
     exit 1
   fi
 
-  mapfile -t crates < <(awk 'NF && $1 !~ /^#/ {print $1}' "$RELEASE_CRATE_FILE")
+  mapfile -t crates < <("${SCRIPT_DIR}/release-graph-crates.sh")
   if [[ ${#crates[@]} -eq 0 ]]; then
-    echo "::error::Allowlist is empty: ${RELEASE_CRATE_FILE}" >&2
+    echo "::error::Release graph is empty: ${RELEASE_GRAPH_ARTIFACT}" >&2
     exit 1
   fi
 
   declare -A seen=()
   for crate in "${crates[@]}"; do
     if [[ -n "${seen[$crate]+x}" ]]; then
-      echo "::error::Duplicate crate in allowlist: ${crate}" >&2
+      echo "::error::Duplicate crate in release graph: ${crate}" >&2
       exit 1
     fi
     seen["$crate"]=1
@@ -163,7 +167,7 @@ PY
 }
 
 if [[ "$RELEASE_SURFACE_MODE" == "fixed" ]]; then
-  emit_fixed_crates
+  mapfile -t CRATES_TO_PUBLISH < <(emit_graph_crates)
 else
   auto_surface_tmp="$(mktemp)"
   if ! emit_auto_crates >"$auto_surface_tmp"; then
@@ -175,18 +179,12 @@ else
 fi
 
 if [[ "${RELEASE_CRATE_SYNC}" == "1" || "${RELEASE_CRATE_SYNC,,}" == "true" ]]; then
-  if [[ "$RELEASE_SURFACE_MODE" != "auto" ]]; then
-    echo "::warning::RELEASE_CRATE_SYNC is only used in auto mode; ignoring." >&2
-  else
-    if [[ "${RELEASE_CRATE_FILE}" != "" ]]; then
-      {
-        echo "# Auto-generated release surface from workspace metadata (publishable crates only)."
-        printf '%s\n' "${CRATES_TO_PUBLISH[@]}"
-      } > "$RELEASE_CRATE_FILE"
-    fi
-  fi
+  {
+    echo "# Generated from policy/release-graph.toml. Do not hand-edit."
+    echo "# Regenerate: cargo xtask generate-release-graph"
+    echo
+    printf '%s\n' "${CRATES_TO_PUBLISH[@]}"
+  } > "$RELEASE_CRATE_FILE"
 fi
 
-if [[ "$RELEASE_SURFACE_MODE" == "auto" ]]; then
-  printf '%s\n' "${CRATES_TO_PUBLISH[@]}"
-fi
+printf '%s\n' "${CRATES_TO_PUBLISH[@]}"

@@ -4,17 +4,11 @@
 #
 # CANONICAL publishability check. This is the script wired into
 # `just check-publishable` and referenced by docs/reference/PUBLISH_CHECKLIST.md.
-# It tracks the current 8-crate publish set (see CORE_CRATES below, incl.
-# adze-cli). Two earlier overlapping variants — check-publish-ready.sh and
-# check-publish-readiness.sh — were removed in the #847 DevEx triage: both
-# carried crate lists out of sync with the publish contract (each omitted
-# adze-cli; check-publish-readiness.sh additionally listed runtime2:adze-runtime,
-# which is intentionally excluded from publishing as an experimental proving
-# ground — see docs/status/SUPPORT_TIERS.md), and neither was wired to any
-# tooling. MSRV consistency is covered separately by `just check-msrv`.
+# Crate order and membership come from policy/release-graph.toml via
+# scripts/release-graph-crates.sh (see `cargo xtask check-release-graph`).
 #
 # Usage:
-#   ./scripts/check-publish.sh          # Check all core crates
+#   ./scripts/check-publish.sh          # Check all release-graph crates
 #   ./scripts/check-publish.sh adze-ir  # Check a single crate
 #
 # Exit codes:
@@ -23,29 +17,21 @@
 
 set -euo pipefail
 
-# Publish order (dependency-first)
-CORE_CRATES=(
-  adze-common
-  adze-ir
-  adze-glr-core
-  adze-tablegen
-  adze-macro
-  adze-tool
-  adze-cli
-  adze
-)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Map crate name -> directory
-declare -A CRATE_DIR=(
-  [adze-common]=common
-  [adze-ir]=ir
-  [adze-glr-core]=glr-core
-  [adze-tablegen]=tablegen
-  [adze-macro]=macro
-  [adze-tool]=tool
-  [adze-cli]=cli
-  [adze]=runtime
-)
+mapfile -t CORE_CRATES < <("${SCRIPT_DIR}/release-graph-crates.sh")
+if [[ ${#CORE_CRATES[@]} -eq 0 ]]; then
+  echo "No release-graph crates found. Run \`cargo xtask generate-release-graph\`." >&2
+  exit 1
+fi
+
+METADATA_JSON="$(cargo metadata --no-deps --format-version 1)"
+declare -A CRATE_DIR=()
+while IFS=$'\t' read -r crate manifest_path; do
+  [[ -z "$crate" ]] && continue
+  CRATE_DIR["$crate"]="$(dirname "$manifest_path")"
+done < <(jq -r '.packages[] | "\(.name)\t\(.manifest_path)"' <<<"$METADATA_JSON")
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -56,11 +42,20 @@ ERRORS=0
 
 check_crate() {
   local crate="$1"
-  local dir="${CRATE_DIR[$crate]}"
-  local manifest="$dir/Cargo.toml"
+  local dir="${CRATE_DIR[$crate]:-}"
+  local manifest
 
   echo ""
-  echo "━━━ Checking $crate ($dir/) ━━━"
+  echo "━━━ Checking $crate ━━━"
+
+  if [[ -z "$dir" ]]; then
+    echo -e "  ${RED}FAIL${NC} crate not found in workspace metadata"
+    ((ERRORS++))
+    return
+  fi
+
+  manifest="${dir}/Cargo.toml"
+  echo "  path: ${dir#${ROOT_DIR}/}/"
 
   # 1. Cargo.toml exists
   if [[ ! -f "$manifest" ]]; then
@@ -124,6 +119,7 @@ if [[ $# -ge 1 ]]; then
   check_crate "$1"
 else
   echo "=== Adze publish readiness check ==="
+  echo "Authority: policy/release-graph.toml"
   echo ""
   echo "Publish order:"
   for i in "${!CORE_CRATES[@]}"; do
