@@ -117,7 +117,10 @@ impl LanguageBuilder {
             lex_modes: std::ptr::null(),
             lex_fn: None,
             keyword_lex_fn: None,
-            keyword_capture_token: 0,
+            keyword_capture_token: crate::lexical_abi::keyword_capture_index(
+                &self.grammar,
+                &self.parse_table.symbol_to_index,
+            ),
             external_scanner_data: crate::validation::TSExternalScannerData {
                 states: std::ptr::null(),
                 symbol_map: std::ptr::null(),

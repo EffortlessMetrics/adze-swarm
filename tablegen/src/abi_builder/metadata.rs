@@ -1,5 +1,5 @@
 use super::AbiLanguageBuilder;
-use crate::abi::create_symbol_metadata;
+use crate::lexical_abi::symbol_metadata_byte;
 use adze_ir::{Symbol, SymbolId, TokenPattern};
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -59,7 +59,8 @@ impl<'a> AbiLanguageBuilder<'a> {
             if let Some(symbol_id) = symbol_id_opt {
                 if *symbol_id == self.parse_table.eof_symbol {
                     // EOF symbol
-                    let meta_byte = create_symbol_metadata(true, false, false, false, false);
+                    let meta_byte =
+                        symbol_metadata_byte(self.grammar, *symbol_id, true, false, false, false);
                     debug_trace!("    Index {}: EOF, metadata={:#x}", idx, meta_byte);
                     metadata.push(quote! { #meta_byte });
                 } else if let Some(token) = self.grammar.tokens.get(symbol_id) {
@@ -89,7 +90,14 @@ impl<'a> AbiLanguageBuilder<'a> {
                     // Force whitespace tokens to be hidden
                     let hidden = extra_tokens.contains(symbol_id) || is_whitespace_token;
 
-                    let meta_byte = create_symbol_metadata(visible, named, hidden, false, false);
+                    let meta_byte = symbol_metadata_byte(
+                        self.grammar,
+                        *symbol_id,
+                        visible,
+                        named,
+                        hidden,
+                        false,
+                    );
                     debug_trace!(
                         "    Index {}: Token {} (id={:?}): visible={}, named={}, hidden={}, metadata={:#x}",
                         idx,
@@ -113,8 +121,14 @@ impl<'a> AbiLanguageBuilder<'a> {
                     let named = visible;
                     let hidden = false; // Non-terminals are never hidden
                     let supertype = self.grammar.supertypes.contains(symbol_id);
-                    let meta_byte =
-                        create_symbol_metadata(visible, named, hidden, false, supertype);
+                    let meta_byte = symbol_metadata_byte(
+                        self.grammar,
+                        *symbol_id,
+                        visible,
+                        named,
+                        hidden,
+                        supertype,
+                    );
                     debug_trace!(
                         "    Index {}: Non-terminal {} (id={:?}): visible={}, named={}, supertype={}, metadata={:#x}",
                         idx,
@@ -135,7 +149,14 @@ impl<'a> AbiLanguageBuilder<'a> {
                     // External token
                     let visible = !external.name.starts_with('_');
                     let named = visible;
-                    let meta_byte = create_symbol_metadata(visible, named, false, false, false);
+                    let meta_byte = symbol_metadata_byte(
+                        self.grammar,
+                        *symbol_id,
+                        visible,
+                        named,
+                        false,
+                        false,
+                    );
                     debug_trace!(
                         "    Index {}: External {} (id={:?}): visible={}, named={}, metadata={:#x}",
                         idx,
