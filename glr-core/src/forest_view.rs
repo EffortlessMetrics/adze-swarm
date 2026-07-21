@@ -57,9 +57,8 @@ impl Forest {
 
     /// Wrap a constructed [`ParseForest`] for adapter/unit tests (#930).
     ///
-    /// Not part of the supported runtime surface; available only with
-    /// `test-api` / `test_helpers` or inside this crate's tests.
-    #[cfg(any(test, feature = "test-api", feature = "test_helpers"))]
+    /// Not part of the supported runtime surface; intended for constructed-forest
+    /// proof and harnesses only.
     pub fn from_parse_forest_for_test(forest: crate::parse_forest::ParseForest) -> Self {
         crate::driver::Driver::wrap_forest(forest)
     }

@@ -83,8 +83,6 @@ glr-test-support = { path = "../glr-test-support" }
 adze-example = { path = "../example" }
 adze-python-simple = { path = "../grammars/python-simple" }
 adze-python = { path = "../grammars/python" }
-# Enables Forest::from_parse_forest_for_test for #930 constructed-forest adapter proof.
-adze-glr-core = { version = "0.9.0", path = "../glr-core", features = ["test-api"] }
 
 [[bench]]
 name = "simple_bench"
