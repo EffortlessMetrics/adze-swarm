@@ -15,6 +15,8 @@ mod goto_run_codec;
 mod test_helpers;
 mod util;
 
+mod conflict_abi;
+
 #[cfg(test)]
 pub use crate::test_helpers::test::{make_empty_table, make_minimal_table};
 

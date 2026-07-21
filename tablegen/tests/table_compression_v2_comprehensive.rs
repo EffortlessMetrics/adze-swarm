@@ -805,7 +805,7 @@ fn t59_compress_action_table_accept_preserved() {
 }
 
 #[test]
-fn t60_compress_action_table_fork_treated_as_error() {
+fn t60_compress_action_table_fork_flattens_to_leaf_actions() {
     let c = TableCompressor::new();
     let at = vec![vec![vec![Action::Fork(vec![
         Action::Shift(StateId(1)),
@@ -813,8 +813,9 @@ fn t60_compress_action_table_fork_treated_as_error() {
     ])]]];
     let s2i = BTreeMap::new();
     let res = c.compress_action_table_small(&at, &s2i).unwrap();
-    // Fork actions are kept (not treated as Error in compress_action_table_small)
-    assert_eq!(res.data.len(), 1);
+    assert_eq!(res.data.len(), 2);
+    assert_eq!(res.data[0].action, Action::Shift(StateId(1)));
+    assert_eq!(res.data[1].action, Action::Reduce(RuleId(0)));
 }
 
 #[test]
@@ -916,12 +917,12 @@ fn t71_encode_action_small_reduce_max_valid() {
 }
 
 #[test]
-fn t72_encode_action_small_fork_treated_as_error() {
+fn t72_encode_action_small_fork_requires_flattening() {
     let c = TableCompressor::new();
-    let v = c
-        .encode_action_small(&Action::Fork(vec![Action::Shift(StateId(1))]))
-        .unwrap();
-    assert_eq!(v, 0xFFFE);
+    assert!(
+        c.encode_action_small(&Action::Fork(vec![Action::Shift(StateId(1))]))
+            .is_err()
+    );
 }
 
 // ============================================================================

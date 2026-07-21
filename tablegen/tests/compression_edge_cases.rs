@@ -502,12 +502,10 @@ fn small_table_skips_error_actions() {
 // ── 15. Fork action encoding in small tables ────────────────────────────────
 
 #[test]
-fn encode_fork_action_small_maps_to_error() {
+fn encode_fork_action_small_requires_flattening() {
     let compressor = TableCompressor::new();
     let fork = Action::Fork(vec![Action::Shift(StateId(1)), Action::Reduce(RuleId(0))]);
-    let encoded = compressor.encode_action_small(&fork).unwrap();
-    // Fork is encoded as error sentinel in small table mode.
-    assert_eq!(encoded, 0xFFFE);
+    assert!(compressor.encode_action_small(&fork).is_err());
 }
 
 // ── 16. BitPackedActionTable roundtrip ──────────────────────────────────────

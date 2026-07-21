@@ -145,11 +145,10 @@ fn encode_accept_and_error_and_recover() {
 }
 
 #[test]
-fn encode_fork_treated_as_error() {
+fn encode_fork_requires_flattening() {
     let tc = TableCompressor::new();
     let fork = Action::Fork(vec![Action::Shift(StateId(1)), Action::Reduce(RuleId(0))]);
-    // Fork is treated as error in small table encoding
-    assert_eq!(tc.encode_action_small(&fork).unwrap(), 0xFFFE);
+    assert!(tc.encode_action_small(&fork).is_err());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

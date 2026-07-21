@@ -160,7 +160,11 @@ pub fn cell_has_conflict(actions: &[Action]) -> bool {
     effective_actions(actions).len() > 1
 }
 
-fn effective_actions(actions: &[Action]) -> Vec<Action> {
+/// Flatten `Action::Fork` wrappers into the leaf actions used for GLR branching.
+///
+/// Duplicate leaf actions are removed while preserving first-seen order.
+#[must_use]
+pub fn effective_actions(actions: &[Action]) -> Vec<Action> {
     let mut flattened = Vec::new();
     collect_effective_actions(actions, &mut flattened);
     flattened

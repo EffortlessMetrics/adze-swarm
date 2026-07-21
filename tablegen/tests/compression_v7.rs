@@ -725,10 +725,8 @@ fn compress_edge_bitpack_65th_cell() {
 }
 
 #[test]
-fn compress_edge_fork_action_encode_small() {
+fn compress_edge_fork_action_requires_flattening() {
     let tc = TableCompressor::new();
     let fork = Action::Fork(vec![Action::Shift(StateId(1)), Action::Reduce(RuleId(0))]);
-    // Fork is encoded as error (0xFFFE) in small table mode
-    let v = tc.encode_action_small(&fork).unwrap();
-    assert_eq!(v, 0xFFFE);
+    assert!(tc.encode_action_small(&fork).is_err());
 }

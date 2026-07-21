@@ -278,10 +278,10 @@ fn tc_encode_recover() {
 }
 
 #[test]
-fn tc_encode_fork_falls_back_to_error() {
+fn tc_encode_fork_requires_flattening() {
     let tc = TableCompressor::new();
     let fork = Action::Fork(vec![Action::Shift(StateId(1)), Action::Reduce(RuleId(0))]);
-    assert_eq!(tc.encode_action_small(&fork).unwrap(), 0xFFFE);
+    assert!(tc.encode_action_small(&fork).is_err());
 }
 
 // =============================================================================

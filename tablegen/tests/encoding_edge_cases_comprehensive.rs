@@ -224,11 +224,10 @@ fn sentinels_are_all_distinct() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-fn encode_fork_maps_to_error_sentinel() {
+fn encode_fork_requires_flattening() {
     let tc = TableCompressor::new();
     let fork = Action::Fork(vec![Action::Shift(StateId(1)), Action::Reduce(RuleId(0))]);
-    let encoded = tc.encode_action_small(&fork).unwrap();
-    assert_eq!(encoded, 0xFFFE);
+    assert!(tc.encode_action_small(&fork).is_err());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
