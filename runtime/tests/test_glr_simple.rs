@@ -219,6 +219,8 @@ fn test_glr_ambiguity() {
         fields: vec![],
     });
 
+    grammar.set_start_symbol(e_id);
+
     // Build parse table
     let first_follow = FirstFollowSets::compute(&grammar).unwrap();
     let parse_table = build_lr1_automaton(&grammar, &first_follow).unwrap();
