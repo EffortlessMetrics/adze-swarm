@@ -8,12 +8,16 @@ use serde_json::json;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
-fn write_temp_grammar(contents: &str) -> PathBuf {
+struct TempGrammar {
+    _dir: TempDir,
+    path: PathBuf,
+}
+
+fn write_temp_grammar(contents: &str) -> TempGrammar {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("grammar.rs");
     std::fs::write(&path, contents).expect("write grammar");
-    std::mem::forget(dir);
-    path
+    TempGrammar { _dir: dir, path }
 }
 
 fn build_with_default_options(
@@ -29,8 +33,8 @@ fn build_with_default_options(
 }
 
 #[test]
-fn two_grammar_modules_keep_independent_explicit_starts() {
-    let path = write_temp_grammar(
+fn test_two_grammar_modules_with_adversarial_names_keep_independent_explicit_starts() {
+    let fixture = write_temp_grammar(
         r##"
         #[adze::grammar("root9_mod")]
         pub mod grammar_a {
@@ -52,7 +56,7 @@ fn two_grammar_modules_keep_independent_explicit_starts() {
         "##,
     );
 
-    let grammars = generate_grammars(&path).expect("generate grammars");
+    let grammars = generate_grammars(fixture.path.as_path()).expect("generate grammars");
     assert_eq!(grammars.len(), 2);
 
     let starts: Vec<_> = grammars
@@ -64,8 +68,8 @@ fn two_grammar_modules_keep_independent_explicit_starts() {
 }
 
 #[test]
-fn extraction_pipeline_preserves_overlapping_token_wrapper_relations() {
-    let path = write_temp_grammar(
+fn test_extraction_pipeline_with_overlapping_tokens_preserves_wrapper_relations() {
+    let fixture = write_temp_grammar(
         r##"
         #[adze::grammar("overlap")]
         pub mod grammar {
@@ -82,7 +86,7 @@ fn extraction_pipeline_preserves_overlapping_token_wrapper_relations() {
         "##,
     );
 
-    let grammars = generate_grammars(&path).expect("generate grammars");
+    let grammars = generate_grammars(fixture.path.as_path()).expect("generate grammars");
     assert_eq!(grammars[0]["start_symbol"].as_str(), Some("Root9"));
 
     let relations = grammars[0]["wrapper_token_relations"]
@@ -102,7 +106,7 @@ fn extraction_pipeline_preserves_overlapping_token_wrapper_relations() {
 }
 
 #[test]
-fn imported_underscore_helper_before_explicit_start() {
+fn test_imported_underscore_helper_before_explicit_start_resolves_root9() {
     let value = json!({
         "name": "imported",
         "start_symbol": "Root9",
@@ -124,7 +128,7 @@ fn imported_underscore_helper_before_explicit_start() {
 }
 
 #[test]
-fn adversarial_overlap_build_uses_explicit_wrapper_relations() {
+fn test_adversarial_overlap_with_explicit_relations_builds_states() {
     let grammar = GrammarBuilder::new("overlap_build")
         .token("id", "id")
         .token("identifier", r"[a-zA-Z_][a-zA-Z0-9_]*")

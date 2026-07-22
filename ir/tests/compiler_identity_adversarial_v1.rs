@@ -28,7 +28,7 @@ fn shuffle_rule_map(grammar: &mut Grammar, seed: u64) {
 }
 
 #[test]
-fn root9_explicit_start_beats_legacy_name_heuristics() {
+fn test_start_symbol_with_legacy_names_returns_root9() {
     let mut grammar = Grammar::new("adversarial".to_string());
     let source_id = SymbolId(10);
     let expression_id = SymbolId(11);
@@ -55,7 +55,7 @@ fn root9_explicit_start_beats_legacy_name_heuristics() {
 }
 
 #[test]
-fn explicit_start_survives_adversarial_rule_map_shuffles() {
+fn test_start_symbol_under_rule_shuffle_stays_root9() {
     let grammar = GrammarBuilder::new("shuffle")
         .token("t", "t")
         .rule("noise_a", vec!["t"])
@@ -77,7 +77,7 @@ fn explicit_start_survives_adversarial_rule_map_shuffles() {
 }
 
 #[test]
-fn overlapping_token_names_use_explicit_wrapper_relations() {
+fn test_wrapper_relations_with_overlapping_tokens_match_explicit() {
     let grammar = GrammarBuilder::new("overlap")
         .token("id", "id")
         .token("identifier", r"[a-zA-Z_][a-zA-Z0-9_]*")
@@ -125,7 +125,7 @@ fn overlapping_token_names_use_explicit_wrapper_relations() {
 }
 
 #[test]
-fn misleading_numeric_wrapper_names_use_explicit_relations() {
+fn test_wrapper_relations_with_misleading_names_match_explicit() {
     let grammar = GrammarBuilder::new("numeric_names")
         .token("letters", r"[A-Za-z]+")
         .token("digits", r"[0-9]+")
@@ -159,7 +159,7 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(16))]
 
     #[test]
-    fn explicit_start_is_invariant_under_rule_map_permutation(seed in any::<u64>()) {
+    fn test_start_symbol_under_proptest_shuffle_stays_root9(seed in any::<u64>()) {
         let grammar = GrammarBuilder::new("prop_shuffle")
             .token("t", "t")
             .rule("helper", vec!["t"])
