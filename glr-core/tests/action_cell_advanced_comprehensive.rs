@@ -41,6 +41,7 @@ fn raw_grammar_s_a() -> Grammar {
             production_id: ProductionId(0),
         }],
     );
+    g.set_start_symbol(s);
     g
 }
 
@@ -78,6 +79,7 @@ fn raw_grammar_s_ab() -> Grammar {
             production_id: ProductionId(0),
         }],
     );
+    g.set_start_symbol(s);
     g
 }
 
@@ -129,6 +131,7 @@ fn raw_grammar_sr_conflict() -> Grammar {
             },
         ],
     );
+    g.set_start_symbol(e);
     g
 }
 
@@ -193,6 +196,7 @@ fn raw_grammar_rr_conflict() -> Grammar {
             production_id: ProductionId(3),
         }],
     );
+    g.set_start_symbol(s);
     g
 }
 
