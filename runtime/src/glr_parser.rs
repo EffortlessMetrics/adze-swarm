@@ -311,6 +311,12 @@ impl GLRParser {
     /// This is the LHS of the first production (production_id 0), or the grammar's start symbol
     #[inline]
     pub fn start_symbol_id(&self) -> SymbolId {
+        if let Some(explicit) = self.grammar.explicit_start_symbol() {
+            return explicit;
+        }
+        if self.table.start_symbol.0 != 0 {
+            return self.table.start_symbol;
+        }
         self.grammar
             .rules
             .values()

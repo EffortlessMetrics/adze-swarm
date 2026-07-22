@@ -6,6 +6,7 @@
 
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::{Grammar, SymbolId};
 
@@ -54,6 +55,26 @@ impl Grammar {
             .collect();
         relations.sort_by_key(|relation| relation.wrapper.0);
         relations
+    }
+}
+
+/// Remap explicit compiler-identity fields after symbol renumbering.
+pub fn remap_compiler_identity(grammar: &mut Grammar, old_to_new: &HashMap<SymbolId, SymbolId>) {
+    if let Some(start) = grammar.start_symbol
+        && let Some(&new_start) = old_to_new.get(&start)
+    {
+        grammar.start_symbol = Some(new_start);
+    }
+
+    let relations = std::mem::take(&mut grammar.wrapper_token_relations);
+    for (wrapper, token) in relations {
+        if let (Some(&new_wrapper), Some(&new_token)) =
+            (old_to_new.get(&wrapper), old_to_new.get(&token))
+        {
+            grammar
+                .wrapper_token_relations
+                .insert(new_wrapper, new_token);
+        }
     }
 }
 

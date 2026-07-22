@@ -117,6 +117,7 @@ pub fn decode_parse_table(lang: &'static TSLanguage) -> ParseTable {
     grammar.extras = extras.clone();
     let alias_sequences = decode_alias_sequences(lang, &index_to_symbol);
     let start_symbol = select_start_symbol(lang, tcols, &rules);
+    grammar.set_start_symbol(start_symbol);
 
     let mut table = ParseTable {
         action_table,
