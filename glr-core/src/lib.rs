@@ -62,6 +62,7 @@ pub use error::Result as GlrResult;
 pub use GLRError as GlrError;
 
 mod action_utils;
+mod grammar_start;
 
 /// Conflict inspection API for analyzing GLR parse table conflicts
 pub mod conflict_inspection;

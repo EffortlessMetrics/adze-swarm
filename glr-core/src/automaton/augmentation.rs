@@ -13,12 +13,9 @@ pub(super) fn augment_grammar(
 ) -> Result<AugmentedGrammar, GLRError> {
     let mut augmented_grammar = grammar.clone();
 
-    let original_start =
-        grammar
-            .start_symbol()
-            .ok_or(GLRError::GrammarError(GrammarError::UnresolvedSymbol(
-                SymbolId(0),
-            )))?;
+    let original_start = crate::grammar_start::analysis_start_symbol(grammar).ok_or(
+        GLRError::GrammarError(GrammarError::UnresolvedSymbol(SymbolId(0))),
+    )?;
 
     let augmented_start_id = max_symbol.checked_add(2).ok_or_else(|| {
         GLRError::StateMachine(

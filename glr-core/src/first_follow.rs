@@ -137,7 +137,7 @@ impl<'grammar> FirstFollowBuilder<'grammar> {
     }
 
     fn seed_start_follow_set(&mut self) {
-        if let Some(start_symbol) = self.grammar.start_symbol()
+        if let Some(start_symbol) = crate::grammar_start::analysis_start_symbol(self.grammar)
             && let Some(follow_set) = self.follow.get_mut(&start_symbol)
         {
             follow_set.insert(0); // EOF symbol
