@@ -69,6 +69,7 @@ fn number_add_grammar() -> Grammar {
     });
 
     g.rule_names.insert(expr, "expression".into());
+    g.set_start_symbol(expr);
     g
 }
 
@@ -171,6 +172,7 @@ fn stress_different_grammars_same_input() {
         fields: vec![],
     });
     ga.rule_names.insert(ea, "expr".into());
+    ga.set_start_symbol(ea);
 
     // Grammar B: expr → number | number '+' number
     let mut gb = Grammar::new("b".into());
@@ -212,6 +214,7 @@ fn stress_different_grammars_same_input() {
         fields: vec![],
     });
     gb.rule_names.insert(eb, "expr".into());
+    gb.set_start_symbol(eb);
 
     let parser_a = build_parser(&ga);
     assert!(

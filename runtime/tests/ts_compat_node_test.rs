@@ -40,6 +40,8 @@ mod ts_compat_tests {
         grammar.rule_names.insert(expr_id, "expression".to_string());
         grammar.rule_names.insert(number_id, "number".to_string());
 
+        grammar.set_start_symbol(expr_id);
+
         // Build the parse table using the GLR core
         let first_follow_sets = FirstFollowSets::compute(&grammar).unwrap();
         let parse_table = build_lr1_automaton(&grammar, &first_follow_sets).unwrap();

@@ -386,7 +386,7 @@ fn rule_names_empty_grammar_returns_none() {
 }
 
 #[test]
-fn start_symbol_prefers_source_file() {
+fn source_file_without_explicit_start_is_not_inferred() {
     let mut g = Grammar::new("start".to_string());
     let sf_id = SymbolId(10);
     g.rule_names.insert(sf_id, "source_file".into());
@@ -398,7 +398,7 @@ fn start_symbol_prefers_source_file() {
         fields: vec![],
         production_id: ProductionId(0),
     });
-    assert_eq!(g.start_symbol(), Some(sf_id));
+    assert_eq!(g.start_symbol(), None);
 }
 
 // ---------------------------------------------------------------------------

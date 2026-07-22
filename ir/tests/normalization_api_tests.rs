@@ -76,13 +76,13 @@ fn normalize_preserves_externals() {
 }
 
 #[test]
-fn grammar_start_symbol_is_first_rule_lhs() {
+fn grammar_start_symbol_requires_explicit_metadata() {
     let g = GrammarBuilder::new("auto_start")
         .token("x", "x")
         .rule("program", vec!["x"])
+        .start("program")
         .build();
-    let start = g.start_symbol();
-    assert!(start.is_some(), "should have a start symbol");
+    assert_eq!(g.start_symbol(), g.explicit_start_symbol());
 }
 
 #[test]

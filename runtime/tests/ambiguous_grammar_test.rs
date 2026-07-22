@@ -159,6 +159,7 @@ mod ambiguous_incremental_tests {
             .rule_names
             .insert(source_file_id, "source_file".to_string());
 
+        grammar.set_start_symbol(stmt_id);
         grammar
     }
 
@@ -239,6 +240,7 @@ mod ambiguous_incremental_tests {
             .rule_names
             .insert(source_file_id, "source_file".to_string());
 
+        grammar.set_start_symbol(expr_id);
         grammar
     }
 

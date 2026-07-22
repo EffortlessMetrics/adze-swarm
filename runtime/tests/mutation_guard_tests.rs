@@ -748,6 +748,7 @@ mod glr_tests {
         });
 
         g.rule_names.insert(expr, "expression".into());
+        g.set_start_symbol(expr);
         g
     }
 

@@ -279,7 +279,11 @@ proptest! {
     #[test]
     fn start_symbol_preserved(tok_id in 1u16..30) {
         let g = grammar_single_terminal(tok_id);
-        let start = g.start_symbol().unwrap();
+        // Table generation uses analysis start (explicit metadata or first rule LHS).
+        let start = g
+            .explicit_start_symbol()
+            .or_else(|| g.rules.keys().next().copied())
+            .expect("grammar has rules");
         let (_ff, pt) = build_pipeline(&g).unwrap();
         prop_assert_eq!(pt.start_symbol(), start);
     }

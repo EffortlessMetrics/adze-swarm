@@ -26,6 +26,8 @@ fn create_valid_grammar() -> Grammar {
         fields: vec![],
         production_id: ProductionId(0),
     });
+    grammar.rule_names.insert(SymbolId(0), "start".to_string());
+    grammar.set_start_symbol(SymbolId(0));
 
     // Add field names in lexicographic order
     grammar.fields.insert(FieldId(0), "alpha".to_string());

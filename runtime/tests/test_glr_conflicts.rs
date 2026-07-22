@@ -156,6 +156,7 @@ fn build_arithmetic_grammar() -> Grammar {
             production_id: ProductionId(4),
         });
 
+    grammar.set_start_symbol(expr_id);
     grammar
 }
 
@@ -267,6 +268,7 @@ fn build_dangling_else_grammar() -> Grammar {
             production_id: ProductionId(2),
         });
 
+    grammar.set_start_symbol(stmt_id);
     grammar
 }
 
@@ -325,6 +327,7 @@ fn build_dynamic_precedence_grammar() -> Grammar {
             production_id: ProductionId(1),
         });
 
+    grammar.set_start_symbol(s_id);
     grammar
 }
 

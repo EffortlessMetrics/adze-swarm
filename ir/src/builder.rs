@@ -339,6 +339,12 @@ impl GrammarBuilder {
             wrapper_token_relations.insert(wrapper, token);
         }
 
+        // When no `start()` was called, pin the first rule LHS as explicit metadata.
+        // This replaces runtime name/order heuristics (#862 PR6).
+        let start_symbol = self
+            .start_symbol
+            .or_else(|| ordered_rules.keys().next().copied());
+
         Grammar {
             name: self.name,
             rules: ordered_rules,
@@ -357,7 +363,7 @@ impl GrammarBuilder {
             symbol_registry: None,
             word_token: self.word_token,
             lexical_metadata: self.lexical_metadata,
-            start_symbol: self.start_symbol,
+            start_symbol,
             wrapper_token_relations,
         }
     }

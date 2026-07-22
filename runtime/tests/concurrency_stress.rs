@@ -65,6 +65,7 @@ fn arithmetic_grammar() -> Grammar {
     });
 
     g.rule_names.insert(expr, "expr".into());
+    g.set_start_symbol(expr);
     g
 }
 
@@ -94,6 +95,7 @@ fn ident_grammar() -> Grammar {
     });
 
     g.rule_names.insert(ident, "ident".into());
+    g.set_start_symbol(ident);
     g
 }
 

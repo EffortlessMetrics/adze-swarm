@@ -115,6 +115,8 @@ fn create_epsilon_grammar() -> (Grammar, ParseTable) {
         production_id: ProductionId(4),
     });
 
+    grammar.set_start_symbol(s_id);
+
     // Build parse table using the GLR core
     let first_follow = adze_glr_core::FirstFollowSets::compute(&grammar).unwrap();
     let table = adze_glr_core::build_lr1_automaton(&grammar, &first_follow)
@@ -237,6 +239,8 @@ fn create_rr_conflict_grammar() -> (Grammar, ParseTable) {
         fields: vec![],
         production_id: ProductionId(5),
     });
+
+    grammar.set_start_symbol(s_id);
 
     // Build parse table using the GLR core
     let first_follow = adze_glr_core::FirstFollowSets::compute(&grammar).unwrap();
@@ -410,6 +414,8 @@ fn test_epsilon_cycle_no_infinite_loop() {
         production_id: ProductionId(3),
     });
 
+    grammar.set_start_symbol(s_id);
+
     let first_follow = adze_glr_core::FirstFollowSets::compute(&grammar).unwrap();
     let table = adze_glr_core::build_lr1_automaton(&grammar, &first_follow)
         .expect("Failed to build parse table")
@@ -474,6 +480,8 @@ fn test_goto_indexing_direct_symbol_id() {
             fields: vec![],
         }],
     );
+
+    grammar.set_start_symbol(s_id);
 
     let first_follow = adze_glr_core::FirstFollowSets::compute(&grammar).unwrap();
     let table = adze_glr_core::build_lr1_automaton(&grammar, &first_follow)
@@ -601,6 +609,8 @@ fn test_goto_indexing_auto_detection() {
             fields: vec![],
         }],
     );
+
+    grammar.set_start_symbol(s_id);
 
     let first_follow = adze_glr_core::FirstFollowSets::compute(&grammar).unwrap();
     let table = adze_glr_core::build_lr1_automaton(&grammar, &first_follow)

@@ -397,6 +397,7 @@ fn normalize_repeat_then_build_table() {
         }],
     );
 
+    g.set_start_symbol(s);
     g.normalize();
 
     let ff = FirstFollowSets::compute(&g).expect("FIRST/FOLLOW after repeat normalize");

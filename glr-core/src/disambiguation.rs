@@ -10,7 +10,7 @@ impl ParseForest {
             .roots
             .iter()
             .filter(|r| {
-                if let Some(start) = self.grammar.start_symbol() {
+                if let Some(start) = crate::grammar_start::analysis_start_symbol(&self.grammar) {
                     r.symbol == start && r.is_complete()
                 } else {
                     false

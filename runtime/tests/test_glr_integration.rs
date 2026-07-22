@@ -275,6 +275,7 @@ fn create_expression_grammar() -> Grammar {
         fields: vec![],
     });
 
+    grammar.set_start_symbol(expr_id);
     grammar
 }
 
@@ -438,6 +439,8 @@ fn test_glr_with_ambiguous_grammar() {
         production_id: ProductionId(1),
         fields: vec![],
     });
+
+    grammar.set_start_symbol(e_id);
 
     // Validate - should detect ambiguity
     let mut validator = GLRGrammarValidator::new();

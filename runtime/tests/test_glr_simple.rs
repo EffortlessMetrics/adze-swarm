@@ -61,6 +61,7 @@ fn create_number_grammar() -> Grammar {
         fields: vec![],
     });
 
+    grammar.set_start_symbol(expr_id);
     grammar
 }
 
@@ -217,6 +218,8 @@ fn test_glr_ambiguity() {
         production_id: ProductionId(1),
         fields: vec![],
     });
+
+    grammar.set_start_symbol(e_id);
 
     // Build parse table
     let first_follow = FirstFollowSets::compute(&grammar).unwrap();

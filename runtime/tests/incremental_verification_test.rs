@@ -40,6 +40,7 @@ fn create_test_grammar() -> (Grammar, ParseTable) {
         production_id: ProductionId(0),
     };
     grammar.add_rule(rule);
+    grammar.set_start_symbol(expr_id);
 
     // Build parse table
     let table = common::build_table(&grammar);

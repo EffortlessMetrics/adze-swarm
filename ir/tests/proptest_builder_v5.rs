@@ -349,12 +349,11 @@ proptest! {
     }
 
     #[test]
-    fn cat5_no_start_first_fallback(_dummy in 0..1i32) {
+    fn cat5_no_start_uses_first_rule_lhs(_dummy in 0..1i32) {
         let g = GrammarBuilder::new("NS")
             .token("x", "x")
             .rule("alpha", vec!["x"])
             .build();
-        // Without explicit start, start_symbol heuristic picks a rule
         let sym = g.start_symbol();
         prop_assert!(sym.is_some());
     }

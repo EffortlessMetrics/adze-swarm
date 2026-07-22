@@ -192,6 +192,7 @@ mod comprehensive_incremental_tests {
             .rule_names
             .insert(source_file_id, "source_file".to_string());
 
+        grammar.set_start_symbol(source_file_id);
         grammar
     }
 

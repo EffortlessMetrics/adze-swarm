@@ -106,9 +106,7 @@ fn create_ambiguous_grammar() -> Grammar {
         .rule_names
         .insert(SYM_EXPR, "expression".to_string());
 
-    // Note: Grammar doesn't have a start_rule field in this version
-    // The start rule is typically inferred from the rules
-
+    grammar.set_start_symbol(SYM_EXPR);
     grammar
 }
 

@@ -109,5 +109,6 @@ pub fn build_indent_grammar() -> Grammar {
         production_id: ProductionId(5),
     });
 
+    grammar.set_start_symbol(program_id);
     grammar
 }

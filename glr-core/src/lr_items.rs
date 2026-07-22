@@ -461,7 +461,7 @@ impl ItemSetCollection {
         let mut initial_set = ItemSet::new(StateId(0));
 
         // Find the start symbol (LHS of the first rule in grammar)
-        if let Some(start_symbol) = grammar.start_symbol() {
+        if let Some(start_symbol) = crate::grammar_start::analysis_start_symbol(grammar) {
             // Debug: grammar.rule_names.get(&start_symbol)
 
             // Add items for ALL rules with the start symbol as LHS

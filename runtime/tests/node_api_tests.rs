@@ -46,6 +46,7 @@ fn number_grammar() -> (adze_ir::Grammar, adze_glr_core::ParseTable) {
         fields: vec![],
         production_id: ProductionId(0),
     });
+    grammar.set_start_symbol(expr_id);
 
     let table = common::build_table(&grammar);
     (grammar, table)
@@ -252,6 +253,7 @@ mod position_tests {
         });
         grammar.rule_names.insert(expr, "expression".to_string());
         grammar.rule_names.insert(num, "number".to_string());
+        grammar.set_start_symbol(expr);
         let ff = FirstFollowSets::compute(&grammar).unwrap();
         let table = build_lr1_automaton(&grammar, &ff).unwrap();
         Arc::new(Language::new("pos_test", grammar, table))
@@ -604,6 +606,7 @@ fn test_utf8_text_ts_compat_node() {
         production_id: ProductionId(0),
     });
     grammar.rule_names.insert(expr, "expression".to_string());
+    grammar.set_start_symbol(expr);
     let ff = FirstFollowSets::compute(&grammar).unwrap();
     let table = build_lr1_automaton(&grammar, &ff).unwrap();
     let lang = Arc::new(Language::new("text_test", grammar, table));

@@ -99,6 +99,7 @@ fn expr_grammar() -> Grammar {
     // expression → number
     push_rule(vec![Symbol::Terminal(NUM)]);
 
+    g.set_start_symbol(EXPR);
     g
 }
 

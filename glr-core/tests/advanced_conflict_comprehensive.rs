@@ -108,6 +108,7 @@ fn ambiguous_ee_grammar() -> Grammar {
             },
         ],
     );
+    grammar.set_start_symbol(e);
     grammar
 }
 
@@ -1011,6 +1012,7 @@ fn detect_conflicts_simple_unambiguous_no_conflicts() {
             production_id: ProductionId(0),
         }],
     );
+    grammar.set_start_symbol(s);
     let ff = FirstFollowSets::compute(&grammar).unwrap();
     let collection = ItemSetCollection::build_canonical_collection(&grammar, &ff);
     let resolver = ConflictResolver::detect_conflicts(&collection, &grammar, &ff);
@@ -1088,6 +1090,7 @@ fn detect_conflicts_reduce_reduce() {
         }],
     );
 
+    grammar.set_start_symbol(s_sym);
     let ff = FirstFollowSets::compute(&grammar).unwrap();
     let collection = ItemSetCollection::build_canonical_collection(&grammar, &ff);
     let resolver = ConflictResolver::detect_conflicts(&collection, &grammar, &ff);
@@ -1398,6 +1401,7 @@ fn detect_conflicts_single_token_grammar_no_conflicts() {
             production_id: ProductionId(0),
         }],
     );
+    grammar.set_start_symbol(s);
     let ff = FirstFollowSets::compute(&grammar).unwrap();
     let collection = ItemSetCollection::build_canonical_collection(&grammar, &ff);
     let resolver = ConflictResolver::detect_conflicts(&collection, &grammar, &ff);
@@ -1456,6 +1460,7 @@ fn detect_conflicts_chain_grammar_no_conflicts() {
             production_id: ProductionId(2),
         }],
     );
+    grammar.set_start_symbol(s);
     let ff = FirstFollowSets::compute(&grammar).unwrap();
     let collection = ItemSetCollection::build_canonical_collection(&grammar, &ff);
     let resolver = ConflictResolver::detect_conflicts(&collection, &grammar, &ff);

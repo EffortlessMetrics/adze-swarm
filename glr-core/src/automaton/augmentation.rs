@@ -13,12 +13,9 @@ pub(super) fn augment_grammar(
 ) -> Result<AugmentedGrammar, GLRError> {
     let mut augmented_grammar = grammar.clone();
 
-    let original_start =
-        grammar
-            .start_symbol()
-            .ok_or(GLRError::GrammarError(GrammarError::UnresolvedSymbol(
-                SymbolId(0),
-            )))?;
+    let original_start = crate::grammar_start::analysis_start_symbol(grammar).ok_or(
+        GLRError::GrammarError(GrammarError::UnresolvedSymbol(SymbolId(0))),
+    )?;
 
     let augmented_start_id = max_symbol.checked_add(2).ok_or_else(|| {
         GLRError::StateMachine(
@@ -62,8 +59,7 @@ pub(super) fn augment_grammar(
 mod tests {
     use super::*;
 
-    /// Build a minimal grammar that has exactly one rule LHS so `start_symbol()`
-    /// falls through to the "first rules key" branch.
+    /// Build a minimal grammar with an explicit start symbol.
     fn make_minimal_grammar(start: SymbolId, production_id: ProductionId) -> Grammar {
         let mut grammar = Grammar::new("test".to_string());
         let rule = Rule {
@@ -76,6 +72,7 @@ mod tests {
         };
         grammar.rules.insert(start, vec![rule]);
         grammar.rule_names.insert(start, "start_rule".to_string());
+        grammar.set_start_symbol(start);
         grammar
     }
 

@@ -1470,15 +1470,14 @@ fn edge_find_symbol_by_name() {
 // --- 3.9 start_symbol fallback ---
 
 #[test]
-fn edge_start_symbol_first_rule_fallback() {
+fn edge_start_symbol_requires_explicit_metadata() {
     let grammar = GrammarBuilder::new("no_special_start")
         .token("NUMBER", r"\d+")
         .rule("expr", vec!["NUMBER"])
+        .start("expr")
         .build();
 
-    // No explicit source_file or standard name, should fallback to first rule symbol
-    let start = grammar.start_symbol();
-    assert!(start.is_some());
+    assert_eq!(grammar.start_symbol(), grammar.explicit_start_symbol());
 }
 
 // --- 3.10 Deeply nested complex symbols normalize correctly ---

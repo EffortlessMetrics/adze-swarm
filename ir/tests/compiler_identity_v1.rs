@@ -121,7 +121,7 @@ fn wrapper_token_relations_sorted_deterministically() {
 }
 
 #[test]
-fn legacy_heuristic_still_used_when_explicit_start_missing() {
+fn start_symbol_is_none_without_explicit_metadata() {
     let mut grammar = Grammar::new("legacy".to_string());
     let sf_id = SymbolId(10);
     grammar.rule_names.insert(sf_id, "source_file".into());
@@ -135,5 +135,5 @@ fn legacy_heuristic_still_used_when_explicit_start_missing() {
     });
 
     assert_eq!(grammar.explicit_start_symbol(), None);
-    assert_eq!(grammar.start_symbol(), Some(sf_id));
+    assert_eq!(grammar.start_symbol(), None);
 }

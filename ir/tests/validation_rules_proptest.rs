@@ -29,6 +29,8 @@ fn minimal_valid_grammar() -> Grammar {
         fields: vec![],
         production_id: ProductionId(0),
     });
+    g.rule_names.insert(SymbolId(0), "start".to_string());
+    g.set_start_symbol(SymbolId(0));
     g
 }
 

@@ -221,5 +221,6 @@ pub fn build_json_grammar() -> Grammar {
     g.rule_names.insert(PAIRS, "pairs".to_string());
     g.rule_names.insert(PAIR, "pair".to_string());
 
+    g.set_start_symbol(DOCUMENT);
     g
 }

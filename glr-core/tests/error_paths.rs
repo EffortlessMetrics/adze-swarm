@@ -234,13 +234,15 @@ fn no_start_symbol_automaton_errors() {
             production_id: ProductionId(0),
         }],
     );
-    // Grammar has rules but no start symbol set
+    // #862 PR6: identity read is explicit-only; analysis pins first rule LHS.
+    assert!(grammar.start_symbol().is_none());
+    assert!(grammar.explicit_start_symbol().is_none());
+    let ff = FirstFollowSets::compute(&grammar).unwrap();
     assert!(
-        grammar.start_symbol().is_some(),
-        "first rule_names key becomes start"
+        build_lr1_automaton(&grammar, &ff).is_ok(),
+        "rules without explicit start still build via analysis default"
     );
-    // If start_symbol() returns Some, the pipeline should work; otherwise it should error.
-    // The real "no start" case needs an empty rule_names.
+    // Truly no rules → no analysis start.
     let mut grammar2 = Grammar::new("truly_no_start".into());
     grammar2.tokens.insert(
         a,

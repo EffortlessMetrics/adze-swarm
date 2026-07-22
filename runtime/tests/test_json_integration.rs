@@ -57,6 +57,8 @@ fn test_simple_json_grammar() {
     // Add rule name
     grammar.rule_names.insert(value_id, "value".to_string());
 
+    grammar.set_start_symbol(value_id);
+
     let grammar = Arc::new(grammar);
     let first_follow = FirstFollowSets::compute(&grammar).unwrap();
 
@@ -116,6 +118,8 @@ fn test_json_object_grammar() {
     });
 
     grammar.rule_names.insert(object_id, "object".to_string());
+
+    grammar.set_start_symbol(object_id);
 
     let grammar = Arc::new(grammar);
     let first_follow = FirstFollowSets::compute(&grammar).unwrap();
@@ -230,6 +234,8 @@ fn test_json_array_with_numbers() {
     grammar
         .rule_names
         .insert(elements_id, "elements".to_string());
+
+    grammar.set_start_symbol(array_id);
 
     let grammar = Arc::new(grammar);
     let first_follow = FirstFollowSets::compute(&grammar).unwrap();

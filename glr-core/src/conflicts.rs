@@ -82,7 +82,8 @@ impl ConflictResolver {
                     let mut is_accept = false;
 
                     // Find the rule that corresponds to this rule ID
-                    if let Some(start_symbol) = grammar.start_symbol() {
+                    if let Some(start_symbol) = crate::grammar_start::analysis_start_symbol(grammar)
+                    {
                         // Look through all rules to find the one with this rule ID
                         for rule in grammar.all_rules() {
                             if rule.production_id.0 == item.rule_id.0 {

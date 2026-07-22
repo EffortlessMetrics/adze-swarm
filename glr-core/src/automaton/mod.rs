@@ -452,7 +452,7 @@ pub fn build_lr1_automaton(
     // The accept action is added when we see S' -> S • with EOF lookahead
 
     // But we still need to handle the original grammar's symbol mapping
-    if let Some(_start_symbol) = grammar.start_symbol() {
+    if let Some(_start_symbol) = crate::grammar_start::analysis_start_symbol(grammar) {
         // Find all states and check if they need EOF reduce actions
         for (state_idx, _item_set) in collection.sets.iter().enumerate() {
             // Skip this post-processing - handled by augmentation

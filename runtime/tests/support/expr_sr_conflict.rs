@@ -121,6 +121,7 @@ pub fn build_expr_sr_conflict() -> Grammar {
         production_id: ProductionId(3),
     });
 
+    grammar.set_start_symbol(expr_id);
     grammar
 }
 
@@ -238,5 +239,6 @@ pub fn build_expr_with_precedence() -> Grammar {
         production_id: ProductionId(3),
     });
 
+    grammar.set_start_symbol(expr_id);
     grammar
 }

@@ -132,6 +132,7 @@ fn calculator_grammar() -> Grammar {
         fields: vec![],
     });
 
+    g.set_start_symbol(expr);
     g
 }
 
@@ -161,6 +162,7 @@ fn identifier_grammar() -> Grammar {
         fields: vec![],
     });
 
+    g.set_start_symbol(ident);
     g
 }
 
@@ -247,6 +249,7 @@ fn list_grammar() -> Grammar {
         fields: vec![],
     });
 
+    g.set_start_symbol(list);
     g
 }
 
@@ -354,6 +357,7 @@ fn nested_grammar() -> Grammar {
         fields: vec![],
     });
 
+    g.set_start_symbol(expr);
     g
 }
 

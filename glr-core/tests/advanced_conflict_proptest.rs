@@ -87,6 +87,7 @@ fn grammar_with_prec(
             production_id: ProductionId(0),
         }],
     );
+    g.set_start_symbol(rule_sym);
     g
 }
 
@@ -170,6 +171,7 @@ fn expr_grammar(prec: Option<PrecedenceKind>, assoc: Option<Associativity>) -> G
             },
         ],
     );
+    g.set_start_symbol(e);
     g
 }
 
@@ -236,6 +238,7 @@ fn rr_grammar() -> Grammar {
             production_id: ProductionId(3),
         }],
     );
+    g.set_start_symbol(s);
     g
 }
 
@@ -900,6 +903,7 @@ proptest! {
             fields: vec![],
             production_id: ProductionId(0),
         }]);
+        g.set_start_symbol(s);
         let ff = adze_glr_core::FirstFollowSets::compute(&g).unwrap();
         let collection = adze_glr_core::ItemSetCollection::build_canonical_collection(&g, &ff);
         let resolver = ConflictResolver::detect_conflicts(&collection, &g, &ff);

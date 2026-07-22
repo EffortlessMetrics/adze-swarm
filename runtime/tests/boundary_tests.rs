@@ -69,6 +69,7 @@ fn number_add_grammar() -> Grammar {
     });
 
     g.rule_names.insert(expr, "expression".into());
+    g.set_start_symbol(expr);
     g
 }
 
@@ -128,6 +129,7 @@ fn paren_grammar() -> Grammar {
     });
 
     g.rule_names.insert(expr, "expression".into());
+    g.set_start_symbol(expr);
     g
 }
 
@@ -207,6 +209,7 @@ fn empty_string_single_token_grammar() {
         fields: vec![],
     });
     g.rule_names.insert(s, "start".into());
+    g.set_start_symbol(s);
 
     let mut parser = build_parser(&g);
     let result = parse_input(&mut parser, &g, "");
@@ -439,6 +442,7 @@ fn zero_length_regex_token_does_not_infinite_loop() {
         fields: vec![],
     });
     g.rule_names.insert(s, "start".into());
+    g.set_start_symbol(s);
 
     let err = match GLRLexer::new(&g, "abc".into()) {
         Ok(_) => panic!("zero-length regex must be rejected"),
@@ -470,6 +474,7 @@ fn empty_literal_token_does_not_infinite_loop() {
         fields: vec![],
     });
     g.rule_names.insert(s, "start".into());
+    g.set_start_symbol(s);
 
     let err = match GLRLexer::new(&g, "hello".into()) {
         Ok(_) => panic!("empty literal must be rejected"),
@@ -528,6 +533,7 @@ fn parser_with_many_symbols() {
     let mut g = Grammar::new("many_sym".into());
     let expr = SymbolId(100);
     g.rule_names.insert(expr, "expr".into());
+    g.set_start_symbol(expr);
 
     for i in 1u16..=26 {
         let sym = SymbolId(i);
@@ -568,6 +574,7 @@ fn grammar_with_100_rules() {
     let mut g = Grammar::new("many_rules".into());
     let expr = SymbolId(200);
     g.rule_names.insert(expr, "expr".into());
+    g.set_start_symbol(expr);
 
     for i in 0u16..100 {
         let sym = SymbolId(i + 1);
@@ -650,6 +657,8 @@ fn grammar_with_chained_nonterminals() {
             });
         }
     }
+
+    g.set_start_symbol(SymbolId(100));
 
     let mut parser = build_parser(&g);
     let result = parse_input(&mut parser, &g, "x");
@@ -797,6 +806,7 @@ fn stack_depth_with_long_right_chain() {
         fields: vec![],
     });
     g.rule_names.insert(expr, "expression".into());
+    g.set_start_symbol(expr);
 
     let mut parser = build_parser(&g);
     // 200 terms in a right-recursive chain — must not panic or hang.

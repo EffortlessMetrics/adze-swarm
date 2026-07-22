@@ -69,6 +69,7 @@ fn number_add_grammar() -> Grammar {
     });
 
     g.rule_names.insert(expr, "expression".into());
+    g.set_start_symbol(expr);
     g
 }
 
@@ -192,6 +193,7 @@ fn unicode_id_grammar() -> Grammar {
         fields: vec![],
     });
     g.rule_names.insert(expr, "expression".into());
+    g.set_start_symbol(expr);
     g
 }
 
@@ -497,6 +499,7 @@ fn paren_grammar() -> Grammar {
     });
 
     g.rule_names.insert(expr, "expression".into());
+    g.set_start_symbol(expr);
     g
 }
 

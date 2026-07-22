@@ -80,6 +80,7 @@ fn unambiguous_grammar() -> Grammar {
     });
 
     g.rule_names.insert(sum, "sum".into());
+    g.set_start_symbol(sum);
     g
 }
 
@@ -130,6 +131,7 @@ fn ambiguous_grammar() -> Grammar {
     });
 
     g.rule_names.insert(expr, "expr".into());
+    g.set_start_symbol(expr);
     g
 }
 

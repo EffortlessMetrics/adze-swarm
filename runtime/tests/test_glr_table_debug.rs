@@ -138,6 +138,7 @@ fn build_arithmetic_grammar() -> Grammar {
         production_id: ProductionId(4),
     });
 
+    grammar.set_start_symbol(expr_id);
     grammar
 }
 

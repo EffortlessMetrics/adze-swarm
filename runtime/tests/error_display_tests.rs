@@ -1429,6 +1429,7 @@ fn make_dummy_parser() -> adze::glr_parser::GLRParser {
         associativity: None,
         fields: vec![],
     });
+    g.set_start_symbol(start);
 
     let ff = FirstFollowSets::compute(&g).unwrap();
     let table = build_lr1_automaton(&g, &ff).unwrap();

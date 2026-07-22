@@ -87,6 +87,7 @@ fn create_epsilon_grammar() -> Grammar {
             fields: vec![],
         });
 
+    grammar.set_start_symbol(s_id);
     grammar
 }
 
@@ -245,6 +246,8 @@ fn test_multiple_epsilon_paths() {
             fields: vec![],
         });
 
+    grammar.set_start_symbol(s_id);
+
     // Test parsing different inputs
     let tree = parse_with_grammar(&grammar, "");
     assert!(tree.is_some(), "Failed to parse empty string with A→ε, B→ε");
@@ -306,6 +309,8 @@ fn test_epsilon_with_recursion() {
             production_id: ProductionId(1),
             fields: vec![],
         });
+
+    grammar.set_start_symbol(list_id);
 
     // Test parsing
     let tree = parse_with_grammar(&grammar, "");

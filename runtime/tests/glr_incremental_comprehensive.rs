@@ -161,6 +161,7 @@ mod tests {
         );
         g.rule_names.insert(source, "source_file".into());
 
+        g.set_start_symbol(source);
         g
     }
 
