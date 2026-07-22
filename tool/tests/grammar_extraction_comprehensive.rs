@@ -1229,18 +1229,16 @@ fn grammar_name_with_dash() {
 fn extract_json_rule_with_multiple_symbols() {
     let grammar = json!({
         "name": "multi_sym",
+        "start_symbol": "expr",
         "rules": {
             "expr": {
                 "type": "SEQ",
                 "members": [
-                    { "type": "SYMBOL", "name": "a" },
-                    { "type": "SYMBOL", "name": "b" },
-                    { "type": "SYMBOL", "name": "c" }
+                    { "type": "STRING", "value": "a" },
+                    { "type": "STRING", "value": "b" },
+                    { "type": "STRING", "value": "c" }
                 ]
-            },
-            "a": { "type": "STRING", "value": "a" },
-            "b": { "type": "STRING", "value": "b" },
-            "c": { "type": "STRING", "value": "c" }
+            }
         }
     });
 
