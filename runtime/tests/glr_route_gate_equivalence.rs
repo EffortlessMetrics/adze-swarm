@@ -5,12 +5,12 @@
 
 #![cfg(all(feature = "pure-rust", feature = "glr", feature = "runtime-e2e"))]
 
+use adze::__private::{align_true_glr_parse_table_to_language_symbols, lex_with_language_fn};
 use adze::decoder::{decode_grammar, decode_parse_table};
 use adze::glr_parser::GLRParser;
 use adze::glr_streaming_runtime::parse_with_streaming_driver;
 use adze::pure_parser::TSLanguage;
 use adze::subtree::Subtree;
-use adze::__private::{align_true_glr_parse_table_to_language_symbols, lex_with_language_fn};
 use adze_glr_core::conflict_inspection::state_has_conflicts;
 use adze_ir::StateId;
 use std::sync::Arc;
@@ -59,9 +59,7 @@ fn parse_via_streaming_driver(
 fn subtree_shape_key(subtree: &Subtree) -> String {
     format!(
         "{}:{}:{}",
-        subtree.node.symbol_id.0,
-        subtree.node.byte_range.start,
-        subtree.node.byte_range.end
+        subtree.node.symbol_id.0, subtree.node.byte_range.start, subtree.node.byte_range.end
     )
 }
 
