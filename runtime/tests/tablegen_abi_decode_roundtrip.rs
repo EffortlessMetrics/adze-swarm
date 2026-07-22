@@ -391,6 +391,8 @@ fn compressed_tslanguage_decode_preserves_metadata_actions_and_fields() {
     assert_eq!(decoded.rules.len(), 1);
     assert_eq!(decoded.rules[0].lhs, SymbolId(9));
     assert_eq!(decoded.rules[0].rhs_len, 1);
+    assert_eq!(decoded.start_symbol, SymbolId(9));
+    assert_eq!(decoded.grammar.explicit_start_symbol(), Some(SymbolId(9)));
     assert_eq!(decoded.field_names, vec!["value".to_string()]);
     assert_eq!(decoded.field_map.get(&(RuleId(0), 0)), Some(&0));
 }

@@ -1083,11 +1083,10 @@ fn stats_breakdown_on_combined_optimization() {
     let grammar = GrammarBuilder::new("breakdown")
         .token("A", "a")
         .token("DEAD", "dead")
-        .token("A", "a") // Duplicate
+        .token("A_dup", "a") // Duplicate pattern under a distinct name
         .rule("expr", vec!["A"])
         .rule("dead_rule", vec!["DEAD"])
         .rule("unit", vec!["expr"])
-        .start("expr")
         .build();
 
     let mut g = grammar;
@@ -1363,10 +1362,10 @@ fn inlining_and_unit_elimination_compose() {
 
 #[test]
 fn production_ids_remain_valid_after_optimization() {
+    // Avoid `.start()` here: explicit start symbols are protected from inlining (#862 PR4).
     let grammar = GrammarBuilder::new("prod_ids")
         .token("X", "x")
         .rule("expr", vec!["X"])
-        .start("expr")
         .build();
 
     // Record production IDs before optimization

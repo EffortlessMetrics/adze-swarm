@@ -43,7 +43,9 @@ pub use lexical::{
 /// Compiler-significant start-symbol and wrapper-token identity metadata.
 pub mod compiler_identity;
 /// Compiler identity metadata types and helpers.
-pub use compiler_identity::{WrapperTokenRelation, sorted_wrapper_token_relations};
+pub use compiler_identity::{
+    WrapperTokenRelation, remap_compiler_identity, sorted_wrapper_token_relations,
+};
 
 /// Core grammar representation supporting all Tree-sitter features including GLR
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]

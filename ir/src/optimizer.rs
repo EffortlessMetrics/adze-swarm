@@ -37,6 +37,10 @@ pub struct GrammarOptimizer {
     left_recursive_rules: HashSet<SymbolId>,
     /// Track the source_file symbol ID to prevent inlining
     source_file_id: Option<SymbolId>,
+    /// Explicit compiler-identity start symbol (#862)
+    explicit_start_id: Option<SymbolId>,
+    /// Explicit wrapper nonterminals that must survive inlining (#862)
+    wrapper_nonterminals: HashSet<SymbolId>,
 }
 
 impl Default for GrammarOptimizer {
@@ -53,6 +57,8 @@ impl GrammarOptimizer {
             inlinable_rules: HashSet::new(),
             left_recursive_rules: HashSet::new(),
             source_file_id: None,
+            explicit_start_id: None,
+            wrapper_nonterminals: HashSet::new(),
         }
     }
 
@@ -133,6 +139,15 @@ impl GrammarOptimizer {
         if let Some(start_symbol) = grammar.start_symbol() {
             self.used_symbols.insert(start_symbol);
         }
+        if let Some(explicit_start) = grammar.explicit_start_symbol() {
+            self.explicit_start_id = Some(explicit_start);
+            self.used_symbols.insert(explicit_start);
+        }
+        for (wrapper, token) in &grammar.wrapper_token_relations {
+            self.wrapper_nonterminals.insert(*wrapper);
+            self.used_symbols.insert(*wrapper);
+            self.used_symbols.insert(*token);
+        }
 
         // Always mark source_file as used if it exists (Tree-sitter compatibility)
         if let Some(source_file_id) = grammar.find_symbol_by_name("source_file") {
@@ -193,10 +208,12 @@ impl GrammarOptimizer {
                 }
 
                 // Check if rule is inlinable (simple, non-recursive)
-                // Never inline source_file as it's the start symbol
+                // Never inline source_file or explicit compiler-identity symbols
                 if rule.rhs.len() == 1
                     && !self.is_recursive_rule(rule, grammar)
                     && Some(rule.lhs) != self.source_file_id
+                    && Some(rule.lhs) != self.explicit_start_id
+                    && !self.wrapper_nonterminals.contains(&rule.lhs)
                 {
                     self.inlinable_rules.insert(rule.lhs);
                 } else if Some(rule.lhs) == self.source_file_id && rule.rhs.len() == 1 {
@@ -265,6 +282,10 @@ impl GrammarOptimizer {
                 }
             } else if Some(*symbol_id) == self.source_file_id {
                 // source_file is not inlined
+            } else if Some(*symbol_id) == self.explicit_start_id {
+                // explicit start is not inlined
+            } else if self.wrapper_nonterminals.contains(symbol_id) {
+                // explicit wrapper nonterminals are not inlined
             }
         }
 
@@ -894,6 +915,8 @@ impl GrammarOptimizer {
             })
             .collect();
         debug_trace!("  New extras: {:?}", grammar.extras);
+
+        crate::compiler_identity::remap_compiler_identity(grammar, &old_to_new);
     }
 }
 
