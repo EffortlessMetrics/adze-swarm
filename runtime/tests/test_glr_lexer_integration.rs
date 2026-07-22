@@ -145,6 +145,7 @@ fn test_arithmetic_with_lexer() {
     grammar.rule_names.insert(term_id, "term".to_string());
     grammar.rule_names.insert(factor_id, "factor".to_string());
 
+    grammar.set_start_symbol(expr_id);
     let grammar = Arc::new(grammar);
     let first_follow = FirstFollowSets::compute(&grammar).unwrap();
 
@@ -243,6 +244,7 @@ fn test_json_with_lexer() {
     grammar.rule_names.insert(value_id, "value".to_string());
     grammar.rule_names.insert(object_id, "object".to_string());
 
+    grammar.set_start_symbol(value_id);
     let grammar = Arc::new(grammar);
     let first_follow = FirstFollowSets::compute(&grammar).unwrap();
 

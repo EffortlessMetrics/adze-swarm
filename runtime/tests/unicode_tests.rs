@@ -47,6 +47,7 @@ fn unicode_id_grammar() -> Grammar {
         fields: vec![],
     });
     g.rule_names.insert(expr, "expression".into());
+    g.set_start_symbol(expr);
     g
 }
 
@@ -106,6 +107,7 @@ fn unicode_add_grammar() -> Grammar {
         fields: vec![],
     });
     g.rule_names.insert(expr, "expression".into());
+    g.set_start_symbol(expr);
     g
 }
 
@@ -483,6 +485,7 @@ mod point_calculation_tests {
             fields: vec![],
         });
         grammar.rule_names.insert(expr, "expression".into());
+        grammar.set_start_symbol(expr);
 
         let ff = FirstFollowSets::compute(&grammar).unwrap();
         let table = build_lr1_automaton(&grammar, &ff).unwrap();

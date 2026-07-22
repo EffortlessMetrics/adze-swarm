@@ -120,6 +120,7 @@ fn build_ternary_grammar() -> Grammar {
             production_id: ProductionId(2),
         });
 
+    grammar.set_start_symbol(expr_id);
     grammar
 }
 
@@ -221,6 +222,7 @@ fn build_reduce_reduce_grammar() -> Grammar {
             production_id: ProductionId(3),
         });
 
+    grammar.set_start_symbol(s_id);
     grammar
 }
 

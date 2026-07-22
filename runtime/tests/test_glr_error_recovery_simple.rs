@@ -69,6 +69,7 @@ fn create_simple_grammar() -> Grammar {
             fields: vec![],
         });
 
+    grammar.set_start_symbol(expr_id);
     grammar
 }
 

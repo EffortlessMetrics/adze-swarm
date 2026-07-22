@@ -79,6 +79,7 @@ fn arithmetic_grammar() -> Grammar {
         fields: vec![],
     });
 
+    g.set_start_symbol(expr);
     g
 }
 
@@ -108,6 +109,7 @@ fn ident_grammar() -> Grammar {
     });
 
     g.rule_names.insert(ident, "ident".into());
+    g.set_start_symbol(ident);
     g
 }
 

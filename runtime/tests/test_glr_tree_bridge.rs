@@ -254,6 +254,7 @@ fn create_json_grammar() -> Grammar {
         production_id: ProductionId(12),
     });
 
+    grammar.set_start_symbol(value_id);
     grammar
 }
 

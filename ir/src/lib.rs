@@ -112,9 +112,9 @@ impl Grammar {
 
     /// Get the start symbol for this grammar.
     ///
-    /// Returns the explicit [`start_symbol`](Self::start_symbol) field when set.
-    /// Otherwise falls back to legacy name/order heuristics until #862 PR6 removes
-    /// the supported-path fallback.
+    /// Returns the explicit [`start_symbol`](Self::start_symbol) field when set and
+    /// the symbol still has rules. Legacy name/order heuristics were removed in
+    /// #862 PR6; callers must set `start_symbol` explicitly.
     pub fn start_symbol(&self) -> Option<SymbolId> {
         if let Some(explicit) = self.start_symbol
             && self.rules.contains_key(&explicit)
@@ -122,40 +122,7 @@ impl Grammar {
             return Some(explicit);
         }
 
-        // Legacy heuristic fallback — removed from the supported path in #862 PR6.
-        // For Tree-sitter compatibility, look for "source_file" symbol
-        if let Some(source_file_id) = self.find_symbol_by_name("source_file")
-            && self.rules.contains_key(&source_file_id)
-        {
-            return Some(source_file_id);
-        }
-
-        // In adze, source_file is often just a reference to the actual language type
-        // So let's look for the language type that's marked with #[adze::language]
-        // This is typically the first non-terminal that has rules
-
-        // Try common patterns first
-        for name in &["Expression", "Statement", "Program", "Module"] {
-            if let Some(symbol_id) = self.find_symbol_by_name(name)
-                && self.rules.contains_key(&symbol_id)
-            {
-                return Some(symbol_id);
-            }
-        }
-
-        // Otherwise, use the first symbol that has rules and isn't a leaf/token
-        for (symbol_id, rules) in &self.rules {
-            // Skip symbols that look like internal/generated names
-            if let Some(name) = self.rule_names.get(symbol_id)
-                && !name.contains('_')
-                && !rules.is_empty()
-            {
-                return Some(*symbol_id);
-            }
-        }
-
-        // Final fallback: just use the first symbol with rules
-        self.rules.keys().next().copied()
+        None
     }
 
     /// Find a symbol by its name in rule_names

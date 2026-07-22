@@ -85,6 +85,7 @@ mod incremental_reuse_tests {
             fields: vec![],
         };
         grammar.rules.insert(source_file_id, vec![start_rule]);
+        grammar.set_start_symbol(source_file_id);
 
         grammar
     }

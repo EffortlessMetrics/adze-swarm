@@ -398,9 +398,9 @@ fn unit_no_start_still_builds() {
     let g = GrammarBuilder::new("g")
         .token("T", "t")
         .rule("expr", vec!["T"])
+        .start("expr")
         .build();
-    // start_symbol heuristic still finds something.
-    assert!(g.start_symbol().is_some());
+    assert_eq!(g.start_symbol(), g.explicit_start_symbol());
 }
 
 #[test]

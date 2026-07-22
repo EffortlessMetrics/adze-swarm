@@ -102,6 +102,8 @@ mod parser_routing_tests {
             }],
         );
 
+        grammar.set_start_symbol(source_file);
+
         let first_follow = FirstFollowSets::compute(&grammar).expect("first/follow");
         let parse_table = build_lr1_automaton(&grammar, &first_follow).expect("parse table");
         let conflict_cells = parse_table

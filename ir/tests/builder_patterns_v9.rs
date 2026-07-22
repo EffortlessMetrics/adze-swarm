@@ -938,9 +938,9 @@ fn query_10_start_symbol_without_start_call() {
         .token("A", "a")
         .rule("expr", vec!["A"])
         .build();
-    // start_symbol() falls back to first rule with non-underscore name
-    let ss = g.start_symbol();
-    assert!(ss.is_some());
+    // Builder pins the first rule LHS as explicit start metadata.
+    assert_eq!(g.start_symbol(), g.explicit_start_symbol());
+    assert!(g.start_symbol().is_some());
 }
 
 #[test]

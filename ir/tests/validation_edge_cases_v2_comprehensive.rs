@@ -573,7 +573,10 @@ fn warnings_vec_empty_for_minimal_grammar() {
     let mut g = Grammar::new("min".into());
     let (tid, tok) = make_token(1, "x", "x");
     g.tokens.insert(tid, tok);
-    g.add_rule(make_rule(0, vec![Symbol::Terminal(SymbolId(1))], 0));
+    let start = SymbolId(0);
+    g.rule_names.insert(start, "start".into());
+    g.add_rule(make_rule(start.0, vec![Symbol::Terminal(SymbolId(1))], 0));
+    g.set_start_symbol(start);
     let r = validate(&g);
     // Minimal grammar may still have MissingFieldNames if rhs > 1, but
     // with a single-symbol rule there should be no field warning.

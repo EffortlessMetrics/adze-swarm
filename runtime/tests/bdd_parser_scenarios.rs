@@ -156,6 +156,7 @@ mod bdd_scenarios {
             fields: vec![],
         });
 
+        grammar.set_start_symbol(expr_id);
         grammar
     }
 
@@ -296,6 +297,7 @@ mod bdd_scenarios {
             fields: vec![],
         });
 
+        grammar.set_start_symbol(decl_id);
         grammar
     }
 
@@ -409,6 +411,7 @@ mod bdd_scenarios {
             fields: vec![],
         });
 
+        grammar.set_start_symbol(list_id);
         grammar
     }
 
@@ -465,6 +468,7 @@ mod bdd_scenarios {
             fields: vec![],
         });
 
+        grammar.set_start_symbol(expr_id);
         grammar
     }
 
@@ -515,6 +519,7 @@ mod bdd_scenarios {
             fields: vec![],
         });
 
+        grammar.set_start_symbol(stmt_id);
         grammar
     }
 
@@ -625,6 +630,7 @@ mod bdd_scenarios {
             fields: vec![],
         });
 
+        grammar.set_start_symbol(expr_id);
         grammar
     }
 

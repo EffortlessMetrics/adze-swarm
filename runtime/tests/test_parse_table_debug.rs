@@ -49,6 +49,7 @@ fn create_ambiguous_grammar() -> Grammar {
         grammar.rule_names.len()
     );
 
+    grammar.set_start_symbol(e_id);
     grammar
 }
 

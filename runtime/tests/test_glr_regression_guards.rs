@@ -59,7 +59,7 @@ fn create_reduce_reclosure_grammar() -> Grammar {
         fields: vec![],
     });
 
-    // Start symbol is determined by first rule's LHS
+    grammar.set_start_symbol(s_id);
     grammar
 }
 
@@ -121,7 +121,7 @@ fn test_eof_recovery_no_delete_guard() {
         fields: vec![],
     });
 
-    // Start symbol is determined by first rule's LHS
+    grammar.set_start_symbol(s_id);
 
     let first_follow = FirstFollowSets::compute(&grammar).unwrap();
     let parse_table = build_lr1_automaton(&grammar, &first_follow).unwrap();
@@ -192,7 +192,7 @@ fn test_accept_aggregation_guard() {
         fields: vec![],
     });
 
-    // Start symbol is determined by first rule's LHS
+    grammar.set_start_symbol(s_id);
 
     let first_follow = FirstFollowSets::compute(&grammar).unwrap();
     let parse_table = build_lr1_automaton(&grammar, &first_follow).unwrap();

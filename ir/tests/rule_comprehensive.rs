@@ -702,14 +702,13 @@ fn debug_format_readable() {
 }
 
 #[test]
-fn grammar_start_symbol_heuristic() {
-    let g = GrammarBuilder::new("heuristic")
+fn grammar_start_symbol_requires_explicit_metadata() {
+    let g = GrammarBuilder::new("explicit_start")
         .token("NUM", r"\d+")
         .rule("expr", vec!["NUM"])
         .start("expr")
         .build();
-    // start_symbol should return the symbol set via .start()
-    assert!(g.start_symbol().is_some());
+    assert_eq!(g.start_symbol(), g.explicit_start_symbol());
 }
 
 #[test]

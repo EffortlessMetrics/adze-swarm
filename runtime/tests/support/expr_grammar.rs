@@ -128,6 +128,7 @@ pub fn build_expr_grammar() -> Grammar {
         production_id: ProductionId(3),
     });
 
-    // Return the grammar as-is, the start symbol is determined by the first rule
+    // Return the grammar with an explicit start symbol.
+    g.set_start_symbol(expr);
     g
 }

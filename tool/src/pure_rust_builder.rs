@@ -5,7 +5,7 @@
 
 use crate::grammar_js::{GrammarJsConverter, parse_grammar_js_v2};
 use adze_glr_core::Action;
-use adze_ir::{Grammar, ProductionId, Rule, Symbol, SymbolId, TokenPattern};
+use adze_ir::{Grammar, ProductionId, Rule, Symbol};
 use anyhow::{Context, Result};
 use serde_json::Value;
 use std::fs;
@@ -159,80 +159,6 @@ fn desugar_pattern_wrappers(grammar: &mut Grammar) -> Result<()> {
             .unwrap_or(false);
         if !has_rules {
             wrappers_needing_rules.push((*wrapper_id, *token_id));
-        }
-    }
-
-    // First pass: Find non-terminals with no rules at all
-    let all_nonterminals: Vec<SymbolId> = grammar
-        .rule_names
-        .keys()
-        .filter(|id| !grammar.tokens.contains_key(*id))
-        .copied()
-        .collect();
-
-    for nt_id in all_nonterminals {
-        if grammar.wrapper_token_relations.contains_key(&nt_id) {
-            continue;
-        }
-
-        let has_rules = grammar
-            .rules
-            .get(&nt_id)
-            .map(|rules| !rules.is_empty())
-            .unwrap_or(false);
-
-        if !has_rules {
-            // This non-terminal has no rules - it's likely a wrapper for a pattern
-            // Try to find a matching token structurally
-
-            let mut matched_token = None;
-
-            if let Some(nt_name) = grammar.rule_names.get(&nt_id) {
-                // Heuristic 1: Look for a token with the exact same name or related name
-                // e.g., NT "Identifier" -> Token "identifier" or "Identifier_token"
-                let nt_name_lower = nt_name.to_lowercase();
-
-                // Collect candidate tokens
-                for (tid, token) in &grammar.tokens {
-                    let token_name_lower = token.name.to_lowercase();
-
-                    // Direct match or close variant
-                    if token.name == *nt_name
-                        || token_name_lower == nt_name_lower
-                        || token_name_lower.contains(&nt_name_lower)
-                        || nt_name_lower.contains(&token_name_lower)
-                    {
-                        matched_token = Some(*tid);
-                        break;
-                    }
-
-                    // Check for generated name pattern from GrammarJsConverter (_{SymbolId})
-                    if token.name == format!("_{}", nt_id.0) {
-                        matched_token = Some(*tid);
-                        break;
-                    }
-                }
-            }
-
-            // Heuristic 2 (Legacy fallback): If the name contains "Number", look for a number token
-            if matched_token.is_none()
-                && let Some(nt_name) = grammar.rule_names.get(&nt_id)
-                && nt_name.to_lowercase().contains("number")
-            {
-                // Find a number token (one with \d pattern)
-                for (tid, token) in &grammar.tokens {
-                    if let TokenPattern::Regex(r) = &token.pattern
-                        && (r.contains(r"\d") || r.contains("[0-9]"))
-                    {
-                        matched_token = Some(*tid);
-                        break;
-                    }
-                }
-            }
-
-            if let Some(tid) = matched_token {
-                wrappers_needing_rules.push((nt_id, tid));
-            }
         }
     }
 
@@ -598,6 +524,7 @@ module.exports = grammar({
             fragile: false,
         };
         grammar.tokens.insert(token_id, token);
+        grammar.set_wrapper_token_relation(nt_id, token_id);
 
         // We do NOT add any rules for nt_id.
         // This simulates the "no rules" condition.
@@ -638,6 +565,7 @@ module.exports = grammar({
             fragile: false,
         };
         grammar.tokens.insert(token_id, token);
+        grammar.set_wrapper_token_relation(nt_id, token_id);
 
         // No rules for NT.
 

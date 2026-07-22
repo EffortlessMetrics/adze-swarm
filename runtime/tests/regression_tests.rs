@@ -192,6 +192,8 @@ fn issue_71_error_recovery_deterministic() {
         fields: vec![],
     });
 
+    grammar.set_start_symbol(expr_id);
+
     let first_follow = FirstFollowSets::compute(&grammar).unwrap();
     let table = build_lr1_automaton(&grammar, &first_follow).unwrap();
 
@@ -360,6 +362,8 @@ fn issue_88_incremental_reparse_returns_none() {
         fields: vec![],
     });
 
+    grammar.set_start_symbol(expr_id);
+
     let first_follow = FirstFollowSets::compute(&grammar).unwrap();
     let table = build_lr1_automaton(&grammar, &first_follow).unwrap();
 
@@ -479,6 +483,8 @@ fn issue_90_basic_parsing_after_eof_fix() {
         production_id: ProductionId(0),
         fields: vec![],
     });
+
+    grammar.set_start_symbol(expr_id);
 
     let first_follow = FirstFollowSets::compute(&grammar).unwrap();
     let table = build_lr1_automaton(&grammar, &first_follow).unwrap();

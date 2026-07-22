@@ -30,6 +30,7 @@ fn create_simple_grammar() -> Grammar {
         fields: vec![],
     });
 
+    grammar.set_start_symbol(s_id);
     grammar
 }
 

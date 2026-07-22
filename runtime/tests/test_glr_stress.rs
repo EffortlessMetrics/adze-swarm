@@ -182,6 +182,7 @@ fn create_ambiguous_expression_grammar() -> Grammar {
     grammar.rule_names.insert(term_id, "term".to_string());
     grammar.rule_names.insert(factor_id, "factor".to_string());
 
+    grammar.set_start_symbol(start_id);
     grammar
 }
 
@@ -337,6 +338,7 @@ fn create_extremely_ambiguous_grammar() -> Grammar {
     grammar.rule_names.insert(expr2_id, "expr2".to_string());
     grammar.rule_names.insert(expr3_id, "expr3".to_string());
 
+    grammar.set_start_symbol(start_id);
     grammar
 }
 

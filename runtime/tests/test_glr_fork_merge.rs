@@ -56,6 +56,7 @@ fn create_ambiguous_grammar() -> Grammar {
         fields: vec![],
     });
 
+    grammar.set_start_symbol(e_id);
     grammar
 }
 
@@ -138,6 +139,7 @@ fn create_arithmetic_grammar() -> Grammar {
         fields: vec![],
     });
 
+    grammar.set_start_symbol(e_id);
     grammar
 }
 

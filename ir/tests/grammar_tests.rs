@@ -18,6 +18,8 @@ fn test_grammar_creation() {
     };
 
     grammar.add_rule(rule);
+    grammar.rule_names.insert(SymbolId(0), "start".to_string());
+    grammar.set_start_symbol(SymbolId(0));
 
     assert_eq!(grammar.name, "TestGrammar");
     assert_eq!(grammar.rules.len(), 1);

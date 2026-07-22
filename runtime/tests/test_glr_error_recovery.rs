@@ -135,6 +135,7 @@ fn create_test_grammar() -> Grammar {
             fields: vec![],
         });
 
+    grammar.set_start_symbol(stmt_id);
     grammar
 }
 

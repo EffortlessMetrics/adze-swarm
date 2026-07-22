@@ -123,12 +123,12 @@ fn test_vr_v10_no_explicit_start_still_validates() {
 }
 
 #[test]
-fn test_vr_v10_no_start_start_symbol_fallback() {
+fn test_vr_v10_no_start_start_symbol_uses_builder_default() {
     let g = GrammarBuilder::new("vr_v10_fallback")
         .token("A", "a")
         .rule("root", vec!["A"])
         .build();
-    // start_symbol() falls back to the first rule LHS
+    assert_eq!(g.start_symbol(), g.explicit_start_symbol());
     assert!(g.start_symbol().is_some());
 }
 

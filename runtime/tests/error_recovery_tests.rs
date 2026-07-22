@@ -120,6 +120,7 @@ fn arithmetic_grammar() -> Grammar {
         fields: vec![],
     });
 
+    g.set_start_symbol(stmt);
     g
 }
 
@@ -174,6 +175,7 @@ fn simple_add_grammar() -> Grammar {
         fields: vec![],
     });
 
+    g.set_start_symbol(expr);
     g
 }
 

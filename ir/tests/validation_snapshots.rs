@@ -40,6 +40,7 @@ fn validate_valid_grammar() {
     let g = GrammarBuilder::new("valid")
         .token("num", r"\d+")
         .rule("expr", vec!["num"])
+        .start("expr")
         .build();
     let msgs = validate_messages(&g);
     insta::assert_snapshot!(msgs);
@@ -70,6 +71,7 @@ fn validate_grammar_with_precedence() {
         .rule("expr", vec!["expr", "plus", "expr"])
         .rule("expr", vec!["expr", "star", "expr"])
         .rule_with_precedence("expr", vec!["expr", "plus", "expr"], 1, Associativity::Left)
+        .start("expr")
         .build();
     let msgs = validate_messages(&g);
     insta::assert_snapshot!(msgs);
@@ -81,6 +83,7 @@ fn validate_grammar_with_extras() {
         .token("num", r"\d+")
         .token("ws", r"\s+")
         .rule("expr", vec!["num"])
+        .start("expr")
         .extra("ws")
         .build();
     let msgs = validate_messages(&g);
@@ -92,6 +95,7 @@ fn validate_grammar_with_externals() {
     let g = GrammarBuilder::new("externals")
         .token("num", r"\d+")
         .rule("expr", vec!["num"])
+        .start("expr")
         .external("indent")
         .build();
     let msgs = validate_messages(&g);

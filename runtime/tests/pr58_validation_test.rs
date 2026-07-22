@@ -37,6 +37,8 @@ mod pr58_validation {
         grammar.rule_names.insert(expr, "expression".to_string());
         grammar.rule_names.insert(number, "number".to_string());
 
+        grammar.set_start_symbol(expr);
+
         let first_follow = FirstFollowSets::compute(&grammar).unwrap();
         let table = build_lr1_automaton(&grammar, &first_follow).unwrap();
 

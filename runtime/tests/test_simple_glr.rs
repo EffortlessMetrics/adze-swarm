@@ -28,6 +28,8 @@ fn test_minimal_grammar() {
         production_id: ProductionId(0),
     });
 
+    grammar.set_start_symbol(s_id);
+
     println!(
         "Grammar created with {} rules and {} tokens",
         grammar.rules.len(),
@@ -110,6 +112,8 @@ fn test_simple_expression() {
         fields: vec![],
         production_id: ProductionId(1),
     });
+
+    grammar.set_start_symbol(expr_id);
 
     println!("\nExpression grammar:");
     println!("  Rules: {}", grammar.rules.len());
