@@ -1362,11 +1362,12 @@ fn inlining_and_unit_elimination_compose() {
 
 #[test]
 fn production_ids_remain_valid_after_optimization() {
-    // Avoid `.start()` here: explicit start symbols are protected from inlining (#862 PR4).
-    let grammar = GrammarBuilder::new("prod_ids")
+    // Builder pins first-rule LHS as start (#862 PR6); clear it so optimization can inline.
+    let mut grammar = GrammarBuilder::new("prod_ids")
         .token("X", "x")
         .rule("expr", vec!["X"])
         .build();
+    grammar.start_symbol = None;
 
     // Record production IDs before optimization
     let _original_prod_ids: Vec<_> = grammar.all_rules().map(|r| r.production_id).collect();

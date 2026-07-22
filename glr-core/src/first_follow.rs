@@ -433,8 +433,12 @@ mod tests {
         rules: impl IntoIterator<Item = (SymbolId, &'static str, Vec<Vec<Symbol>>)>,
     ) -> Grammar {
         let mut grammar = Grammar::new("first_follow_test".to_string());
+        let mut start_symbol = None;
 
         for (lhs, name, productions) in rules {
+            if start_symbol.is_none() {
+                start_symbol = Some(lhs);
+            }
             grammar.rule_names.insert(lhs, name.to_string());
             for (index, rhs) in productions.into_iter().enumerate() {
                 grammar.add_rule(Rule {
@@ -446,6 +450,10 @@ mod tests {
                     production_id: ProductionId(index as u16),
                 });
             }
+        }
+
+        if let Some(start) = start_symbol {
+            grammar.set_start_symbol(start);
         }
 
         grammar
