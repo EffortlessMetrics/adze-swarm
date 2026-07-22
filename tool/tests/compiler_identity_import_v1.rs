@@ -87,7 +87,10 @@ fn imported_json_pattern_wrapper_relations_survive_ir_conversion() {
         .copied()
         .expect("wrapper relation");
     assert_eq!(
-        grammar.tokens.get(&token_id).map(|token| token.name.as_str()),
+        grammar
+            .tokens
+            .get(&token_id)
+            .map(|token| token.name.as_str()),
         Some("_/[a-z]+/")
     );
 }
