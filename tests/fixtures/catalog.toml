@@ -37,15 +37,18 @@ known_gaps = [
 id = "glr-reduce-reduce-minimal"
 family = "glr"
 class = "single reduce/reduce conflict"
-grammar = "planned"
-input = "ambiguous minimal reduce/reduce source"
-selected_tree = "deterministic selected alternative"
-ambiguity = "retained alternatives reported"
-diagnostics = "none"
+grammar = "adze_example::reduce_reduce"
+input = "x"
+selected_tree = "Choice::FromA or Choice::FromB (deterministic selected alternative)"
+ambiguity = "retained alternatives reported in parse_document"
+diagnostics = "none on valid input"
 ts_compat = "selected tree only"
 support_tier = "GLR conflict routing"
-proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture"
-known_gaps = ["concrete fixture source pending"]
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test generated_reduce_reduce_gap -- --nocapture"
+known_gaps = [
+  "fixed-bridge routing gate remains until #892 bridge removal",
+  "dangling-else selected-tree runtime parse still deferred (see glr-dangling-else)",
+]
 
 [[fixture]]
 id = "ts-compat-field-heavy"

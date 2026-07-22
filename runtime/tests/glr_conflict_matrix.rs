@@ -37,7 +37,9 @@ struct SelectedTreeShape {
 
 #[test]
 fn generated_conflict_matrix_preserves_table_cells() {
-    use adze_example::{ambiguous_expr, dangling_else, fielded_precedence_typed_cst_contract};
+    use adze_example::{
+        ambiguous_expr, dangling_else, fielded_precedence_typed_cst_contract, reduce_reduce,
+    };
 
     let cases = [
         GeneratedConflictCase {
@@ -52,6 +54,13 @@ fn generated_conflict_matrix_preserves_table_cells() {
             language: dangling_else::grammar::language(),
             shift_reduce: CountExpectation::Exact(1),
             reduce_reduce: CountExpectation::Exact(0),
+            required_symbol_fragment: None,
+        },
+        GeneratedConflictCase {
+            id: "glr-reduce-reduce-minimal",
+            language: reduce_reduce::grammar::language(),
+            shift_reduce: CountExpectation::Exact(0),
+            reduce_reduce: CountExpectation::AtLeast(1),
             required_symbol_fragment: None,
         },
         GeneratedConflictCase {
