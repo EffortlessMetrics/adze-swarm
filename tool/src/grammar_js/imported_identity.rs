@@ -22,10 +22,9 @@ pub fn infer_imported_compiler_identity(grammar: &mut GrammarJs) {
 
         match rule {
             Rule::Pattern { value } => {
-                grammar.wrapper_token_relations.insert(
-                    rule_name.clone(),
-                    hidden_pattern_token_name(value),
-                );
+                grammar
+                    .wrapper_token_relations
+                    .insert(rule_name.clone(), hidden_pattern_token_name(value));
             }
             Rule::String { value } => {
                 grammar
@@ -99,7 +98,10 @@ mod tests {
         infer_imported_compiler_identity(&mut grammar);
 
         assert_eq!(
-            grammar.wrapper_token_relations.get("identifier").map(String::as_str),
+            grammar
+                .wrapper_token_relations
+                .get("identifier")
+                .map(String::as_str),
             Some("_/[a-z]+/")
         );
     }
