@@ -89,6 +89,9 @@ impl GrammarConverter {
         grammar.fields.insert(FieldId(1), "left".to_string());
         grammar.fields.insert(FieldId(2), "right".to_string());
 
+        grammar.rule_names.insert(expr_symbol, "expr".to_string());
+        grammar.set_start_symbol(expr_symbol);
+
         grammar
     }
 }
