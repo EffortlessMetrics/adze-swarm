@@ -456,6 +456,7 @@ fn product_proof_stable_canaries_execute_exactly_once() {
     );
 
     for required in [
+        "deterministic generated lexer contract",
         "downstream acceptance tests",
         "downstream edge case tests",
         "downstream document projection tests",

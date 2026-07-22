@@ -14,7 +14,7 @@ diagnostics = "none"
 ts_compat = "selected tree S-expression matches documented subset"
 support_tier = "GLR conflict routing"
 proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture"
-known_gaps = ["broader generated reduce/reduce fixture pending"]
+known_gaps = ["fixed-bridge routing gate remains until #892 bridge removal"]
 
 [[fixture]]
 id = "glr-dangling-else"
@@ -22,14 +22,14 @@ family = "glr"
 class = "single shift/reduce conflict"
 grammar = "adze_example::dangling_else"
 input = "if a then if b then other else other"
-selected_tree = "pending generated runtime selected-tree proof"
+selected_tree = "deferred: nearest-else IfThenElse selection (#877)"
 ambiguity = "else conflict retained in generated table"
-diagnostics = "runtime selected-tree parse currently pending"
+diagnostics = "runtime selected-tree parse deferred (#877)"
 ts_compat = "selected tree only"
 support_tier = "GLR conflict routing"
 proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture"
 known_gaps = [
-  "generated dangling-else selected-tree runtime parse pending",
+  "#877: generated lexer fails on keyword input (UnexpectedToken at byte 3); runtime selected-tree proof blocked until streaming lex contract covers dangling_else keywords",
   "broader imported grammar dangling-else parity pending",
 ]
 
@@ -37,15 +37,18 @@ known_gaps = [
 id = "glr-reduce-reduce-minimal"
 family = "glr"
 class = "single reduce/reduce conflict"
-grammar = "planned"
-input = "ambiguous minimal reduce/reduce source"
-selected_tree = "deterministic selected alternative"
-ambiguity = "retained alternatives reported"
-diagnostics = "none"
+grammar = "adze_example::reduce_reduce"
+input = "x"
+selected_tree = "Choice::FromA or Choice::FromB (deterministic selected alternative)"
+ambiguity = "retained alternatives reported in parse_document"
+diagnostics = "none on valid input"
 ts_compat = "selected tree only"
 support_tier = "GLR conflict routing"
-proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture"
-known_gaps = ["concrete fixture source pending"]
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test generated_reduce_reduce_gap -- --nocapture"
+known_gaps = [
+  "fixed-bridge routing gate remains until #892 bridge removal",
+  "dangling-else selected-tree runtime parse still deferred (see glr-dangling-else)",
+]
 
 [[fixture]]
 id = "ts-compat-field-heavy"
