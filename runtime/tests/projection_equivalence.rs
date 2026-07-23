@@ -325,3 +325,107 @@ fn find_node<'doc>(node: AdzeNode<'doc>, kind: &str, text: &str) -> Option<AdzeN
 
     None
 }
+
+// ─── GLR conflict-fixture projection equivalence (#892 / #870) ───────────────
+
+#[cfg(feature = "glr")]
+#[test]
+fn glr_ambiguous_expr_parse_document_ast_and_json_agree() {
+    use adze_example::ambiguous_expr::grammar::{self, Expr};
+
+    let source = "1 + 2 + 3";
+    let selected = grammar::parse(source).expect("GLR parse should select a typed AST");
+    let document = grammar::parse_document(source)
+        .expect("GLR parse_document should return the canonical document");
+    let document_ast: Expr = document
+        .ast()
+        .expect("document-backed AST should agree with parse()");
+    assert_eq!(document_ast, selected);
+
+    assert!(
+        !document.ambiguities().is_empty(),
+        "ambiguous_expr should expose ambiguity summaries for {source:?}"
+    );
+
+    let json = document.to_json_value();
+    assert_eq!(json["schema"].as_str(), Some(ADZE_DOCUMENT_JSON_SCHEMA));
+    let json_ambiguities = json["ambiguities"]
+        .as_array()
+        .expect("document JSON should serialize ambiguity summaries");
+    assert_eq!(
+        json_ambiguities.len(),
+        document.ambiguities().len(),
+        "JSON ambiguity summaries should match native document facts"
+    );
+    assert_json_node_matches_document(document.tree().root(), &json["tree"]["root"]);
+}
+
+#[cfg(feature = "glr")]
+#[test]
+fn glr_reduce_reduce_document_ambiguity_matches_json() {
+    use adze_example::reduce_reduce::grammar;
+
+    let source = "x";
+    let document = grammar::parse_document(source).expect("reduce_reduce parse_document");
+    assert!(
+        !document.ambiguities().is_empty(),
+        "reduce_reduce should expose reduce/reduce ambiguity summaries"
+    );
+
+    let json = document.to_json_value();
+    let json_ambiguities = json["ambiguities"]
+        .as_array()
+        .expect("reduce/reduce ambiguity should serialize to JSON");
+    assert_eq!(json_ambiguities.len(), document.ambiguities().len());
+    assert_json_node_matches_document(document.tree().root(), &json["tree"]["root"]);
+}
+
+#[cfg(feature = "glr")]
+#[test]
+fn glr_precedence_control_parse_document_ast_agree_without_ambiguity() {
+    use adze_example::fielded_precedence_typed_cst_contract::grammar::{self, Expr};
+
+    let source = "1+2*3";
+    let selected = grammar::parse(source).expect("precedence-resolved parse should succeed");
+    let document = grammar::parse_document(source).expect("parse_document should succeed");
+    let document_ast: Expr = document
+        .ast()
+        .expect("document AST projection should succeed");
+    assert_eq!(document_ast, selected);
+    assert!(
+        document.ambiguities().is_empty(),
+        "precedence-resolved control should not claim ambiguity summaries"
+    );
+
+    let json = document.to_json_value();
+    assert!(
+        json["ambiguities"].as_array().is_some_and(Vec::is_empty),
+        "precedence control JSON should not serialize ambiguity summaries"
+    );
+}
+
+#[cfg(feature = "glr")]
+#[test]
+fn glr_ambiguous_expr_recovered_input_diagnostic_json_agrees() {
+    use adze_example::ambiguous_expr::grammar;
+
+    let source = "1 + @";
+    let document =
+        grammar::parse_document(source).expect("bad input should return a recovered document");
+    let json = document.to_json_value();
+
+    assert!(document.tree().has_errors());
+    assert!(!document.diagnostics().is_empty());
+    assert_eq!(
+        json["diagnostics"].as_array().map(Vec::len),
+        Some(document.diagnostics().len())
+    );
+    assert!(
+        document.ambiguities().is_empty(),
+        "error documents should not claim ambiguity summaries"
+    );
+    assert!(
+        json["ambiguities"].as_array().is_some_and(Vec::is_empty),
+        "error document JSON should not serialize ambiguity summaries"
+    );
+}
