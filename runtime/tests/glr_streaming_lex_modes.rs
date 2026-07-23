@@ -143,26 +143,26 @@ fn streaming_lex_modes_meaningful_newline_survives_tokenization() {
 }
 
 #[test]
-fn reduce_reduce_route_gate_stays_on_fixed_bridge() {
+fn reduce_reduce_route_gate_routes_through_streaming_driver() {
     let language = adze_example::reduce_reduce::grammar::language();
     let table = decode_parse_table(language);
     assert!(
-        !adze::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
+        adze::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
             language, &table
         ),
-        "reduce/reduce fixtures stay on GLRParser until ambiguity parity (#891 PR6)"
+        "reduce/reduce fixtures route through streaming driver after Gate A equivalence (#892)"
     );
 }
 
 #[test]
-fn ambiguous_expr_route_gate_stays_on_fixed_bridge() {
+fn ambiguous_expr_route_gate_routes_through_streaming_driver() {
     let language = ambiguous_expr_grammar::language();
     let table = decode_parse_table(language);
     assert!(
-        !adze::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
+        adze::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
             language, &table
         ),
-        "ambiguous_expr should remain on GLRParser until driver parity (#891 PR6)"
+        "ambiguous_expr routes through streaming driver after Gate A equivalence (#892)"
     );
 }
 
