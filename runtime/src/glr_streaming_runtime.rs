@@ -113,7 +113,7 @@ fn populate_streaming_parse_table_lex_modes(
 ) {
     if fixed_mode_bridge_uses_only_state_zero_lex_mode(language) {
         let base_mode = generated_language_base_lex_mode(language);
-        let state_count = usize::try_from(parse_table.state_count).unwrap_or(0);
+        let state_count = parse_table.state_count;
         parse_table.lex_modes = vec![base_mode; state_count];
         return;
     }
@@ -146,10 +146,10 @@ fn generated_language_base_lex_mode(language: &TSLanguage) -> LexMode {
     }
 }
 
-fn language_lex_modes_match_state_count(language: &TSLanguage, state_count: u32) -> bool {
+fn language_lex_modes_match_state_count(language: &TSLanguage, state_count: usize) -> bool {
     !language.lex_modes.is_null()
         && language.state_count > 0
-        && language.state_count == state_count
+        && language.state_count as usize == state_count
 }
 
 fn lex_modes_from_generated_language(language: &TSLanguage) -> Vec<LexMode> {
