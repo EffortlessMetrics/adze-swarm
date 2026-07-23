@@ -612,4 +612,3 @@ fn diagnostic_end_for_byte(source: &[u8], start: usize) -> usize {
         .map(|ch| start + ch.len_utf8())
         .unwrap_or_else(|| (start + 1).min(source.len()))
 }
-

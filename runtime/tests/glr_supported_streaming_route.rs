@@ -5,9 +5,7 @@
 use adze::decoder::decode_parse_table;
 use adze::glr_streaming_runtime::{TrueGlrParseRoute, last_true_glr_parse_route};
 use adze::pure_parser::TSLanguage;
-use adze_example::{
-    ambiguous_expr, dangling_else, reduce_reduce, streaming_lex_modes,
-};
+use adze_example::{ambiguous_expr, dangling_else, reduce_reduce, streaming_lex_modes};
 
 struct SupportedConflictCase {
     id: &'static str,
