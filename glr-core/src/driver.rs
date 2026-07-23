@@ -269,7 +269,7 @@ impl<'t> Driver<'t> {
             let mut has_any_real_action = false;
 
             for stk in prev_stacks.iter().cloned() {
-                for mut stk in self.reduce_closure_stacks(&mut state, vec![stk], token_sym)? {
+                for stk in self.reduce_closure_stacks(&mut state, vec![stk], token_sym)? {
                     // Get actions and filter Recover if real actions exist
                     let top = stk.top_state()?;
                     let all_actions = self.tables.actions(top, token_sym);
@@ -672,7 +672,7 @@ impl<'t> Driver<'t> {
 
         let stacks = std::mem::take(&mut state.stacks);
         for stk in stacks {
-            for mut stk in self.reduce_closure_stacks(&mut state, vec![stk], eof)? {
+            for stk in self.reduce_closure_stacks(&mut state, vec![stk], eof)? {
                 let _top_after_reduce = stk.top_state()?;
                 debug_trace!(
                     "DEBUG: After reduce_closure, checking actions for state {} on EOF",
