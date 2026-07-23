@@ -471,6 +471,17 @@ fn reduce_reduce_parses_despite_conflict() {
 }
 
 #[test]
+fn reduce_reduce_forest_retains_multiple_roots() {
+    let table = reduce_reduce_table();
+    let forest = parse_with(&table, &[(1, 0, 1)])
+        .expect("reduce-reduce conflict should still produce a parse");
+    assert!(
+        forest.view().roots().len() >= 2,
+        "reduce/reduce should retain multiple complete roots for ambiguity materialization"
+    );
+}
+
+#[test]
 fn reduce_reduce_root_span() {
     let table = reduce_reduce_table();
     let forest = parse_with(&table, &[(1, 0, 1)]).unwrap();

@@ -8,7 +8,7 @@
 use adze::__private::{align_true_glr_parse_table_to_language_symbols, lex_with_language_fn};
 use adze::decoder::{decode_grammar, decode_parse_table};
 use adze::glr_parser::GLRParser;
-use adze::glr_streaming_runtime::parse_with_streaming_driver;
+use adze::glr_streaming_runtime::{parse_with_streaming_driver, StreamingGlrParseResult};
 use adze::pure_parser::TSLanguage;
 use adze::subtree::Subtree;
 use adze_glr_core::conflict_inspection::state_has_conflicts;
@@ -50,10 +50,10 @@ fn parse_via_fixed_bridge(
 fn parse_via_streaming_driver(
     input: &str,
     language: &'static TSLanguage,
-) -> Result<Arc<Subtree>, adze_glr_core::driver::GlrError> {
+) -> Result<StreamingGlrParseResult, adze_glr_core::driver::GlrError> {
     let parse_table = decode_parse_table(language);
     let grammar = decode_grammar(language);
-    parse_with_streaming_driver(input, language, parse_table, &grammar).map(|result| result.root)
+    parse_with_streaming_driver(input, language, parse_table, &grammar)
 }
 
 fn subtree_shape_key(subtree: &Subtree) -> String {
@@ -77,11 +77,11 @@ fn assert_bridge_streaming_subtree_equivalence(
 
     assert_eq!(
         subtree_shape_key(&bridge),
-        subtree_shape_key(&streaming),
+        subtree_shape_key(&streaming.root),
         "{grammar_name} selected subtree shape should match between bridge and streaming for input {input:?}"
     );
     assert_eq!(
-        bridge.node.byte_range, streaming.node.byte_range,
+        bridge.node.byte_range, streaming.root.node.byte_range,
         "{grammar_name} root byte range should match for input {input:?}"
     );
 }
@@ -123,21 +123,35 @@ fn reduce_reduce_route_gate_stays_on_fixed_bridge_until_ambiguity_parity() {
 }
 
 #[test]
-fn reduce_reduce_streaming_ambiguity_gap_is_known_failing() {
+fn reduce_reduce_streaming_ambiguity_matches_fixed_bridge() {
     let language = adze_example::reduce_reduce::grammar::language();
     let bridge_doc = adze_example::reduce_reduce::grammar::parse_document("x")
         .expect("fixed-bridge parse_document should succeed");
-    let streaming_root =
-        parse_via_streaming_driver("x", language).expect("streaming subtree should parse");
+    let streaming = parse_with_streaming_driver("x", language)
+        .expect("streaming driver should parse reduce_reduce input");
 
     assert!(
         !bridge_doc.ambiguities().is_empty(),
         "fixed bridge should retain reduce/reduce ambiguity summary"
     );
+    assert!(
+        streaming.ambiguities.is_some(),
+        "streaming driver should retain reduce/reduce ambiguity summary"
+    );
+    let streaming_summary = streaming
+        .ambiguities
+        .as_ref()
+        .expect("streaming ambiguity summary");
+    let bridge_summary = &bridge_doc.ambiguities()[0];
     assert_eq!(
-        streaming_root.node.byte_range,
+        streaming_summary.alternatives.len(),
+        bridge_summary.alternatives.len(),
+        "streaming and bridge should retain the same number of complete alternatives"
+    );
+    assert_eq!(
+        streaming.root.node.byte_range,
         bridge_doc.tree().root().byte_range(),
-        "subtree span should match even though streaming ambiguity facts diverge"
+        "selected subtree span should match between bridge and streaming"
     );
 }
 

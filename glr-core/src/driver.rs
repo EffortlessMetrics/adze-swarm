@@ -37,6 +37,24 @@ pub enum GlrError {
     Other(String),
 }
 
+fn reduce_actions_for(actions: &[Action]) -> Vec<RuleId> {
+    let mut reduce_rules = Vec::new();
+    for action in actions {
+        match *action {
+            Action::Reduce(rid) => reduce_rules.push(rid),
+            Action::Fork(ref xs) => {
+                for nested in xs {
+                    if let Action::Reduce(rid) = *nested {
+                        reduce_rules.push(rid);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    reduce_rules
+}
+
 /// GLR parser driver that executes the parsing algorithm
 pub struct Driver<'t> {
     /// LR tables used by the driver
@@ -250,10 +268,8 @@ impl<'t> Driver<'t> {
             let mut new_stacks = Vec::new();
             let mut has_any_real_action = false;
 
-            for mut stk in prev_stacks.iter().cloned() {
-                // Apply reduces before shifts
-                self.reduce_closure(&mut state, &mut stk, token_sym)?;
-
+            for stk in prev_stacks.iter().cloned() {
+                for mut stk in self.reduce_closure_stacks(&mut state, vec![stk], token_sym)? {
                 // Get actions and filter Recover if real actions exist
                 let top = stk.top_state()?;
                 let all_actions = self.tables.actions(top, token_sym);
@@ -294,6 +310,9 @@ impl<'t> Driver<'t> {
                             {
                                 state.forest.roots.push(root);
                             }
+                            if token_sym == self.tables.eof_symbol {
+                                break;
+                            }
                             return Ok(Self::wrap_forest(state.forest));
                         }
                         Action::Reduce(rid) => {
@@ -330,6 +349,7 @@ impl<'t> Driver<'t> {
                         }
                         _ => {}
                     }
+                }
                 }
             }
 
@@ -648,16 +668,8 @@ impl<'t> Driver<'t> {
         );
 
         let stacks = std::mem::take(&mut state.stacks);
-        for mut stk in stacks {
-            let _top = stk.top_state()?;
-            debug_trace!(
-                "DEBUG: Processing stack with {} states, top state={}",
-                stk.states.len(),
-                _top.0
-            );
-
-            self.reduce_closure(&mut state, &mut stk, eof)?;
-
+        for stk in stacks {
+            for mut stk in self.reduce_closure_stacks(&mut state, vec![stk], eof)? {
             let _top_after_reduce = stk.top_state()?;
             debug_trace!(
                 "DEBUG: After reduce_closure, checking actions for state {} on EOF",
@@ -736,6 +748,7 @@ impl<'t> Driver<'t> {
                     }
                     _ => {}
                 }
+            }
             }
         }
 
@@ -871,26 +884,53 @@ impl<'t> Driver<'t> {
     }
 
     /// Keep reducing as long as there is at least one reduce for (top, lookahead).
+    ///
+    /// When multiple reduce actions are available (reduce/reduce), fork into one stack
+    /// per reduction so ambiguity survives through EOF materialization.
+    fn reduce_closure_stacks(
+        &self,
+        st: &mut GlrState,
+        stacks: Vec<ParseStack>,
+        lookahead: SymbolId,
+    ) -> Result<Vec<ParseStack>, GlrError> {
+        let mut frontier = stacks;
+        loop {
+            let mut next = Vec::new();
+            let mut progressed = false;
+
+            for stk in frontier {
+                let state = *stk.states.last().expect("GLR stack must never be empty");
+                let reduce_rules = reduce_actions_for(self.tables.actions(state, lookahead));
+
+                if reduce_rules.is_empty() {
+                    next.push(stk);
+                    continue;
+                }
+
+                progressed = true;
+                for rid in reduce_rules {
+                    next.push(self.reduce_once(st, stk.clone(), rid)?);
+                }
+            }
+
+            if !progressed {
+                return Ok(next);
+            }
+            frontier = next;
+        }
+    }
+
     fn reduce_closure(
         &self,
         st: &mut GlrState,
         stack: &mut ParseStack,
         lookahead: SymbolId,
     ) -> Result<(), GlrError> {
-        loop {
-            let state = *stack.states.last().expect("GLR stack must never be empty");
-            let mut did_reduce = false;
-            for action in self.tables.actions(state, lookahead) {
-                if let Action::Reduce(rid) = *action {
-                    *stack = self.reduce_once(st, std::mem::take(stack), rid)?;
-                    did_reduce = true;
-                    break; // Re-evaluate from new top after one reduce
-                }
-            }
-            if !did_reduce {
-                break;
-            }
-        }
+        let stacks = self.reduce_closure_stacks(st, vec![std::mem::take(stack)], lookahead)?;
+        *stack = stacks
+            .into_iter()
+            .next()
+            .expect("reduce_closure must retain at least one stack");
         Ok(())
     }
 
