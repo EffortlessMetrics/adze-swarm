@@ -709,7 +709,7 @@ impl<'t> Driver<'t> {
                                 );
                                 state.forest.roots.push(root);
                             }
-                            return Ok(Self::wrap_forest(state.forest));
+                            break;
                         }
                         Action::Reduce(rid) => {
                             debug_trace!("DEBUG: Reduce action found, rule {}", rid.0);
@@ -749,7 +749,7 @@ impl<'t> Driver<'t> {
                                         );
                                         state.forest.roots.push(root);
                                     }
-                                    return Ok(Self::wrap_forest(state.forest));
+                                    break;
                                 }
                             }
                         }
