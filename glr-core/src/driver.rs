@@ -434,14 +434,7 @@ impl<'t> Driver<'t> {
             }
         }
 
-        // Check if we have any accepted roots
-        if !state.forest.roots.is_empty() {
-            return Ok(Self::wrap_forest(state.forest));
-        }
-
-        Err(GlrError::Parse(
-            "input not accepted: no valid parse".to_string(),
-        ))
+        self.complete_eof_phase(state)
     }
 
     fn push_limited_stack(
@@ -681,7 +674,11 @@ impl<'t> Driver<'t> {
             }
         }
 
-        // EOF phase - use the table's EOF symbol instead of hardcoded 0
+        self.complete_eof_phase(state)
+    }
+
+    /// Collect complete parse roots from surviving stacks at EOF.
+    fn complete_eof_phase(&mut self, mut state: GlrState) -> Result<Forest, GlrError> {
         let eof = self.tables.eof();
         #[cfg(feature = "debug_glr")]
         debug_trace!(
