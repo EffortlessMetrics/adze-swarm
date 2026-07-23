@@ -425,7 +425,17 @@ pub fn adze_document_from_streaming_parse(
     parse_table: &adze_glr_core::ParseTable,
 ) -> crate::document::AdzeDocument {
     let root = convert_subtree_to_document_node(&parsed.root, language, parse_table, grammar);
-    let ambiguities = parsed.ambiguities.into_iter().collect::<Vec<_>>();
+    let mut ambiguities = parsed.ambiguities.into_iter().collect::<Vec<_>>();
+    if ambiguities.is_empty()
+        && let Some(summary) = shift_reduce_ambiguity_summary_via_glr_stacks(
+            source,
+            language,
+            parse_table.clone(),
+            grammar.clone(),
+        )
+    {
+        ambiguities.push(summary);
+    }
 
     crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
         source,
@@ -440,6 +450,31 @@ pub fn adze_document_from_streaming_parse(
         Vec::new(),
         ambiguities,
     )
+}
+
+/// Recover shift/reduce ambiguity summaries that the streaming forest does not materialize yet.
+///
+/// The streaming driver retains multiple complete roots for reduce/reduce conflicts but
+/// currently collapses shift/reduce ambiguity to a single selected root. Until the driver
+/// exposes those alternatives in the forest, reuse the GLR stack ambiguity summary on the
+/// same generated pretokenization contract.
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn shift_reduce_ambiguity_summary_via_glr_stacks(
+    input: &str,
+    language: &'static crate::pure_parser::TSLanguage,
+    mut parse_table: adze_glr_core::ParseTable,
+    grammar: adze_ir::Grammar,
+) -> Option<crate::glr_parser::AmbiguitySummary> {
+    let lex_fn = language.lex_fn?;
+    let source = input.as_bytes();
+    align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
+    let mut parser = crate::glr_parser::GLRParser::new(parse_table, grammar);
+    let tokens = lex_with_language_fn(language, lex_fn, source).ok()?;
+    for token in tokens {
+        parser.process_token(token.symbol_id, &token.text, token.byte_offset);
+    }
+    parser.process_eof(source.len());
+    parser.finish_ambiguity_summary().ok().flatten()
 }
 
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
