@@ -127,7 +127,7 @@ fn reduce_reduce_streaming_ambiguity_matches_fixed_bridge() {
     let language = adze_example::reduce_reduce::grammar::language();
     let bridge_doc = adze_example::reduce_reduce::grammar::parse_document("x")
         .expect("fixed-bridge parse_document should succeed");
-    let streaming = parse_with_streaming_driver("x", language)
+    let streaming = parse_via_streaming_driver("x", language)
         .expect("streaming driver should parse reduce_reduce input");
 
     assert!(
@@ -198,8 +198,9 @@ fn ambiguous_expr_bridge_streaming_equivalence_bad_input() {
     let input = "1 + @";
 
     let bridge_err = parse_via_fixed_bridge(input, language).expect_err("bridge should fail");
-    let streaming_err =
-        parse_via_streaming_driver(input, language).expect_err("streaming should fail");
+    let streaming_err = parse_via_streaming_driver(input, language)
+        .err()
+        .expect("streaming should fail");
 
     assert!(
         !bridge_err.is_empty() && streaming_err.to_string().contains("byte"),
