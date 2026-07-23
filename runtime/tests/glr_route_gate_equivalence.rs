@@ -172,13 +172,35 @@ fn ambiguous_expr_streaming_table_uses_generated_lex_mode_abi() {
         !table.lex_modes.is_empty(),
         "streaming table must expose one lex mode per parser state"
     );
-    let base = table.lex_modes[0];
     assert!(
-        table.lex_modes.iter().all(|mode| {
-            mode.lex_state == base.lex_state && mode.external_lex_state == base.external_lex_state
-        }),
-        "ambiguous_expr generated lex_fn only understands the state-0 ABI mode; invented distinct modes cause cannot-lex failures"
+        !language.lex_modes.is_null(),
+        "ambiguous_expr must expose generated lex_modes for ABI comparison"
     );
+
+    // Prefer the generated language ABI over invented shiftable-terminal signatures.
+    // When state counts match, every prepared mode must equal the language entry.
+    // Otherwise every prepared mode must equal the language state-0 base mode.
+    if language.state_count as usize == table.lex_modes.len() {
+        for (state, mode) in table.lex_modes.iter().enumerate() {
+            // SAFETY: state < language.state_count and lex_modes has one entry per state.
+            let abi = unsafe { *language.lex_modes.add(state) };
+            assert_eq!(
+                (mode.lex_state, mode.external_lex_state),
+                (abi.lex_state, abi.external_lex_state),
+                "prepared lex mode for state {state} must match generated ABI"
+            );
+        }
+    } else {
+        // SAFETY: language.state_count > 0 implied by non-null lex_modes on generated languages.
+        let base = unsafe { *language.lex_modes };
+        assert!(
+            table.lex_modes.iter().all(|mode| {
+                mode.lex_state == base.lex_state
+                    && mode.external_lex_state == base.external_lex_state
+            }),
+            "prepared lex modes must fall back to language state-0 ABI when counts diverge"
+        );
+    }
 }
 
 #[test]
