@@ -476,6 +476,19 @@ fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
 }
 
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn unsupported_true_glr_fixed_bridge_error(input: &str) -> Vec<crate::errors::ParseError> {
+    vec![crate::errors::ParseError {
+        reason: crate::errors::ParseErrorReason::UnexpectedToken(
+            "conflicted generated grammar is not configured for streaming driver routing"
+                .to_string(),
+        ),
+        start: 0,
+        end: input.len(),
+        expected: vec![],
+    }]
+}
+
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
 fn parse_document_with_true_glr_runtime(
     input: &str,
     language: &'static crate::pure_parser::TSLanguage,
@@ -498,53 +511,25 @@ fn parse_document_with_true_glr_runtime(
         );
     }
 
-    crate::glr_streaming_runtime::record_fixed_bridge_route();
+    if language.lex_fn.is_some() {
+        return Ok(parse_document_from_glr_errors(
+            input,
+            language,
+            grammar_name,
+            &grammar,
+            &parse_table,
+            unsupported_true_glr_fixed_bridge_error(input),
+        ));
+    }
+
     let source = input.as_bytes();
     let mut runtime_parse_table = parse_table.clone();
     align_true_glr_parse_table_to_language_symbols(language, &mut runtime_parse_table);
     let mut parser = crate::glr_parser::GLRParser::new(runtime_parse_table, grammar.clone());
 
-    if let Some(lex_fn) = language.lex_fn {
-        let tokens = match lex_with_language_fn(language, lex_fn, source) {
-            Ok(tokens) => tokens,
-            Err(errors) => {
-                return Ok(parse_document_from_glr_errors(
-                    input,
-                    language,
-                    grammar_name,
-                    &grammar,
-                    &parse_table,
-                    errors,
-                ));
-            }
-        };
-        for token in tokens {
-            parser.process_token(token.symbol_id, &token.text, token.byte_offset);
-        }
-    } else {
-        let mut lexer = match crate::glr_lexer::GLRLexer::new(&grammar, input.to_string()) {
-            Ok(lexer) => lexer,
-            Err(message) => {
-                return Ok(parse_document_from_glr_errors(
-                    input,
-                    language,
-                    grammar_name,
-                    &grammar,
-                    &parse_table,
-                    vec![crate::errors::ParseError {
-                        reason: crate::errors::ParseErrorReason::UnexpectedToken(message),
-                        start: 0,
-                        end: source.len(),
-                        expected: vec![],
-                    }],
-                ));
-            }
-        };
-
-        while let Some(token) = lexer.next_token() {
-            parser.process_token(token.symbol_id, &token.text, token.byte_offset);
-        }
-        if let Some((start, end)) = lexer.invalid_span() {
+    let mut lexer = match crate::glr_lexer::GLRLexer::new(&grammar, input.to_string()) {
+        Ok(lexer) => lexer,
+        Err(message) => {
             return Ok(parse_document_from_glr_errors(
                 input,
                 language,
@@ -552,15 +537,34 @@ fn parse_document_with_true_glr_runtime(
                 &grammar,
                 &parse_table,
                 vec![crate::errors::ParseError {
-                    reason: crate::errors::ParseErrorReason::UnexpectedToken(
-                        "unexpected token while lexing".to_string(),
-                    ),
-                    start,
-                    end,
+                    reason: crate::errors::ParseErrorReason::UnexpectedToken(message),
+                    start: 0,
+                    end: source.len(),
                     expected: vec![],
                 }],
             ));
         }
+    };
+
+    while let Some(token) = lexer.next_token() {
+        parser.process_token(token.symbol_id, &token.text, token.byte_offset);
+    }
+    if let Some((start, end)) = lexer.invalid_span() {
+        return Ok(parse_document_from_glr_errors(
+            input,
+            language,
+            grammar_name,
+            &grammar,
+            &parse_table,
+            vec![crate::errors::ParseError {
+                reason: crate::errors::ParseErrorReason::UnexpectedToken(
+                    "unexpected token while lexing".to_string(),
+                ),
+                start,
+                end,
+                expected: vec![],
+            }],
+        ));
     }
 
     parser.process_eof(source.len());
@@ -798,42 +802,39 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
         return finish_typed_extract_from_parsed_node(parsed_node, source);
     }
 
-    crate::glr_streaming_runtime::record_fixed_bridge_route();
+    if language.lex_fn.is_some() {
+        return Err(unsupported_true_glr_fixed_bridge_error(input));
+    }
+
     let source = input.as_bytes();
     align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
     let grammar = crate::decoder::decode_grammar(language);
     let mut parser = crate::glr_parser::GLRParser::new(parse_table, grammar.clone());
 
-    if let Some(lex_fn) = language.lex_fn {
-        for token in lex_with_language_fn(language, lex_fn, source)? {
-            parser.process_token(token.symbol_id, &token.text, token.byte_offset);
-        }
-    } else {
-        let mut lexer = match crate::glr_lexer::GLRLexer::new(&grammar, input.to_string()) {
-            Ok(lexer) => lexer,
-            Err(message) => {
-                return Err(vec![crate::errors::ParseError {
-                    reason: crate::errors::ParseErrorReason::UnexpectedToken(message),
-                    start: 0,
-                    end: source.len(),
-                    expected: vec![],
-                }]);
-            }
-        };
-
-        while let Some(token) = lexer.next_token() {
-            parser.process_token(token.symbol_id, &token.text, token.byte_offset);
-        }
-        if let Some((start, end)) = lexer.invalid_span() {
+    let mut lexer = match crate::glr_lexer::GLRLexer::new(&grammar, input.to_string()) {
+        Ok(lexer) => lexer,
+        Err(message) => {
             return Err(vec![crate::errors::ParseError {
-                reason: crate::errors::ParseErrorReason::UnexpectedToken(
-                    "unexpected token while lexing".to_string(),
-                ),
-                start,
-                end,
+                reason: crate::errors::ParseErrorReason::UnexpectedToken(message),
+                start: 0,
+                end: source.len(),
                 expected: vec![],
             }]);
         }
+    };
+
+    while let Some(token) = lexer.next_token() {
+        parser.process_token(token.symbol_id, &token.text, token.byte_offset);
+    }
+    if let Some((start, end)) = lexer.invalid_span() {
+        return Err(vec![crate::errors::ParseError {
+            reason: crate::errors::ParseErrorReason::UnexpectedToken(
+                "unexpected token while lexing".to_string(),
+            ),
+            start,
+            end,
+            expected: vec![],
+        }]);
     }
 
     parser.process_eof(source.len());

@@ -68,17 +68,17 @@ fn streaming_lex_modes_fixed_mode_bridge_ignores_distinct_lex_states() {
         distinct.len() >= 2,
         "precondition: fixture exposes multiple lex states"
     );
-    assert!(
-        fixed_mode_bridge_uses_only_state_zero_lex_mode(language),
-        "expected current bridge to ignore per-state lex modes until streaming adapter lands"
-    );
 
     let violations = audit_fixed_mode_pretokenization_bridge(language, &table, b"1+2\n".as_slice());
     assert!(
         violations.iter().any(|violation| {
-            violation.kind == StreamingLexContractViolationKind::FixedStateZeroPretokenization
+            matches!(
+                violation.kind,
+                StreamingLexContractViolationKind::FixedStateZeroPretokenization
+                    | StreamingLexContractViolationKind::HardCodedAsciiWhitespaceSkip
+            )
         }),
-        "audit should flag fixed state-0 pretokenization: {violations:?}"
+        "audit should flag fixed-bridge contract violations: {violations:?}"
     );
 }
 
@@ -139,6 +139,18 @@ fn streaming_lex_modes_meaningful_newline_survives_tokenization() {
         last_true_glr_parse_route(),
         Some(TrueGlrParseRoute::StreamingDriver),
         "fixture tokenization proof should execute through streaming driver routing"
+    );
+}
+
+#[test]
+fn streaming_lex_modes_route_gate_routes_through_streaming_driver() {
+    let language = streaming_lex_modes_language();
+    let table = decode_parse_table(language);
+    assert!(
+        adze::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
+            language, &table
+        ),
+        "streaming_lex_modes must route through streaming driver after bridge removal (#892)"
     );
 }
 
