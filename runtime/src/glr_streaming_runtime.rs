@@ -9,7 +9,6 @@ use crate::glr_parser::{
 };
 use crate::glr_streaming_internal_lexer::make_generated_internal_streaming_lexer;
 use crate::glr_streaming_lex_contract::{
-    conflict_shift_targets_require_distinct_lex_modes, distinct_internal_lex_states,
     fixed_mode_bridge_uses_only_state_zero_lex_mode,
     grammar_requires_stack_aware_streaming_lex_contract,
 };
@@ -87,10 +86,10 @@ pub fn should_route_conflict_table_through_streaming_driver(
 
     let grammar = decode_grammar(language);
 
+    // Stack-aware contract (#857): meaningful newline and per-state lex modes cannot
+    // use the fixed bridge's hard-coded ASCII whitespace skip or state-0 pretokenization.
     if grammar_requires_stack_aware_streaming_lex_contract(&grammar)
-        && distinct_internal_lex_states(&prepared).len() >= 2
-        && fixed_mode_bridge_uses_only_state_zero_lex_mode(language)
-        && conflict_shift_targets_require_distinct_lex_modes(&prepared)
+        && parse_table_has_conflicts(&prepared)
     {
         return true;
     }
@@ -160,7 +159,19 @@ fn populate_streaming_parse_table_lex_modes(
         .iter()
         .any(|states| states.iter().any(|active| *active));
 
-    if grammar_requires_stack_aware_streaming_lex_contract(&grammar) || has_external_scanner {
+    if grammar_requires_stack_aware_streaming_lex_contract(&grammar) {
+        if language_lex_modes_match_state_count(language, parse_table.state_count) {
+            parse_table.lex_modes = lex_modes_from_generated_language(language);
+        } else {
+            parse_table.lex_modes = build_lex_modes_from_shiftable_terminals(
+                &parse_table.action_table,
+                &parse_table.external_scanner_states,
+            );
+        }
+        return;
+    }
+
+    if has_external_scanner {
         parse_table.lex_modes = build_lex_modes_from_shiftable_terminals(
             &parse_table.action_table,
             &parse_table.external_scanner_states,
@@ -602,6 +613,3 @@ fn diagnostic_end_for_byte(source: &[u8], start: usize) -> usize {
         .unwrap_or_else(|| (start + 1).min(source.len()))
 }
 
-pub(crate) fn record_fixed_bridge_route() {
-    record_route(TrueGlrParseRoute::FixedPretokenizationBridge);
-}
