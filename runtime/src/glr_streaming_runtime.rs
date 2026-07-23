@@ -134,9 +134,8 @@ fn parse_table_has_conflicts(parse_table: &ParseTable) -> bool {
     use adze_glr_core::conflict_inspection::state_has_conflicts;
     use adze_ir::StateId;
 
-    (0..parse_table.state_count).any(|state| {
-        state_has_conflicts(parse_table, StateId(state as u16))
-    })
+    (0..parse_table.state_count)
+        .any(|state| state_has_conflicts(parse_table, StateId(state as u16)))
 }
 
 /// Prepare a conflicted parse table for stack-aware streaming execution.
