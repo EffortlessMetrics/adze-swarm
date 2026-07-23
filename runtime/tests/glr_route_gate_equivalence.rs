@@ -162,20 +162,10 @@ fn ambiguous_expr_bridge_streaming_equivalence_single_token_only() {
 }
 
 #[test]
-fn ambiguous_expr_multi_token_streaming_gap_is_known_failing() {
+fn ambiguous_expr_bridge_streaming_equivalence_multi_token() {
     let language = adze_example::ambiguous_expr::grammar::language();
     for input in ["1+2", "1 + 2"] {
-        let bridge =
-            parse_via_fixed_bridge(input, language).expect("bridge should parse multi-token input");
-        let streaming = parse_via_streaming_driver(input, language);
-        assert!(
-            streaming.is_err(),
-            "known gap (#892): diverged-stack lex modes fail for multi-token ambiguous_expr input {input:?}"
-        );
-        assert!(
-            !bridge.node.is_error,
-            "fixed bridge remains production route for multi-token ambiguous_expr until parity lands"
-        );
+        assert_bridge_streaming_subtree_equivalence("ambiguous_expr", input, language);
     }
 }
 

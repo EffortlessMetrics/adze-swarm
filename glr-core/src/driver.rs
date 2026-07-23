@@ -269,7 +269,26 @@ impl<'t> Driver<'t> {
             let mut has_any_real_action = false;
 
             for stk in prev_stacks.iter().cloned() {
-                for stk in self.reduce_closure_stacks(&mut state, vec![stk], token_sym)? {
+                let top = stk.top_state()?;
+                let pre_actions = self.tables.actions(top, token_sym);
+                let reduce_rules = reduce_actions_for(pre_actions);
+                let has_shift = pre_actions
+                    .iter()
+                    .any(|action| matches!(action, Action::Shift(_)));
+
+                let stacks_to_process = if has_shift {
+                    // Shift/reduce conflicts must branch from the conflict state; do not
+                    // pre-reduce away the shift path before reading the action cell.
+                    vec![stk]
+                } else if reduce_rules.len() > 1 {
+                    self.reduce_closure_stacks(&mut state, vec![stk], token_sym)?
+                } else {
+                    let mut stk = stk;
+                    self.reduce_closure(&mut state, &mut stk, token_sym)?;
+                    vec![stk]
+                };
+
+                for stk in stacks_to_process {
                     // Get actions and filter Recover if real actions exist
                     let top = stk.top_state()?;
                     let all_actions = self.tables.actions(top, token_sym);
