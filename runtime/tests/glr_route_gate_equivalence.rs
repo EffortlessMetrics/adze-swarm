@@ -162,6 +162,26 @@ fn ambiguous_expr_bridge_streaming_equivalence_single_token_only() {
 }
 
 #[test]
+fn ambiguous_expr_streaming_table_uses_generated_lex_mode_abi() {
+    let language = adze_example::ambiguous_expr::grammar::language();
+    let table = adze::glr_streaming_runtime::prepare_streaming_parse_table(
+        language,
+        decode_parse_table(language),
+    );
+    assert!(
+        !table.lex_modes.is_empty(),
+        "streaming table must expose one lex mode per parser state"
+    );
+    let base = table.lex_modes[0];
+    assert!(
+        table.lex_modes.iter().all(|mode| {
+            mode.lex_state == base.lex_state && mode.external_lex_state == base.external_lex_state
+        }),
+        "ambiguous_expr generated lex_fn only understands the state-0 ABI mode; invented distinct modes cause cannot-lex failures"
+    );
+}
+
+#[test]
 fn ambiguous_expr_bridge_streaming_equivalence_multi_token() {
     let language = adze_example::ambiguous_expr::grammar::language();
     for input in ["1+2", "1 + 2"] {

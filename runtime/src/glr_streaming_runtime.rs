@@ -101,11 +101,69 @@ pub fn prepare_streaming_parse_table(
     mut parse_table: ParseTable,
 ) -> ParseTable {
     crate::__private::align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
+    populate_streaming_parse_table_lex_modes(language, &mut parse_table);
+    parse_table
+}
+
+/// Select lex modes that match the generated lexer ABI instead of inventing
+/// shiftable-terminal signatures that the generated `lex_fn` cannot execute.
+fn populate_streaming_parse_table_lex_modes(
+    language: &'static TSLanguage,
+    parse_table: &mut ParseTable,
+) {
+    if fixed_mode_bridge_uses_only_state_zero_lex_mode(language) {
+        let base_mode = generated_language_base_lex_mode(language);
+        let state_count = usize::try_from(parse_table.state_count).unwrap_or(0);
+        parse_table.lex_modes = vec![base_mode; state_count];
+        return;
+    }
+
+    if language_lex_modes_match_state_count(language, parse_table.state_count) {
+        parse_table.lex_modes = lex_modes_from_generated_language(language);
+        return;
+    }
+
     parse_table.lex_modes = build_lex_modes_from_shiftable_terminals(
         &parse_table.action_table,
         &parse_table.external_scanner_states,
     );
-    parse_table
+}
+
+fn generated_language_base_lex_mode(language: &TSLanguage) -> LexMode {
+    if language.lex_modes.is_null() {
+        return LexMode {
+            lex_state: 0,
+            external_lex_state: 0,
+        };
+    }
+
+    // SAFETY: generated languages expose one lex mode per parser state and the
+    // fixed-bridge contract guarantees every state shares the same mode.
+    let mode = unsafe { *language.lex_modes };
+    LexMode {
+        lex_state: mode.lex_state,
+        external_lex_state: mode.external_lex_state,
+    }
+}
+
+fn language_lex_modes_match_state_count(language: &TSLanguage, state_count: u32) -> bool {
+    !language.lex_modes.is_null()
+        && language.state_count > 0
+        && language.state_count == state_count
+}
+
+fn lex_modes_from_generated_language(language: &TSLanguage) -> Vec<LexMode> {
+    (0..language.state_count)
+        .map(|state| {
+            // SAFETY: `state < state_count` and generated languages expose one
+            // lex mode per parser state.
+            let mode = unsafe { *language.lex_modes.add(state as usize) };
+            LexMode {
+                lex_state: mode.lex_state,
+                external_lex_state: mode.external_lex_state,
+            }
+        })
+        .collect()
 }
 
 /// Parse conflicted input through `Driver::parse_streaming` when a generated lexer exists.
