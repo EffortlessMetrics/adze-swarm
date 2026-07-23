@@ -860,7 +860,7 @@ proptest! {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(16))]
 
-    /// Ambiguous grammar `S -> a | a` still produces a valid forest with one root.
+    /// Ambiguous grammar `S -> a | a` retains both complete roots for materialization.
     #[test]
     fn ambiguity_same_rhs_parses(_seed in 0u32..20) {
         let mut grammar = GrammarBuilder::new("ambig")
@@ -872,7 +872,7 @@ proptest! {
         let a = sym_id(&grammar, "a");
         let forest = pipeline_parse(&mut grammar, &[(a, 0, 1)]).expect("parse");
         let view = forest.view();
-        prop_assert_eq!(view.roots().len(), 1);
+        prop_assert_eq!(view.roots().len(), 2);
     }
 
     /// Ambiguous grammar root has correct span.

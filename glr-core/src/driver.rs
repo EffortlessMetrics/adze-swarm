@@ -37,6 +37,24 @@ pub enum GlrError {
     Other(String),
 }
 
+fn reduce_actions_for(actions: &[Action]) -> Vec<RuleId> {
+    let mut reduce_rules = Vec::new();
+    for action in actions {
+        match *action {
+            Action::Reduce(rid) => reduce_rules.push(rid),
+            Action::Fork(ref xs) => {
+                for nested in xs {
+                    if let Action::Reduce(rid) = *nested {
+                        reduce_rules.push(rid);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    reduce_rules
+}
+
 /// GLR parser driver that executes the parsing algorithm
 pub struct Driver<'t> {
     /// LR tables used by the driver
@@ -250,85 +268,90 @@ impl<'t> Driver<'t> {
             let mut new_stacks = Vec::new();
             let mut has_any_real_action = false;
 
-            for mut stk in prev_stacks.iter().cloned() {
-                // Apply reduces before shifts
-                self.reduce_closure(&mut state, &mut stk, token_sym)?;
+            for stk in prev_stacks.iter().cloned() {
+                for stk in self.reduce_closure_stacks(&mut state, vec![stk], token_sym)? {
+                    // Get actions and filter Recover if real actions exist
+                    let top = stk.top_state()?;
+                    let all_actions = self.tables.actions(top, token_sym);
 
-                // Get actions and filter Recover if real actions exist
-                let top = stk.top_state()?;
-                let all_actions = self.tables.actions(top, token_sym);
+                    // Check if we have any real actions without collecting into Vec
+                    let has_real_action = all_actions
+                        .iter()
+                        .any(|a| !matches!(*a, Action::Recover | Action::Error));
 
-                // Check if we have any real actions without collecting into Vec
-                let has_real_action = all_actions
-                    .iter()
-                    .any(|a| !matches!(*a, Action::Recover | Action::Error));
-
-                if has_real_action {
-                    has_any_real_action = true;
-                }
-
-                // Then apply shifts/accepts
-                // Use iterator filtering to avoid intermediate Vec allocation
-                for action in all_actions.iter().filter(|a| {
                     if has_real_action {
-                        !matches!(**a, Action::Recover | Action::Error)
-                    } else {
-                        true
+                        has_any_real_action = true;
                     }
-                }) {
-                    match *action {
-                        Action::Shift(ns) => {
-                            #[cfg(feature = "perf_counters")]
-                            perf::inc_shifts(1);
-                            let node_id =
-                                self.push_terminal(&mut state, token_sym, (token_start, token_end));
-                            let mut s2 = stk.clone();
-                            s2.states.push(ns);
-                            s2.nodes.push(node_id);
-                            s2.pos = token_end;
-                            self.push_limited_stack(&mut new_stacks, s2, "shifting a token")?;
+
+                    // Then apply shifts/accepts
+                    // Use iterator filtering to avoid intermediate Vec allocation
+                    for action in all_actions.iter().filter(|a| {
+                        if has_real_action {
+                            !matches!(**a, Action::Recover | Action::Error)
+                        } else {
+                            true
                         }
-                        Action::Accept => {
-                            if let Some(&root_id) = stk.nodes.last()
-                                && let Some(root) = state.forest.nodes.get(&root_id).cloned()
-                            {
-                                state.forest.roots.push(root);
+                    }) {
+                        match *action {
+                            Action::Shift(ns) => {
+                                #[cfg(feature = "perf_counters")]
+                                perf::inc_shifts(1);
+                                let node_id = self.push_terminal(
+                                    &mut state,
+                                    token_sym,
+                                    (token_start, token_end),
+                                );
+                                let mut s2 = stk.clone();
+                                s2.states.push(ns);
+                                s2.nodes.push(node_id);
+                                s2.pos = token_end;
+                                self.push_limited_stack(&mut new_stacks, s2, "shifting a token")?;
                             }
-                            return Ok(Self::wrap_forest(state.forest));
-                        }
-                        Action::Reduce(rid) => {
-                            #[cfg(feature = "perf_counters")]
-                            perf::inc_reductions(1);
-                            #[cfg(feature = "glr_telemetry")]
-                            if let Some(t) = self.telemetry {
-                                t.inc_reduce();
+                            Action::Accept => {
+                                if let Some(&root_id) = stk.nodes.last()
+                                    && let Some(root) = state.forest.nodes.get(&root_id).cloned()
+                                {
+                                    state.forest.roots.push(root);
+                                }
+                                if token_sym == self.tables.eof_symbol {
+                                    break;
+                                }
+                                return Ok(Self::wrap_forest(state.forest));
                             }
-                            // Handle reduce+shift conflicts
-                            let s2 = self.reduce_once(&mut state, stk.clone(), rid)?;
-                            let mut s2_clone = s2.clone();
-                            self.reduce_closure(&mut state, &mut s2_clone, token_sym)?;
-                            // Try shift after reduce
-                            let s2_top = s2_clone.top_state()?;
-                            for a2 in self.tables.actions(s2_top, token_sym) {
-                                if let Action::Shift(ns) = *a2 {
-                                    let node_id = self.push_terminal(
-                                        &mut state,
-                                        token_sym,
-                                        (token_start, token_end),
-                                    );
-                                    let mut s3 = s2_clone.clone();
-                                    s3.states.push(ns);
-                                    s3.nodes.push(node_id);
-                                    s3.pos = token_end;
-                                    self.push_limited_stack(
-                                        &mut new_stacks,
-                                        s3,
-                                        "branching after a reduction",
-                                    )?;
+                            Action::Reduce(rid) => {
+                                #[cfg(feature = "perf_counters")]
+                                perf::inc_reductions(1);
+                                #[cfg(feature = "glr_telemetry")]
+                                if let Some(t) = self.telemetry {
+                                    t.inc_reduce();
+                                }
+                                // Handle reduce+shift conflicts
+                                let s2 = self.reduce_once(&mut state, stk.clone(), rid)?;
+                                let mut s2_clone = s2.clone();
+                                self.reduce_closure(&mut state, &mut s2_clone, token_sym)?;
+                                // Try shift after reduce
+                                let s2_top = s2_clone.top_state()?;
+                                for a2 in self.tables.actions(s2_top, token_sym) {
+                                    if let Action::Shift(ns) = *a2 {
+                                        let node_id = self.push_terminal(
+                                            &mut state,
+                                            token_sym,
+                                            (token_start, token_end),
+                                        );
+                                        let mut s3 = s2_clone.clone();
+                                        s3.states.push(ns);
+                                        s3.nodes.push(node_id);
+                                        s3.pos = token_end;
+                                        self.push_limited_stack(
+                                            &mut new_stacks,
+                                            s3,
+                                            "branching after a reduction",
+                                        )?;
+                                    }
                                 }
                             }
+                            _ => {}
                         }
-                        _ => {}
                     }
                 }
             }
@@ -648,93 +671,90 @@ impl<'t> Driver<'t> {
         );
 
         let stacks = std::mem::take(&mut state.stacks);
-        for mut stk in stacks {
-            let _top = stk.top_state()?;
-            debug_trace!(
-                "DEBUG: Processing stack with {} states, top state={}",
-                stk.states.len(),
-                _top.0
-            );
+        for stk in stacks {
+            for stk in self.reduce_closure_stacks(&mut state, vec![stk], eof)? {
+                let _top_after_reduce = stk.top_state()?;
+                debug_trace!(
+                    "DEBUG: After reduce_closure, checking actions for state {} on EOF",
+                    _top_after_reduce.0
+                );
 
-            self.reduce_closure(&mut state, &mut stk, eof)?;
-
-            let _top_after_reduce = stk.top_state()?;
-            debug_trace!(
-                "DEBUG: After reduce_closure, checking actions for state {} on EOF",
-                _top_after_reduce.0
-            );
-
-            // Check if we have the start symbol on top of the stack
-            if let Some(&root_id) = stk.nodes.last()
-                && let Some(root) = state.forest.nodes.get(&root_id)
-            {
-                debug_trace!("DEBUG: Top node has symbol {}", root.symbol.0);
-                if root.symbol == self.tables.start_symbol() {
-                    debug_trace!("DEBUG: Found start symbol! Adding as root");
-                    state.forest.roots.push(root.clone());
+                // Check if we have the start symbol on top of the stack
+                if let Some(&root_id) = stk.nodes.last()
+                    && let Some(root) = state.forest.nodes.get(&root_id)
+                {
+                    debug_trace!("DEBUG: Top node has symbol {}", root.symbol.0);
+                    if root.symbol == self.tables.start_symbol() {
+                        debug_trace!("DEBUG: Found start symbol! Adding as root");
+                        state.forest.roots.push(root.clone());
+                    }
                 }
-            }
 
-            let top_state = stk.states.last().expect("GLR stack must never be empty");
-            for action in self.tables.actions(*top_state, eof) {
-                debug_trace!("DEBUG: EOF action: {:?}", action);
-                match *action {
-                    Action::Accept => {
-                        debug_trace!("DEBUG: Accept action found");
-                        if let Some(&root_id) = stk.nodes.last()
-                            && let Some(root) = state.forest.nodes.get(&root_id).cloned()
-                        {
-                            // Assert the accepted root is the start symbol (catches table/config drift)
-                            debug_assert_eq!(
-                                root.symbol,
-                                self.tables.start_symbol(),
-                                "accepted non-start symbol: {:?} != {:?}",
-                                root.symbol,
-                                self.tables.start_symbol()
-                            );
-                            state.forest.roots.push(root);
+                let top_state = stk.states.last().expect("GLR stack must never be empty");
+                for action in self.tables.actions(*top_state, eof) {
+                    debug_trace!("DEBUG: EOF action: {:?}", action);
+                    match *action {
+                        Action::Accept => {
+                            debug_trace!("DEBUG: Accept action found");
+                            if let Some(&root_id) = stk.nodes.last()
+                                && let Some(root) = state.forest.nodes.get(&root_id).cloned()
+                            {
+                                // Assert the accepted root is the start symbol (catches table/config drift)
+                                debug_assert_eq!(
+                                    root.symbol,
+                                    self.tables.start_symbol(),
+                                    "accepted non-start symbol: {:?} != {:?}",
+                                    root.symbol,
+                                    self.tables.start_symbol()
+                                );
+                                state.forest.roots.push(root);
+                            }
+                            break;
                         }
-                        return Ok(Self::wrap_forest(state.forest));
-                    }
-                    Action::Reduce(rid) => {
-                        debug_trace!("DEBUG: Reduce action found, rule {}", rid.0);
-                        let s2 = self.reduce_once(&mut state, stk.clone(), rid)?;
+                        Action::Reduce(rid) => {
+                            debug_trace!("DEBUG: Reduce action found, rule {}", rid.0);
+                            let s2 = self.reduce_once(&mut state, stk.clone(), rid)?;
 
-                        // Check if reduction produced start symbol
-                        if let Some(&root_id) = s2.nodes.last()
-                            && let Some(root) = state.forest.nodes.get(&root_id)
-                        {
-                            #[cfg(feature = "debug_glr")]
-                            debug_trace!("DEBUG: After reduction, top symbol is {}", root.symbol.0);
-                            if root.symbol == self.tables.start_symbol() {
+                            // Check if reduction produced start symbol
+                            if let Some(&root_id) = s2.nodes.last()
+                                && let Some(root) = state.forest.nodes.get(&root_id)
+                            {
                                 #[cfg(feature = "debug_glr")]
-                                debug_trace!("DEBUG: Reduced to start symbol! Adding as root");
-                                state.forest.roots.push(root.clone());
-                            }
-                        }
-
-                        // Try accept after reduce
-                        let s2_top = s2.states.last().expect("GLR stack must never be empty");
-                        for a2 in self.tables.actions(*s2_top, eof) {
-                            if let Action::Accept = *a2 {
-                                if let Some(&root_id) = s2.nodes.last()
-                                    && let Some(root) = state.forest.nodes.get(&root_id).cloned()
-                                {
-                                    // Assert the accepted root is the start symbol (catches table/config drift)
-                                    debug_assert_eq!(
-                                        root.symbol,
-                                        self.tables.start_symbol(),
-                                        "accepted non-start symbol: {:?} != {:?}",
-                                        root.symbol,
-                                        self.tables.start_symbol()
-                                    );
-                                    state.forest.roots.push(root);
+                                debug_trace!(
+                                    "DEBUG: After reduction, top symbol is {}",
+                                    root.symbol.0
+                                );
+                                if root.symbol == self.tables.start_symbol() {
+                                    #[cfg(feature = "debug_glr")]
+                                    debug_trace!("DEBUG: Reduced to start symbol! Adding as root");
+                                    state.forest.roots.push(root.clone());
                                 }
-                                return Ok(Self::wrap_forest(state.forest));
+                            }
+
+                            // Try accept after reduce
+                            let s2_top = s2.states.last().expect("GLR stack must never be empty");
+                            for a2 in self.tables.actions(*s2_top, eof) {
+                                if let Action::Accept = *a2 {
+                                    if let Some(&root_id) = s2.nodes.last()
+                                        && let Some(root) =
+                                            state.forest.nodes.get(&root_id).cloned()
+                                    {
+                                        // Assert the accepted root is the start symbol (catches table/config drift)
+                                        debug_assert_eq!(
+                                            root.symbol,
+                                            self.tables.start_symbol(),
+                                            "accepted non-start symbol: {:?} != {:?}",
+                                            root.symbol,
+                                            self.tables.start_symbol()
+                                        );
+                                        state.forest.roots.push(root);
+                                    }
+                                    break;
+                                }
                             }
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
         }
@@ -871,26 +891,53 @@ impl<'t> Driver<'t> {
     }
 
     /// Keep reducing as long as there is at least one reduce for (top, lookahead).
+    ///
+    /// When multiple reduce actions are available (reduce/reduce), fork into one stack
+    /// per reduction so ambiguity survives through EOF materialization.
+    fn reduce_closure_stacks(
+        &self,
+        st: &mut GlrState,
+        stacks: Vec<ParseStack>,
+        lookahead: SymbolId,
+    ) -> Result<Vec<ParseStack>, GlrError> {
+        let mut frontier = stacks;
+        loop {
+            let mut next = Vec::new();
+            let mut progressed = false;
+
+            for stk in frontier {
+                let state = *stk.states.last().expect("GLR stack must never be empty");
+                let reduce_rules = reduce_actions_for(self.tables.actions(state, lookahead));
+
+                if reduce_rules.is_empty() {
+                    next.push(stk);
+                    continue;
+                }
+
+                progressed = true;
+                for rid in reduce_rules {
+                    next.push(self.reduce_once(st, stk.clone(), rid)?);
+                }
+            }
+
+            if !progressed {
+                return Ok(next);
+            }
+            frontier = next;
+        }
+    }
+
     fn reduce_closure(
         &self,
         st: &mut GlrState,
         stack: &mut ParseStack,
         lookahead: SymbolId,
     ) -> Result<(), GlrError> {
-        loop {
-            let state = *stack.states.last().expect("GLR stack must never be empty");
-            let mut did_reduce = false;
-            for action in self.tables.actions(state, lookahead) {
-                if let Action::Reduce(rid) = *action {
-                    *stack = self.reduce_once(st, std::mem::take(stack), rid)?;
-                    did_reduce = true;
-                    break; // Re-evaluate from new top after one reduce
-                }
-            }
-            if !did_reduce {
-                break;
-            }
-        }
+        let stacks = self.reduce_closure_stacks(st, vec![std::mem::take(stack)], lookahead)?;
+        *stack = stacks
+            .into_iter()
+            .next()
+            .expect("reduce_closure must retain at least one stack");
         Ok(())
     }
 
