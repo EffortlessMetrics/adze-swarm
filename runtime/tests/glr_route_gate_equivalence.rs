@@ -111,14 +111,14 @@ fn reduce_reduce_subtree_equivalence_on_clean_input() {
 }
 
 #[test]
-fn reduce_reduce_route_gate_stays_on_fixed_bridge_until_ambiguity_parity() {
+fn reduce_reduce_route_gate_routes_through_streaming_driver() {
     let language = adze_example::reduce_reduce::grammar::language();
     let table = decode_parse_table(language);
     assert!(
-        !adze::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
+        adze::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
             language, &table
         ),
-        "reduce_reduce stays on fixed bridge until streaming ambiguity parity (#892)"
+        "reduce_reduce should route through streaming driver after Gate A equivalence (#892)"
     );
 }
 
@@ -212,15 +212,15 @@ fn ambiguous_expr_bridge_streaming_equivalence_multi_token() {
 }
 
 #[test]
-fn ambiguous_expr_route_gate_stays_on_fixed_bridge_until_spaced_parity() {
+fn ambiguous_expr_route_gate_routes_through_streaming_driver() {
     let language = adze_example::ambiguous_expr::grammar::language();
     let table = decode_parse_table(language);
 
     assert!(
-        !adze::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
+        adze::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
             language, &table
         ),
-        "ambiguous_expr stays on fixed bridge until spaced-input streaming parity is proved"
+        "ambiguous_expr should route through streaming driver after Gate A equivalence (#892)"
     );
 }
 

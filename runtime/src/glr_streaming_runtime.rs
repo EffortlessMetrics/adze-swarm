@@ -85,14 +85,58 @@ pub fn should_route_conflict_table_through_streaming_driver(
         return true;
     }
 
-    if !conflict_shift_targets_require_distinct_lex_modes(&prepared) {
+    let grammar = decode_grammar(language);
+
+    if grammar_requires_stack_aware_streaming_lex_contract(&grammar)
+        && distinct_internal_lex_states(&prepared).len() >= 2
+        && fixed_mode_bridge_uses_only_state_zero_lex_mode(language)
+        && conflict_shift_targets_require_distinct_lex_modes(&prepared)
+    {
+        return true;
+    }
+
+    // Gate A (#892): conflicted generated grammars with generated lex ABI preparation
+    // and green `glr_route_gate_equivalence` contract.
+    if !grammar_requires_stack_aware_streaming_lex_contract(&grammar)
+        && parse_table_has_conflicts(&prepared)
+        && prepared_lex_modes_match_generated_language_abi(language, &prepared)
+    {
+        return true;
+    }
+
+    false
+}
+
+fn prepared_lex_modes_match_generated_language_abi(
+    language: &TSLanguage,
+    prepared: &ParseTable,
+) -> bool {
+    if language.lex_modes.is_null() {
         return false;
     }
 
-    let grammar = decode_grammar(language);
-    grammar_requires_stack_aware_streaming_lex_contract(&grammar)
-        && distinct_internal_lex_states(&prepared).len() >= 2
-        && fixed_mode_bridge_uses_only_state_zero_lex_mode(language)
+    if fixed_mode_bridge_uses_only_state_zero_lex_mode(language) {
+        let base = unsafe { *language.lex_modes };
+        return prepared.lex_modes.iter().all(|mode| {
+            mode.lex_state == base.lex_state && mode.external_lex_state == base.external_lex_state
+        });
+    }
+
+    language.state_count as usize == prepared.lex_modes.len()
+        && prepared.lex_modes.iter().enumerate().all(|(state, mode)| {
+            // SAFETY: `state < language.state_count` and lex_modes has one entry per state.
+            let abi = unsafe { *language.lex_modes.add(state) };
+            mode.lex_state == abi.lex_state && mode.external_lex_state == abi.external_lex_state
+        })
+}
+
+fn parse_table_has_conflicts(parse_table: &ParseTable) -> bool {
+    use adze_glr_core::conflict_inspection::state_has_conflicts;
+    use adze_ir::StateId;
+
+    (0..parse_table.state_count).any(|state| {
+        state_has_conflicts(parse_table, StateId(state as u16))
+    })
 }
 
 /// Prepare a conflicted parse table for stack-aware streaming execution.
@@ -111,6 +155,20 @@ fn populate_streaming_parse_table_lex_modes(
     language: &'static TSLanguage,
     parse_table: &mut ParseTable,
 ) {
+    let grammar = decode_grammar(language);
+    let has_external_scanner = parse_table
+        .external_scanner_states
+        .iter()
+        .any(|states| states.iter().any(|active| *active));
+
+    if grammar_requires_stack_aware_streaming_lex_contract(&grammar) || has_external_scanner {
+        parse_table.lex_modes = build_lex_modes_from_shiftable_terminals(
+            &parse_table.action_table,
+            &parse_table.external_scanner_states,
+        );
+        return;
+    }
+
     if fixed_mode_bridge_uses_only_state_zero_lex_mode(language) {
         let base_mode = generated_language_base_lex_mode(language);
         let state_count = parse_table.state_count;
