@@ -8,7 +8,7 @@
 use adze::__private::{align_true_glr_parse_table_to_language_symbols, lex_with_language_fn};
 use adze::decoder::{decode_grammar, decode_parse_table};
 use adze::glr_parser::GLRParser;
-use adze::glr_streaming_runtime::{parse_with_streaming_driver, StreamingGlrParseResult};
+use adze::glr_streaming_runtime::{StreamingGlrParseResult, parse_with_streaming_driver};
 use adze::pure_parser::TSLanguage;
 use adze::subtree::Subtree;
 use adze_glr_core::conflict_inspection::state_has_conflicts;
