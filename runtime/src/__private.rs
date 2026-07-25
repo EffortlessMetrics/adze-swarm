@@ -931,8 +931,11 @@ pub fn align_true_glr_parse_table_to_language_symbols(
     }
 }
 
-#[cfg(all(feature = "glr", feature = "pure-rust"))]
-/// Tokenize source text with a generated language lexer function.
+#[cfg(all(feature = "glr", feature = "pure-rust", feature = "runtime-e2e"))]
+/// Whole-input state-0 pretokenization harness for `runtime-e2e` characterization only.
+///
+/// Supported true-GLR production routes use the streaming driver or return an explicit
+/// error; they never call this helper (#892).
 pub fn lex_with_language_fn(
     language: &'static crate::pure_parser::TSLanguage,
     lex_fn: unsafe extern "C" fn(*mut core::ffi::c_void, crate::pure_parser::TSLexState) -> bool,

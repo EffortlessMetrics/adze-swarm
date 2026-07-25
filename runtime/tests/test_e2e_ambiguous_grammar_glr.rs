@@ -352,7 +352,7 @@ fn generated_ambiguous_expr_multi_conflict_selection_is_deterministic() {
 }
 
 #[test]
-#[cfg(feature = "glr")]
+#[cfg(all(feature = "glr", feature = "runtime-e2e"))]
 fn generated_ambiguous_expr_glr_runtime_retains_multiple_complete_alternatives() {
     use adze_example::ambiguous_expr::grammar;
 
@@ -434,7 +434,7 @@ fn generated_ambiguous_expr_glr_runtime_retains_multiple_complete_alternatives()
 }
 
 #[test]
-#[cfg(feature = "glr")]
+#[cfg(all(feature = "glr", feature = "runtime-e2e"))]
 fn generated_ambiguous_expr_glr_runtime_retains_three_or_more_complete_alternatives() {
     use adze_example::ambiguous_expr::grammar;
 
@@ -615,7 +615,7 @@ fn generated_ambiguous_expr_parse_document_cst_topology_is_deterministic() {
 }
 
 #[test]
-#[cfg(all(feature = "glr", feature = "glr_telemetry"))]
+#[cfg(all(feature = "glr", feature = "glr_telemetry", feature = "runtime-e2e"))]
 fn generated_ambiguous_expr_runtime_fork_count_is_deterministic() {
     use adze_example::ambiguous_expr::grammar;
 
