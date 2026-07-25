@@ -161,6 +161,7 @@ impl IsolatedRegistry {
             );
         }
 
+        finalize_git_index(&self.index_dir)?;
         Ok(())
     }
 
@@ -347,7 +348,7 @@ fn installed_binary_path(root: &Path, bin_name: &str) -> PathBuf {
 }
 
 fn write_registry_config(cargo_home: &TempDir, index_dir: &Path, crate_dir: &Path) -> Result<()> {
-    let index_url = sparse_file_url(index_dir)?;
+    let index_url = path_to_file_url(index_dir)?;
     let dl_url = path_to_file_url(crate_dir)?;
     let config = format!(
         r#"[registries.{REGISTRY_NAME}]
@@ -368,6 +369,41 @@ fn registry_config_json(dl_url: &str) -> String {
     format!("{{\"dl\":\"{dl_url}\",\"api\":null}}\n")
 }
 
+fn finalize_git_index(index_dir: &Path) -> Result<()> {
+    if index_dir.join(".git").is_dir() {
+        return Ok(());
+    }
+    run_git(index_dir, ["init", "-b", "master"])?;
+    run_git(index_dir, ["add", "."])?;
+    run_git(index_dir, ["commit", "-m", "adze-local registry index"])?;
+    Ok(())
+}
+
+fn run_git(index_dir: &Path, args: impl IntoIterator<Item = &'static str>) -> Result<()> {
+    let mut command = Command::new("git");
+    command
+        .args([
+            "-c",
+            "user.email=adze-local@example.com",
+            "-c",
+            "user.name=adze-local",
+        ])
+        .args(args)
+        .current_dir(index_dir)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    let status = command
+        .status()
+        .context("running git for local registry index")?;
+    if !status.success() {
+        bail!(
+            "git command in {} failed with status {status}",
+            index_dir.display()
+        );
+    }
+    Ok(())
+}
+
 fn write_registry_credentials(cargo_home: &TempDir) -> Result<()> {
     let credentials = format!(
         r#"[registries.{REGISTRY_NAME}]
@@ -378,10 +414,6 @@ token = "local"
     fs::write(&credentials_path, credentials)
         .with_context(|| format!("writing {}", credentials_path.display()))?;
     Ok(())
-}
-
-fn sparse_file_url(path: &Path) -> Result<String> {
-  Ok(format!("sparse+{}", path_to_file_url(path)?))
 }
 
 fn path_to_file_url(path: &Path) -> Result<String> {
@@ -996,14 +1028,6 @@ adze = "0.9.0"
     }
 
     #[test]
-    fn sparse_file_url_uses_sparse_file_protocol() {
-        let index_dir = std::env::temp_dir().join("adze-local-index-test-sparse");
-        std::fs::create_dir_all(&index_dir).expect("create temp index dir");
-        let url = sparse_file_url(&index_dir).expect("sparse file url");
-        assert!(url.starts_with("sparse+file://"));
-    }
-
-    #[test]
     fn registry_config_json_uses_plain_file_dl_url() {
         let dl_url = "file:///tmp/adze-local/crates/";
         let config_json = registry_config_json(dl_url);
@@ -1017,6 +1041,7 @@ adze = "0.9.0"
         std::fs::create_dir_all(&index_dir).expect("create temp index dir");
         let url = path_to_file_url(&index_dir).expect("registry index url");
         assert!(url.starts_with("file://"));
+        assert!(!url.starts_with("sparse+file://"));
         assert!(url.contains("adze-local-index-test-git"));
     }
 
