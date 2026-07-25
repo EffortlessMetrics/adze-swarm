@@ -331,8 +331,6 @@ pub fn run(args: PlanArgs) -> Result<()> {
             plan.budget.estimated_lem
         );
     }
-    // Suppress unused after fields move into plan.
-    let _ = &mut plan;
     Ok(())
 }
 
