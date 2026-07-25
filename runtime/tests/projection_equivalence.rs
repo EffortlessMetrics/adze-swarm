@@ -430,6 +430,37 @@ fn glr_ambiguous_expr_recovered_input_diagnostic_json_agrees() {
     );
 }
 
+/// GLR generated grammars may not yet preserve every Tree-sitter metadata bit
+/// (e.g. `is_named`) through decode-only `Language` tables; prove the selected-tree
+/// subset: kind, span, text, and error facts agree.
+#[cfg(feature = "glr")]
+fn assert_glr_ts_compat_selected_tree_matches_document(
+    document: &adze::document::AdzeDocument,
+    ts_tree: &Tree,
+    source: &str,
+) {
+    let doc_root = document.tree().root();
+    let ts_root = ts_tree.root_node();
+    let bytes = source.as_bytes();
+
+    assert_eq!(ts_root.kind(), doc_root.kind_name().unwrap_or(""));
+    assert_eq!(ts_root.start_byte(), doc_root.byte_range().start);
+    assert_eq!(ts_root.end_byte(), doc_root.byte_range().end);
+    assert_eq!(
+        ts_root
+            .utf8_text(bytes)
+            .expect("ts-compat text should be UTF-8"),
+        doc_root.utf8_text().expect("document text should be UTF-8")
+    );
+    assert_eq!(ts_tree.error_count(), document.metadata().error_count);
+    assert_eq!(ts_root.has_error(), doc_root.has_error());
+    assert!(
+        !ts_root.to_sexp().contains("MISSING"),
+        "GLR ts-compat projection should not produce a MISSING root for {source:?}: {}",
+        ts_root.to_sexp()
+    );
+}
+
 // ─── GLR supported-matrix extension (#892 / #857) ────────────────────────────
 //
 // Completes projection-equivalence coverage for the two supported streaming-route
@@ -495,4 +526,70 @@ fn glr_streaming_lex_modes_parse_document_ast_and_json_agree() {
     let json = document.to_json_value();
     assert_eq!(json["schema"].as_str(), Some(ADZE_DOCUMENT_JSON_SCHEMA));
     assert_json_node_matches_document(document.tree().root(), &json["tree"]["root"]);
+}
+
+#[cfg(feature = "glr")]
+#[test]
+fn glr_ambiguous_expr_tree_sitter_projection_matches_document() {
+    use adze_example::ambiguous_expr::grammar;
+
+    let lang = Arc::new(Language::from_ts_language(
+        "ambiguous_expr",
+        grammar::language(),
+    ));
+    let source = "1 + 2 + 3";
+    let document = grammar::parse_document(source)
+        .expect("GLR parse_document should return the canonical document");
+    let ts_tree = Tree::from_document(Arc::clone(&lang), &document);
+
+    assert_glr_ts_compat_selected_tree_matches_document(&document, &ts_tree, source);
+    assert!(
+        !document.ambiguities().is_empty(),
+        "ambiguous_expr should retain ambiguity summaries alongside ts-compat projection"
+    );
+}
+
+#[cfg(feature = "glr")]
+#[test]
+fn glr_ambiguous_expr_parser_parse_aligns_with_parse_document() {
+    use adze::ts_compat::Parser as TsParser;
+    use adze_example::ambiguous_expr::grammar;
+
+    let lang = Arc::new(Language::from_ts_language(
+        "ambiguous_expr",
+        grammar::language(),
+    ));
+    let source = "1 + 2 * 3";
+    let document = grammar::parse_document(source).expect("parse_document should succeed");
+
+    let mut ts_parser = TsParser::new();
+    ts_parser
+        .set_language(Arc::clone(&lang))
+        .expect("set_language should succeed");
+    let ts_tree = ts_parser
+        .parse(source, None)
+        .expect("Parser::parse should succeed on generated GLR language");
+
+    assert_glr_ts_compat_selected_tree_matches_document(&document, &ts_tree, source);
+}
+
+#[cfg(feature = "glr")]
+#[test]
+fn glr_reduce_reduce_tree_sitter_projection_matches_document() {
+    use adze_example::reduce_reduce::grammar;
+
+    let lang = Arc::new(Language::from_ts_language(
+        "reduce_reduce",
+        grammar::language(),
+    ));
+    let source = "x";
+    let document = grammar::parse_document(source)
+        .expect("reduce_reduce parse_document should return the canonical document");
+    let ts_tree = Tree::from_document(Arc::clone(&lang), &document);
+
+    assert_glr_ts_compat_selected_tree_matches_document(&document, &ts_tree, source);
+    assert!(
+        !document.ambiguities().is_empty(),
+        "reduce_reduce should retain ambiguity summaries alongside ts-compat projection"
+    );
 }
