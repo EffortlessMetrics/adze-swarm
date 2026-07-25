@@ -13,8 +13,8 @@ ambiguity = "conflict cell retained; selected tree deterministic"
 diagnostics = "none"
 ts_compat = "selected tree S-expression matches documented subset"
 support_tier = "GLR conflict routing"
-proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture"
-known_gaps = ["fixed-bridge routing gate remains until #892 bridge removal"]
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture; cargo test -p adze --features \"pure-rust,glr,ts-compat,serialization\" --test projection_equivalence glr_ambiguous_expr_tree_sitter glr_ambiguous_expr_parser_parse -- --nocapture"
+known_gaps = []
 
 [[fixture]]
 id = "glr-dangling-else"
@@ -44,11 +44,8 @@ ambiguity = "retained alternatives reported in parse_document"
 diagnostics = "none on valid input"
 ts_compat = "selected tree only"
 support_tier = "GLR conflict routing"
-proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test generated_reduce_reduce_gap -- --nocapture"
-known_gaps = [
-  "fixed-bridge routing gate remains until #892 bridge removal",
-  "dangling-else selected-tree runtime parse still deferred (see glr-dangling-else)",
-]
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test generated_reduce_reduce_gap -- --nocapture; cargo test -p adze --features \"pure-rust,glr,ts-compat,serialization\" --test projection_equivalence glr_reduce_reduce_tree_sitter -- --nocapture"
+known_gaps = []
 
 [[fixture]]
 id = "ts-compat-field-heavy"

@@ -429,3 +429,84 @@ fn glr_ambiguous_expr_recovered_input_diagnostic_json_agrees() {
         "error document JSON should not serialize ambiguity summaries"
     );
 }
+
+#[cfg(feature = "glr")]
+#[test]
+fn glr_ambiguous_expr_tree_sitter_projection_matches_document() {
+    use adze_example::ambiguous_expr::grammar;
+
+    let lang = Arc::new(Language::from_ts_language(
+        "ambiguous_expr",
+        grammar::language(),
+    ));
+    let source = "1 + 2 + 3";
+    let document = grammar::parse_document(source)
+        .expect("GLR parse_document should return the canonical document");
+    let ts_tree = Tree::from_document(Arc::clone(&lang), &document);
+
+    assert_eq!(ts_tree.error_count(), document.metadata().error_count);
+    assert_ts_node_matches_document(
+        document.tree().root(),
+        ts_tree.root_node(),
+        source.as_bytes(),
+    );
+    assert!(
+        !document.ambiguities().is_empty(),
+        "ambiguous_expr should retain ambiguity summaries alongside ts-compat projection"
+    );
+}
+
+#[cfg(feature = "glr")]
+#[test]
+fn glr_ambiguous_expr_parser_parse_aligns_with_parse_document() {
+    use adze::ts_compat::Parser as TsParser;
+    use adze_example::ambiguous_expr::grammar;
+
+    let lang = Arc::new(Language::from_ts_language(
+        "ambiguous_expr",
+        grammar::language(),
+    ));
+    let source = "1 + 2 * 3";
+    let document = grammar::parse_document(source).expect("parse_document should succeed");
+
+    let mut ts_parser = TsParser::new();
+    ts_parser
+        .set_language(Arc::clone(&lang))
+        .expect("set_language should succeed");
+    let ts_tree = ts_parser
+        .parse(source, None)
+        .expect("Parser::parse should succeed on generated GLR language");
+
+    assert_ts_node_matches_document(
+        document.tree().root(),
+        ts_tree.root_node(),
+        source.as_bytes(),
+    );
+    assert_eq!(ts_tree.error_count(), document.metadata().error_count);
+}
+
+#[cfg(feature = "glr")]
+#[test]
+fn glr_reduce_reduce_tree_sitter_projection_matches_document() {
+    use adze_example::reduce_reduce::grammar;
+
+    let lang = Arc::new(Language::from_ts_language(
+        "reduce_reduce",
+        grammar::language(),
+    ));
+    let source = "x";
+    let document = grammar::parse_document(source)
+        .expect("reduce_reduce parse_document should return the canonical document");
+    let ts_tree = Tree::from_document(Arc::clone(&lang), &document);
+
+    assert_eq!(ts_tree.error_count(), document.metadata().error_count);
+    assert_ts_node_matches_document(
+        document.tree().root(),
+        ts_tree.root_node(),
+        source.as_bytes(),
+    );
+    assert!(
+        !document.ambiguities().is_empty(),
+        "reduce_reduce should retain ambiguity summaries alongside ts-compat projection"
+    );
+}
