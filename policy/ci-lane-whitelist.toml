@@ -936,3 +936,25 @@ routing_note = "Runs on workflow_dispatch mode=full and PRs labeled 'full-ci'. N
 duplicate_of = ["coverage-lite"]
 review_after = "2026-09-20"
 expires = "2026-11-07"
+
+[[lane]]
+id = "local-release-receipt"
+workflow = ".github/workflows/local-release-receipt.yml"
+job = "local-release-receipt"
+display_name = "Isolated local-registry package-first receipt"
+kind = "product"
+tier = "deep"
+default_pr = false
+blocking = false
+runner = "ubuntu_latest"
+base_lem = 45
+owner = "release/product"
+intent = "Prove the #856 package-first starter flow from an isolated local registry on Linux."
+failure_mode = "Release graph cannot be packaged, published in order, installed, and exercised by a generated starter project."
+proof_obligation = "Run `cargo xtask verify-local-release-install` and upload the machine-readable receipt artifact."
+evidence = ["target/local-release-receipt.json", "local-release-receipt GitHub artifact"]
+allowed_triggers = ["workflow_dispatch"]
+routing_note = "Manual/scheduled Linux receipt lane for #856. Pre-release local-registry evidence only; not a crates.io install claim."
+duplicate_of = []
+review_after = "2026-09-20"
+expires = "2026-11-21"
