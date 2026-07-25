@@ -43,9 +43,16 @@ After #883 lands, activate #854 Stable Product Proof correction as the sole
 implementation slice. #854 and #855 (#904–#907, PR5 docs) are merged.
 #856 package-first local-registry harness PR1–PR4 are merged (#909, #910, #911, #912).
 Issue #856 stays open until a scheduled/manual Linux full-receipt run lands.
-#857 GLR streaming lexing is now the sole active implementation slice. Do not mark
-multiple overlapping implementation issues active simultaneously. Refresh the open
-PR queue before starting each slice.
+#857 GLR streaming lexing is now the sole active implementation slice. #964
+landed projection-equivalence AST/JSON matrix rows for `dangling_else` and
+`streaming_lex_modes`; #966 landed ts-compat selected-tree projection canaries
+for `ambiguous_expr` and `reduce_reduce` and retired stale fixed-bridge catalog
+gaps. Issues #857 and #892 remain open: dangling-else nearest-else typed AST
+(#877), dangling-else ts-compat row, GLR determinism receipts, full
+serialization matrix, and explicit #853 deferrals are still outstanding. #874
+first-hour journey stays blocked on #857 closeout. Do not mark multiple
+overlapping implementation issues active simultaneously. Refresh the open PR
+queue before starting each slice.
 Release, publish, signing, Cargo-token, public promotion, and crates.io install
 work remain blocked on explicit human authorization in #325. Runner
 fallback/quarantine changes remain infrastructure decisions tracked by #598.
