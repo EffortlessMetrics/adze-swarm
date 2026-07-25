@@ -112,7 +112,11 @@ pub fn validate_starter_proof(commands: &[CapturedCommand]) -> Result<()> {
         .find(|command| command.name == "starter-cargo-test")
         .context("starter proof missing cargo test command")?;
     if !test.success() {
-        bail!("starter cargo test failed with status {}", test.exit_code);
+        bail!(
+            "starter cargo test failed with status {}: {}",
+            test.exit_code,
+            excerpt(&test.stderr, 400)
+        );
     }
 
     let parse_ok = commands
