@@ -830,10 +830,12 @@ struct CargoDependency {
     name: String,
     req: String,
     #[serde(default)]
+    rename: Option<String>,
+    #[serde(default)]
     features: Vec<String>,
     #[serde(default)]
     optional: bool,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", alias = "uses_default_features")]
     default_features: bool,
     target: Option<String>,
     kind: Option<String>,
@@ -913,8 +915,9 @@ fn dependency_counts_for_index(dep: &CargoDependency) -> bool {
 }
 
 fn index_dependency(dep: &CargoDependency, published_set: &BTreeSet<String>) -> Result<Value> {
+    let index_name = dep.rename.as_deref().unwrap_or(&dep.name);
     let mut dep_entry = Map::new();
-    dep_entry.insert("name".to_string(), Value::String(dep.name.clone()));
+    dep_entry.insert("name".to_string(), Value::String(index_name.to_string()));
     dep_entry.insert("req".to_string(), Value::String(dep.req.clone()));
     dep_entry.insert(
         "features".to_string(),
@@ -945,7 +948,14 @@ fn index_dependency(dep: &CargoDependency, published_set: &BTreeSet<String>) -> 
             Value::String(CRATES_IO_INDEX_URL.to_string()),
         );
     }
-    dep_entry.insert("package".to_string(), Value::Null);
+    dep_entry.insert(
+        "package".to_string(),
+        if dep.rename.is_some() {
+            Value::String(dep.name.clone())
+        } else {
+            Value::Null
+        },
+    );
     Ok(Value::Object(dep_entry))
 }
 
