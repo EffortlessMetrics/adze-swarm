@@ -17,6 +17,8 @@ use serde_json::{Map, Value};
 use tempfile::TempDir;
 
 pub const REGISTRY_NAME: &str = "adze-local";
+/// crates.io git index URL used in custom-registry sparse index dependency rows.
+const CRATES_IO_INDEX_URL: &str = "https://github.com/rust-lang/crates.io-index";
 
 pub struct PublishedCrate {
     pub name: String,
@@ -183,18 +185,18 @@ impl IsolatedRegistry {
             .prefix("adze-local-install-root-")
             .tempdir()
             .context("creating temporary cargo install root")?;
-        let index_url = path_to_file_url(&self.index_dir)?;
         let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
         let status = Command::new(cargo)
             .args([
                 "install",
-                "--index",
-                &index_url,
+                "--registry",
+                REGISTRY_NAME,
                 cli_crate,
                 "--bin",
                 bin,
                 "--version",
                 version,
+                "--locked",
                 "--root",
             ])
             .arg(install_root.path())
@@ -796,12 +798,13 @@ fn index_dependency(dep: &CargoDependency, published_set: &BTreeSet<String>) -> 
         Value::String(dep.kind.clone().unwrap_or_else(|| "normal".to_string())),
     );
     if published_set.contains(&dep.name) {
+        // Sparse index rows use null for dependencies from the same registry.
+        dep_entry.insert("registry".to_string(), Value::Null);
+    } else {
         dep_entry.insert(
             "registry".to_string(),
-            Value::String(REGISTRY_NAME.to_string()),
+            Value::String(CRATES_IO_INDEX_URL.to_string()),
         );
-    } else {
-        dep_entry.insert("registry".to_string(), Value::Null);
     }
     dep_entry.insert("package".to_string(), Value::Null);
     Ok(Value::Object(dep_entry))
@@ -833,6 +836,38 @@ adze = "0.9.0"
     fn sparse_index_file_uses_crates_io_layout() {
         let path = sparse_index_file(Path::new("/tmp/index"), "adze-cli");
         assert_eq!(path, Path::new("/tmp/index/ad/ze/adze-cli"));
+    }
+
+    #[test]
+    fn index_dependency_uses_null_for_same_registry_and_crates_io_url_for_external() {
+        let published = BTreeSet::from(["adze-tool".to_string()]);
+        let same_registry = CargoDependency {
+            name: "adze-tool".to_string(),
+            req: "0.9.0".to_string(),
+            features: Vec::new(),
+            optional: false,
+            default_features: true,
+            target: None,
+            kind: None,
+        };
+        let external = CargoDependency {
+            name: "clap".to_string(),
+            req: "4.5".to_string(),
+            features: Vec::new(),
+            optional: false,
+            default_features: true,
+            target: None,
+            kind: None,
+        };
+
+        let same = index_dependency(&same_registry, &published).expect("same-registry dep");
+        assert!(same.get("registry").is_some_and(|value| value.is_null()));
+
+        let ext = index_dependency(&external, &published).expect("external dep");
+        assert_eq!(
+            ext.get("registry").and_then(Value::as_str),
+            Some(CRATES_IO_INDEX_URL)
+        );
     }
 
     #[test]
