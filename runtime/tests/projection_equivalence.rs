@@ -447,7 +447,9 @@ fn assert_glr_ts_compat_selected_tree_matches_document(
     assert_eq!(ts_root.start_byte(), doc_root.byte_range().start);
     assert_eq!(ts_root.end_byte(), doc_root.byte_range().end);
     assert_eq!(
-        ts_root.utf8_text(bytes).expect("ts-compat text should be UTF-8"),
+        ts_root
+            .utf8_text(bytes)
+            .expect("ts-compat text should be UTF-8"),
         doc_root.utf8_text().expect("document text should be UTF-8")
     );
     assert_eq!(ts_tree.error_count(), document.metadata().error_count);
