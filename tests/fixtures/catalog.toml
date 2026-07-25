@@ -13,8 +13,10 @@ ambiguity = "conflict cell retained; selected tree deterministic"
 diagnostics = "none"
 ts_compat = "selected tree S-expression matches documented subset"
 support_tier = "GLR conflict routing"
-proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture; cargo test -p adze --features \"pure-rust,glr,ts-compat,serialization\" --test projection_equivalence glr_ambiguous_expr_tree_sitter glr_ambiguous_expr_parser_parse -- --nocapture"
-known_gaps = []
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture; cargo test -p adze --features \"pure-rust,glr,serialization\" --test projection_equivalence glr_ambiguous_expr_parse_document_ast_and_json_agree -- --nocapture; cargo test -p adze --features \"pure-rust,glr,ts-compat,serialization\" --test projection_equivalence glr_ambiguous_expr_tree_sitter glr_ambiguous_expr_parser_parse -- --nocapture"
+known_gaps = [
+  "full serialization matrix across all GLR conflict fixtures deferred",
+]
 
 [[fixture]]
 id = "glr-dangling-else"
@@ -22,14 +24,16 @@ family = "glr"
 class = "single shift/reduce conflict"
 grammar = "adze_example::dangling_else"
 input = "if a then if b then other else other"
-selected_tree = "deferred: nearest-else IfThenElse selection (#877)"
-ambiguity = "else conflict retained in generated table"
-diagnostics = "runtime selected-tree parse deferred (#877)"
-ts_compat = "selected tree only"
+selected_tree = "parse/parse_document AST agree (#964); nearest-else typed structure deferred (#877)"
+ambiguity = "else conflict retained; ambiguity summaries proven (#964)"
+diagnostics = "none on clean input (#964)"
+ts_compat = "deferred: ts-compat selected-tree projection not proven (#877)"
 support_tier = "GLR conflict routing"
-proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture"
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test glr_conflict_matrix -- --nocapture; cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test test_dangling_else_conflicts verify_conflict_preservation_behavior -- --nocapture; cargo test -p adze --features \"pure-rust,glr,serialization\" --test projection_equivalence glr_dangling_else_parse_document_ast_and_json_agree -- --nocapture"
 known_gaps = [
-  "#877: generated lexer fails on keyword input (UnexpectedToken at byte 3); runtime selected-tree proof blocked until streaming lex contract covers dangling_else keywords",
+  "#877: nearest-else typed AST selection remains #[ignore] in test_dangling_else_conflicts until matrix closeout",
+  "#877: ts-compat selected-tree projection row not proven for dangling_else",
+  "full serialization matrix across all GLR conflict fixtures deferred",
   "broader imported grammar dangling-else parity pending",
 ]
 
@@ -44,8 +48,27 @@ ambiguity = "retained alternatives reported in parse_document"
 diagnostics = "none on valid input"
 ts_compat = "selected tree only"
 support_tier = "GLR conflict routing"
-proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test generated_reduce_reduce_gap -- --nocapture; cargo test -p adze --features \"pure-rust,glr,ts-compat,serialization\" --test projection_equivalence glr_reduce_reduce_tree_sitter -- --nocapture"
-known_gaps = []
+proof = "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" --test generated_reduce_reduce_gap -- --nocapture; cargo test -p adze --features \"pure-rust,glr,serialization\" --test projection_equivalence glr_reduce_reduce_document_ambiguity_matches_json -- --nocapture; cargo test -p adze --features \"pure-rust,glr,ts-compat,serialization\" --test projection_equivalence glr_reduce_reduce_tree_sitter -- --nocapture"
+known_gaps = [
+  "full serialization matrix across all GLR conflict fixtures deferred",
+]
+
+[[fixture]]
+id = "glr-streaming-lex-modes"
+family = "glr"
+class = "streaming lex mode routing"
+grammar = "adze_example::streaming_lex_modes"
+input = "1+2\n"
+selected_tree = "document-backed selected tree with meaningful newline span"
+ambiguity = "none"
+diagnostics = "none"
+ts_compat = "not in conflict-fixture ts-compat matrix"
+support_tier = "GLR conflict routing"
+proof = "cargo test -p adze --features \"pure-rust,glr\" --test glr_streaming_lex_modes -- --nocapture; cargo test -p adze --features \"pure-rust,glr\" --test glr_supported_streaming_route -- --nocapture; cargo test -p adze --features \"pure-rust,glr,serialization\" --test projection_equivalence glr_streaming_lex_modes_parse_document_ast_and_json_agree -- --nocapture"
+known_gaps = [
+  "#857: production routing and divergent-stack lexical commitment (#928) remain open",
+  "full serialization matrix across all GLR conflict fixtures deferred",
+]
 
 [[fixture]]
 id = "ts-compat-field-heavy"
