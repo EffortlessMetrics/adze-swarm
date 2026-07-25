@@ -126,6 +126,7 @@ impl IsolatedRegistry {
                 ordered_crates,
                 &metadata,
             )?;
+            rewrite_packaged_registry_deps(&crate_path, crate_name, &published_set)?;
             let manifest = packaged_manifest_text(&crate_path)?;
             if manifest_contains_path_dependency(&manifest) {
                 bail!(
@@ -264,11 +265,24 @@ impl IsolatedRegistry {
                 project_dir.display()
             );
         }
-        let manifest = fs::read_to_string(project_dir.join("Cargo.toml")).with_context(|| {
-            format!(
-                "reading generated {}",
-                project_dir.join("Cargo.toml").display()
-            )
+        let manifest_path = project_dir.join("Cargo.toml");
+        let manifest = fs::read_to_string(&manifest_path).with_context(|| {
+            format!("reading generated {}", manifest_path.display())
+        })?;
+        let published_set: BTreeSet<String> = self
+            .published
+            .iter()
+            .map(|published| published.name.clone())
+            .collect();
+        let rewritten =
+            rewrite_manifest_registry_deps(&manifest, project_name, &published_set)?;
+        if rewritten != manifest {
+            fs::write(&manifest_path, rewritten).with_context(|| {
+                format!("writing registry-backed {}", manifest_path.display())
+            })?;
+        }
+        let manifest = fs::read_to_string(&manifest_path).with_context(|| {
+            format!("reading rewritten {}", manifest_path.display())
         })?;
         if manifest_contains_path_dependency(&manifest) {
             bail!(
@@ -508,24 +522,6 @@ fn package_patch_config_args(
     Ok(args)
 }
 
-fn packaged_manifest_text(crate_path: &Path) -> Result<String> {
-    let manifest_member = packaged_manifest_member(crate_path)?;
-    let output = Command::new("tar")
-        .args(["-xOf"])
-        .arg(crate_path)
-        .arg(&manifest_member)
-        .output()
-        .context("extracting Cargo.toml from packaged crate via tar")?;
-    if !output.status.success() {
-        bail!(
-            "failed to extract Cargo.toml from {}: {}",
-            crate_path.display(),
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-    String::from_utf8(output.stdout).context("decoding extracted Cargo.toml")
-}
-
 fn packaged_manifest_member(crate_path: &Path) -> Result<String> {
     let output = Command::new("tar")
         .args(["-tzf"])
@@ -545,6 +541,142 @@ fn packaged_manifest_member(crate_path: &Path) -> Result<String> {
         .map(str::to_string)
         .with_context(|| format!("Cargo.toml not found in {}", crate_path.display()))?;
     Ok(manifest_member)
+}
+
+fn packaged_manifest_text(crate_path: &Path) -> Result<String> {
+    let manifest_member = packaged_manifest_member(crate_path)?;
+    let output = Command::new("tar")
+        .args(["-xOf"])
+        .arg(crate_path)
+        .arg(&manifest_member)
+        .output()
+        .context("extracting Cargo.toml from packaged crate via tar")?;
+    if !output.status.success() {
+        bail!(
+            "failed to extract Cargo.toml from {}: {}",
+            crate_path.display(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    String::from_utf8(output.stdout).context("decoding extracted Cargo.toml")
+}
+
+fn rewrite_packaged_registry_deps(
+    crate_path: &Path,
+    crate_name: &str,
+    published_set: &BTreeSet<String>,
+) -> Result<()> {
+    let manifest_member = packaged_manifest_member(crate_path)?;
+    let manifest = packaged_manifest_text(crate_path)?;
+    let rewritten = rewrite_manifest_registry_deps(&manifest, crate_name, published_set)?;
+    if rewritten == manifest {
+        return Ok(());
+    }
+
+    let extract_dir = tempfile::Builder::new()
+        .prefix("adze-crate-rewrite-")
+        .tempdir()
+        .context("creating crate rewrite tempdir")?;
+    let status = Command::new("tar")
+        .args(["-xzf"])
+        .arg(crate_path)
+        .current_dir(extract_dir.path())
+        .status()
+        .with_context(|| format!("extracting {}", crate_path.display()))?;
+    if !status.success() {
+        bail!("tar extract failed for {}", crate_path.display());
+    }
+
+    let manifest_path = extract_dir.path().join(&manifest_member);
+    fs::write(&manifest_path, rewritten).with_context(|| {
+        format!("writing rewritten manifest {}", manifest_path.display())
+    })?;
+
+    let parent = crate_path
+        .parent()
+        .context("crate path missing parent directory")?;
+    let rewritten_path = parent.join(format!(
+        "{}.rewritten.crate",
+        crate_path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("crate")
+    ));
+    let package_dir = manifest_member
+        .split('/')
+        .next()
+        .with_context(|| format!("invalid manifest member `{manifest_member}`"))?;
+    let status = Command::new("tar")
+        .args(["-czf"])
+        .arg(&rewritten_path)
+        .current_dir(extract_dir.path())
+        .arg(package_dir)
+        .status()
+        .context("repacking rewritten crate tarball")?;
+    if !status.success() {
+        bail!("tar repack failed for {}", crate_path.display());
+    }
+    fs::rename(&rewritten_path, crate_path).with_context(|| {
+        format!(
+            "replacing {} with rewritten crate",
+            crate_path.display()
+        )
+    })?;
+    Ok(())
+}
+
+fn rewrite_manifest_registry_deps(
+    manifest: &str,
+    crate_name: &str,
+    published_set: &BTreeSet<String>,
+) -> Result<String> {
+    let mut doc: toml::Table =
+        toml::from_str(manifest).context("parsing packaged Cargo.toml")?;
+    for table_name in [
+        "dependencies",
+        "dev-dependencies",
+        "build-dependencies",
+    ] {
+        let Some(deps) = doc
+            .get(table_name)
+            .and_then(|value| value.as_table())
+            .cloned()
+        else {
+            continue;
+        };
+        let mut updated = deps.clone();
+        for (dep_name, dep_value) in deps {
+            if dep_name == crate_name || !published_set.contains(&dep_name) {
+                continue;
+            }
+            updated.insert(dep_name, dependency_with_local_registry(dep_value));
+        }
+        doc.insert(table_name.to_string(), toml::Value::Table(updated));
+    }
+    Ok(toml::to_string(&doc).context("serializing rewritten Cargo.toml")?)
+}
+
+fn dependency_with_local_registry(dep_value: toml::Value) -> toml::Value {
+    match dep_value {
+        toml::Value::String(version) => toml::Value::Table(toml::Table::from_iter([
+            (
+                "version".to_string(),
+                toml::Value::String(version),
+            ),
+            (
+                "registry".to_string(),
+                toml::Value::String(REGISTRY_NAME.to_string()),
+            ),
+        ])),
+        toml::Value::Table(mut table) => {
+            table.insert(
+                "registry".to_string(),
+                toml::Value::String(REGISTRY_NAME.to_string()),
+            );
+            toml::Value::Table(table)
+        }
+        other => other,
+    }
 }
 
 fn manifest_contains_path_dependency(manifest: &str) -> bool {
@@ -868,6 +1000,23 @@ adze = "0.9.0"
             ext.get("registry").and_then(Value::as_str),
             Some(CRATES_IO_INDEX_URL)
         );
+    }
+
+    #[test]
+    fn rewrite_manifest_registry_deps_tags_sibling_crates() {
+        let manifest = r#"
+[dependencies.adze-tool]
+version = "0.9.0"
+
+[dependencies.clap]
+version = "4.5"
+"#;
+        let published = BTreeSet::from(["adze-tool".to_string()]);
+        let rewritten =
+            rewrite_manifest_registry_deps(manifest, "adze-cli", &published).expect("rewrite");
+        assert!(rewritten.contains("registry = \"adze-local\""));
+        assert!(rewritten.contains("[dependencies.adze-tool]"));
+        assert!(!rewritten.contains("[dependencies.clap]\nregistry"));
     }
 
     #[test]
