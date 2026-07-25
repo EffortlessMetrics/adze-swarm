@@ -40,9 +40,11 @@ fn ambiguous_expr_streaming_exposes_ambiguity_summary() {
     let grammar_ir = decode_grammar(language);
     let parsed = parse_with_streaming_driver(source, language, parse_table, &grammar_ir)
         .expect("streaming parse should succeed");
-    // The streaming forest currently collapses shift/reduce ambiguity to one root; raw
-    // `StreamingGlrParseResult.ambiguities` may be empty until the driver retains S/R stacks.
-    let _ = parsed.ambiguities;
+    assert!(
+        parsed.ambiguities.is_some(),
+        "streaming forest should expose native ambiguity summaries for {source:?}: {:?}",
+        parsed.ambiguities
+    );
 
     let document = grammar::parse_document(source).expect("parse_document should succeed");
     assert!(

@@ -268,109 +268,88 @@ impl<'t> Driver<'t> {
             let mut new_stacks = Vec::new();
             let mut has_any_real_action = false;
 
-            for stk in prev_stacks.iter().cloned() {
+            let phase2_stacks =
+                self.prepare_token_action_stacks(&mut state, prev_stacks.clone(), token_sym)?;
+
+            for stk in phase2_stacks {
+                // Get actions and filter Recover if real actions exist
                 let top = stk.top_state()?;
-                let pre_actions = self.tables.actions(top, token_sym);
-                let reduce_rules = reduce_actions_for(pre_actions);
-                let has_shift = pre_actions
+                let all_actions = self.tables.actions(top, token_sym);
+
+                // Check if we have any real actions without collecting into Vec
+                let has_real_action = all_actions
                     .iter()
-                    .any(|action| matches!(action, Action::Shift(_)));
+                    .any(|a| !matches!(*a, Action::Recover | Action::Error));
 
-                let stacks_to_process = if has_shift {
-                    // Shift/reduce conflicts must branch from the conflict state; do not
-                    // pre-reduce away the shift path before reading the action cell.
-                    vec![stk]
-                } else if reduce_rules.len() > 1 {
-                    self.reduce_closure_stacks(&mut state, vec![stk], token_sym)?
-                } else {
-                    let mut stk = stk;
-                    self.reduce_closure(&mut state, &mut stk, token_sym)?;
-                    vec![stk]
-                };
+                if has_real_action {
+                    has_any_real_action = true;
+                }
 
-                for stk in stacks_to_process {
-                    // Get actions and filter Recover if real actions exist
-                    let top = stk.top_state()?;
-                    let all_actions = self.tables.actions(top, token_sym);
-
-                    // Check if we have any real actions without collecting into Vec
-                    let has_real_action = all_actions
-                        .iter()
-                        .any(|a| !matches!(*a, Action::Recover | Action::Error));
-
+                // Then apply shifts/accepts
+                // Use iterator filtering to avoid intermediate Vec allocation
+                for action in all_actions.iter().filter(|a| {
                     if has_real_action {
-                        has_any_real_action = true;
+                        !matches!(**a, Action::Recover | Action::Error)
+                    } else {
+                        true
                     }
-
-                    // Then apply shifts/accepts
-                    // Use iterator filtering to avoid intermediate Vec allocation
-                    for action in all_actions.iter().filter(|a| {
-                        if has_real_action {
-                            !matches!(**a, Action::Recover | Action::Error)
-                        } else {
-                            true
+                }) {
+                    match *action {
+                        Action::Shift(ns) => {
+                            #[cfg(feature = "perf_counters")]
+                            perf::inc_shifts(1);
+                            let node_id =
+                                self.push_terminal(&mut state, token_sym, (token_start, token_end));
+                            let mut s2 = stk.clone();
+                            s2.states.push(ns);
+                            s2.nodes.push(node_id);
+                            s2.pos = token_end;
+                            self.push_limited_stack(&mut new_stacks, s2, "shifting a token")?;
                         }
-                    }) {
-                        match *action {
-                            Action::Shift(ns) => {
-                                #[cfg(feature = "perf_counters")]
-                                perf::inc_shifts(1);
-                                let node_id = self.push_terminal(
-                                    &mut state,
-                                    token_sym,
-                                    (token_start, token_end),
-                                );
-                                let mut s2 = stk.clone();
-                                s2.states.push(ns);
-                                s2.nodes.push(node_id);
-                                s2.pos = token_end;
-                                self.push_limited_stack(&mut new_stacks, s2, "shifting a token")?;
+                        Action::Accept => {
+                            if let Some(&root_id) = stk.nodes.last()
+                                && let Some(root) = state.forest.nodes.get(&root_id).cloned()
+                            {
+                                state.forest.roots.push(root);
                             }
-                            Action::Accept => {
-                                if let Some(&root_id) = stk.nodes.last()
-                                    && let Some(root) = state.forest.nodes.get(&root_id).cloned()
-                                {
-                                    state.forest.roots.push(root);
-                                }
-                                if token_sym == self.tables.eof_symbol {
-                                    break;
-                                }
-                                return Ok(Self::wrap_forest(state.forest));
+                            if token_sym == self.tables.eof_symbol {
+                                break;
                             }
-                            Action::Reduce(rid) => {
-                                #[cfg(feature = "perf_counters")]
-                                perf::inc_reductions(1);
-                                #[cfg(feature = "glr_telemetry")]
-                                if let Some(t) = self.telemetry {
-                                    t.inc_reduce();
-                                }
-                                // Handle reduce+shift conflicts
-                                let s2 = self.reduce_once(&mut state, stk.clone(), rid)?;
-                                let mut s2_clone = s2.clone();
-                                self.reduce_closure(&mut state, &mut s2_clone, token_sym)?;
-                                // Try shift after reduce
-                                let s2_top = s2_clone.top_state()?;
-                                for a2 in self.tables.actions(s2_top, token_sym) {
-                                    if let Action::Shift(ns) = *a2 {
-                                        let node_id = self.push_terminal(
-                                            &mut state,
-                                            token_sym,
-                                            (token_start, token_end),
-                                        );
-                                        let mut s3 = s2_clone.clone();
-                                        s3.states.push(ns);
-                                        s3.nodes.push(node_id);
-                                        s3.pos = token_end;
-                                        self.push_limited_stack(
-                                            &mut new_stacks,
-                                            s3,
-                                            "branching after a reduction",
-                                        )?;
-                                    }
-                                }
-                            }
-                            _ => {}
+                            return Ok(Self::wrap_forest(state.forest));
                         }
+                        Action::Reduce(rid) => {
+                            #[cfg(feature = "perf_counters")]
+                            perf::inc_reductions(1);
+                            #[cfg(feature = "glr_telemetry")]
+                            if let Some(t) = self.telemetry {
+                                t.inc_reduce();
+                            }
+                            // Handle reduce+shift conflicts
+                            let s2 = self.reduce_once(&mut state, stk.clone(), rid)?;
+                            let mut s2_clone = s2.clone();
+                            self.reduce_closure(&mut state, &mut s2_clone, token_sym)?;
+                            // Try shift after reduce
+                            let s2_top = s2_clone.top_state()?;
+                            for a2 in self.tables.actions(s2_top, token_sym) {
+                                if let Action::Shift(ns) = *a2 {
+                                    let node_id = self.push_terminal(
+                                        &mut state,
+                                        token_sym,
+                                        (token_start, token_end),
+                                    );
+                                    let mut s3 = s2_clone.clone();
+                                    s3.states.push(ns);
+                                    s3.nodes.push(node_id);
+                                    s3.pos = token_end;
+                                    self.push_limited_stack(
+                                        &mut new_stacks,
+                                        s3,
+                                        "branching after a reduction",
+                                    )?;
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -497,11 +476,11 @@ impl<'t> Driver<'t> {
             // state.stacks is now empty, ready for filling with new_stacks
             let mut new_stacks = Vec::with_capacity(prev_stacks.len());
 
-            for mut stk in prev_stacks.iter().cloned() {
-                // 1) Closure: apply all reduces available on this lookahead BEFORE any shift
-                self.reduce_closure(&mut state, &mut stk, lookahead)?;
+            let phase2_stacks =
+                self.prepare_token_action_stacks(&mut state, prev_stacks.clone(), lookahead)?;
 
-                // 2) Get actions and filter Recover if real actions exist
+            for stk in phase2_stacks {
+                // Get actions and filter Recover if real actions exist
                 let top = stk.top_state()?;
                 let all_actions = self.tables.actions(top, lookahead);
 
@@ -904,6 +883,74 @@ impl<'t> Driver<'t> {
         stack.states.push(ns);
         stack.nodes.push(id);
         Ok(stack)
+    }
+
+    /// Prepare stacks for shift/accept/reduce action processing on one lookahead.
+    ///
+    /// Mirrors the GLR parser's two-phase token contract: when shift and reduce are both
+    /// viable, retain the unreduced stack for the shift path and fork reduced stacks for
+    /// the reduce path so shift/reduce ambiguity survives through EOF materialization.
+    fn prepare_token_action_stacks(
+        &self,
+        state: &mut GlrState,
+        stacks: Vec<ParseStack>,
+        lookahead: SymbolId,
+    ) -> Result<Vec<ParseStack>, GlrError> {
+        use std::collections::{HashSet, VecDeque};
+
+        let mut shift_preserves = Vec::new();
+        let mut saturated = Vec::new();
+        let mut seen_tops = HashSet::<(u16, usize)>::new();
+        let mut worklist = VecDeque::new();
+
+        for stk in stacks {
+            let top = stk.top_state()?.0;
+            let top_node = stk.nodes.last().copied().unwrap_or(usize::MAX);
+            if seen_tops.insert((top, top_node)) {
+                worklist.push_back(stk);
+            }
+        }
+
+        while let Some(stk) = worklist.pop_front() {
+            let top = stk.top_state()?;
+            let pre_actions = self.tables.actions(top, lookahead);
+            let has_shift = pre_actions
+                .iter()
+                .any(|action| matches!(action, Action::Shift(_)));
+            let reduce_rules = reduce_actions_for(pre_actions);
+
+            if has_shift {
+                shift_preserves.push(stk.clone());
+            }
+
+            if reduce_rules.is_empty() {
+                if !has_shift {
+                    saturated.push(stk);
+                }
+                continue;
+            }
+
+            let mut any_reduction_applied = false;
+            for rid in reduce_rules {
+                let reduced = self.reduce_once(state, stk.clone(), rid)?;
+                let new_top = reduced.top_state()?.0;
+                let top_node = reduced.nodes.last().copied().unwrap_or(usize::MAX);
+                if seen_tops.insert((new_top, top_node)) {
+                    worklist.push_back(reduced);
+                    any_reduction_applied = true;
+                } else {
+                    saturated.push(reduced);
+                }
+            }
+
+            if !any_reduction_applied && !has_shift {
+                saturated.push(stk);
+            }
+        }
+
+        let mut phase2_stacks = saturated;
+        phase2_stacks.extend(shift_preserves);
+        Ok(phase2_stacks)
     }
 
     /// Keep reducing as long as there is at least one reduce for (top, lookahead).
