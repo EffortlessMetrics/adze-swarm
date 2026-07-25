@@ -1,11 +1,9 @@
-(source_file
-  (Program
-    (Program_statements_vec_contents
-      (Statement
-        (Statement_Empty
-          (EmptyStatement
-            ";"
-          )
+(Program
+  (Program_statements_vec_contents
+    (Statement
+      (Statement_Empty
+        (EmptyStatement
+          ";"
         )
       )
     )
