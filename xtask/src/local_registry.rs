@@ -470,6 +470,13 @@ fn package_crate(
         bail!("cargo package -p {crate_name} failed with status {status}");
     }
 
+    let package = metadata
+        .packages
+        .iter()
+        .find(|pkg| pkg.name == *crate_name)
+        .with_context(|| format!("crate `{crate_name}` missing from cargo metadata"))?;
+    let expected_crate_name = format!("{}-{}.crate", crate_name, package.version);
+
     let package_dir = target_dir.join("package");
     let crate_path = fs::read_dir(&package_dir)
         .with_context(|| format!("reading {}", package_dir.display()))?
@@ -480,11 +487,11 @@ fn package_crate(
                 && path
                     .file_name()
                     .and_then(|name| name.to_str())
-                    .is_some_and(|name| name.starts_with(crate_name))
+                    .is_some_and(|name| name == expected_crate_name)
         })
         .with_context(|| {
             format!(
-                "packaged .crate for `{crate_name}` not found under {}",
+                "packaged .crate `{expected_crate_name}` not found under {}",
                 package_dir.display()
             )
         })?;
