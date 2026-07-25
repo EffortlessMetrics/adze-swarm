@@ -429,3 +429,70 @@ fn glr_ambiguous_expr_recovered_input_diagnostic_json_agrees() {
         "error document JSON should not serialize ambiguity summaries"
     );
 }
+
+// ─── GLR supported-matrix extension (#892 / #857) ────────────────────────────
+//
+// Completes projection-equivalence coverage for the two supported streaming-route
+// grammars in `glr_supported_streaming_route` not covered by the core canaries.
+
+#[cfg(feature = "glr")]
+#[test]
+fn glr_dangling_else_parse_document_ast_and_json_agree() {
+    use adze_example::dangling_else::grammar::{self, Statement};
+
+    let source = "if a then if b then other else other";
+    let selected = grammar::parse(source).expect("dangling-else GLR parse should succeed");
+    let document = grammar::parse_document(source)
+        .expect("dangling-else parse_document should return the canonical document");
+    let document_ast: Statement = document
+        .ast()
+        .expect("document-backed AST should agree with parse()");
+    assert_eq!(document_ast, selected);
+    assert!(
+        document.diagnostics().is_empty(),
+        "dangling-else clean input should not emit diagnostics"
+    );
+    assert!(
+        !document.ambiguities().is_empty(),
+        "dangling-else should expose shift/reduce ambiguity summaries for {source:?}"
+    );
+
+    let json = document.to_json_value();
+    assert_eq!(json["schema"].as_str(), Some(ADZE_DOCUMENT_JSON_SCHEMA));
+    let json_ambiguities = json["ambiguities"]
+        .as_array()
+        .expect("dangling-else JSON should serialize ambiguity summaries");
+    assert_eq!(
+        json_ambiguities.len(),
+        document.ambiguities().len(),
+        "JSON ambiguity summaries should match native document facts"
+    );
+    assert_json_node_matches_document(document.tree().root(), &json["tree"]["root"]);
+}
+
+#[cfg(feature = "glr")]
+#[test]
+fn glr_streaming_lex_modes_parse_document_ast_and_json_agree() {
+    use adze_example::streaming_lex_modes::grammar::{self, Document};
+
+    let source = "1+2\n";
+    let selected = grammar::parse(source).expect("streaming_lex_modes GLR parse should succeed");
+    let document = grammar::parse_document(source)
+        .expect("streaming_lex_modes parse_document should return the canonical document");
+    let document_ast: Document = document
+        .ast()
+        .expect("document-backed AST should agree with parse()");
+    assert_eq!(document_ast, selected);
+    assert!(
+        document.diagnostics().is_empty(),
+        "streaming_lex_modes clean input should not emit diagnostics"
+    );
+    assert!(
+        document.tree().root().byte_range().end >= source.len(),
+        "meaningful newline byte should survive streaming lexing in document span"
+    );
+
+    let json = document.to_json_value();
+    assert_eq!(json["schema"].as_str(), Some(ADZE_DOCUMENT_JSON_SCHEMA));
+    assert_json_node_matches_document(document.tree().root(), &json["tree"]["root"]);
+}
