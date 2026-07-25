@@ -124,10 +124,16 @@ impl IsolatedRegistry {
                 ordered_crates,
                 &metadata,
             )?;
+            inject_registry_deps_into_crate(&crate_path, &published_set)?;
             let manifest = packaged_manifest_text(&crate_path)?;
             if manifest_contains_path_dependency(&manifest) {
                 bail!(
                     "packaged crate `{crate_name}` still contains a path dependency; local-registry publish blocked"
+                );
+            }
+            if manifest_missing_registry_for_workspace_deps(&manifest, &published_set) {
+                bail!(
+                    "packaged crate `{crate_name}` is missing `{REGISTRY_NAME}` registry pins for workspace dependencies"
                 );
             }
 
@@ -155,7 +161,6 @@ impl IsolatedRegistry {
             );
         }
 
-        finalize_git_index(&self.index_dir)?;
         Ok(())
     }
 
@@ -183,13 +188,12 @@ impl IsolatedRegistry {
             .prefix("adze-local-install-root-")
             .tempdir()
             .context("creating temporary cargo install root")?;
-        let index_url = path_to_file_url(&self.index_dir)?;
         let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
         let status = Command::new(cargo)
             .args([
                 "install",
-                "--index",
-                &index_url,
+                "--registry",
+                REGISTRY_NAME,
                 cli_crate,
                 "--bin",
                 bin,
@@ -343,8 +347,8 @@ fn installed_binary_path(root: &Path, bin_name: &str) -> PathBuf {
 }
 
 fn write_registry_config(cargo_home: &TempDir, index_dir: &Path, crate_dir: &Path) -> Result<()> {
-    let index_url = path_to_file_url(index_dir)?;
-    let dl_url = path_to_file_url(crate_dir)?;
+    let index_url = sparse_file_url(index_dir)?;
+    let dl_url = sparse_file_url(crate_dir)?;
     let config = format!(
         r#"[registries.{REGISTRY_NAME}]
 index = "{index_url}"
@@ -407,6 +411,10 @@ token = "local"
     Ok(())
 }
 
+fn sparse_file_url(path: &Path) -> Result<String> {
+  Ok(format!("sparse+{}", path_to_file_url(path)?))
+}
+
 fn path_to_file_url(path: &Path) -> Result<String> {
     let absolute =
         fs::canonicalize(path).with_context(|| format!("canonicalizing {}", path.display()))?;
@@ -421,6 +429,10 @@ fn path_to_file_url(path: &Path) -> Result<String> {
         url.push('/');
     }
     Ok(format!("file://{url}"))
+}
+
+fn legacy_published_crate_path(crate_dir: &Path, crate_name: &str, version: &str) -> PathBuf {
+    crate_dir.join(format!("{crate_name}-{version}.crate"))
 }
 
 fn package_crate(
@@ -563,6 +575,189 @@ fn manifest_contains_path_dependency(manifest: &str) -> bool {
         }
     }
     false
+}
+
+fn manifest_missing_registry_for_workspace_deps(
+    manifest: &str,
+    published_set: &BTreeSet<String>,
+) -> bool {
+    let Ok(value) = manifest.parse::<toml::Value>() else {
+        return true;
+    };
+    for table_name in ["dependencies", "dev-dependencies", "build-dependencies"] {
+        let Some(deps) = value.get(table_name).and_then(toml::Value::as_table) else {
+            continue;
+        };
+        for (name, spec) in deps {
+            if !published_set.contains(name) {
+                continue;
+            }
+            if !dependency_spec_has_registry(spec) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn dependency_spec_has_registry(spec: &toml::Value) -> bool {
+    match spec {
+        toml::Value::Table(table) => table
+            .get("registry")
+            .and_then(toml::Value::as_str)
+            .is_some_and(|registry| registry == REGISTRY_NAME),
+        _ => false,
+    }
+}
+
+fn inject_registry_deps_into_crate(
+    crate_path: &Path,
+    published_set: &BTreeSet<String>,
+) -> Result<()> {
+    let manifest_member = packaged_manifest_member(crate_path)?;
+    let manifest = packaged_manifest_text(crate_path)?;
+    let updated = inject_registry_into_manifest(&manifest, published_set)?;
+    if updated == manifest {
+        return Ok(());
+    }
+    repack_crate_with_manifest(crate_path, &manifest_member, &updated)
+}
+
+fn inject_registry_into_manifest(
+    manifest: &str,
+    published_set: &BTreeSet<String>,
+) -> Result<String> {
+    let mut value: toml::Value = manifest
+        .parse()
+        .context("parsing packaged manifest for registry injection")?;
+    let root = value
+        .as_table_mut()
+        .context("packaged manifest root must be a table")?;
+
+    for table_name in ["dependencies", "dev-dependencies", "build-dependencies"] {
+        let Some(deps) = root.get_mut(table_name).and_then(toml::Value::as_table_mut) else {
+            continue;
+        };
+        for (name, spec) in deps.iter_mut() {
+            if !published_set.contains(name) {
+                continue;
+            }
+            *spec = registry_pinned_dependency_spec(spec)?;
+        }
+    }
+
+    if let Some(target) = root.get_mut("target").and_then(toml::Value::as_table_mut) {
+        let target_keys = target.keys().cloned().collect::<Vec<_>>();
+        for target_key in target_keys {
+            let Some(target_table) = target.get_mut(&target_key).and_then(toml::Value::as_table_mut)
+            else {
+                continue;
+            };
+            for table_name in ["dependencies", "dev-dependencies", "build-dependencies"] {
+                let Some(deps) = target_table
+                    .get_mut(table_name)
+                    .and_then(toml::Value::as_table_mut)
+                else {
+                    continue;
+                };
+                for (name, spec) in deps.iter_mut() {
+                    if !published_set.contains(name) {
+                        continue;
+                    }
+                    *spec = registry_pinned_dependency_spec(spec)?;
+                }
+            }
+        }
+    }
+
+    toml::to_string(&value).context("serializing registry-pinned packaged manifest")
+}
+
+fn registry_pinned_dependency_spec(spec: &toml::Value) -> Result<toml::Value> {
+    let mut table = match spec {
+        toml::Value::String(version) => {
+            let mut table = toml::map::Map::new();
+            table.insert(
+                "version".to_string(),
+                toml::Value::String(version.clone()),
+            );
+            table
+        }
+        toml::Value::Table(table) => table.clone(),
+        _ => bail!("unsupported dependency spec in packaged manifest"),
+    };
+    if table
+        .get("registry")
+        .and_then(toml::Value::as_str)
+        .is_some_and(|registry| registry == REGISTRY_NAME)
+    {
+        return Ok(toml::Value::Table(table));
+    }
+    table.insert(
+        "registry".to_string(),
+        toml::Value::String(REGISTRY_NAME.to_string()),
+    );
+    Ok(toml::Value::Table(table))
+}
+
+fn repack_crate_with_manifest(
+    crate_path: &Path,
+    manifest_member: &str,
+    manifest: &str,
+) -> Result<()> {
+    let extract_dir = tempfile::Builder::new()
+        .prefix("adze-local-crate-repack-")
+        .tempdir()
+        .context("creating crate repack extraction directory")?;
+    let status = Command::new("tar")
+        .args(["-xzf"])
+        .arg(crate_path)
+        .arg("-C")
+        .arg(extract_dir.path())
+        .status()
+        .with_context(|| format!("extracting {} for manifest rewrite", crate_path.display()))?;
+    if !status.success() {
+        bail!(
+            "failed to extract {} for manifest rewrite",
+            crate_path.display()
+        );
+    }
+
+    let manifest_path = extract_dir.path().join(manifest_member);
+    fs::write(&manifest_path, manifest).with_context(|| {
+        format!(
+            "writing registry-pinned manifest to {}",
+            manifest_path.display()
+        )
+    })?;
+
+    let crate_root = manifest_path
+        .parent()
+        .with_context(|| format!("missing crate root for {}", manifest_path.display()))?;
+    let crate_root_name = crate_root
+        .file_name()
+        .and_then(OsStr::to_str)
+        .with_context(|| format!("missing crate root name for {}", crate_root.display()))?;
+
+    let repacked_path = crate_path.with_extension("crate.repacked");
+    let status = Command::new("tar")
+        .args(["-czf"])
+        .arg(&repacked_path)
+        .arg("-C")
+        .arg(extract_dir.path())
+        .arg(crate_root_name)
+        .status()
+        .with_context(|| format!("repacking {}", crate_path.display()))?;
+    if !status.success() {
+        bail!("failed to repack {}", crate_path.display());
+    }
+    fs::rename(&repacked_path, crate_path).with_context(|| {
+        format!(
+            "replacing {} with registry-pinned package",
+            crate_path.display()
+        )
+    })?;
+    Ok(())
 }
 
 fn sha256_hex_file(path: &Path) -> Result<String> {
@@ -833,6 +1028,55 @@ adze = "0.9.0"
     fn sparse_index_file_uses_crates_io_layout() {
         let path = sparse_index_file(Path::new("/tmp/index"), "adze-cli");
         assert_eq!(path, Path::new("/tmp/index/ad/ze/adze-cli"));
+    }
+
+    #[test]
+    fn sparse_file_url_uses_sparse_file_protocol() {
+        let index_dir = std::env::temp_dir().join("adze-local-index-test-sparse");
+        std::fs::create_dir_all(&index_dir).expect("create temp index dir");
+        let url = sparse_file_url(&index_dir).expect("sparse file url");
+        assert!(url.starts_with("sparse+file://"));
+    }
+
+    #[test]
+    fn registry_index_url_uses_file_protocol_for_git_index() {
+        let index_dir = std::env::temp_dir().join("adze-local-index-test-git");
+        std::fs::create_dir_all(&index_dir).expect("create temp index dir");
+        let url = path_to_file_url(&index_dir).expect("registry index url");
+        assert!(url.starts_with("file://"));
+        assert!(url.contains("adze-local-index-test-git"));
+    }
+
+    #[test]
+    fn inject_registry_into_manifest_pins_workspace_dependencies() {
+        let manifest = r#"
+[dependencies]
+adze = "0.9.0"
+clap = "4.5"
+"#;
+        let published = BTreeSet::from(["adze".to_string()]);
+        let updated = inject_registry_into_manifest(manifest, &published).expect("inject");
+        assert!(updated.contains(r#"registry = "adze-local""#));
+        assert!(updated.contains("adze"));
+        assert!(updated.contains(r#"clap = "4.5""#));
+    }
+
+    #[test]
+    fn manifest_missing_registry_for_workspace_deps_detects_unpinned_workspace_crate() {
+        let manifest = r#"
+[dependencies]
+adze = "0.9.0"
+"#;
+        let published = BTreeSet::from(["adze".to_string()]);
+        assert!(manifest_missing_registry_for_workspace_deps(
+            manifest,
+            &published
+        ));
+        let pinned = inject_registry_into_manifest(manifest, &published).expect("inject");
+        assert!(!manifest_missing_registry_for_workspace_deps(
+            &pinned,
+            &published
+        ));
     }
 
     #[test]
