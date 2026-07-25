@@ -273,7 +273,7 @@ pub fn run(args: PlanArgs) -> Result<()> {
         _ => {}
     }
 
-    let mut plan = Plan {
+    let plan = Plan {
         schema_version: 1,
         repo: "adze",
         posture: "rust",
