@@ -1,0 +1,50 @@
+name: Local Release Receipt
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact workspace version to publish into the local registry
+        required: true
+        default: "0.10.0"
+      dry_run:
+        description: Print the command plan without touching registries
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-release-receipt-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  local-release-receipt:
+    name: Isolated local-registry package-first receipt
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95.0"
+
+      - name: Run local-registry receipt (dry-run)
+        if: inputs.dry_run
+        run: cargo run -q -p xtask -- verify-local-release-install --version "${{ inputs.version }}" --dry-run
+
+      - name: Run local-registry receipt
+        if: ${{ !inputs.dry_run }}
+        run: cargo run -q -p xtask -- verify-local-release-install --version "${{ inputs.version }}" --receipt-out target/local-release-receipt.json
+
+      - name: Upload receipt artifact
+        if: ${{ !inputs.dry_run }}
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: local-release-receipt-${{ inputs.version }}
+          path: target/local-release-receipt.json
+          if-no-files-found: error
