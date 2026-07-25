@@ -192,7 +192,8 @@ pub fn fixed_mode_bridge_lex_mode(language: &TSLanguage) -> TSLexState {
     unsafe { *language.lex_modes }
 }
 
-/// Tokenize with the current fixed-mode pretokenization bridge.
+/// Tokenize with the legacy fixed-mode pretokenization bridge (`runtime-e2e` harness only).
+#[cfg(feature = "runtime-e2e")]
 pub fn tokenize_with_fixed_mode_bridge(
     language: &'static TSLanguage,
     lex_fn: unsafe extern "C" fn(*mut c_void, TSLexState) -> bool,

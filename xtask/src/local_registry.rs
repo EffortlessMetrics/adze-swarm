@@ -21,7 +21,6 @@ pub const REGISTRY_NAME: &str = "adze-local";
 pub struct PublishedCrate {
     pub name: String,
     pub version: String,
-    pub crate_path: PathBuf,
     pub checksum: String,
 }
 
@@ -91,10 +90,6 @@ impl IsolatedRegistry {
         })
     }
 
-    pub fn finalize_index(&self) -> Result<()> {
-        Ok(())
-    }
-
     pub fn published_crates(&self) -> &[PublishedCrate] {
         &self.published
     }
@@ -152,7 +147,6 @@ impl IsolatedRegistry {
             self.published.push(PublishedCrate {
                 name: crate_name.clone(),
                 version: package.version.clone(),
-                crate_path: dest,
                 checksum: checksum.clone(),
             });
             println!(
@@ -527,7 +521,7 @@ fn packaged_manifest_text(crate_path: &Path) -> Result<String> {
             String::from_utf8_lossy(&output.stderr)
         );
     }
-    Ok(String::from_utf8(output.stdout).context("decoding extracted Cargo.toml")?)
+    String::from_utf8(output.stdout).context("decoding extracted Cargo.toml")
 }
 
 fn packaged_manifest_member(crate_path: &Path) -> Result<String> {
@@ -702,7 +696,6 @@ struct CargoDependency {
     default_features: bool,
     target: Option<String>,
     kind: Option<String>,
-    registry: Option<String>,
 }
 
 fn default_true() -> bool {

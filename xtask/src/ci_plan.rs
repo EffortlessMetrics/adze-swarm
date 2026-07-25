@@ -273,7 +273,7 @@ pub fn run(args: PlanArgs) -> Result<()> {
         _ => {}
     }
 
-    let mut plan = Plan {
+    let plan = Plan {
         schema_version: 1,
         repo: "adze",
         posture: "rust",
@@ -331,8 +331,6 @@ pub fn run(args: PlanArgs) -> Result<()> {
             plan.budget.estimated_lem
         );
     }
-    // Suppress unused after fields move into plan.
-    let _ = &mut plan;
     Ok(())
 }
 
