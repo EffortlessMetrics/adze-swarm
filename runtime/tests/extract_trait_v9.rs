@@ -635,10 +635,23 @@ fn test_child_walker_empty() {
 // ===========================================================================
 
 #[test]
-fn test_extract_sealed_blanket_impl() {
+fn test_extract_is_open_to_downstream_types() {
+    // A type declared outside `adze` satisfies `Extract` with no marker impl.
     struct Dummy;
-    fn assert_sealed<T: adze::sealed::Sealed>() {}
-    assert_sealed::<Dummy>();
+    impl Extract<u32> for Dummy {
+        type LeafFn = ();
+
+        fn extract(
+            _node: Option<&ParsedNode>,
+            _source: &[u8],
+            _last_idx: usize,
+            _leaf_fn: Option<&Self::LeafFn>,
+        ) -> u32 {
+            0
+        }
+    }
+    fn assert_extract<T: Extract<u32>>() {}
+    assert_extract::<Dummy>();
 }
 
 #[test]
@@ -673,8 +686,8 @@ fn test_extract_string_leaf_fn_is_unit() {
 }
 
 #[test]
-fn test_extract_requires_sealed() {
-    fn _check<T: adze::sealed::Sealed + Extract<U>, U>() {}
+fn test_extract_has_no_sealing_supertrait() {
+    fn _check<T: Extract<U>, U>() {}
 }
 
 // ===========================================================================
