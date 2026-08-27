@@ -292,23 +292,52 @@ pub mod tree_sitter {
     pub const MIN_COMPATIBLE_LANGUAGE_VERSION: u32 = 13;
 }
 
-/// Private module for sealing traits to preserve future extensibility.
+/// Deprecated no-op marker retained for source compatibility.
+///
+/// This module was introduced to seal [`Extract`], but [`Sealed`](sealed::Sealed)
+/// carries a blanket `impl<T> Sealed for T {}`, so every type already satisfies
+/// it and it never prevented a downstream implementation. [`Extract`] no longer
+/// names it as a supertrait.
+///
+/// It is kept only so existing `T: adze::sealed::Sealed` bounds keep compiling,
+/// and is scheduled for removal in a later pre-1.0 release. See
+/// `docs/adr/ADZE-ADR-0008-extract-is-an-open-trait.md`.
+#[deprecated(
+    since = "0.10.0",
+    note = "`Extract` is an open trait; this marker never prevented downstream implementations and will be removed"
+)]
 pub mod sealed {
-    /// Marker trait for types that can implement Extract.
-    /// This trait is automatically implemented by the adze macros.
+    /// Blanket-implemented marker that seals nothing.
+    ///
+    /// Every type implements this trait. It carries no stability guarantee and
+    /// exists only so pre-existing bounds naming it keep compiling.
     pub trait Sealed {}
 
-    // Auto-implement for all types by default to support macro-generated code
-    // This is safe because Extract still requires explicit implementation
     impl<T> Sealed for T {}
 }
 
 /// Defines the logic used to convert a node in a Tree Sitter tree to
 /// the corresponding Rust type.
 ///
-/// This trait is sealed and cannot be implemented outside this crate,
-/// allowing us to add new methods in the future without breaking changes.
-pub trait Extract<Output>: sealed::Sealed {
+/// # This trait is open
+///
+/// `Extract` is intentionally implementable outside this crate. The
+/// `#[adze::grammar]` attribute depends on that: it expands in the caller's
+/// crate and emits `Extract` implementations for the caller's own types.
+/// Hand-written downstream implementations are supported for the same reason.
+///
+/// # Trait evolution rule
+///
+/// Because downstream implementations are supported, every item added to this
+/// trait must carry a default — as [`HAS_CONFLICTS`](Extract::HAS_CONFLICTS)
+/// and the grammar constants do. Adding a *required* item is a breaking change
+/// and may only land in a pre-1.0 breaking release, never in a patch or minor
+/// release.
+///
+/// See `docs/adr/ADZE-ADR-0008-extract-is-an-open-trait.md` for the decision
+/// record, and `runtime/tests/extract_open_contract.rs` for the compile-pass
+/// proof that a crate outside `adze` can implement this trait.
+pub trait Extract<Output> {
     /// Associated function type for leaf node extraction.
     type LeafFn: ?Sized;
 
@@ -414,8 +443,6 @@ pub trait ExtractDefault<Output>: Extract<Output> {
 pub struct WithLeaf<L> {
     _phantom: std::marker::PhantomData<L>,
 }
-
-// The sealed trait is now auto-implemented for all types via blanket impl
 
 impl<L> Extract<L> for WithLeaf<L> {
     type LeafFn = dyn Fn(&str) -> L;
