@@ -652,8 +652,18 @@ fn test_build_rust_scanner_readonly_outdir_errors() {
     );
     #[cfg(unix)]
     {
-        let result = builder.build();
-        assert!(result.is_err());
+        // Root bypasses directory write permissions, so a 0o555 out-dir is
+        // still writable when the suite runs as uid 0 (the default in many
+        // CI containers). Probe the precondition instead of assuming it: only
+        // assert the build fails where the OS actually denies the write.
+        let probe = out_dir.path().join(".readonly-probe");
+        let write_denied = fs::write(&probe, b"probe").is_err();
+        if write_denied {
+            let result = builder.build();
+            assert!(result.is_err());
+        } else {
+            fs::remove_file(&probe).unwrap();
+        }
         // Restore permissions for cleanup
         let perms = <fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(0o755);
         fs::set_permissions(out_dir.path(), perms).unwrap();
