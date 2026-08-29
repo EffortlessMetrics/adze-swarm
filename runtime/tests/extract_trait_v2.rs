@@ -103,11 +103,25 @@ fn parent_node(symbol: u16, children: Vec<ParsedNode>) -> ParsedNode {
 // ===========================================================================
 
 #[test]
-fn test_extract_trait_sealed_blanket_impl() {
-    // Sealed is auto-implemented for all T; a custom struct satisfies the bound.
+fn test_extract_is_open_to_downstream_types() {
+    // `Extract` names no marker supertrait, so a type declared outside `adze`
+    // needs nothing extra to satisfy the bound. See ADZE-ADR-0008 and
+    // `extract_open_contract.rs` for the full downstream proof.
     struct Dummy;
-    fn assert_sealed<T: adze::sealed::Sealed>() {}
-    assert_sealed::<Dummy>();
+    impl Extract<u32> for Dummy {
+        type LeafFn = ();
+
+        fn extract(
+            _node: Option<&ParsedNode>,
+            _source: &[u8],
+            _last_idx: usize,
+            _leaf_fn: Option<&Self::LeafFn>,
+        ) -> u32 {
+            0
+        }
+    }
+    fn assert_extract<T: Extract<u32>>() {}
+    assert_extract::<Dummy>();
 }
 
 #[test]
@@ -143,10 +157,10 @@ fn test_extract_string_leaf_fn_is_unit() {
 }
 
 #[test]
-fn test_extract_trait_requires_sealed() {
-    // Verify the Extract trait has Sealed as a supertrait by compiling
-    // a generic function with both bounds.
-    fn _check<T: adze::sealed::Sealed + Extract<U>, U>() {}
+fn test_extract_trait_has_no_sealing_supertrait() {
+    // `Extract` alone is a sufficient bound. If a sealing supertrait is ever
+    // reintroduced, this signature stops compiling.
+    fn _check<T: Extract<U>, U>() {}
 }
 
 // ===========================================================================
