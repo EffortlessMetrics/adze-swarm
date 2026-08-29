@@ -34,13 +34,13 @@ impl Extract<u32> for DownstreamLeaf {
 }
 
 #[test]
-fn downstream_crate_can_implement_extract() {
+fn test_extract_downstream_manual_impl_compiles() {
     // Compiling at all is the assertion; calling it keeps the impl live.
     assert_eq!(DownstreamLeaf::extract(None, b"", 0, None), 0);
 }
 
 #[test]
-fn extract_bound_needs_no_marker_supertrait() {
+fn test_extract_bound_alone_admits_downstream_type() {
     // `Extract` alone is a sufficient bound: satisfying it requires no
     // separate marker implementation from the downstream crate.
     fn accepts_any_extractor<T: Extract<u32>>() {}
@@ -48,7 +48,7 @@ fn extract_bound_needs_no_marker_supertrait() {
 }
 
 #[test]
-fn added_trait_items_default_for_downstream_impls() {
+fn test_extract_added_items_default_for_downstream_impl() {
     // The evolution rule in ADZE-ADR-0008: items added to `Extract` carry
     // defaults, so a downstream impl that names none of them still compiles.
     const { assert!(!<DownstreamLeaf as Extract<u32>>::HAS_CONFLICTS) };

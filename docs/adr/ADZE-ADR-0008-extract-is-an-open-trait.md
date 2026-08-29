@@ -71,8 +71,10 @@ independent sealing claim.
   that test stops building and this ADR must be revisited first.
 - `docs/status/API_STABILITY.md` records `Extract` as open and states the
   evolution rule instead of the sealing claim.
-- `adze::sealed` is `Internal` and deprecated. Naming it emits a deprecation
-  warning; the module is a no-op marker with no stability guarantee.
+- `adze::sealed` is `Deprecated`, matching its row in
+  `docs/status/API_STABILITY.md`. It stays public for source compatibility;
+  naming it emits a deprecation warning, and the module is a no-op marker with
+  no stability guarantee.
 - Adding a required method to `Extract` is now visibly a breaking change
   rather than something the (false) seal appeared to permit.
 
