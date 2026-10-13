@@ -622,6 +622,16 @@ source_of_truth_for = ["historical runtime2 GLR integration decision (superseded
 links_to = []
 
 [[artifact]]
+id = "ADZE-ADR-0008"
+kind = "adr"
+path = "docs/adr/ADZE-ADR-0008-extract-is-an-open-trait.md"
+status = "accepted"
+owner = "runtime/api"
+milestone = "0.10.0"
+source_of_truth_for = ["Extract is an open trait; downstream implementations are supported", "Extract trait-evolution rule"]
+links_to = ["ADZE-PROP-0002"]
+
+[[artifact]]
 id = "plans/0.9.0/implementation-plan.md"
 kind = "plan"
 path = "plans/0.9.0/implementation-plan.md"

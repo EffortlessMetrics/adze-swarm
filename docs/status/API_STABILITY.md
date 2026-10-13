@@ -1,6 +1,6 @@
 # API Stability Matrix
 
-**Last updated:** 2026-05-10
+**Last updated:** 2026-08-27
 **Workspace version:** 0.9.0
 
 This document catalogs the stability status of every public API surface in the adze workspace.
@@ -68,7 +68,7 @@ The main user-facing crate. Re-exports `adze-macro` proc-macros at the top level
 | `errors` (ParseError, ParseErrorReason) | **Stable** | — | ✅ | ✅ |
 | `ffi` | **Internal** | — | ✅ | ✅ |
 | `__private` | **Internal** | — | — | — |
-| `sealed` | **Internal** | — | ✅ | — |
+| `sealed` | **Deprecated** | — | ✅ | — |
 | `tree_sitter` (compat shim) | Unstable | `pure-rust` | ✅ | ✅ |
 | `parser` (→ `parser_v4`) | Unstable | `pure-rust` | ✅ | ✅ |
 | `pure_parser` | Unstable | — | ✅ | ✅ |
@@ -549,7 +549,11 @@ Table generation and compression. Produces FFI-compatible Language structs.
 ## Conventions
 
 1. **`#[non_exhaustive]`** is applied to `Action` enum to allow future variants.
-2. **Sealed traits**: `Extract` requires `sealed::Sealed`, preventing external implementations.
+2. **Open traits**: `Extract` (and `ExtractDefault`, which inherits it) is intentionally open —
+   downstream crates may implement it, and `#[adze::grammar]` relies on that. Every new trait item
+   must carry a default; adding a *required* item is a breaking change reserved for a pre-1.0
+   breaking release. See [ADZE-ADR-0008](../adr/ADZE-ADR-0008-extract-is-an-open-trait.md).
+   `adze-glr-core`'s `ForestView` is genuinely sealed via a `pub(crate)` marker.
 3. **`#[doc(hidden)]`** modules in `adze-glr-core` are accessible but carry no stability guarantee.
 4. **`#[must_use]`** is applied to validation and computation functions returning `Result`.
 5. **All ID newtypes** (`SymbolId`, `RuleId`, `StateId`, `FieldId`, `ProductionId`) derive `Serialize`/`Deserialize` and are stable.
