@@ -28,8 +28,13 @@ env:
   TEST_POLICY_COMPILE_TIMEOUT_SECONDS: 600
   TEST_POLICY_RUNTIME_TIMEOUT_SECONDS: 60
 
+concurrency:
+  group: ${{ github.workflow }-$${{ github.event.pull_request.number || github.ref }
+  cancel-in-progress: true
+
 jobs:
   test-policy:
+    timeout-minutes: 10
     name: Enforce Test Policy
     runs-on: self-hosted
 
