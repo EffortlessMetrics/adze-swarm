@@ -137,7 +137,7 @@ commands = [
 
 [[work_item]]
 id = "package-first-local-registry"
-status = "active"
+status = "complete"
 spec = "ADZE-SPEC-0011"
 issues = [856]
 blocked_by = ["release-crate-graph"]
@@ -150,7 +150,7 @@ commands = [
 
 [[work_item]]
 id = "glr-streaming-lexing"
-status = "blocked"
+status = "complete"
 spec = "ADZE-SPEC-0011"
 adr = "ADZE-ADR-0003"
 blocked_by = ["release-crate-graph"]
@@ -162,7 +162,7 @@ commands = [
 
 [[work_item]]
 id = "first-hour-user-journey"
-status = "blocked"
+status = "ready"
 spec = "ADZE-SPEC-0012"
 adr = "ADZE-ADR-0001"
 blocked_by = ["glr-streaming-lexing"]
