@@ -115,7 +115,7 @@ pub fn validate_starter_proof(commands: &[CapturedCommand]) -> Result<()> {
         bail!(
             "starter cargo test failed with status {}: stderr={} stdout={}",
             test.exit_code,
-            excerpt(&test.stderr, 400),
+            excerpt(&test.stderr, 1600),
             excerpt(&test.stdout, 240)
         );
     }
@@ -128,7 +128,7 @@ pub fn validate_starter_proof(commands: &[CapturedCommand]) -> Result<()> {
         bail!(
             "starter valid parse example failed with status {}: stderr={} stdout={}",
             parse_ok.exit_code,
-            excerpt(&parse_ok.stderr, 400),
+            excerpt(&parse_ok.stderr, 1600),
             excerpt(&parse_ok.stdout, 240)
         );
     }
