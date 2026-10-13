@@ -506,9 +506,7 @@ jobs:
 
       - name: Run Rust small gate
         run: |
-          set -euo pipefail
-          cargo fetch --locked
-          cargo check --workspace --locked
+          bash scripts/rust-small-gate.sh
 
       - name: Cleanup and final stats
         if: always()
@@ -672,9 +670,7 @@ jobs:
 
       - name: Run Rust small gate
         run: |
-          set -euo pipefail
-          cargo fetch --locked
-          cargo check --workspace --locked
+          bash scripts/rust-small-gate.sh
 
       - name: Cleanup scratch
         if: always()
@@ -787,7 +783,7 @@ jobs:
     if: needs.route-rust-small.outputs.target == 'github' && needs.route-rust-small.outputs.fallback_allowed == 'true'
 
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v5
@@ -805,18 +801,7 @@ jobs:
           prefix-key: rust-small-github
 
       - name: Rust small lane
-        run: |
-          set -euo pipefail
-
-          rustc --version
-          cargo --version
-
-          if [ -f Cargo.toml ]; then
-            cargo fetch --locked
-            cargo check --workspace --locked
-          else
-            echo "No Cargo.toml found; infra smoke only."
-          fi
+        run: bash scripts/rust-small-gate.sh
 
   runner-capacity-exhausted:
     name: Runner Capacity / Fallback Policy
