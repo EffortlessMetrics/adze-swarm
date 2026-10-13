@@ -420,11 +420,15 @@ fn select_lanes(
 ) -> Vec<SelectedLane> {
     let mut chosen: BTreeMap<String, SelectedLane> = BTreeMap::new();
 
-    let add = |id: &str, reason: String, chosen: &mut BTreeMap<String, SelectedLane>| {
+    let add = |id: &str,
+               reason: String,
+               chosen: &mut BTreeMap<String, SelectedLane>,
+               warnings: &mut Vec<String>| {
         if chosen.contains_key(id) {
             return;
         }
         let Some(lane) = lane_by_id.get(id) else {
+            warnings.push(format!("lane `{id}` is not in the whitelist; skipping"));
             return;
         };
         let lem = scaled_lem(lane, runner_multipliers);
@@ -446,13 +450,18 @@ fn select_lanes(
             ));
             continue;
         }
-        add(id, "frontdoor default".to_string(), &mut chosen);
+        add(id, "frontdoor default".to_string(), &mut chosen, warnings);
     }
 
     for pack_name in selected_packs {
         if let Some(pack) = packs.get(pack_name) {
             for lane in &pack.lanes {
-                add(lane, format!("risk pack: {pack_name}"), &mut chosen);
+                add(
+                    lane,
+                    format!("risk pack: {pack_name}"),
+                    &mut chosen,
+                    warnings,
+                );
             }
             if labels.iter().any(|l| l == "full-ci") {
                 for lane in &pack.deep_lanes {
@@ -460,6 +469,7 @@ fn select_lanes(
                         lane,
                         format!("risk pack: {pack_name} (full-ci)"),
                         &mut chosen,
+                        warnings,
                     );
                 }
             }
@@ -469,33 +479,36 @@ fn select_lanes(
     for label in labels {
         match label.as_str() {
             "full-ci" => {
-                add("pure-rust-os-matrix", "label: full-ci".into(), &mut chosen);
-                add("fuzz-pr", "label: full-ci".into(), &mut chosen);
-                add("benchmarks-pr", "label: full-ci".into(), &mut chosen);
+                add(
+                    "pure-rust-os-matrix",
+                    "label: full-ci".into(),
+                    &mut chosen,
+                    warnings,
+                );
             }
             "platform-matrix" => {
                 add(
                     "pure-rust-os-matrix",
                     "label: platform-matrix".into(),
                     &mut chosen,
+                    warnings,
                 );
-            }
-            "fuzz" => {
-                add("fuzz-pr", "label: fuzz".into(), &mut chosen);
-            }
-            "ci:perf" => {
-                add(
-                    "performance-regression",
-                    "label: ci:perf".into(),
-                    &mut chosen,
-                );
-                add("benchmarks-pr", "label: ci:perf".into(), &mut chosen);
             }
             "ci:golden" => {
-                add("golden-tests", "label: ci:golden".into(), &mut chosen);
+                add(
+                    "golden-tests",
+                    "label: ci:golden".into(),
+                    &mut chosen,
+                    warnings,
+                );
             }
             "ci:microcrate" => {
-                add("microcrate-ci", "label: ci:microcrate".into(), &mut chosen);
+                add(
+                    "microcrate-ci",
+                    "label: ci:microcrate".into(),
+                    &mut chosen,
+                    warnings,
+                );
             }
             _ => {}
         }
@@ -666,7 +679,10 @@ mod tests {
         );
         let ids: BTreeSet<String> = lanes.iter().map(|l| l.id.clone()).collect();
         assert!(ids.contains("pure-rust-os-matrix"));
-        assert!(ids.contains("fuzz-pr"));
+        assert!(
+            warnings.is_empty(),
+            "full-ci must only select whitelisted lanes, got warnings: {warnings:?}"
+        );
     }
 
     #[test]
