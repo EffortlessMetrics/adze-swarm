@@ -148,6 +148,7 @@ jobs:
         echo "Benchmark compile check elapsed: $((SECONDS - start))s"
 
   test-wasm:
+    timeout-minutes: 20
     name: Test WASM Build
     if: |
       github.event_name != 'pull_request' ||
@@ -181,6 +182,7 @@ jobs:
         fi
   
   golden-tests:
+    timeout-minutes: 20
     name: Golden Tests
     # The dedicated golden-tests.yml workflow is the PR-default; this job
     # runs on workflow_dispatch/full-ci to keep the integrated path covered.
@@ -214,6 +216,7 @@ jobs:
         path: runtime/tests/golden/*.diff
   
   integration-tests:
+    timeout-minutes: 25
     name: Integration Tests
     needs: matrix-setup
     if: needs.matrix-setup.outputs.run_rust == 'true'
@@ -230,6 +233,7 @@ jobs:
         cargo test -p adze --no-default-features --features tree-sitter-c2rust --lib
   
   performance:
+    timeout-minutes: 25
     name: Performance Regression Tests
     # Benchmark proof is explicit. This integrated job runs on workflow_dispatch/full-ci.
     if: |
