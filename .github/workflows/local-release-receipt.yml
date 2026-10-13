@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Exact workspace version to publish into the local registry
+        description: Exact workspace version to publish into the local registry (matches Cargo.toml until #325 authorizes 0.10.0)
         required: true
-        default: "0.10.0"
+        default: "0.9.0"
       dry_run:
         description: Print the command plan without touching registries
         required: true
