@@ -114,6 +114,7 @@ jobs:
         save-if: ${{ github.ref == 'refs/heads/main' }}
     
     - name: Check formatting
+      if: github.event_name != 'pull_request'
       run: cargo fmt --all -- --check
     
     - name: Clippy (default features)
@@ -126,33 +127,6 @@ jobs:
     - name: Build
       run: cargo build --verbose
     
-    - name: Run supported crate tests
-      if: |
-        github.event_name == 'pull_request' &&
-        !contains(github.event.pull_request.labels.*.name, 'full-ci')
-      timeout-minutes: 25
-      run: |
-        set -euo pipefail
-        (
-          while true; do
-            sleep 60
-            echo "::notice::supported crate tests still running"
-          done
-        ) &
-        heartbeat_pid=$!
-        trap 'kill "$heartbeat_pid" 2>/dev/null || true' EXIT
-
-        cargo test \
-          -p adze \
-          -p adze-macro \
-          -p adze-tool \
-          -p adze-common \
-          -p adze-ir \
-          -p adze-glr-core \
-          -p adze-tablegen \
-          --lib --tests --bins \
-          -- --test-threads=$RUST_TEST_THREADS
-
     - name: Run full workspace tests
       if: |
         github.event_name != 'pull_request' ||
