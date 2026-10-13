@@ -112,7 +112,12 @@ pub fn validate_starter_proof(commands: &[CapturedCommand]) -> Result<()> {
         .find(|command| command.name == "starter-cargo-test")
         .context("starter proof missing cargo test command")?;
     if !test.success() {
-        bail!("starter cargo test failed with status {}", test.exit_code);
+        bail!(
+            "starter cargo test failed with status {}: stderr={} stdout={}",
+            test.exit_code,
+            excerpt(&test.stderr, 400),
+            excerpt(&test.stdout, 240)
+        );
     }
 
     let parse_ok = commands
@@ -121,8 +126,10 @@ pub fn validate_starter_proof(commands: &[CapturedCommand]) -> Result<()> {
         .context("starter proof missing valid parse example command")?;
     if !parse_ok.success() {
         bail!(
-            "starter valid parse example failed with status {}",
-            parse_ok.exit_code
+            "starter valid parse example failed with status {}: stderr={} stdout={}",
+            parse_ok.exit_code,
+            excerpt(&parse_ok.stderr, 400),
+            excerpt(&parse_ok.stdout, 240)
         );
     }
     if !parse_precedence_output_matches(&parse_ok.stdout) {
@@ -258,6 +265,19 @@ mod tests {
             "error at bytes 4..5: expected one of: /\\d+/"
         ));
         assert!(!invalid_input_stderr_contains_diagnostics("panic: boom"));
+    }
+
+    #[test]
+    fn validate_starter_proof_failure_includes_stderr() {
+        let commands = vec![CapturedCommand {
+            name: "starter-cargo-test".to_string(),
+            argv: vec!["cargo".to_string(), "test".to_string()],
+            exit_code: 101,
+            stdout: String::new(),
+            stderr: "error: failed to select a version for `adze`".to_string(),
+        }];
+        let err = validate_starter_proof(&commands).expect_err("must fail");
+        assert!(err.to_string().contains("failed to select a version"));
     }
 
     #[test]

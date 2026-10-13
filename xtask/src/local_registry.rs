@@ -7,9 +7,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::{BufRead, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
@@ -56,6 +56,7 @@ pub struct IsolatedRegistry {
     index_dir: PathBuf,
     crate_dir: PathBuf,
     published: Vec<PublishedCrate>,
+    http_server: Option<Child>,
 }
 
 impl IsolatedRegistry {
@@ -77,7 +78,6 @@ impl IsolatedRegistry {
         fs::create_dir_all(&index_dir).context("creating sparse index directory")?;
         fs::create_dir_all(&crate_dir).context("creating local crate download directory")?;
 
-        write_registry_config(&cargo_home, &index_dir, &crate_dir)?;
         write_registry_credentials(&cargo_home)?;
 
         Ok(Self {
@@ -87,6 +87,7 @@ impl IsolatedRegistry {
             index_dir,
             crate_dir,
             published: Vec::new(),
+            http_server: None,
         })
     }
 
@@ -109,13 +110,15 @@ impl IsolatedRegistry {
     ) -> Result<()> {
         let metadata = load_cargo_metadata(workspace_root)?;
         let published_set: BTreeSet<String> = ordered_crates.iter().cloned().collect();
+        let mut staged = Vec::new();
 
         for crate_name in ordered_crates {
             let package = metadata
                 .packages
                 .iter()
                 .find(|pkg| pkg.name == *crate_name)
-                .with_context(|| format!("crate `{crate_name}` missing from cargo metadata"))?;
+                .with_context(|| format!("crate `{crate_name}` missing from cargo metadata"))?
+                .clone();
             let crate_path = package_crate(
                 workspace_root,
                 self.cargo_home.path(),
@@ -149,7 +152,7 @@ impl IsolatedRegistry {
                     dest.display()
                 )
             })?;
-            write_sparse_index_entry(&self.index_dir, package, &published_set, &checksum)?;
+            staged.push((package.clone(), checksum.clone()));
             self.published.push(PublishedCrate {
                 name: crate_name.clone(),
                 version: package.version.clone(),
@@ -161,8 +164,27 @@ impl IsolatedRegistry {
             );
         }
 
-        finalize_git_index(&self.index_dir)?;
+        self.activate_http_registry()?;
+        for (package, checksum) in staged {
+            write_sparse_index_entry(&self.index_dir, &package, &published_set, &checksum)?;
+        }
         Ok(())
+    }
+
+    fn activate_http_registry(&mut self) -> Result<String> {
+        if self.http_server.is_some() {
+            bail!("local registry HTTP server already active");
+        }
+        let registry_root = self
+            .index_dir
+            .parent()
+            .context("missing local registry root")?;
+        let (child, port) = start_http_server(registry_root)?;
+        self.http_server = Some(child);
+        let index_url = format!("sparse+http://127.0.0.1:{port}/index/");
+        let dl_url = format!("http://127.0.0.1:{port}/crates/");
+        write_registry_config(&self.cargo_home, &index_url, &self.index_dir, &dl_url)?;
+        Ok(index_url)
     }
 
     pub fn install_cli(
@@ -190,7 +212,7 @@ impl IsolatedRegistry {
             .tempdir()
             .context("creating temporary cargo install root")?;
         let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
-        let status = Command::new(cargo)
+        let status = Command::new(&cargo)
             .args([
                 "install",
                 "--registry",
@@ -279,6 +301,20 @@ impl IsolatedRegistry {
                 project_dir.display()
             );
         }
+        let published_set: BTreeSet<String> = self
+            .published
+            .iter()
+            .map(|published| published.name.clone())
+            .collect();
+        let pinned = inject_registry_into_manifest(&manifest, &published_set)?;
+        if pinned != manifest {
+            fs::write(project_dir.join("Cargo.toml"), &pinned).with_context(|| {
+                format!(
+                    "pinning generated starter {} to {REGISTRY_NAME}",
+                    project_dir.join("Cargo.toml").display()
+                )
+            })?;
+        }
 
         Ok(StarterProject {
             _parent: parent,
@@ -347,9 +383,12 @@ fn installed_binary_path(root: &Path, bin_name: &str) -> PathBuf {
     root.join("bin").join(binary)
 }
 
-fn write_registry_config(cargo_home: &TempDir, index_dir: &Path, crate_dir: &Path) -> Result<()> {
-    let index_url = path_to_file_url(index_dir)?;
-    let dl_url = path_to_file_url(crate_dir)?;
+fn write_registry_config(
+    cargo_home: &TempDir,
+    index_url: &str,
+    index_dir: &Path,
+    dl_url: &str,
+) -> Result<()> {
     let config = format!(
         r#"[registries.{REGISTRY_NAME}]
 index = "{index_url}"
@@ -359,7 +398,7 @@ index = "{index_url}"
     fs::write(&config_path, config)
         .with_context(|| format!("writing {}", config_path.display()))?;
 
-    let config_json = registry_config_json(&dl_url);
+    let config_json = registry_config_json(dl_url);
     fs::write(index_dir.join("config.json"), config_json)
         .context("writing registry config.json")?;
     Ok(())
@@ -369,39 +408,60 @@ fn registry_config_json(dl_url: &str) -> String {
     format!("{{\"dl\":\"{dl_url}\",\"api\":null}}\n")
 }
 
-fn finalize_git_index(index_dir: &Path) -> Result<()> {
-    if index_dir.join(".git").is_dir() {
-        return Ok(());
+fn start_http_server(registry_root: &Path) -> Result<(Child, u16)> {
+    let registry_root = fs::canonicalize(registry_root)
+        .with_context(|| format!("canonicalizing {}", registry_root.display()))?;
+    let mut registry_root = registry_root.display().to_string().replace('\\', "/");
+    if let Some(stripped) = registry_root.strip_prefix("//?/") {
+        registry_root = stripped.to_string();
     }
-    run_git(index_dir, ["init", "-b", "master"])?;
-    run_git(index_dir, ["add", "."])?;
-    run_git(index_dir, ["commit", "-m", "adze-local registry index"])?;
-    Ok(())
+    let script = format!(
+        r#"import http.server, socketserver, os
+os.chdir(r"{registry_root}")
+with socketserver.TCPServer(("127.0.0.1", 0), http.server.SimpleHTTPRequestHandler) as httpd:
+    print(httpd.server_address[1], flush=True)
+    httpd.serve_forever()
+"#
+    );
+    for python in ["python3", "python"] {
+        let mut command = Command::new(python);
+        command
+            .arg("-c")
+            .arg(&script)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        let mut child = match command.spawn() {
+            Ok(child) => child,
+            Err(_) => continue,
+        };
+        let Some(mut stdout) = child.stdout.take() else {
+            let _ = child.kill();
+            continue;
+        };
+        let mut reader = std::io::BufReader::new(&mut stdout);
+        let mut port_line = String::new();
+        if reader.read_line(&mut port_line).is_err() {
+            let _ = child.kill();
+            let _ = child.wait();
+            continue;
+        }
+        let Ok(port) = port_line.trim().parse::<u16>() else {
+            let _ = child.kill();
+            let _ = child.wait();
+            continue;
+        };
+        return Ok((child, port));
+    }
+    bail!("python3 or python is required to serve the isolated local registry")
 }
 
-fn run_git(index_dir: &Path, args: impl IntoIterator<Item = &'static str>) -> Result<()> {
-    let mut command = Command::new("git");
-    command
-        .args([
-            "-c",
-            "user.email=adze-local@example.com",
-            "-c",
-            "user.name=adze-local",
-        ])
-        .args(args)
-        .current_dir(index_dir)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
-    let status = command
-        .status()
-        .context("running git for local registry index")?;
-    if !status.success() {
-        bail!(
-            "git command in {} failed with status {status}",
-            index_dir.display()
-        );
+impl Drop for IsolatedRegistry {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.http_server.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
     }
-    Ok(())
 }
 
 fn write_registry_credentials(cargo_home: &TempDir) -> Result<()> {
@@ -414,22 +474,6 @@ token = "local"
     fs::write(&credentials_path, credentials)
         .with_context(|| format!("writing {}", credentials_path.display()))?;
     Ok(())
-}
-
-fn path_to_file_url(path: &Path) -> Result<String> {
-    let absolute =
-        fs::canonicalize(path).with_context(|| format!("canonicalizing {}", path.display()))?;
-    let mut url = absolute.display().to_string().replace('\\', "/");
-    if let Some(stripped) = url.strip_prefix("//?/") {
-        url = stripped.to_string();
-    }
-    if url.as_bytes().get(1).is_some_and(|byte| *byte == b':') {
-        url = format!("/{url}");
-    }
-    if !url.ends_with('/') {
-        url.push('/');
-    }
-    Ok(format!("file://{url}"))
 }
 
 fn package_crate(
@@ -646,7 +690,9 @@ fn inject_registry_into_manifest(
     if let Some(target) = root.get_mut("target").and_then(toml::Value::as_table_mut) {
         let target_keys = target.keys().cloned().collect::<Vec<_>>();
         for target_key in target_keys {
-            let Some(target_table) = target.get_mut(&target_key).and_then(toml::Value::as_table_mut)
+            let Some(target_table) = target
+                .get_mut(&target_key)
+                .and_then(toml::Value::as_table_mut)
             else {
                 continue;
             };
@@ -674,10 +720,7 @@ fn registry_pinned_dependency_spec(spec: &toml::Value) -> Result<toml::Value> {
     let mut table = match spec {
         toml::Value::String(version) => {
             let mut table = toml::map::Map::new();
-            table.insert(
-                "version".to_string(),
-                toml::Value::String(version.clone()),
-            );
+            table.insert("version".to_string(), toml::Value::String(version.clone()));
             table
         }
         toml::Value::Table(table) => table.clone(),
@@ -872,6 +915,8 @@ struct CargoPackage {
     name: String,
     version: String,
     manifest_path: String,
+    #[serde(default)]
+    links: Option<String>,
     features: BTreeMap<String, Vec<String>>,
     dependencies: Vec<CargoDependency>,
 }
@@ -879,6 +924,8 @@ struct CargoPackage {
 #[derive(Debug, Clone, Deserialize)]
 struct CargoDependency {
     name: String,
+    #[serde(default)]
+    rename: Option<String>,
     req: String,
     #[serde(default)]
     features: Vec<String>,
@@ -910,6 +957,24 @@ fn load_cargo_metadata(workspace_root: &Path) -> Result<CargoMetadata> {
     serde_json::from_slice(&output.stdout).context("parsing cargo metadata output")
 }
 
+fn split_index_features(
+    features: &BTreeMap<String, Vec<String>>,
+) -> (BTreeMap<String, Vec<String>>, BTreeMap<String, Vec<String>>) {
+    let mut v1 = BTreeMap::new();
+    let mut v2 = BTreeMap::new();
+    for (name, values) in features {
+        if values
+            .iter()
+            .any(|v| v.contains("dep:") || v.contains("?/"))
+        {
+            v2.insert(name.clone(), values.clone());
+        } else {
+            v1.insert(name.clone(), values.clone());
+        }
+    }
+    (v1, v2)
+}
+
 fn write_sparse_index_entry(
     index_dir: &Path,
     package: &CargoPackage,
@@ -936,10 +1001,20 @@ fn write_sparse_index_entry(
         serde_json::to_value(deps).context("serializing index dependencies")?,
     );
     entry.insert("cksum".to_string(), Value::String(checksum.to_string()));
+    let (features, features2) = split_index_features(&package.features);
     entry.insert(
         "features".to_string(),
-        serde_json::to_value(&package.features).context("serializing crate features")?,
+        serde_json::to_value(&features).context("serializing crate features")?,
     );
+    if !features2.is_empty() {
+        entry.insert(
+            "features2".to_string(),
+            serde_json::to_value(&features2).context("serializing crate features2")?,
+        );
+    }
+    if let Some(links) = &package.links {
+        entry.insert("links".to_string(), Value::String(links.clone()));
+    }
     entry.insert("yanked".to_string(), Value::Bool(false));
 
     let mut file = fs::OpenOptions::new()
@@ -954,18 +1029,29 @@ fn write_sparse_index_entry(
 }
 
 fn sparse_index_file(index_dir: &Path, crate_name: &str) -> PathBuf {
-    let prefix = crate_name.get(..2).unwrap_or(crate_name);
-    let suffix = crate_name.get(2..4).unwrap_or("");
-    index_dir.join(prefix).join(suffix).join(crate_name)
+    let lower = crate_name.to_ascii_lowercase();
+    match lower.len() {
+        1 => index_dir.join("1").join(&lower),
+        2 => index_dir.join("2").join(&lower),
+        3 => index_dir.join("3").join(&lower[..1]).join(&lower),
+        _ => index_dir.join(&lower[..2]).join(&lower[2..4]).join(&lower),
+    }
 }
 
 fn dependency_counts_for_index(dep: &CargoDependency) -> bool {
-    matches!(dep.kind.as_deref(), None | Some("normal") | Some("build"))
+    // The index must list dev deps too: features may reference them
+    // (e.g. `ts-compat = ["adze-example/ts-compat"]`), and Cargo rejects
+    // an entry whose features name a dep that is not in `deps`.
+    matches!(
+        dep.kind.as_deref(),
+        None | Some("normal") | Some("build") | Some("dev")
+    )
 }
 
 fn index_dependency(dep: &CargoDependency, published_set: &BTreeSet<String>) -> Result<Value> {
     let mut dep_entry = Map::new();
-    dep_entry.insert("name".to_string(), Value::String(dep.name.clone()));
+    let index_name = dep.rename.as_ref().unwrap_or(&dep.name);
+    dep_entry.insert("name".to_string(), Value::String(index_name.clone()));
     dep_entry.insert("req".to_string(), Value::String(dep.req.clone()));
     dep_entry.insert(
         "features".to_string(),
@@ -988,14 +1074,18 @@ fn index_dependency(dep: &CargoDependency, published_set: &BTreeSet<String>) -> 
         Value::String(dep.kind.clone().unwrap_or_else(|| "normal".to_string())),
     );
     if published_set.contains(&dep.name) {
+        dep_entry.insert("registry".to_string(), Value::Null);
+    } else {
         dep_entry.insert(
             "registry".to_string(),
-            Value::String(REGISTRY_NAME.to_string()),
+            Value::String("https://github.com/rust-lang/crates.io-index".to_string()),
         );
-    } else {
-        dep_entry.insert("registry".to_string(), Value::Null);
     }
-    dep_entry.insert("package".to_string(), Value::Null);
+    if dep.rename.is_some() {
+        dep_entry.insert("package".to_string(), Value::String(dep.name.clone()));
+    } else {
+        dep_entry.insert("package".to_string(), Value::Null);
+    }
     Ok(Value::Object(dep_entry))
 }
 
@@ -1028,21 +1118,10 @@ adze = "0.9.0"
     }
 
     #[test]
-    fn registry_config_json_uses_plain_file_dl_url() {
-        let dl_url = "file:///tmp/adze-local/crates/";
+    fn registry_config_json_uses_http_dl_url() {
+        let dl_url = "http://127.0.0.1:19876/crates/";
         let config_json = registry_config_json(dl_url);
-        assert!(config_json.contains(r#""dl":"file:///tmp/adze-local/crates/""#));
-        assert!(!config_json.contains("sparse+file://"));
-    }
-
-    #[test]
-    fn registry_index_url_uses_file_protocol_for_git_index() {
-        let index_dir = std::env::temp_dir().join("adze-local-index-test-git");
-        std::fs::create_dir_all(&index_dir).expect("create temp index dir");
-        let url = path_to_file_url(&index_dir).expect("registry index url");
-        assert!(url.starts_with("file://"));
-        assert!(!url.starts_with("sparse+file://"));
-        assert!(url.contains("adze-local-index-test-git"));
+        assert!(config_json.contains(r#""dl":"http://127.0.0.1:19876/crates/""#));
     }
 
     #[test]
@@ -1067,14 +1146,96 @@ adze = "0.9.0"
 "#;
         let published = BTreeSet::from(["adze".to_string()]);
         assert!(manifest_missing_registry_for_workspace_deps(
-            manifest,
-            &published
+            manifest, &published
         ));
         let pinned = inject_registry_into_manifest(manifest, &published).expect("inject");
         assert!(!manifest_missing_registry_for_workspace_deps(
-            &pinned,
-            &published
+            &pinned, &published
         ));
+    }
+
+    #[test]
+    fn index_dependency_uses_null_registry_for_same_registry_deps() {
+        let dep = CargoDependency {
+            name: "adze".to_string(),
+            rename: None,
+            req: "^0.9.0".to_string(),
+            features: Vec::new(),
+            optional: false,
+            default_features: true,
+            target: None,
+            kind: None,
+        };
+        let published = BTreeSet::from(["adze".to_string()]);
+        let entry = index_dependency(&dep, &published).expect("index dep");
+        assert_eq!(entry["registry"], Value::Null);
+        assert_eq!(entry["package"], Value::Null);
+    }
+
+    #[test]
+    fn index_dependency_points_external_deps_at_crates_io() {
+        let dep = CargoDependency {
+            name: "clap".to_string(),
+            rename: None,
+            req: "^4".to_string(),
+            features: Vec::new(),
+            optional: false,
+            default_features: true,
+            target: None,
+            kind: None,
+        };
+        let published = BTreeSet::from(["adze".to_string()]);
+        let entry = index_dependency(&dep, &published).expect("index dep");
+        assert_eq!(
+            entry["registry"],
+            Value::String("https://github.com/rust-lang/crates.io-index".to_string())
+        );
+    }
+
+    #[test]
+    fn sparse_index_file_handles_short_names() {
+        assert_eq!(
+            sparse_index_file(Path::new("/tmp/index"), "a"),
+            Path::new("/tmp/index/1/a")
+        );
+        assert_eq!(
+            sparse_index_file(Path::new("/tmp/index"), "abc"),
+            Path::new("/tmp/index/3/a/abc")
+        );
+    }
+
+    #[test]
+    fn index_includes_dev_deps_so_features_can_reference_them() {
+        let dev = CargoDependency {
+            name: "adze-example".to_string(),
+            rename: None,
+            req: "*".to_string(),
+            features: Vec::new(),
+            optional: false,
+            default_features: true,
+            target: None,
+            kind: Some("dev".to_string()),
+        };
+        assert!(dependency_counts_for_index(&dev));
+    }
+
+    #[test]
+    fn split_index_features_moves_dep_syntax_to_features2() {
+        let features = BTreeMap::from([
+            ("default".to_string(), vec!["pure-rust".to_string()]),
+            (
+                "tree-sitter-standard".to_string(),
+                vec!["dep:tree-sitter-runtime-standard".to_string()],
+            ),
+            (
+                "pure-rust".to_string(),
+                vec!["adze-macro/pure-rust".to_string()],
+            ),
+        ]);
+        let (v1, v2) = split_index_features(&features);
+        assert!(v1.contains_key("default"));
+        assert!(v1.contains_key("pure-rust"));
+        assert!(v2.contains_key("tree-sitter-standard"));
     }
 
     #[test]
