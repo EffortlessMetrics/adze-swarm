@@ -72,16 +72,18 @@ jobs:
   route-rust-small:
     name: Route Rust Small
     needs: detect-rust-paths
-    if: needs.detect-rust-paths.outputs.rust_needed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'merge_group' ||
+      needs.detect-rust-paths.outputs.rust_needed == 'true' &&
       (
-        github.event_name == 'pull_request' &&
-        github.event.pull_request.head.repo.full_name == github.repository
+        github.event_name == 'workflow_dispatch' ||
+        github.event_name == 'merge_group' ||
+        (
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        )
       )
 
     outputs:
