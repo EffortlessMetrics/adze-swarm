@@ -14,17 +14,76 @@ permissions:
   contents: read
 
 jobs:
-  route-rust-small:
-    name: Route Rust Small
+  detect-rust-paths:
+    name: Detect Rust Paths
     runs-on: ubuntu-latest
     timeout-minutes: 5
-
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'merge_group' ||
       (
         github.event_name == 'pull_request' &&
         github.event.pull_request.head.repo.full_name == github.repository
+      )
+    outputs:
+      rust_needed: ${{ steps.detect.outputs.rust_needed }}
+      reason: ${{ steps.detect.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+      - id: detect
+        name: Detect whether Rust lanes are needed
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "rust_needed=true" >> "$GITHUB_OUTPUT"
+            echo "reason=event:${{ github.event_name }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          git fetch --no-tags --depth=1 origin "$base_sha" "$head_sha"
+          changed_paths="$(git diff --name-only "$base_sha" "$head_sha")"
+          echo "Changed paths:"
+          printf '%s\n' "$changed_paths"
+          while IFS= read -r changed_path; do
+            [ -z "$changed_path" ] && continue
+            case "$changed_path" in
+              docs/*|*.md|.adze/*)
+                ;;
+              policy/ci-lane-whitelist.toml|policy/ci-risk-packs.toml)
+                echo "rust_needed=true" >> "$GITHUB_OUTPUT"
+                echo "reason=ci_policy:$changed_path" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+              policy/*)
+                ;;
+              *)
+                echo "rust_needed=true" >> "$GITHUB_OUTPUT"
+                echo "reason=rust_or_workflow:$changed_path" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+            esac
+          done <<< "$changed_paths"
+          echo "rust_needed=false" >> "$GITHUB_OUTPUT"
+          echo "reason=docs_status_policy_only" >> "$GITHUB_OUTPUT"
+
+  route-rust-small:
+    name: Route Rust Small
+    needs: detect-rust-paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    if: >-
+      needs.detect-rust-paths.outputs.rust_needed == 'true' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        github.event_name == 'merge_group' ||
+        (
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        )
       )
 
     outputs:
@@ -772,8 +831,9 @@ jobs:
 
   supported-proof:
     name: Supported Proof (fmt + clippy + tests)
-    needs: route-rust-small
+    needs: [detect-rust-paths, route-rust-small]
     if: >-
+      needs.detect-rust-paths.outputs.rust_needed == 'true' &&
       needs.route-rust-small.result == 'success' &&
       (github.event_name == 'workflow_dispatch' ||
        github.event_name == 'merge_group' ||
@@ -804,6 +864,7 @@ jobs:
   rust-small-result:
     name: Rust Small Result
     needs:
+      - detect-rust-paths
       - route-rust-small
       - rust-small-cpx42
       - rust-small-cx43
@@ -820,7 +881,10 @@ jobs:
       needs.rust-small-cx53.result != 'cancelled' &&
       needs.rust-small-github.result != 'cancelled' &&
       needs.supported-proof.result != 'cancelled' &&
-      needs.supported-proof.result == 'success' &&
+      (
+        needs.detect-rust-paths.outputs.rust_needed == 'false' ||
+        needs.supported-proof.result == 'success'
+      ) &&
       (
         github.event_name == 'workflow_dispatch' ||
         github.event_name == 'merge_group' ||
@@ -844,6 +908,12 @@ jobs:
           gh="${{ needs.rust-small-github.result }}"
           fallback_allowed="${{ needs.route-rust-small.outputs.fallback_allowed }}"
           target_reason="${{ needs.route-rust-small.outputs.target_reason }}"
+
+          if [ "${{ needs.detect-rust-paths.outputs.rust_needed }}" = "false" ]; then
+            echo "Docs/status/policy-only PR: Rust lanes skipped by path detection."
+            echo "reason=${{ needs.detect-rust-paths.outputs.reason }}"
+            exit 0
+          fi
 
           echo "target=${target}"
           echo "target_reason=${target_reason}"
