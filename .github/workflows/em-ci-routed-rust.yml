@@ -800,6 +800,10 @@ jobs:
           toolchain: 1.95.0
           components: rustfmt, clippy
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: rust-small-github
+
       - name: Rust small lane
         run: |
           set -euo pipefail
@@ -851,13 +855,9 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: just
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-supported-${{ hashFiles('**/Cargo.lock') }}
+          prefix-key: supported-proof
       - name: Run supported proof (fmt + clippy + tests on 7 core crates)
         run: just ci-supported
 
