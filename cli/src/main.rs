@@ -1134,10 +1134,28 @@ fn log_dynamic_parse_mode_status(grammar: &Path, input_len: usize, format: Outpu
     );
 }
 
+/// Render a canonicalized path for a generated `Cargo.toml`.
+///
+/// Windows `canonicalize()` returns verbatim paths (`\\?\C:\...` or
+/// `\\?\UNC\server\share\...`). Those prefixes must not leak into a
+/// beginner's first project file, so strip them to the plain form Cargo
+/// and humans expect.
+fn scaffold_path_literal(path: &std::path::Path) -> String {
+    let rendered = path.display().to_string();
+    let plain = if let Some(unc) = rendered.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{unc}")
+    } else if let Some(drive) = rendered.strip_prefix(r"\\?\") {
+        drive.to_string()
+    } else {
+        rendered
+    };
+    toml_basic_string_literal(&plain)
+}
+
 fn scaffold_dependency_block() -> Result<String> {
     if let Some((runtime_path, tool_path)) = local_workspace_dependency_paths() {
-        let runtime_path = toml_basic_string_literal(&runtime_path.display().to_string());
-        let tool_path = toml_basic_string_literal(&tool_path.display().to_string());
+        let runtime_path = scaffold_path_literal(&runtime_path);
+        let tool_path = scaffold_path_literal(&tool_path);
         Ok(format!(
             r#"[dependencies]
 adze = {{ path = {} }}
