@@ -120,7 +120,7 @@ fn generated_parse_document_diagnostics_preserve_expected_tokens() {
 #[test]
 fn generated_parse_document_diagnostics_byte_and_point_ranges_agree() {
     let cases = [
-        ("1 +", "end", true),
+        ("1 +", "end of input", true),
         ("1 + \u{03bb}", "λ", false),
         ("1 +\n@", "@", false),
     ];

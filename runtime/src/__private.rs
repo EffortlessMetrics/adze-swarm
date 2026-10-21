@@ -1557,6 +1557,10 @@ fn diagnostic_found_name_for_error(
             .unwrap_or_else(|| symbol_name_for_diagnostic(lang, found));
     }
 
+    if found == lang.eof_symbol {
+        return "end of input".to_string();
+    }
+
     symbol_name_for_diagnostic(lang, found)
 }
 

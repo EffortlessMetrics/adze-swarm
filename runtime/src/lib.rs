@@ -1314,8 +1314,15 @@ pub mod errors {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
                 ParseErrorReason::UnexpectedToken(token) => {
-                    if let Some((token, expected)) = token.split_once("; expected one of: ") {
-                        write!(f, "unexpected token {token:?}, expected one of: {expected}")
+                    if token == "end of input" {
+                        write!(f, "unexpected end of input")
+                    } else if let Some((token, expected)) = token.split_once("; expected one of: ")
+                    {
+                        if token == "end of input" {
+                            write!(f, "unexpected end of input, expected one of: {expected}")
+                        } else {
+                            write!(f, "unexpected token {token:?}, expected one of: {expected}")
+                        }
                     } else {
                         write!(f, "unexpected token {token:?}")
                     }
