@@ -1,5 +1,6 @@
 ---
 source: runtime/tests/adze_document_json.rs
+assertion_line: 170
 expression: "serde_json::to_string_pretty(&json).expect(\"diagnostic document JSON should render as pretty JSON\")"
 ---
 {
@@ -32,12 +33,12 @@ expression: "serde_json::to_string_pretty(&json).expect(\"diagnostic document JS
       },
       "found": "end of input",
       "expected": [
-        "/\\d+/"
+        "number"
       ],
       "related_nodes": [
         1
       ],
-      "message": "end of input; expected one of: /\\d+/"
+      "message": "end of input; expected one of: number"
     }
   ],
   "ambiguities": [],

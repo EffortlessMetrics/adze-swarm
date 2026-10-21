@@ -1,5 +1,6 @@
 ---
 source: runtime/tests/adze_document_json.rs
+assertion_line: 373
 expression: "serde_json::to_string_pretty(&snapshot_json).expect(\"multiline diagnostic JSON summary should render as pretty JSON\")"
 ---
 {
@@ -25,7 +26,7 @@ expression: "serde_json::to_string_pretty(&snapshot_json).expect(\"multiline dia
       }
     },
     "expected": [
-      "/\\d+/"
+      "number"
     ],
     "related_nodes": [
       1

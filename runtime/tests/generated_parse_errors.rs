@@ -186,7 +186,7 @@ fn generated_typed_parser_unexpected_eof_lists_expected_tokens() {
         "unexpected-token detail should include normalized expected tokens: {message}"
     );
     assert!(
-        message.contains(r"/\d+/"),
+        message.contains("number"),
         "expected-token detail should use generated token names, not raw ids: {message}"
     );
     assert!(
@@ -200,7 +200,7 @@ fn generated_typed_parser_unexpected_eof_lists_expected_tokens() {
         "rendered diagnostic should include expected-token context: {rendered}"
     );
     assert!(
-        rendered.contains(r"/\d+/"),
+        rendered.contains("number"),
         "rendered diagnostic should include the expected token name: {rendered}"
     );
 }
@@ -350,7 +350,7 @@ fn generated_typed_parser_error_contract_is_feature_stable() {
             case.label
         );
         assert!(
-            first.expected.iter().any(|token| token == r"/\d+/"),
+            first.expected.iter().any(|token| token == "number"),
             "{} should keep the arithmetic digit token in expected names: {:?}",
             case.label,
             first.expected
@@ -468,7 +468,7 @@ fn generated_precedence_arithmetic_parser_error_contract_is_feature_stable() {
             case.label
         );
         assert!(
-            first.expected.iter().any(|token| token == r"/\d+/"),
+            first.expected.iter().any(|token| token == "number"),
             "{} should keep the arithmetic digit token in expected names: {:?}",
             case.label,
             first.expected
@@ -527,7 +527,7 @@ fn generated_fielded_precedence_parser_error_contract_is_feature_stable() {
             start_column: 3,
             end_line: 1,
             end_column: 3,
-            expected: &[r"/\d+/"],
+            expected: &["number"],
         },
         Case {
             label: "invalid ASCII token after fielded add operator",
@@ -537,7 +537,7 @@ fn generated_fielded_precedence_parser_error_contract_is_feature_stable() {
             start_column: 3,
             end_line: 1,
             end_column: 4,
-            expected: &[r"/\d+/"],
+            expected: &["number"],
         },
         Case {
             label: "invalid UTF-8 scalar after fielded multiply operator",
@@ -547,7 +547,7 @@ fn generated_fielded_precedence_parser_error_contract_is_feature_stable() {
             start_column: 3,
             end_line: 1,
             end_column: 5,
-            expected: &[r"/\d+/"],
+            expected: &["number"],
         },
         Case {
             label: "multiline invalid token after fielded add operator",
@@ -557,7 +557,7 @@ fn generated_fielded_precedence_parser_error_contract_is_feature_stable() {
             start_column: 1,
             end_line: 2,
             end_column: 2,
-            expected: &[r"/\d+/"],
+            expected: &["number"],
         },
     ];
 
@@ -710,7 +710,7 @@ fn generated_typed_parser_bad_token_expected_field_is_populated() {
 }
 
 #[test]
-fn generated_typed_parser_expected_field_contains_digit_pattern() {
+fn test_expected_field_when_eof_contains_number_name() {
     let source = "1 +";
     let errors = adze_example::typed_ast_contract::grammar::parse(source)
         .expect_err("truncated expression must fail through the generated typed parser");
@@ -721,7 +721,7 @@ fn generated_typed_parser_expected_field_contains_digit_pattern() {
 
     // For the arithmetic grammar, EOF at this position should expect a number.
     assert!(
-        first.expected.iter().any(|t| t == r"/\d+/"),
+        first.expected.iter().any(|t| t == "number"),
         "expected tokens should include a digit pattern for arithmetic expression: {:?}",
         first.expected
     );
@@ -908,11 +908,11 @@ fn expected_token_sets_are_reported() {
         );
     }
 
-    // For the arithmetic grammar, at least one expected token must reference
-    // the digit pattern — the only terminal that can start an expression.
+    // For the arithmetic grammar, at least one expected token must name the
+    // number token — the only terminal that can start an expression.
     assert!(
-        first.expected.iter().any(|t| t.contains("d")),
-        "expected tokens should include the digit pattern for the arithmetic grammar: {:?}",
+        first.expected.iter().any(|t| t == "number"),
+        "expected tokens should include the number token for the arithmetic grammar: {:?}",
         first.expected
     );
 }
@@ -975,7 +975,7 @@ fn generated_words_parser_error_contract_is_feature_stable() {
             start_column: 4,
             end_line: 1,
             end_column: 5,
-            expected: &[r"/[a-z_]+/"],
+            expected: &["identifier"],
         },
     ];
 
@@ -1045,7 +1045,7 @@ fn generated_words_parser_error_contract_is_feature_stable() {
 /// `pure-rust,glr`.
 #[test]
 fn generated_csv_list_parser_error_contract_is_feature_stable() {
-    const IDENT_PATTERN: &str = r"/[a-zA-Z_][a-zA-Z0-9_]*/";
+    const IDENT_NAME: &str = "identifier";
 
     struct Case {
         label: &'static str,
@@ -1067,7 +1067,7 @@ fn generated_csv_list_parser_error_contract_is_feature_stable() {
             start_column: 1,
             end_line: 1,
             end_column: 1,
-            expected: &[IDENT_PATTERN],
+            expected: &[IDENT_NAME],
         },
         Case {
             label: "leading delimiter before first list item",
@@ -1077,7 +1077,7 @@ fn generated_csv_list_parser_error_contract_is_feature_stable() {
             start_column: 1,
             end_line: 1,
             end_column: 2,
-            expected: &[IDENT_PATTERN],
+            expected: &[IDENT_NAME],
         },
         Case {
             label: "invalid ASCII token before first list item",
@@ -1087,7 +1087,7 @@ fn generated_csv_list_parser_error_contract_is_feature_stable() {
             start_column: 1,
             end_line: 1,
             end_column: 2,
-            expected: &[IDENT_PATTERN],
+            expected: &[IDENT_NAME],
         },
         Case {
             label: "trailing delimiter after complete list",
@@ -1250,7 +1250,7 @@ fn generated_object_like_parser_error_contract_is_feature_stable() {
             start_column: 9,
             end_line: 1,
             end_column: 10,
-            expected: &[r"/\d+/"],
+            expected: &["number"],
         },
         Case {
             label: "multiline invalid value after colon",
@@ -1260,7 +1260,7 @@ fn generated_object_like_parser_error_contract_is_feature_stable() {
             start_column: 8,
             end_line: 2,
             end_column: 9,
-            expected: &[r"/\d+/"],
+            expected: &["number"],
         },
         Case {
             label: "multiline unexpected EOF after entry",

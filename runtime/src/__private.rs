@@ -2127,7 +2127,7 @@ mod tests {
 
         let expected = expected_symbol_names_for_diagnostic(&language, &[1]);
 
-        assert_eq!(expected, vec![r"/[a-z_]+/".to_string()]);
+        assert_eq!(expected, vec!["identifier".to_string()]);
     }
 
     #[test]
