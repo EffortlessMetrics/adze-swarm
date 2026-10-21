@@ -149,7 +149,7 @@ fn parse_document_json_serializes_diagnostics_and_error_flags() {
             .as_array()
             .expect("diagnostic should serialize expected tokens")
             .iter()
-            .any(|value| value.as_str() == Some(r"/\d+/")),
+            .any(|value| value.as_str() == Some("number")),
         "diagnostic JSON should preserve generated expected-token names: {diagnostic:?}"
     );
     assert!(
@@ -290,7 +290,7 @@ fn parse_document_json_serializes_multibyte_diagnostic_span() {
             .as_array()
             .expect("diagnostic should serialize expected tokens")
             .iter()
-            .any(|value| value.as_str() == Some(r"/\d+/")),
+            .any(|value| value.as_str() == Some("number")),
         "multibyte diagnostic JSON should preserve expected-token names: {diagnostic:?}"
     );
 
@@ -352,7 +352,7 @@ fn parse_document_json_serializes_multiline_diagnostic_point_range() {
             .as_array()
             .expect("diagnostic should serialize expected tokens")
             .iter()
-            .any(|value| value.as_str() == Some(r"/\d+/")),
+            .any(|value| value.as_str() == Some("number")),
         "multiline diagnostic JSON should preserve expected-token names: {diagnostic:?}"
     );
 

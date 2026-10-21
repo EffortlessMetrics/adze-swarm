@@ -520,7 +520,7 @@ fn assert_bad_input_diagnostic(diagnostic: &serde_json::Value) {
             .as_array()
             .is_some_and(|expected| expected
                 .iter()
-                .any(|token| token.as_str() == Some(r"/\d+/"))),
+                .any(|token| token.as_str() == Some("number"))),
         "diagnostics projection should preserve expected-token names: {diagnostic:?}"
     );
     assert!(

@@ -302,7 +302,7 @@ fn test_bad_input_reports_diagnostics() {{
 
     assert_eq!(first.byte_span(), 4..5);
     assert!(
-        first.expected.iter().any(|name| name == r"/\d+/"),
+        first.expected.iter().any(|name| name == "number"),
         "diagnostic should name the expected number token, got {{:?}}",
         first.expected
     );
