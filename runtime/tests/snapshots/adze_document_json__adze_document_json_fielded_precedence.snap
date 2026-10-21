@@ -11,6 +11,7 @@ expression: "serde_json::to_string_pretty(&json).expect(\"document JSON should r
     "name": "fielded_precedence_typed_cst_contract"
   },
   "metadata": {
+    "outcome": "complete",
     "error_count": 0,
     "incremental_requested": false,
     "incremental_used": false,

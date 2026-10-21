@@ -508,6 +508,101 @@ fn test_document_json_ambiguity_repeated_parses_remain_deterministic() {
     );
 }
 
+#[test]
+fn test_document_status_clean_parse_is_complete() {
+    use adze::document::ParseOutcome;
+    use adze_example::fielded_precedence_typed_cst_contract::grammar::{self, Expr};
+
+    let document = grammar::parse_document("1+2").expect("clean document should parse");
+    assert_eq!(document.outcome(), ParseOutcome::Complete);
+    assert_eq!(document.outcome().as_str(), "complete");
+    assert!(document.diagnostics().is_empty());
+
+    let ast: Expr = document
+        .ast()
+        .expect("complete documents should extract a typed AST");
+    assert_eq!(
+        ast,
+        grammar::parse("1+2").expect("typed parse should succeed")
+    );
+
+    let json = document.to_json_value();
+    assert_eq!(json["metadata"]["outcome"].as_str(), Some("complete"));
+}
+
+#[test]
+fn test_document_status_recovered_parse_is_recovered_and_ast_returns_diagnostics() {
+    use adze::document::ParseOutcome;
+    use adze_example::object_like_contract::grammar::{self, Object};
+
+    // Trailing comma: the object tree is retained with a missing value, so
+    // the document is recovered rather than failed.
+    let document =
+        grammar::parse_document("{ answer: 42, }").expect("recovered document should parse");
+    assert_eq!(document.outcome(), ParseOutcome::Recovered);
+    assert!(!document.diagnostics().is_empty());
+    assert!(document.tree().has_errors());
+
+    let errors = document
+        .ast::<Object>()
+        .expect_err("recovered documents must not extract as if clean");
+    assert!(
+        !errors.is_empty(),
+        "recovered ast() should return the structured diagnostics"
+    );
+
+    let json = document.to_json_value();
+    assert_eq!(json["metadata"]["outcome"].as_str(), Some("recovered"));
+}
+
+#[test]
+fn test_document_status_synthetic_eof_tree_is_failed_and_ast_returns_diagnostics() {
+    use adze::document::ParseOutcome;
+    use adze_example::fielded_precedence_typed_cst_contract::grammar::{self, Expr};
+
+    // This grammar's document path retains only a synthetic missing node
+    // for "1 +": no trustworthy selected-tree facts exist, so the outcome
+    // is Failed rather than Recovered.
+    let document = grammar::parse_document("1 +").expect("failed document should parse");
+    assert_eq!(document.outcome(), ParseOutcome::Failed);
+    assert!(!document.diagnostics().is_empty());
+
+    let errors = document
+        .ast::<Expr>()
+        .expect_err("failed documents must not extract as if clean");
+    assert!(!errors.is_empty());
+}
+
+#[test]
+#[cfg(feature = "glr")]
+fn test_document_status_failed_parse_is_failed_without_trustworthy_tree() {
+    use adze::document::ParseOutcome;
+    use adze_example::ambiguous_expr::grammar;
+
+    let document =
+        grammar::parse_document("@@@").expect("severe GLR failure should still produce a document");
+    assert_eq!(
+        document.outcome(),
+        ParseOutcome::Failed,
+        "a synthetic error root must not masquerade as recovery: {:?}",
+        document.diagnostics()
+    );
+    assert!(!document.diagnostics().is_empty());
+
+    let json = document.to_json_value();
+    assert_eq!(json["metadata"]["outcome"].as_str(), Some("failed"));
+}
+
+#[test]
+#[cfg(feature = "glr")]
+fn test_document_status_clean_glr_parse_is_complete() {
+    use adze::document::ParseOutcome;
+    use adze_example::ambiguous_expr::grammar;
+
+    let document = grammar::parse_document("1 + 2 + 3").expect("clean GLR document");
+    assert_eq!(document.outcome(), ParseOutcome::Complete);
+}
+
 fn find_json_node<'a>(
     node: &'a Value,
     kind: &str,

@@ -71,13 +71,15 @@ fn cookbook_document_and_diagnostic_recipes_cover_tooling_path() {
 
 #[test]
 fn cookbook_document_status_range_and_slice_recipe_distinguishes_clean_and_recovered_input() {
+    use adze::document::ParseOutcome;
     use adze_example::fielded_precedence_typed_cst_contract::grammar;
 
-    // There is no complete/recovered/failed status enum on the document;
-    // the supported proxy is diagnostics plus tree error facts.
+    // The document reports its outcome explicitly; diagnostics and tree
+    // error facts stay consistent with it.
     let clean_source = "1+2*3";
     let clean =
         grammar::parse_document(clean_source).expect("clean input should return a document");
+    assert_eq!(clean.outcome(), ParseOutcome::Complete);
     assert!(clean.diagnostics().is_empty());
     assert!(!clean.tree().has_errors());
     assert_eq!(clean.metadata().error_count, 0);
@@ -87,11 +89,20 @@ fn cookbook_document_status_range_and_slice_recipe_distinguishes_clean_and_recov
         "the root range should slice back to the full source"
     );
 
-    let recovered =
-        grammar::parse_document("1 +").expect("recovered input should still return a document");
+    // The object-like grammar recovers a real tree for a trailing comma.
+    let recovered = adze_example::object_like_contract::grammar::parse_document("{ answer: 42, }")
+        .expect("recovered input should still return a document");
+    assert_eq!(recovered.outcome(), ParseOutcome::Recovered);
     assert!(!recovered.diagnostics().is_empty());
     assert!(recovered.tree().has_errors());
     assert!(recovered.metadata().error_count > 0);
+
+    // The fielded grammar retains only a synthetic missing node for "1 +",
+    // so that document is Failed rather than Recovered.
+    let failed =
+        grammar::parse_document("1 +").expect("failed input should still return a document");
+    assert_eq!(failed.outcome(), ParseOutcome::Failed);
+    assert!(!failed.diagnostics().is_empty());
 }
 
 #[test]
