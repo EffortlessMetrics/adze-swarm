@@ -1803,4 +1803,31 @@ mod tests {
             parse_error.reason
         );
     }
+
+    #[test]
+    fn test_build_diagnostics_when_root_is_synthetic_error_at_eof_keeps_found_unset() {
+        let (grammar, table) = fielded_language();
+        let error = SymbolId(0);
+        let source = "x";
+
+        // A lone synthetic error node at the source end also results from
+        // skipping an invalid final byte; that is not an EOF failure.
+        let root = ParseNode {
+            symbol: error,
+            symbol_id: error,
+            start_byte: source.len(),
+            end_byte: source.len(),
+            field_name: None,
+            alias_symbol_id: None,
+            children: Vec::new(),
+        };
+        let document =
+            AdzeDocument::from_parse_result(source, root, 1, "fielded", &grammar, &table);
+
+        let diagnostic = document
+            .diagnostics()
+            .first()
+            .expect("error document should carry one diagnostic");
+        assert_eq!(diagnostic.found, None);
+    }
 }
