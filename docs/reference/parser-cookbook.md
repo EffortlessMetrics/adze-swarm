@@ -16,6 +16,19 @@ Rust grammar types
 The recipes below are intentionally small. They are starting points for users
 and regression fixtures for maintainers.
 
+| Task | Recipe | Proof test |
+| --- | --- | --- |
+| Parse to a typed value with precedence | Arithmetic With Precedence | `cookbook_typed_parser_recipes_cover_common_grammar_shapes` |
+| Tell clean input from recovered input | Clean Versus Recovered Documents | `cookbook_document_status_range_and_slice_recipe_distinguishes_clean_and_recovered_input` |
+| Read fields without leaving the document | Typed CST Fields On The Document | `cookbook_typed_cst_fields_stay_on_document_recipe` |
+| Serialize a document for tools | Document JSON Projection | `cookbook_document_json_projection_uses_pinned_schema_recipe` (serialization feature) |
+| Inspect bad input | Diagnostics | `cookbook_document_and_diagnostic_recipes_cover_tooling_path` |
+| Work with ambiguous grammars | GLR Ambiguity | `cookbook_glr_and_ts_compat_recipes_cover_selected_tree_and_ambiguity` |
+| Match nodes with queries | Query Captures | `cookbook_query_capture_recipe_matches_identifier_nodes` |
+
+Support tiers for every surface below live in
+[SUPPORT_TIERS](../status/SUPPORT_TIERS.md); this page does not restate them.
+
 ## Arithmetic With Precedence
 
 Use precedence attributes when the typed AST should encode operator binding:
@@ -78,6 +91,57 @@ let ast: grammar::Expr = document.ast()?;
 
 This keeps typed AST, typed CST, diagnostics, and serialized projections tied to
 one `AdzeDocument`.
+
+## Clean Versus Recovered Documents
+
+There is no complete/recovered/failed status enum on `AdzeDocument`. The
+supported proxy is diagnostics plus tree error facts:
+
+```rust
+let clean = grammar::parse_document("1+2*3")?;
+assert!(clean.diagnostics().is_empty());
+assert!(!clean.tree().has_errors());
+assert_eq!(clean.metadata().error_count, 0);
+assert_eq!(
+    clean.source_slice(clean.tree().root().byte_range()),
+    Some("1+2*3")
+);
+
+let recovered = grammar::parse_document("1 +")?;
+assert!(!recovered.diagnostics().is_empty());
+assert!(recovered.tree().has_errors());
+```
+
+Word recipes as this proxy, not as a parse-status type. The tested recipe
+uses `adze_example::fielded_precedence_typed_cst_contract::grammar`.
+
+## Typed CST Fields On The Document
+
+Generic field edges and the typed AST describe the same fields, so tools can
+stay on the document instead of re-parsing:
+
+```rust
+let document = grammar::parse_document("1+2")?;
+let add = find_kind(document.tree().root(), "Expr_Add")?;
+let left = add.edge_by_field_name("left")?.child()?;
+assert_eq!(left.utf8_text().ok(), Some("1"));
+```
+
+The tested recipe compares the `left`/`right` field-edge text with the typed
+`Expr::Add` value from `grammar::parse("1+2")`.
+
+## Document JSON Projection
+
+With the `serialization` feature, the document JSON carries the pinned
+experimental schema id:
+
+```rust
+let json = document.to_json_value();
+assert_eq!(json["schema"].as_str(), Some(adze::document::ADZE_DOCUMENT_JSON_SCHEMA));
+```
+
+The schema id is `adze.document.v1`. Treat the projection as experimental:
+the id is pinned, the full payload shape is not a Stable contract.
 
 ## Diagnostics
 
@@ -162,13 +226,33 @@ External scanners remain an advanced integration surface. Use
 do not treat scanner examples as Stable unless their support-tier row lists a
 proof command.
 
+## Not Yet Promoted
+
+These shapes have no exact-value cookbook proof yet. They stay out of the
+recipes above until a fixture proves them; the generated-grammar matrix in
+[GENERATED_GRAMMAR_FEATURE_MATRIX](../product/GENERATED_GRAMMAR_FEATURE_MATRIX.md)
+tracks the same gaps.
+
+| Shape | Blocker |
+| --- | --- |
+| Comma-separated multi-item lists | Delimited repetition has no exact-value proof (matrix `Gap`) |
+| Keywords versus identifiers | Word-token happy path has no repeatable proof |
+| Optional and repeated fields | Cardinality agreement across typed AST, typed CST, and node schema is unproved |
+| Fallible numeric transforms | Blocked by issue #864; overflowing digit strings panic in unwrapping transforms today |
+| Document-backed queries | The query recipe builds its tree by hand; queries over a parsed document are a named gap (#861/#878) |
+| Performance claims | No cookbook speed claims; see [perf baselines](../perf/baselines.md) for how performance receipts are produced |
+
 ## Proof
 
 The tested cookbook proof is:
 
 ```bash
-cargo test -p adze --features "pure-rust,glr,ts-compat" cookbook -- --nocapture
+cargo test -p adze --features "pure-rust,glr,ts-compat" --test cookbook cookbook -- --nocapture
+cargo test -p adze --features "pure-rust,glr,ts-compat,serialization" --test cookbook cookbook -- --nocapture
 cargo run -p adze --features "pure-rust,glr" --example glr_ambiguity
 cargo run -p adze --features query --example query_highlighting
 cargo run -p adze --features "pure-rust,glr,serialization" --example diagnostics_recovery
 ```
+
+Expected counts: at least 6 tests pass without `serialization`, at least 7
+with it (the JSON projection recipe is feature-gated).
