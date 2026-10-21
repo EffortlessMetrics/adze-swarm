@@ -1096,6 +1096,7 @@ fn simulate_ci_product_stable_dry_run_labels(script: &str) -> Vec<String> {
     labels
 }
 
+#[cfg(unix)]
 fn parse_ci_product_stable_dry_run_labels(output: &str) -> Vec<String> {
     output
         .lines()
@@ -1104,6 +1105,7 @@ fn parse_ci_product_stable_dry_run_labels(output: &str) -> Vec<String> {
         .collect()
 }
 
+#[cfg(unix)]
 fn run_ci_product_stable_dry_run() -> String {
     let repo_root = repo_root();
     let script = repo_root.join("scripts/ci-product-stable.sh");
