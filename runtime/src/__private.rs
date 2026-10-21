@@ -346,9 +346,19 @@ pub fn parse_document(
     let diagnostics = document_diagnostics_for_parse_errors(input, lang, &parser_errors);
     let root = root
         .as_ref()
-        .map(|root_node| convert_parsed_node_to_document_node(root_node, lang))
+        .map(|root_node| {
+            wrap_root_in_start_symbol(
+                convert_parsed_node_to_document_node(root_node, lang),
+                public_symbol_id_for_index(lang, parse_table.start_symbol.0),
+                input.len(),
+            )
+        })
         .unwrap_or_else(|| {
-            synthetic_document_root_for_errors(input, parse_table.start_symbol, &diagnostics)
+            synthetic_document_root_for_errors(
+                input,
+                public_symbol_id_for_index(lang, parse_table.start_symbol.0),
+                &diagnostics,
+            )
         });
 
     Ok(
@@ -392,7 +402,8 @@ fn parse_document_with_streaming_true_glr_runtime(
     ) {
         Ok(parsed) => parsed,
         Err(error) => {
-            let errors = crate::glr_streaming_runtime::glr_error_to_parse_errors(input, error);
+            let errors =
+                crate::glr_streaming_runtime::glr_error_to_parse_errors(input, error, language);
             return Ok(parse_document_from_glr_errors(
                 input,
                 language,
@@ -424,7 +435,11 @@ pub fn adze_document_from_streaming_parse(
     grammar: &adze_ir::Grammar,
     parse_table: &adze_glr_core::ParseTable,
 ) -> crate::document::AdzeDocument {
-    let root = convert_subtree_to_document_node(&parsed.root, language, parse_table, grammar);
+    let root = wrap_root_in_start_symbol(
+        convert_subtree_to_document_node(&parsed.root, language, parse_table, grammar),
+        public_symbol_id_for_index(language, parse_table.start_symbol.0),
+        source.len(),
+    );
     let ambiguities = parsed.ambiguities.into_iter().collect::<Vec<_>>();
 
     crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
@@ -592,7 +607,11 @@ fn parse_document_with_true_glr_runtime(
         .flatten()
         .into_iter()
         .collect::<Vec<_>>();
-    let root = convert_subtree_to_document_node(&root_node, language, &parse_table, &grammar);
+    let root = wrap_root_in_start_symbol(
+        convert_subtree_to_document_node(&root_node, language, &parse_table, &grammar),
+        public_symbol_id_for_index(language, parse_table.start_symbol.0),
+        source.len(),
+    );
 
     Ok(
         crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
@@ -636,7 +655,10 @@ fn parse_document_from_glr_errors(
                     input,
                     start_byte..end_byte,
                 ),
-                found: Some(error.reason.to_string()),
+                found: Some(match &error.reason {
+                    crate::errors::ParseErrorReason::UnexpectedEof => "end of input".to_string(),
+                    _ => error.reason.to_string(),
+                }),
                 expected: error.expected.clone(),
                 related_nodes: Vec::new(),
                 message: error.to_string(),
@@ -644,7 +666,11 @@ fn parse_document_from_glr_errors(
         })
         .collect::<Vec<_>>();
     let error_count = diagnostics.len();
-    let root = synthetic_document_root_for_errors(input, parse_table.start_symbol, &diagnostics);
+    let root = synthetic_document_root_for_errors(
+        input,
+        public_symbol_id_for_index(language, parse_table.start_symbol.0),
+        &diagnostics,
+    );
 
     crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
         input,
@@ -691,13 +717,18 @@ fn parse_with_pure_parser<T: Extract<T>>(
             .map(|e| {
                 let symbol_name = diagnostic_found_name_for_error(input, lang, e.found, e.position);
                 let expected = expected_symbol_names_for_diagnostic(lang, &e.expected);
-                crate::errors::ParseError {
-                    reason: crate::errors::ParseErrorReason::UnexpectedToken(
+                let reason = if symbol_name == "end of input" {
+                    crate::errors::ParseErrorReason::UnexpectedEof
+                } else {
+                    crate::errors::ParseErrorReason::UnexpectedToken(
                         crate::diagnostic_format::unexpected_token_message(
                             symbol_name,
                             expected.clone(),
                         ),
-                    ),
+                    )
+                };
+                crate::errors::ParseError {
+                    reason,
                     start: e.position,
                     end: diagnostic_end_for_byte(input.as_bytes(), e.position),
                     expected,
@@ -789,17 +820,41 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
         )
     {
         let grammar = crate::decoder::decode_grammar(language);
-        let parsed = crate::glr_streaming_runtime::parse_with_streaming_driver(
+        // The streaming driver recovers or inserts missing tokens, so
+        // diagnostics derived from its trees or hard failures carry
+        // recovery-distorted positions and no multi-error split. For an
+        // input this route already rejects, report the deterministic LR
+        // diagnostics for the same rejection so typed callers see the
+        // same expected-token contract as the LR backend. Successful GLR
+        // parses never reach this cold path, and inputs the LR parser
+        // accepts keep the GLR diagnostics.
+        let lr_diagnostics = |input: &str| parse_with_pure_parser::<T>(input, || language).err();
+        let parsed = match crate::glr_streaming_runtime::parse_with_streaming_driver(
             input,
             language,
             parse_table,
             &grammar,
-        )
-        .map_err(|error| crate::glr_streaming_runtime::glr_error_to_parse_errors(input, error))?;
+        ) {
+            Ok(parsed) => parsed,
+            Err(error) => {
+                if let Some(lr_errors) = lr_diagnostics(input) {
+                    return Err(lr_errors);
+                }
+                return Err(crate::glr_streaming_runtime::glr_error_to_parse_errors(
+                    input, error, language,
+                ));
+            }
+        };
 
         let source = input.as_bytes();
         let parsed_node = convert_subtree_to_pure(&parsed.root, language, source);
-        return finish_typed_extract_from_parsed_node(parsed_node, source);
+        let result = finish_typed_extract_from_parsed_node(parsed_node, source);
+        if result.is_err()
+            && let Some(lr_errors) = lr_diagnostics(input)
+        {
+            return Err(lr_errors);
+        }
+        return result;
     }
 
     if language.lex_fn.is_some() {
@@ -1405,6 +1460,32 @@ fn document_diagnostics_for_parse_errors(
         .collect()
 }
 
+/// Generated tables unit-inline the synthetic `source_file -> root`
+/// production, so the selected tree root is the language root rather than
+/// the canonical start symbol. Wrap it so generated documents expose the
+/// start symbol (`source_file`) as their root, matching the document
+/// contract typed extraction already expects to unwrap.
+#[cfg(feature = "pure-rust")]
+fn wrap_root_in_start_symbol(
+    root: crate::parser_v4::ParseNode,
+    start_symbol: adze_ir::SymbolId,
+    source_len: usize,
+) -> crate::parser_v4::ParseNode {
+    if root.symbol == start_symbol {
+        return root;
+    }
+
+    crate::parser_v4::ParseNode {
+        symbol: start_symbol,
+        symbol_id: start_symbol,
+        start_byte: 0,
+        end_byte: source_len,
+        field_name: None,
+        alias_symbol_id: None,
+        children: vec![root],
+    }
+}
+
 #[cfg(feature = "pure-rust")]
 fn synthetic_document_root_for_errors(
     input: &str,
@@ -1555,6 +1636,10 @@ fn diagnostic_found_name_for_error(
     if found == lang.eof_symbol && position < input.len() {
         return source_slice_name_for_diagnostic(input, position)
             .unwrap_or_else(|| symbol_name_for_diagnostic(lang, found));
+    }
+
+    if found == lang.eof_symbol {
+        return "end of input".to_string();
     }
 
     symbol_name_for_diagnostic(lang, found)

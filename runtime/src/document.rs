@@ -980,8 +980,13 @@ impl ParseDiagnostic {
     }
 
     fn to_parse_error(&self) -> crate::errors::ParseError {
+        let reason = if self.found.as_deref() == Some("end of input") {
+            crate::errors::ParseErrorReason::UnexpectedEof
+        } else {
+            crate::errors::ParseErrorReason::UnexpectedToken(self.message.clone())
+        };
         crate::errors::ParseError {
-            reason: crate::errors::ParseErrorReason::UnexpectedToken(self.message.clone()),
+            reason,
             start: self.start_byte,
             end: self.end_byte,
             expected: self.expected.clone(),
@@ -1754,5 +1759,75 @@ mod tests {
         assert!(right_child.is_missing());
         assert!(right_child.has_error());
         assert!(document.tree().has_errors());
+    }
+
+    #[test]
+    fn test_build_diagnostics_when_error_span_is_zero_width_at_eof_marks_end_of_input() {
+        let (grammar, table) = fielded_language();
+        let source_file = SymbolId(1);
+        let error = SymbolId(0);
+        let source = "1-";
+
+        let root = ParseNode {
+            symbol: source_file,
+            symbol_id: source_file,
+            start_byte: 0,
+            end_byte: source.len(),
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![ParseNode {
+                symbol: error,
+                symbol_id: error,
+                start_byte: source.len(),
+                end_byte: source.len(),
+                field_name: None,
+                alias_symbol_id: None,
+                children: Vec::new(),
+            }],
+        };
+        let document =
+            AdzeDocument::from_parse_result(source, root, 1, "fielded", &grammar, &table);
+
+        let diagnostic = document
+            .diagnostics()
+            .first()
+            .expect("error document should carry one diagnostic");
+        assert_eq!(diagnostic.found.as_deref(), Some("end of input"));
+        let parse_error = diagnostic.to_parse_error();
+        assert!(
+            matches!(
+                parse_error.reason,
+                crate::errors::ParseErrorReason::UnexpectedEof
+            ),
+            "EOF diagnostic should convert to the explicit EOF reason, got: {:?}",
+            parse_error.reason
+        );
+    }
+
+    #[test]
+    fn test_build_diagnostics_when_root_is_synthetic_error_at_eof_keeps_found_unset() {
+        let (grammar, table) = fielded_language();
+        let error = SymbolId(0);
+        let source = "x";
+
+        // A lone synthetic error node at the source end also results from
+        // skipping an invalid final byte; that is not an EOF failure.
+        let root = ParseNode {
+            symbol: error,
+            symbol_id: error,
+            start_byte: source.len(),
+            end_byte: source.len(),
+            field_name: None,
+            alias_symbol_id: None,
+            children: Vec::new(),
+        };
+        let document =
+            AdzeDocument::from_parse_result(source, root, 1, "fielded", &grammar, &table);
+
+        let diagnostic = document
+            .diagnostics()
+            .first()
+            .expect("error document should carry one diagnostic");
+        assert_eq!(diagnostic.found, None);
     }
 }

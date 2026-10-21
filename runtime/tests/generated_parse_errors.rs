@@ -114,8 +114,12 @@ fn generated_typed_parser_unexpected_eof_reports_zero_width_source_span() {
 
     let rendered = first.display_with_source(source).to_string();
     assert!(
-        rendered.contains("unexpected token \"end\""),
-        "true EOF diagnostic should keep EOF/end wording: {rendered}"
+        rendered.contains("unexpected end of input"),
+        "true EOF diagnostic should name end of input, not a token: {rendered}"
+    );
+    assert!(
+        !rendered.contains("unexpected token \"end\""),
+        "true EOF diagnostic should not leak the internal EOF symbol name as a token: {rendered}"
     );
     assert!(
         rendered.contains("bytes 3..3"),
@@ -166,13 +170,17 @@ fn generated_typed_parser_unexpected_eof_lists_expected_tokens() {
         .first()
         .expect("generated parser should return at least one parse error");
 
-    let ParseErrorReason::UnexpectedToken(message) = &first.reason else {
-        panic!(
-            "truncated generated-parser input should report an unexpected token: {:?}",
-            first.reason
-        );
-    };
+    assert!(
+        matches!(first.reason, ParseErrorReason::UnexpectedEof),
+        "truncated generated-parser input should report the explicit EOF reason, got: {:?}",
+        first.reason
+    );
 
+    let message = first.to_string();
+    assert!(
+        message.contains("unexpected end of input"),
+        "EOF diagnostic should name end of input: {message}"
+    );
     assert!(
         message.contains("expected one of:"),
         "unexpected-token detail should include normalized expected tokens: {message}"
@@ -194,6 +202,24 @@ fn generated_typed_parser_unexpected_eof_lists_expected_tokens() {
     assert!(
         rendered.contains(r"/\d+/"),
         "rendered diagnostic should include the expected token name: {rendered}"
+    );
+}
+
+#[test]
+fn test_document_ast_extraction_when_truncated_input_reports_unexpected_eof() {
+    let source = "if";
+    let document = adze_example::words::grammar::parse_document(source)
+        .expect("document parse should return partial parse facts");
+    let errors = document
+        .ast::<adze_example::words::grammar::Words>()
+        .expect_err("typed AST extraction should reject diagnostic documents");
+    let first = errors
+        .first()
+        .expect("extraction should return at least one parse error");
+    assert!(
+        matches!(first.reason, ParseErrorReason::UnexpectedEof),
+        "document extraction for truncated input should report the explicit EOF reason, got: {:?}",
+        first.reason
     );
 }
 
@@ -268,7 +294,7 @@ fn generated_typed_parser_error_contract_is_feature_stable() {
             start_column: 4,
             end_line: 1,
             end_column: 4,
-            rendered_token: "end",
+            rendered_token: "end of input",
             rendered_end_allowed: true,
         },
         Case {
@@ -346,7 +372,11 @@ fn generated_typed_parser_error_contract_is_feature_stable() {
             "{} should render byte range {expected_byte_range}: {rendered}",
             case.label
         );
-        let expected_token = format!("unexpected token {:?}", case.rendered_token);
+        let expected_token = if case.rendered_end_allowed {
+            format!("unexpected {}", case.rendered_token)
+        } else {
+            format!("unexpected token {:?}", case.rendered_token)
+        };
         assert!(
             rendered.contains(&expected_token),
             "{} should render the structured offending token {expected_token}: {rendered}",

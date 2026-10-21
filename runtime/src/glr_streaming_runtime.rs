@@ -17,7 +17,7 @@ use crate::subtree::{ChildEdge, FIELD_NONE, Subtree, SubtreeNode};
 use adze_glr_core::parse_forest::ERROR_SYMBOL;
 use adze_glr_core::{
     Driver, ForestView, LexMode, ParseTable, build_lex_modes_from_shiftable_terminals,
-    driver::GlrError,
+    driver::{GlrError, GlrUnexpectedToken},
 };
 use adze_ir::{Grammar, Symbol, SymbolId};
 use std::sync::Arc;
@@ -250,10 +250,35 @@ pub fn parse_with_streaming_driver(
     record_route(TrueGlrParseRoute::StreamingDriver);
     let parse_table = prepare_streaming_parse_table(language, parse_table);
     let mut driver = Driver::new(&parse_table);
-    let mut internal_lexer = make_generated_internal_streaming_lexer(language);
+    let (mut internal_lexer, lex_failure_pos) = make_generated_internal_streaming_lexer(language);
 
-    let forest =
-        parse_with_optional_external_scanner(&mut driver, input, language, &mut internal_lexer)?;
+    let forest = match parse_with_optional_external_scanner(
+        &mut driver,
+        input,
+        language,
+        &mut internal_lexer,
+    ) {
+        Ok(forest) => forest,
+        Err(error) => {
+            // The driver reports a cannot-lex failure at the position before
+            // grammar extras were skipped; the lexer adapter recorded the
+            // exact stall byte. Surface the structured error so diagnostics
+            // point at the offending byte, not the preceding extra.
+            if let GlrError::Parse(message) = &error
+                && message.starts_with("cannot lex at byte")
+                && let Some(stall) = lex_failure_pos.get()
+            {
+                return Err(GlrError::UnexpectedToken(Box::new(GlrUnexpectedToken {
+                    byte_start: stall,
+                    byte_end: stall,
+                    found: None,
+                    found_is_eof: stall >= input.len(),
+                    expected: Vec::new(),
+                })));
+            }
+            return Err(error);
+        }
+    };
 
     materialize_streaming_forest(&forest, language, &parse_table, grammar)
 }
@@ -573,12 +598,48 @@ fn rhs_symbol_ids(rhs: &[Symbol]) -> Vec<SymbolId> {
 pub(crate) fn glr_error_to_parse_errors(
     input: &str,
     error: GlrError,
+    language: &'static TSLanguage,
 ) -> Vec<crate::errors::ParseError> {
     let source_len = input.len();
+    if let GlrError::UnexpectedToken(unexpected) = &error {
+        let start = unexpected.byte_start.min(source_len);
+        let end = if unexpected.byte_end > start {
+            unexpected.byte_end.min(source_len)
+        } else if start < source_len {
+            diagnostic_end_for_byte(input.as_bytes(), start)
+        } else {
+            source_len
+        };
+        let expected = glr_expected_token_names(language, &unexpected.expected);
+        let found_name = match unexpected.found {
+            Some(found) => glr_found_token_name(language, found),
+            None if start < source_len => input
+                .get(start..)
+                .and_then(|rest| rest.chars().next())
+                .map(|ch| ch.to_string())
+                .unwrap_or_else(|| "end of input".to_string()),
+            None => "end of input".to_string(),
+        };
+        let reason = if unexpected.found_is_eof || found_name == "end of input" {
+            crate::errors::ParseErrorReason::UnexpectedEof
+        } else {
+            crate::errors::ParseErrorReason::UnexpectedToken(
+                crate::diagnostic_format::unexpected_token_message(found_name, expected.clone()),
+            )
+        };
+        return vec![crate::errors::ParseError {
+            reason,
+            start,
+            end,
+            expected,
+        }];
+    }
+
     let (start, message) = match error {
         GlrError::Lex(message) | GlrError::Parse(message) | GlrError::Other(message) => {
             (extract_byte_offset(&message).unwrap_or(0), message)
         }
+        GlrError::UnexpectedToken(_) => unreachable!("handled above"),
     };
     let end = if start < source_len {
         diagnostic_end_for_byte(input.as_bytes(), start)
@@ -591,6 +652,47 @@ pub(crate) fn glr_error_to_parse_errors(
         end,
         expected: vec![],
     }]
+}
+
+/// Generated name for a structured GLR failure symbol, with the EOF
+/// symbol rendered as `end of input` like the LR diagnostics.
+fn glr_found_token_name(language: &'static TSLanguage, found: SymbolId) -> String {
+    if found.0 == language.eof_symbol {
+        return "end of input".to_string();
+    }
+    glr_symbol_name(language, found)
+}
+
+/// Sorted, deduplicated diagnostic names for structured GLR expected
+/// terminals, mirroring the LR expected-name contract.
+fn glr_expected_token_names(language: &'static TSLanguage, expected: &[SymbolId]) -> Vec<String> {
+    let mut names: Vec<String> = expected
+        .iter()
+        .map(|symbol| glr_symbol_name(language, *symbol))
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
+
+fn glr_symbol_name(language: &'static TSLanguage, symbol: SymbolId) -> String {
+    if (symbol.0 as usize) >= language.symbol_count as usize || language.symbol_names.is_null() {
+        return format!("symbol {}", symbol.0);
+    }
+
+    // SAFETY: the symbol index is bounds-checked against `symbol_count`,
+    // and generated language metadata points to static name arrays.
+    let symbol_ptr = unsafe { *language.symbol_names.add(symbol.0 as usize) };
+    if symbol_ptr.is_null() {
+        return format!("symbol {}", symbol.0);
+    }
+
+    let raw_name = unsafe {
+        std::ffi::CStr::from_ptr(symbol_ptr as *const std::os::raw::c_char)
+            .to_string_lossy()
+            .to_string()
+    };
+    crate::diagnostic_format::diagnostic_symbol_name(raw_name)
 }
 
 fn extract_byte_offset(message: &str) -> Option<usize> {

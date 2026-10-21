@@ -780,6 +780,31 @@ fn test_init_cargo_toml_references_adze_dependency() {
 }
 
 #[test]
+fn test_init_cargo_toml_has_no_verbatim_path_prefix() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let project_name = "verbatimtest";
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg(project_name)
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    let cargo_toml = std::fs::read_to_string(temp.path().join(project_name).join("Cargo.toml"))
+        .expect("read Cargo.toml");
+
+    assert!(
+        !cargo_toml.contains(r"\\?"),
+        "Cargo.toml must not leak Windows verbatim path prefixes: {cargo_toml}"
+    );
+    assert!(
+        cargo_toml.contains("adze = {") && cargo_toml.contains("adze-tool = {"),
+        "Cargo.toml must still declare working adze dependencies: {cargo_toml}"
+    );
+}
+
+#[test]
 fn test_init_readme_teaches_parse_and_parse_document() {
     let temp = tempfile::tempdir().expect("tempdir");
     let project_name = "readmepath";

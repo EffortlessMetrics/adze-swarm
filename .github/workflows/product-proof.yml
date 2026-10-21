@@ -3,6 +3,9 @@ name: Product Proof
 on:
   pull_request:
     branches: [main]
+    # labeled/unlabeled re-run detection so adding or removing the
+    # allow-github-hosted fallback label reroutes the stable canaries.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
     inputs:
       lane:
@@ -64,7 +67,7 @@ env:
 
 concurrency:
   group: product-proof-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && (github.event.action == 'synchronize' || github.event.action == 'labeled' || github.event.action == 'unlabeled') }}
 
 jobs:
   detect-stable-product-paths:
@@ -73,6 +76,7 @@ jobs:
     outputs:
       run_stable: ${{ steps.detect.outputs.run_stable }}
       reason: ${{ steps.detect.outputs.reason }}
+      use_hosted: ${{ steps.detect.outputs.use_hosted }}
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -81,7 +85,20 @@ jobs:
       - id: detect
         name: Detect Stable product surfaces
         shell: bash
+        # Label names are untrusted input: pass them through env, never
+        # interpolate them into the shell script.
+        env:
+          LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
         run: |
+          # Same opt-in contract as the routed Rust lane: a PR carrying the
+          # allow-github-hosted label may run stable canaries on
+          # GitHub-hosted runners when self-hosted capacity is unavailable.
+          if python3 -c 'import json, os, sys; labels = json.loads(os.environ.get("LABELS_JSON", "[]") or "[]") or []; sys.exit(0 if "allow-github-hosted" in {str(label).lower() for label in labels} else 1)'; then
+            echo "use_hosted=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "use_hosted=false" >> "$GITHUB_OUTPUT"
+          fi
+
           if [[ "${{ github.event_name }}" != "pull_request" ]]; then
             echo "run_stable=true" >> "$GITHUB_OUTPUT"
             echo "reason=event:${{ github.event_name }}" >> "$GITHUB_OUTPUT"
@@ -117,9 +134,9 @@ jobs:
     name: ci-product stable canaries
     needs: detect-stable-product-paths
     if: needs.detect-stable-product-paths.outputs.run_stable == 'true'
-    runs-on:
-      group: em-ci-small
-      labels: [self-hosted, linux, x64, em-ci, trusted-pr]
+    # Labeled PRs (allow-github-hosted) fall back to GitHub-hosted runners;
+    # everything else keeps the self-hosted em-ci-small group.
+    runs-on: ${{ needs.detect-stable-product-paths.outputs.use_hosted == 'true' && 'ubuntu-latest' || fromJson('{"group":"em-ci-small","labels":["self-hosted","linux","x64","em-ci","trusted-pr"]}') }}
     steps:
       - uses: actions/checkout@v6.0.2
 

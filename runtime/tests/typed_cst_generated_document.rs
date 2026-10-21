@@ -25,18 +25,15 @@ fn generated_parse_document_helper_feeds_generated_syntax_module() {
     );
     assert_eq!(document.metadata().error_count, 0);
 
-    let syntax = adze_example::typed_ast_contract::grammar::syntax::Expr::cast(
-        &document,
-        document.tree().root_id(),
-    )
-    .expect("generated syntax root should cast from document root");
+    let syntax = adze_example::typed_ast_contract::grammar::syntax::source_file(&document)
+        .expect("generated syntax root should cast from document root");
 
     assert_eq!(syntax.node_id(), document.tree().root_id());
-    assert_eq!(syntax.kind_name(), Some("Expr"));
+    assert_eq!(syntax.kind_name(), Some("source_file"));
     assert_eq!(syntax.text(), Some(source));
     assert!(
         syntax.child(0).is_some(),
-        "Expr wrapper should expose the parsed expression child"
+        "source_file wrapper should expose the parsed expression child"
     );
 }
 
@@ -120,7 +117,7 @@ fn generated_parse_document_diagnostics_preserve_expected_tokens() {
 #[test]
 fn generated_parse_document_diagnostics_byte_and_point_ranges_agree() {
     let cases = [
-        ("1 +", "end", true),
+        ("1 +", "end of input", true),
         ("1 + \u{03bb}", "λ", false),
         ("1 +\n@", "@", false),
     ];
@@ -321,12 +318,14 @@ fn generated_typed_cst_wrappers_cast_generic_document_nodes() {
         .expect("generated parse_document helper should return an AdzeDocument");
     let root = document.tree().root();
 
+    let expr_node = find_node(root, "Expr", source)
+        .expect("generic CST should contain the root expression under source_file");
     let syntax = adze_example::typed_ast_contract::grammar::syntax::Expr::cast(
         &document,
-        document.tree().root_id(),
+        expr_node.node_id(),
     )
-    .expect("generated Expr wrapper should cast the generic root");
-    assert_same_node(syntax, root);
+    .expect("generated Expr wrapper should cast the generic root expression");
+    assert_same_node(syntax, expr_node);
 
     let add_node = find_node(root, "Expr_Add", source)
         .expect("generic CST should contain the root addition expression");
@@ -353,17 +352,19 @@ fn generated_typed_cst_wrappers_share_document_point_ranges() {
     let document = adze_example::typed_ast_contract::grammar::parse_document(source)
         .expect("generated parse_document helper should return a multiline AdzeDocument");
     let root = document.tree().root();
+    let expr_node = find_node(root, "Expr", source)
+        .expect("generic CST should contain the root expression under source_file");
     let syntax = adze_example::typed_ast_contract::grammar::syntax::Expr::cast(
         &document,
-        document.tree().root_id(),
+        expr_node.node_id(),
     )
-    .expect("generated Expr wrapper should cast the generic root");
+    .expect("generated Expr wrapper should cast the generic root expression");
 
-    assert_eq!(syntax.point_range(), Some(root.point_range()));
-    assert_eq!(root.point_range().start.row, 0);
-    assert_eq!(root.point_range().start.column, 0);
-    assert_eq!(root.point_range().end.row, 1);
-    assert_eq!(root.point_range().end.column, 3);
+    assert_eq!(syntax.point_range(), Some(expr_node.point_range()));
+    assert_eq!(expr_node.point_range().start.row, 0);
+    assert_eq!(expr_node.point_range().start.column, 0);
+    assert_eq!(expr_node.point_range().end.row, 1);
+    assert_eq!(expr_node.point_range().end.column, 3);
 
     let second_number =
         find_node(root, "/\\d+/", "2").expect("generic CST should contain the second-line token");

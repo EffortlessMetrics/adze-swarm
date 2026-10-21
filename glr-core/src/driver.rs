@@ -23,6 +23,36 @@ fn u32_span(start: usize, end: usize) -> (u32, u32) {
     )
 }
 
+/// Structured facts for an unexpected-token GLR failure.
+///
+/// Carries the failing span, the offending symbol when one was lexed, and
+/// the terminals that had a real action on at least one surviving stack
+/// top, so callers can build diagnostics without parsing message text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlrUnexpectedToken {
+    /// Start byte of the offending token (or the failure position).
+    pub byte_start: usize,
+    /// End byte of the offending token (may equal `byte_start` at EOF).
+    pub byte_end: usize,
+    /// The offending symbol, or `None` when no token could be lexed.
+    pub found: Option<SymbolId>,
+    /// True when the failure is at end of input (the found symbol is EOF).
+    pub found_is_eof: bool,
+    /// Terminals with a shift, reduce, or accept action on a stack top.
+    pub expected: Vec<SymbolId>,
+}
+
+fn unexpected_token_message(unexpected: &GlrUnexpectedToken) -> String {
+    if unexpected.found_is_eof {
+        format!(
+            "unexpected end of input at byte {} (EOF)",
+            unexpected.byte_start
+        )
+    } else {
+        format!("unexpected token at byte {}", unexpected.byte_start)
+    }
+}
+
 /// Error type for GLR parsing operations
 #[derive(thiserror::Error, Debug)]
 pub enum GlrError {
@@ -32,6 +62,9 @@ pub enum GlrError {
     /// Parse error
     #[error("parse error: {0}")]
     Parse(String),
+    /// Structured unexpected-token failure with expected terminals.
+    #[error("{}", unexpected_token_message(.0))]
+    UnexpectedToken(Box<GlrUnexpectedToken>),
     /// Other error
     #[error("{0}")]
     Other(String),
@@ -60,6 +93,9 @@ pub struct Driver<'t> {
     /// LR tables used by the driver
     #[allow(dead_code)]
     tables: &'t ParseTable,
+    /// End of the last token-stream token, for EOF failure positions
+    /// when the forest carries no source text.
+    last_token_end: usize,
     /// Telemetry instance for performance monitoring
     #[cfg(feature = "glr_telemetry")]
     telemetry: Option<&'t Telemetry>,
@@ -117,9 +153,48 @@ impl<'t> Driver<'t> {
 
         Self {
             tables,
+            last_token_end: 0,
             #[cfg(feature = "glr_telemetry")]
             telemetry: None,
         }
+    }
+
+    /// Terminals with a real action on at least one of the given stack
+    /// tops. Extras are excluded: they are always lexable and listing them
+    /// as expected tokens would mislead diagnostics.
+    fn expected_terminals_for_tops(&self, tops: &[StateId]) -> Vec<SymbolId> {
+        let mut expected = Vec::new();
+        // Symbol ids can be sparse in hand-built tables, so visit the
+        // mapped symbols rather than assuming dense `0..symbol_count`.
+        let mut symbols: Vec<SymbolId> = self.tables.symbol_to_index.keys().copied().collect();
+        symbols.sort_unstable();
+        for sym in symbols {
+            if self.tables.nonterminal_to_index.contains_key(&sym)
+                || self.tables.extras.contains(&sym)
+            {
+                continue;
+            }
+            let actionable = tops.iter().any(|top| {
+                self.tables.actions(*top, sym).iter().any(|action| {
+                    matches!(
+                        action,
+                        Action::Shift(_) | Action::Reduce(_) | Action::Accept | Action::Fork(_)
+                    )
+                })
+            });
+            if actionable {
+                expected.push(sym);
+            }
+        }
+        expected
+    }
+
+    /// Stack-top states for structured failure reporting.
+    fn stack_tops(stacks: &[ParseStack]) -> Vec<StateId> {
+        stacks
+            .iter()
+            .filter_map(|stk| stk.top_state().ok())
+            .collect()
     }
 
     /// Set telemetry instance for performance monitoring
@@ -374,9 +449,14 @@ impl<'t> Driver<'t> {
                 }
 
                 // If we can't recover, fail
-                return Err(GlrError::Parse(
-                    "input not accepted: no valid parse and recovery failed".to_string(),
-                ));
+                let tops = Self::stack_tops(&state.stacks);
+                return Err(GlrError::UnexpectedToken(Box::new(GlrUnexpectedToken {
+                    byte_start: token_start,
+                    byte_end: token_end,
+                    found: Some(token_sym),
+                    found_is_eof: token_sym == self.tables.eof_symbol,
+                    expected: self.expected_terminals_for_tops(&tops),
+                })));
             } else {
                 // Track forks when we have multiple stacks from a single parent
                 #[cfg(feature = "glr_telemetry")]
@@ -447,6 +527,7 @@ impl<'t> Driver<'t> {
             ),
         >,
     {
+        self.last_token_end = 0;
         // Initialize state with grammar from parse table
         // Use initial_state from ParseTable (default 0, Tree-sitter uses 1)
         let mut state = GlrState {
@@ -468,6 +549,7 @@ impl<'t> Driver<'t> {
 
         // Main token loop
         for (kind, start, end) in tokens.into_iter() {
+            self.last_token_end = self.last_token_end.max(end as usize);
             // Add debug assert for token width
             debug_assert!(kind <= u16::MAX as u32, "terminal id overflow");
             let lookahead = SymbolId(kind as u16);
@@ -629,18 +711,14 @@ impl<'t> Driver<'t> {
                 }
 
                 // If insertion didn't help, fail
-                let top_state = if !state.stacks.is_empty() {
-                    *state.stacks[0]
-                        .states
-                        .last()
-                        .unwrap_or(&self.tables.initial_state)
-                } else {
-                    self.tables.initial_state
-                };
-                return Err(GlrError::Parse(format!(
-                    "no valid parse paths at byte {} (state={}, symbol={})",
-                    start, top_state.0, lookahead.0
-                )));
+                let tops = Self::stack_tops(&state.stacks);
+                return Err(GlrError::UnexpectedToken(Box::new(GlrUnexpectedToken {
+                    byte_start: start as usize,
+                    byte_end: end as usize,
+                    found: Some(lookahead),
+                    found_is_eof: lookahead == self.tables.eof_symbol,
+                    expected: self.expected_terminals_for_tops(&tops),
+                })));
             } else {
                 if new_stacks.len() > Self::MAX_ACTIVE_STACKS {
                     return Err(GlrError::Parse(format!(
@@ -665,6 +743,7 @@ impl<'t> Driver<'t> {
             state.stacks.len()
         );
 
+        let eof_tops = Self::stack_tops(&state.stacks);
         let stacks = std::mem::take(&mut state.stacks);
         for stk in stacks {
             for stk in self.reduce_closure_stacks(&mut state, vec![stk], eof)? {
@@ -763,11 +842,19 @@ impl<'t> Driver<'t> {
             return Ok(Self::wrap_forest(state.forest));
         }
 
-        Err(GlrError::Parse(format!(
-            "input not accepted: EOF phase failed (expected start symbol {}, got {} root(s))",
-            self.tables.start_symbol().0,
-            state.forest.roots.len()
-        )))
+        let eof_byte = if state.forest.source.is_empty() {
+            // Token-stream parses carry no source text in the forest.
+            self.last_token_end
+        } else {
+            state.forest.source.len()
+        };
+        Err(GlrError::UnexpectedToken(Box::new(GlrUnexpectedToken {
+            byte_start: eof_byte,
+            byte_end: eof_byte,
+            found: Some(eof),
+            found_is_eof: true,
+            expected: self.expected_terminals_for_tops(&eof_tops),
+        })))
     }
 
     #[inline]

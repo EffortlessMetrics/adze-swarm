@@ -525,6 +525,8 @@ fn format_error(error: &ParseError, input: &str) -> String {
             format!("{}:{}: Failed to parse node ({} sub-errors)", 
                    line_num, col_num, errors.len())
         }
+        // ParseErrorReason is #[non_exhaustive]: future variants land here.
+        _ => format!("{}:{}: {}", line_num, col_num, error),
     }
 }
 
