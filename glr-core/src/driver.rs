@@ -306,14 +306,10 @@ impl<'t> Driver<'t> {
 
                 // Choose best candidate using the documented global lexical commitment policy (#928)
                 if candidates.is_empty() {
-                    let tops = Self::stack_tops(&state.stacks);
-                    return Err(GlrError::UnexpectedToken(Box::new(GlrUnexpectedToken {
-                        byte_start: pos,
-                        byte_end: pos,
-                        found: None,
-                        found_is_eof: false,
-                        expected: self.expected_terminals_for_tops(&tops),
-                    })));
+                    return Err(GlrError::Parse(format!(
+                        "cannot lex at byte {}: no valid tokens",
+                        pos
+                    )));
                 }
 
                 let stack_tops: Vec<StateId> = state
