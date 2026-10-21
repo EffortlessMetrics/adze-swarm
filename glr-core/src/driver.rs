@@ -36,8 +36,21 @@ pub struct GlrUnexpectedToken {
     pub byte_end: usize,
     /// The offending symbol, or `None` when no token could be lexed.
     pub found: Option<SymbolId>,
+    /// True when the failure is at end of input (the found symbol is EOF).
+    pub found_is_eof: bool,
     /// Terminals with a shift, reduce, or accept action on a stack top.
     pub expected: Vec<SymbolId>,
+}
+
+fn unexpected_token_message(unexpected: &GlrUnexpectedToken) -> String {
+    if unexpected.found_is_eof {
+        format!(
+            "unexpected end of input at byte {} (EOF)",
+            unexpected.byte_start
+        )
+    } else {
+        format!("unexpected token at byte {}", unexpected.byte_start)
+    }
 }
 
 /// Error type for GLR parsing operations
@@ -50,7 +63,7 @@ pub enum GlrError {
     #[error("parse error: {0}")]
     Parse(String),
     /// Structured unexpected-token failure with expected terminals.
-    #[error("unexpected token at byte {}", .0.byte_start)]
+    #[error("{}", unexpected_token_message(.0))]
     UnexpectedToken(Box<GlrUnexpectedToken>),
     /// Other error
     #[error("{0}")]
@@ -298,6 +311,7 @@ impl<'t> Driver<'t> {
                         byte_start: pos,
                         byte_end: pos,
                         found: None,
+                        found_is_eof: false,
                         expected: self.expected_terminals_for_tops(&tops),
                     })));
                 }
@@ -444,6 +458,7 @@ impl<'t> Driver<'t> {
                     byte_start: token_start,
                     byte_end: token_end,
                     found: Some(token_sym),
+                    found_is_eof: token_sym == self.tables.eof_symbol,
                     expected: self.expected_terminals_for_tops(&tops),
                 })));
             } else {
@@ -704,6 +719,7 @@ impl<'t> Driver<'t> {
                     byte_start: start as usize,
                     byte_end: end as usize,
                     found: Some(lookahead),
+                    found_is_eof: lookahead == self.tables.eof_symbol,
                     expected: self.expected_terminals_for_tops(&tops),
                 })));
             } else {
@@ -839,6 +855,7 @@ impl<'t> Driver<'t> {
             byte_start: eof_byte,
             byte_end: eof_byte,
             found: Some(eof),
+            found_is_eof: true,
             expected: self.expected_terminals_for_tops(&eof_tops),
         })))
     }
