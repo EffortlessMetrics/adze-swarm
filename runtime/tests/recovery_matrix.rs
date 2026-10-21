@@ -36,31 +36,31 @@ fn generated_cases() -> Vec<GeneratedRecoveryCase> {
             label: "unexpected EOF",
             source: "1 +",
             byte_span: 3..3,
-            expected_token: r"/\d+/",
+            expected_token: "number",
         },
         GeneratedRecoveryCase {
             label: "unexpected EOF after trailing newline",
             source: "1 +\n",
             byte_span: 4..4,
-            expected_token: r"/\d+/",
+            expected_token: "number",
         },
         GeneratedRecoveryCase {
             label: "invalid ASCII token",
             source: "1 + @",
             byte_span: 4..5,
-            expected_token: r"/\d+/",
+            expected_token: "number",
         },
         GeneratedRecoveryCase {
             label: "invalid UTF-8 scalar",
             source: "1 + \u{03bb}",
             byte_span: 4..6,
-            expected_token: r"/\d+/",
+            expected_token: "number",
         },
         GeneratedRecoveryCase {
             label: "multiline invalid token",
             source: "1 +\n@",
             byte_span: 4..5,
-            expected_token: r"/\d+/",
+            expected_token: "number",
         },
     ]
 }
@@ -83,7 +83,7 @@ fn object_like_cases() -> Vec<ObjectLikeRecoveryCase> {
             label: "multiline invalid value after colon",
             source: "{\n name: nope\n}",
             byte_span: 9..10,
-            expected_token: r"/\d+/",
+            expected_token: "number",
         },
         ObjectLikeRecoveryCase {
             label: "multiline unexpected EOF after entry",

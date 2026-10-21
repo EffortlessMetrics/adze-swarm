@@ -128,7 +128,7 @@ fn readme_bad_input_reports_useful_diagnostic() {
         "diagnostic should report expected tokens"
     );
     assert!(
-        first.expected.iter().any(|name| name == r"/\d+/"),
+        first.expected.iter().any(|name| name == "number"),
         "diagnostic should name the expected number token, got {:?}",
         first.expected
     );
@@ -224,7 +224,7 @@ fn getting_started_bad_input_reports_useful_diagnostic() {
         "diagnostic should report expected tokens"
     );
     assert!(
-        first.expected.iter().any(|name| name == r"/\d+/"),
+        first.expected.iter().any(|name| name == "number"),
         "diagnostic should name the expected number token, got {:?}",
         first.expected
     );
@@ -324,7 +324,7 @@ fn book_bad_input_reports_useful_diagnostic() {
         "diagnostic should point at the invalid token"
     );
     assert!(
-        first.expected.iter().any(|name| name == r"/\d+/"),
+        first.expected.iter().any(|name| name == "number"),
         "diagnostic should name the expected number token, got {:?}",
         first.expected
     );

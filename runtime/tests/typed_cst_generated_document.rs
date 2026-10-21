@@ -86,7 +86,7 @@ fn generated_parse_document_diagnostics_preserve_expected_tokens() {
     );
     assert_eq!(related_node.byte_range(), diagnostic.byte_span());
     assert!(
-        diagnostic.expected.iter().any(|token| token == r"/\d+/"),
+        diagnostic.expected.iter().any(|token| token == "number"),
         "document diagnostic should preserve generated expected token names: {:?}",
         diagnostic.expected
     );
@@ -181,11 +181,11 @@ fn generated_parse_document_bad_token_message_names_offending_byte() {
 
     let rendered = diagnostic.display_with_source(source).to_string();
     assert!(
-        rendered.contains("@; expected one of: /\\d+/"),
+        rendered.contains("@; expected one of: number"),
         "rendered document diagnostic should name the offending byte: {rendered}"
     );
     assert!(
-        rendered.contains("expected one of: /\\d+/"),
+        rendered.contains("expected one of: number"),
         "rendered document diagnostic should retain expected-token text: {rendered}"
     );
 }
@@ -238,7 +238,7 @@ fn generated_parse_document_diagnostics_include_multibyte_byte_span() {
     );
     assert_eq!(diagnostic.expected, parse_error.expected);
     assert!(
-        diagnostic.expected.iter().any(|token| token == r"/\d+/"),
+        diagnostic.expected.iter().any(|token| token == "number"),
         "document diagnostic should preserve generated expected token names: {:?}",
         diagnostic.expected
     );

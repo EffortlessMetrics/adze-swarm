@@ -63,7 +63,7 @@ fn cookbook_document_and_diagnostic_recipes_cover_tooling_path() {
         .expect("diagnostic recipe should expose a structured diagnostic");
     assert_eq!(diagnostic.byte_span(), 3..3);
     assert!(
-        diagnostic.expected.iter().any(|token| token == r"/\d+/"),
+        diagnostic.expected.iter().any(|token| token == "number"),
         "diagnostic recipe should expose expected-token names: {:?}",
         diagnostic.expected
     );
