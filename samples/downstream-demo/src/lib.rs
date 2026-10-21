@@ -52,7 +52,7 @@ mod tests {
 
         assert_eq!(first.byte_span(), 4..5);
         assert!(
-            first.expected.iter().any(|name| name == r"/\d+/"),
+            first.expected.iter().any(|name| name == "number"),
             "expected token set should name the number token, got {:?}",
             first.expected
         );
@@ -144,7 +144,7 @@ mod acceptance_tests {
 
         // Expected tokens are human-readable (not opaque IDs)
         assert!(
-            first.expected.iter().any(|name| name == r"/\d+/"),
+            first.expected.iter().any(|name| name == "number"),
             "expected token names, got {:?}",
             first.expected
         );
