@@ -4,8 +4,8 @@
 
 use crate::decoder::{decode_grammar, decode_rule_fields};
 use crate::glr_parser::{
-    AlternativeSummary, AmbiguitySummary, SelectionReason, subtree_node_count,
-    subtree_selection_key,
+    AlternativeSummary, AmbiguitySummary, SelectionReason, canonicalize_alternatives,
+    subtree_node_count, subtree_selection_key,
 };
 use crate::glr_streaming_internal_lexer::make_generated_internal_streaming_lexer;
 use crate::glr_streaming_lex_contract::{
@@ -327,10 +327,18 @@ pub fn materialize_streaming_forest(
             span_start = span_start.min(alt.span.start);
             span_end = span_end.max(alt.span.end);
         }
-        Some(AmbiguitySummary {
+        let structural_keys = subtrees
+            .iter()
+            .map(|subtree| subtree_selection_key(subtree))
+            .collect();
+        let (alternatives, selected) =
+            canonicalize_alternatives(alternatives, structural_keys, Some(selected_index));
+        // Distinct roots can still describe the same parse; that is not an
+        // ambiguity worth reporting.
+        (alternatives.len() > 1).then_some(AmbiguitySummary {
             span: span_start..span_end,
             alternatives,
-            selected: Some(selected_index),
+            selected,
             selection_reason: SelectionReason::StableStructuralTieBreak,
         })
     } else {

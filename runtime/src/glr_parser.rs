@@ -142,7 +142,7 @@ mod recovery;
 mod telemetry;
 
 pub use ambiguity::{AlternativeSummary, AmbiguitySummary, SelectionReason};
-pub(crate) use ambiguity::{subtree_node_count, subtree_selection_key};
+pub(crate) use ambiguity::{canonicalize_alternatives, subtree_node_count, subtree_selection_key};
 #[allow(unused_imports)]
 pub use config::{DEFAULT_SAFE_DEDUP_THRESHOLD, safe_dedup_threshold};
 pub use parse_stack::ParseStack;
@@ -1635,25 +1635,30 @@ impl GLRParser {
 
         let mut span_start = usize::MAX;
         let mut span_end = 0usize;
-        let alternatives = complete_stacks
-            .iter()
-            .enumerate()
-            .map(|(index, stack_index)| {
-                let stack = &self.stacks[*stack_index];
-                let node = &stack.nodes[0];
-                span_start = span_start.min(node.node.byte_range.start);
-                span_end = span_end.max(node.node.byte_range.end);
-                AlternativeSummary {
-                    index,
-                    root_symbol: node.node.symbol_id,
-                    span: node.node.byte_range.clone(),
-                    dynamic_precedence: stack.version.dynamic_prec,
-                    in_error: stack.version.in_error,
-                    cost: stack.version.cost,
-                    node_count: subtree_node_count(node),
-                }
-            })
-            .collect();
+        let mut alternatives = Vec::with_capacity(complete_stacks.len());
+        let mut structural_keys = Vec::with_capacity(complete_stacks.len());
+        for (index, stack_index) in complete_stacks.iter().enumerate() {
+            let stack = &self.stacks[*stack_index];
+            let node = &stack.nodes[0];
+            span_start = span_start.min(node.node.byte_range.start);
+            span_end = span_end.max(node.node.byte_range.end);
+            structural_keys.push(subtree_selection_key(node));
+            alternatives.push(AlternativeSummary {
+                index,
+                root_symbol: node.node.symbol_id,
+                span: node.node.byte_range.clone(),
+                dynamic_precedence: stack.version.dynamic_prec,
+                in_error: stack.version.in_error,
+                cost: stack.version.cost,
+                node_count: subtree_node_count(node),
+            });
+        }
+        let (alternatives, selected_index) =
+            canonicalize_alternatives(alternatives, structural_keys, selected_index);
+        if alternatives.len() < 2 {
+            // Every retained stack described the same distinct parse.
+            return Ok(None);
+        }
 
         Ok(Some(AmbiguitySummary {
             span: span_start..span_end,

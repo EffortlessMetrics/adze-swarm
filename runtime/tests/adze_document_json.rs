@@ -420,9 +420,20 @@ fn parse_document_json_serializes_glr_ambiguity_summary() {
     let alternatives = ambiguity["alternatives"]
         .as_array()
         .expect("ambiguity JSON should serialize retained alternatives");
-    assert!(
-        alternatives.len() >= 2,
-        "ambiguity JSON should retain multiple alternatives: {alternatives:?}"
+    assert_eq!(
+        alternatives.len(),
+        2,
+        "ambiguity JSON should retain exactly the two distinct parses of 1 + 2 + 3 with exact duplicates removed: {alternatives:?}"
+    );
+    assert_eq!(
+        alternatives[0]["index"].as_u64(),
+        Some(0),
+        "canonical alternatives should be re-indexed from zero: {alternatives:?}"
+    );
+    assert_eq!(
+        alternatives[1]["index"].as_u64(),
+        Some(1),
+        "canonical alternatives should be re-indexed from zero: {alternatives:?}"
     );
 
     let selected_alternative = alternatives
@@ -450,6 +461,50 @@ fn parse_document_json_serializes_glr_ambiguity_summary() {
         "adze_document_json_ambiguity",
         serde_json::to_string_pretty(&snapshot_json)
             .expect("ambiguous document JSON should render as pretty JSON")
+    );
+}
+
+#[test]
+#[cfg(feature = "glr")]
+fn test_document_json_ambiguity_repeated_parses_remain_deterministic() {
+    use adze_example::ambiguous_expr::grammar;
+
+    let first = grammar::parse_document("1 + 2 + 3")
+        .expect("generated parse_document helper should return an ambiguous AdzeDocument");
+    let first_rendered = serde_json::to_string(&first.to_json_value())
+        .expect("ambiguous document JSON should render");
+
+    for _ in 0..24 {
+        let document = grammar::parse_document("1 + 2 + 3")
+            .expect("generated parse_document helper should return an ambiguous AdzeDocument");
+        let rendered = serde_json::to_string(&document.to_json_value())
+            .expect("ambiguous document JSON should render");
+        assert_eq!(
+            rendered, first_rendered,
+            "repeated parses in one process should serialize byte-identical document JSON"
+        );
+    }
+
+    let ambiguities = first.ambiguities();
+    assert_eq!(
+        ambiguities.len(),
+        1,
+        "ambiguous expression should retain exactly one native ambiguity summary"
+    );
+    assert_eq!(
+        ambiguities[0].alternatives.len(),
+        2,
+        "native ambiguity summary should retain exactly the two distinct parses"
+    );
+    let selected = ambiguities[0]
+        .selected
+        .expect("native ambiguity summary should identify the selected alternative");
+    assert!(
+        ambiguities[0]
+            .alternatives
+            .iter()
+            .any(|alternative| alternative.index == selected),
+        "selected index should point at a canonical alternative: {ambiguities:?}"
     );
 }
 
