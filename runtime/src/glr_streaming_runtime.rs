@@ -573,12 +573,43 @@ fn rhs_symbol_ids(rhs: &[Symbol]) -> Vec<SymbolId> {
 pub(crate) fn glr_error_to_parse_errors(
     input: &str,
     error: GlrError,
+    language: &'static TSLanguage,
 ) -> Vec<crate::errors::ParseError> {
     let source_len = input.len();
+    if let GlrError::UnexpectedToken(unexpected) = &error {
+        let start = unexpected.byte_start.min(source_len);
+        let end = if unexpected.byte_end > start {
+            unexpected.byte_end.min(source_len)
+        } else if start < source_len {
+            diagnostic_end_for_byte(input.as_bytes(), start)
+        } else {
+            source_len
+        };
+        let expected = glr_expected_token_names(language, &unexpected.expected);
+        let found_name = match unexpected.found {
+            Some(found) => glr_found_token_name(language, found),
+            None if start < source_len => input
+                .get(start..)
+                .and_then(|rest| rest.chars().next())
+                .map(|ch| ch.to_string())
+                .unwrap_or_else(|| "end of input".to_string()),
+            None => "end of input".to_string(),
+        };
+        return vec![crate::errors::ParseError {
+            reason: crate::errors::ParseErrorReason::UnexpectedToken(
+                crate::diagnostic_format::unexpected_token_message(found_name, expected.clone()),
+            ),
+            start,
+            end,
+            expected,
+        }];
+    }
+
     let (start, message) = match error {
         GlrError::Lex(message) | GlrError::Parse(message) | GlrError::Other(message) => {
             (extract_byte_offset(&message).unwrap_or(0), message)
         }
+        GlrError::UnexpectedToken(_) => unreachable!("handled above"),
     };
     let end = if start < source_len {
         diagnostic_end_for_byte(input.as_bytes(), start)
@@ -591,6 +622,47 @@ pub(crate) fn glr_error_to_parse_errors(
         end,
         expected: vec![],
     }]
+}
+
+/// Generated name for a structured GLR failure symbol, with the EOF
+/// symbol rendered as `end of input` like the LR diagnostics.
+fn glr_found_token_name(language: &'static TSLanguage, found: SymbolId) -> String {
+    if found.0 == language.eof_symbol {
+        return "end of input".to_string();
+    }
+    glr_symbol_name(language, found)
+}
+
+/// Sorted, deduplicated diagnostic names for structured GLR expected
+/// terminals, mirroring the LR expected-name contract.
+fn glr_expected_token_names(language: &'static TSLanguage, expected: &[SymbolId]) -> Vec<String> {
+    let mut names: Vec<String> = expected
+        .iter()
+        .map(|symbol| glr_symbol_name(language, *symbol))
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
+
+fn glr_symbol_name(language: &'static TSLanguage, symbol: SymbolId) -> String {
+    if (symbol.0 as usize) >= language.symbol_count as usize || language.symbol_names.is_null() {
+        return format!("symbol {}", symbol.0);
+    }
+
+    // SAFETY: the symbol index is bounds-checked against `symbol_count`,
+    // and generated language metadata points to static name arrays.
+    let symbol_ptr = unsafe { *language.symbol_names.add(symbol.0 as usize) };
+    if symbol_ptr.is_null() {
+        return format!("symbol {}", symbol.0);
+    }
+
+    let raw_name = unsafe {
+        std::ffi::CStr::from_ptr(symbol_ptr as *const std::os::raw::c_char)
+            .to_string_lossy()
+            .to_string()
+    };
+    crate::diagnostic_format::diagnostic_symbol_name(raw_name)
 }
 
 fn extract_byte_offset(message: &str) -> Option<usize> {

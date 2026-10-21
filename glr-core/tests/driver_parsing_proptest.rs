@@ -480,6 +480,7 @@ proptest! {
             GlrError::Lex(_) => 0u8,
             GlrError::Parse(_) => 1,
             GlrError::Other(_) => 2,
+            GlrError::UnexpectedToken(_) => 3,
         };
         prop_assert_eq!(variant.min(2), matched);
     }

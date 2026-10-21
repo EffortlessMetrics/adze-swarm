@@ -711,6 +711,29 @@ fn driver_reuse_after_error() {
 }
 
 #[test]
+fn test_driver_reuse_when_second_parse_empty_error_at_byte_zero() {
+    let table = single_token_table();
+    let mut driver = Driver::new(&table);
+
+    driver
+        .parse_tokens([(1, 0, 5)].iter().copied())
+        .expect("first parse should succeed");
+
+    let result = driver.parse_tokens(std::iter::empty::<(u32, u32, u32)>());
+    let err = match result {
+        Ok(_) => panic!("empty second parse should fail"),
+        Err(err) => err,
+    };
+    match err {
+        GlrError::UnexpectedToken(unexpected) => {
+            assert_eq!(unexpected.byte_start, 0);
+            assert!(unexpected.found_is_eof);
+        }
+        other => panic!("expected structured unexpected-token error, got {other:?}"),
+    }
+}
+
+#[test]
 fn driver_reuse_multiple_successes() {
     let table = two_token_table();
     let mut driver = Driver::new(&table);
