@@ -466,7 +466,7 @@ fn parse_document_json_serializes_glr_ambiguity_summary() {
 
 #[test]
 #[cfg(feature = "glr")]
-fn parse_document_json_ambiguity_summary_is_deterministic_across_repeated_parses() {
+fn test_document_json_ambiguity_repeated_parses_remain_deterministic() {
     use adze_example::ambiguous_expr::grammar;
 
     let first = grammar::parse_document("1 + 2 + 3")
