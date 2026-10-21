@@ -125,6 +125,85 @@ fn test_init_generates_buildable_project() {
         .success();
 }
 
+fn write_tiny_project(dir: &std::path::Path, package: &str, test_name: &str, passes: bool) {
+    std::fs::create_dir_all(dir.join("src")).expect("create tiny project src");
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        format!("[package]\nname = \"{package}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n"),
+    )
+    .expect("write tiny project manifest");
+    let assertion = if passes {
+        "assert_eq!(1 + 1, 2);"
+    } else {
+        "assert_eq!(1 + 1, 3, \"target failure marker\");"
+    };
+    std::fs::write(
+        dir.join("src/lib.rs"),
+        format!(
+            "#[cfg(test)]\nmod tests {{\n    #[test]\n    fn {test_name}() {{ {assertion} }}\n}}\n"
+        ),
+    )
+    .expect("write tiny project lib");
+}
+
+#[test]
+fn test_cli_test_failing_target_from_passing_caller_reports_failure() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let caller = temp.path().join("passing caller");
+    let target = temp.path().join("failing-target");
+    write_tiny_project(&caller, "passing_caller", "passing_caller_test", true);
+    write_tiny_project(&target, "failing_target", "failing_target_test", false);
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.current_dir(&caller)
+        .arg("test")
+        .arg(&target)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("failing_target_test"));
+}
+
+#[test]
+fn test_cli_test_passing_target_from_failing_caller_reports_success() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let caller = temp.path().join("failing-caller");
+    let target = temp.path().join("passing target");
+    write_tiny_project(&caller, "failing_caller", "failing_caller_test", false);
+    write_tiny_project(&target, "passing_target", "passing_target_test", true);
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.current_dir(&caller)
+        .arg("test")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("All tests passed!"));
+}
+
+#[test]
+fn test_cli_test_missing_or_nonproject_path_fails_before_cargo() {
+    let temp = tempfile::tempdir().expect("tempdir");
+
+    let mut missing = cargo_bin_cmd!("adze");
+    missing
+        .current_dir(temp.path())
+        .arg("test")
+        .arg(temp.path().join("does-not-exist"))
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("does not exist"));
+
+    let not_a_project = temp.path().join("not-a-project");
+    std::fs::create_dir_all(&not_a_project).expect("create non-project dir");
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.current_dir(temp.path())
+        .arg("test")
+        .arg(&not_a_project)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("does not contain a Cargo.toml"));
+}
+
 #[test]
 fn test_init_project_supports_cli_stats_and_check_end_to_end() {
     let temp = tempfile::tempdir().expect("tempdir");

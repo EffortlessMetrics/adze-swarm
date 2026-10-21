@@ -1225,16 +1225,48 @@ fn toml_basic_string_literal(value: &str) -> String {
     escaped
 }
 
-fn test_grammar(_path: &Path, update: bool) -> Result<()> {
+/// Resolve the `Cargo.toml` for the project `adze test` was asked to test.
+///
+/// Accepts a project directory (the documented form) or a direct path to a
+/// `Cargo.toml`. Anything else fails before Cargo is spawned.
+fn resolve_project_manifest(path: &Path) -> Result<PathBuf> {
+    if !path.exists() {
+        anyhow::bail!("test path {} does not exist", path.display());
+    }
+
+    if path.is_file() {
+        if path.file_name().is_some_and(|name| name == "Cargo.toml") {
+            return Ok(path.to_path_buf());
+        }
+        anyhow::bail!(
+            "test path {} is not a project directory or Cargo.toml",
+            path.display()
+        );
+    }
+
+    let manifest_path = path.join("Cargo.toml");
+    if !manifest_path.is_file() {
+        anyhow::bail!("test path {} does not contain a Cargo.toml", path.display());
+    }
+    Ok(manifest_path)
+}
+
+fn test_grammar(path: &Path, update: bool) -> Result<()> {
     println!("{} Testing grammar...", "🧪".blue());
 
     if update {
         println!("  {} Updating snapshots", "📸".yellow());
     }
 
-    // Run cargo test
+    // Resolve and validate the requested project before spawning Cargo so a
+    // passing caller directory can never mask the target project's result.
+    let manifest_path = resolve_project_manifest(path)?;
+
+    // Run cargo test for the requested project only.
     let mut cmd = std::process::Command::new("cargo");
     cmd.arg("test");
+    cmd.arg("--manifest-path");
+    cmd.arg(&manifest_path);
     if update {
         cmd.env("INSTA_UPDATE", "always");
     }
