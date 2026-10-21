@@ -81,7 +81,7 @@ pub fn lex_generated_internal_at(
             return Ok(None);
         }
         if extra_skips > MAX_EXTRA_SKIPS {
-            return Err(StreamingInternalLexError::ExtraSkipBudgetExceeded { pos });
+            return Err(StreamingInternalLexError::ExtraSkipBudgetExceeded { pos: cursor });
         }
 
         let start = cursor;
@@ -197,12 +197,44 @@ fn lex_once(
 /// Build a `Driver::parse_streaming` internal-lexer closure for a generated language.
 pub fn make_generated_internal_streaming_lexer(
     language: &'static TSLanguage,
-) -> impl FnMut(&str, usize, LexMode) -> Option<NextToken> + 'static {
-    move |input, pos, mode| {
-        lex_generated_internal_at(language, input, pos, mode)
-            .ok()
-            .flatten()
-    }
+) -> (
+    impl FnMut(&str, usize, LexMode) -> Option<NextToken> + 'static,
+    std::rc::Rc<std::cell::Cell<Option<usize>>>,
+) {
+    // The driver-facing closure can only return `Option`, so a lex failure
+    // after extras were skipped would lose the exact stall position. Record
+    // it here so the caller can build a diagnostic at the offending byte
+    // instead of the pre-extras position the driver reports.
+    let failure_pos = std::rc::Rc::new(std::cell::Cell::new(None));
+    let recorded = std::rc::Rc::clone(&failure_pos);
+    let lexer = move |input: &str, pos: usize, mode: LexMode| match lex_generated_internal_at(
+        language, input, pos, mode,
+    ) {
+        Ok(token) => {
+            // A successful lex in any mode clears an earlier mode's stall
+            // so a later diagnostic cannot reuse a stale byte.
+            if token.is_some() {
+                recorded.set(None);
+            }
+            token
+        }
+        Err(error) => {
+            // The extra-skip budget variant is not an offending byte: its
+            // position is where legitimate extras ran out, so it is never
+            // recorded as a stall.
+            let stall = match error {
+                StreamingInternalLexError::NoProgress { pos }
+                | StreamingInternalLexError::ZeroWidth { pos } => Some(pos),
+                StreamingInternalLexError::ExtraSkipBudgetExceeded { .. }
+                | StreamingInternalLexError::MissingLexerFn => None,
+            };
+            if stall.is_some() {
+                recorded.set(stall);
+            }
+            None
+        }
+    };
+    (lexer, failure_pos)
 }
 
 #[cfg(test)]
