@@ -10,7 +10,7 @@ use std::ops::Range;
 pub struct AmbiguitySummary {
     /// Byte span covered by the complete alternatives.
     pub span: Range<usize>,
-    /// Retained complete alternatives in runtime order.
+    /// Retained complete alternatives in canonical deterministic order.
     pub alternatives: Vec<AlternativeSummary>,
     /// Index of the selected alternative within [`Self::alternatives`].
     pub selected: Option<usize>,
@@ -77,6 +77,79 @@ fn append_subtree_selection_key(node: &Subtree, key: &mut SubtreeSelectionKey) {
         key.push((usize::MAX, usize::MAX, edge.field_id, 0, 0));
         append_subtree_selection_key(&edge.subtree, key);
     }
+}
+
+type AlternativeCanonicalKey = (
+    SubtreeSelectionKey,
+    i32,
+    usize,
+    bool,
+    u16,
+    usize,
+    usize,
+    usize,
+);
+
+fn alternative_canonical_key(
+    alternative: &AlternativeSummary,
+    structural_key: &SubtreeSelectionKey,
+) -> AlternativeCanonicalKey {
+    (
+        structural_key.clone(),
+        alternative.dynamic_precedence,
+        alternative.cost,
+        alternative.in_error,
+        alternative.root_symbol.0,
+        alternative.node_count,
+        alternative.span.start,
+        alternative.span.end,
+    )
+}
+
+/// Sort retained alternatives into a canonical deterministic order and drop
+/// exact duplicates.
+///
+/// Two alternatives are duplicates only when their structural keys and every
+/// serialized summary field agree; alternatives that share a summary but have
+/// different tree structures are retained. `selected` indexes into
+/// `alternatives` on input and is remapped to the canonical position of the
+/// same alternative on output.
+pub(crate) fn canonicalize_alternatives(
+    alternatives: Vec<AlternativeSummary>,
+    structural_keys: Vec<SubtreeSelectionKey>,
+    selected: Option<usize>,
+) -> (Vec<AlternativeSummary>, Option<usize>) {
+    debug_assert_eq!(alternatives.len(), structural_keys.len());
+
+    let selected_key = selected.and_then(|index| {
+        alternatives
+            .get(index)
+            .zip(structural_keys.get(index))
+            .map(|(alternative, key)| alternative_canonical_key(alternative, key))
+    });
+
+    let mut entries: Vec<(AlternativeCanonicalKey, AlternativeSummary)> = alternatives
+        .into_iter()
+        .zip(structural_keys.iter())
+        .map(|(alternative, key)| (alternative_canonical_key(&alternative, key), alternative))
+        .collect();
+    entries.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let mut seen = std::collections::HashSet::new();
+    entries.retain(|(key, _)| seen.insert(key.clone()));
+
+    let selected = selected_key.and_then(|key| entries.iter().position(|(candidate, _)| *candidate == key));
+
+    let alternatives = entries
+        .into_iter()
+        .enumerate()
+        .map(|(index, (_, mut alternative))| {
+            alternative.index = index;
+            alternative
+        })
+        .collect();
+
+    (alternatives, selected)
 }
 
 pub(crate) fn subtree_node_count(node: &Subtree) -> usize {
