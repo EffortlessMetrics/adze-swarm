@@ -655,7 +655,10 @@ fn parse_document_from_glr_errors(
                     input,
                     start_byte..end_byte,
                 ),
-                found: Some(error.reason.to_string()),
+                found: Some(match &error.reason {
+                    crate::errors::ParseErrorReason::UnexpectedEof => "end of input".to_string(),
+                    _ => error.reason.to_string(),
+                }),
                 expected: error.expected.clone(),
                 related_nodes: Vec::new(),
                 message: error.to_string(),
