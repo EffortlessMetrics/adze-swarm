@@ -962,16 +962,13 @@ fn parse_runner_cargo_toml() -> Result<String> {
     let adze_dependency = if let Some((runtime_path, _)) = local_workspace_dependency_paths() {
         format!(
             "{{ path = {}, features = [\"serialization\", \"glr\"] }}",
-            toml_basic_string_literal(&runtime_path.display().to_string())
+            scaffold_path_literal(&runtime_path)
         )
     } else {
         format!("{{ version = \"{version}\", features = [\"serialization\", \"glr\"] }}")
     };
     let tool_dependency = if let Some((_, tool_path)) = local_workspace_dependency_paths() {
-        format!(
-            "{{ path = {} }}",
-            toml_basic_string_literal(&tool_path.display().to_string())
-        )
+        format!("{{ path = {} }}", scaffold_path_literal(&tool_path))
     } else {
         format!("{{ version = \"{version}\" }}")
     };
@@ -1134,10 +1131,41 @@ fn log_dynamic_parse_mode_status(grammar: &Path, input_len: usize, format: Outpu
     );
 }
 
+/// Render a canonicalized path for a generated `Cargo.toml`.
+///
+/// Windows `canonicalize()` returns verbatim paths (`\\?\C:\...` or
+/// `\\?\UNC\server\share\...`). Those prefixes must not leak into a
+/// beginner's first project file, so strip them to the plain form Cargo
+/// and humans expect.
+fn scaffold_path_literal(path: &std::path::Path) -> String {
+    let rendered = path.display().to_string();
+    let plain_candidate = if let Some(unc) = rendered.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{unc}")
+    } else if let Some(drive) = rendered.strip_prefix(r"\\?\") {
+        drive.to_string()
+    } else {
+        rendered.clone()
+    };
+    // Verbatim paths preserve names plain Win32 parsing normalizes (for
+    // example trailing dots or spaces). Strip only when the plain spelling
+    // still resolves to the same directory.
+    let resolves_same = std::path::Path::new(&plain_candidate)
+        .canonicalize()
+        .ok()
+        .as_deref()
+        == Some(path);
+    let plain = if plain_candidate == rendered || resolves_same {
+        plain_candidate
+    } else {
+        rendered
+    };
+    toml_basic_string_literal(&plain)
+}
+
 fn scaffold_dependency_block() -> Result<String> {
     if let Some((runtime_path, tool_path)) = local_workspace_dependency_paths() {
-        let runtime_path = toml_basic_string_literal(&runtime_path.display().to_string());
-        let tool_path = toml_basic_string_literal(&tool_path.display().to_string());
+        let runtime_path = scaffold_path_literal(&runtime_path);
+        let tool_path = scaffold_path_literal(&tool_path);
         Ok(format!(
             r#"[dependencies]
 adze = {{ path = {} }}
