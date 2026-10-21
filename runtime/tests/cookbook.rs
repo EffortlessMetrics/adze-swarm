@@ -70,6 +70,94 @@ fn cookbook_document_and_diagnostic_recipes_cover_tooling_path() {
 }
 
 #[test]
+fn cookbook_document_status_range_and_slice_recipe_distinguishes_clean_and_recovered_input() {
+    use adze_example::fielded_precedence_typed_cst_contract::grammar;
+
+    // There is no complete/recovered/failed status enum on the document;
+    // the supported proxy is diagnostics plus tree error facts.
+    let clean_source = "1+2*3";
+    let clean =
+        grammar::parse_document(clean_source).expect("clean input should return a document");
+    assert!(clean.diagnostics().is_empty());
+    assert!(!clean.tree().has_errors());
+    assert_eq!(clean.metadata().error_count, 0);
+    assert_eq!(
+        clean.source_slice(clean.tree().root().byte_range()),
+        Some(clean_source),
+        "the root range should slice back to the full source"
+    );
+
+    let recovered =
+        grammar::parse_document("1 +").expect("recovered input should still return a document");
+    assert!(!recovered.diagnostics().is_empty());
+    assert!(recovered.tree().has_errors());
+    assert!(recovered.metadata().error_count > 0);
+}
+
+#[test]
+fn cookbook_typed_cst_fields_stay_on_document_recipe() {
+    use adze_example::fielded_precedence_typed_cst_contract::grammar::{self, Expr};
+
+    let source = "1+2";
+    let document = grammar::parse_document(source).expect("document should parse");
+    let add = find_kind(document.tree().root(), "Expr_Add")
+        .expect("generic document tree should contain the Add node");
+    let left = add
+        .edge_by_field_name("left")
+        .and_then(|edge| edge.child())
+        .expect("Add node should expose a left field edge");
+    let right = add
+        .edge_by_field_name("right")
+        .and_then(|edge| edge.child())
+        .expect("Add node should expose a right field edge");
+    assert_eq!(left.utf8_text().ok(), Some("1"));
+    assert_eq!(right.utf8_text().ok(), Some("2"));
+
+    let typed = grammar::parse(source).expect("typed parser should parse");
+    assert_eq!(
+        typed,
+        Expr::Add {
+            left: Box::new(Expr::Number(1)),
+            operator: (),
+            right: Box::new(Expr::Number(2)),
+        },
+        "generic field edges and the typed AST should describe the same fields"
+    );
+}
+
+#[cfg(feature = "serialization")]
+#[test]
+fn cookbook_document_json_projection_uses_pinned_schema_recipe() {
+    use adze::document::ADZE_DOCUMENT_JSON_SCHEMA;
+    use adze_example::fielded_precedence_typed_cst_contract::grammar;
+
+    let document = grammar::parse_document("1+2").expect("document should parse");
+    let json = document.to_json_value();
+    assert_eq!(
+        json["schema"].as_str(),
+        Some(ADZE_DOCUMENT_JSON_SCHEMA),
+        "JSON projection should carry the pinned experimental schema id"
+    );
+}
+
+fn find_kind<'doc>(
+    node: adze::document::AdzeNode<'doc>,
+    kind_name: &str,
+) -> Option<adze::document::AdzeNode<'doc>> {
+    if node.kind_name() == Some(kind_name) {
+        return Some(node);
+    }
+    let mut index = 0;
+    while let Some(child) = node.child(index) {
+        if let Some(found) = find_kind(child, kind_name) {
+            return Some(found);
+        }
+        index += 1;
+    }
+    None
+}
+
+#[test]
 fn cookbook_glr_and_ts_compat_recipes_cover_selected_tree_and_ambiguity() {
     use adze_example::ambiguous_expr::grammar::{self, Expr};
 
