@@ -544,6 +544,16 @@ fn select_start_symbol(lang: &TSLanguage, tcols: usize, rules: &[ParseRule]) -> 
     let nt_symbols: Vec<_> = lhs_symbols.into_iter().filter(|s| is_nt(*s)).collect();
     let start = if nt_symbols.is_empty() {
         SymbolId((tcols + 1) as u16)
+    } else if let Some(source_file) = nt_symbols
+        .iter()
+        .filter(|s| symbol_name(lang, **s).as_deref() == Some("source_file"))
+        .min_by_key(|s| s.0)
+        .copied()
+    {
+        // Generated grammars always name the augmented start rule
+        // `source_file`; it is the canonical document root regardless of
+        // how the remaining nonterminals are ordered.
+        source_file
     } else {
         let fallback = nt_symbols
             .first()
@@ -568,19 +578,26 @@ fn select_start_symbol(lang: &TSLanguage, tcols: usize, rules: &[ParseRule]) -> 
     start
 }
 
-fn is_meaningful_start_symbol(lang: &TSLanguage, symbol: SymbolId) -> bool {
-    if symbol.0 as usize >= lang.symbol_count as usize {
-        return true;
+/// Resolve a rule LHS to its generated name. Decoded rule LHS values are
+/// table column indices, and `symbol_names` is indexed by column, so the
+/// lookup is direct. (Document roots use public symbol ids instead; the
+/// two spaces must not be mixed.)
+fn symbol_name(lang: &TSLanguage, symbol: SymbolId) -> Option<String> {
+    let column = symbol.0 as usize;
+    if column >= lang.symbol_count as usize {
+        return None;
     }
 
-    let Some(name_ptr) = (unsafe { lang.symbol_names.add(symbol.0 as usize).as_ref() }) else {
-        return true;
-    };
+    let name_ptr = unsafe { lang.symbol_names.add(column).as_ref() }?;
 
     // SAFETY: `*name_ptr` is a pointer to a null-terminated C string per TSLanguage contract.
     let name = unsafe { CStr::from_ptr(*name_ptr as *const c_char) };
-    name.to_str()
-        .map(|name_str| !name_str.contains("repeat") && !name_str.starts_with('_'))
+    name.to_str().ok().map(ToOwned::to_owned)
+}
+
+fn is_meaningful_start_symbol(lang: &TSLanguage, symbol: SymbolId) -> bool {
+    symbol_name(lang, symbol)
+        .map(|name| !name.contains("repeat") && !name.starts_with('_'))
         .unwrap_or(true)
 }
 
