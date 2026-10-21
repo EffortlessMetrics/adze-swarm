@@ -161,6 +161,18 @@ pub(crate) fn subtree_node_count(node: &Subtree) -> usize {
         .sum::<usize>()
 }
 
+pub(super) fn version_selection_reason(left: &ParseStack, right: &ParseStack) -> SelectionReason {
+    if left.version.in_error != right.version.in_error || left.version.cost != right.version.cost {
+        return SelectionReason::ErrorCost;
+    }
+
+    if left.version.dynamic_prec != right.version.dynamic_prec {
+        return SelectionReason::DynamicPrecedence;
+    }
+
+    SelectionReason::StableStructuralTieBreak
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,16 +230,4 @@ mod tests {
         assert_eq!(alternatives.len(), 1);
         assert_eq!(selected, Some(0));
     }
-}
-
-pub(super) fn version_selection_reason(left: &ParseStack, right: &ParseStack) -> SelectionReason {
-    if left.version.in_error != right.version.in_error || left.version.cost != right.version.cost {
-        return SelectionReason::ErrorCost;
-    }
-
-    if left.version.dynamic_prec != right.version.dynamic_prec {
-        return SelectionReason::DynamicPrecedence;
-    }
-
-    SelectionReason::StableStructuralTieBreak
 }
