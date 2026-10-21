@@ -1,5 +1,6 @@
 ---
 source: runtime/tests/adze_document_json.rs
+assertion_line: 449
 expression: "serde_json::to_string_pretty(&snapshot_json).expect(\"ambiguous document JSON should render as pretty JSON\")"
 ---
 {
@@ -28,7 +29,7 @@ expression: "serde_json::to_string_pretty(&snapshot_json).expect(\"ambiguous doc
       "alternatives": [
         {
           "index": 0,
-          "root_symbol": 4,
+          "root_symbol": 6,
           "span": {
             "start_byte": 0,
             "end_byte": 9
@@ -36,11 +37,11 @@ expression: "serde_json::to_string_pretty(&snapshot_json).expect(\"ambiguous doc
           "dynamic_precedence": 0,
           "in_error": false,
           "cost": 0,
-          "node_count": 11
+          "node_count": 10
         },
         {
           "index": 1,
-          "root_symbol": 4,
+          "root_symbol": 6,
           "span": {
             "start_byte": 0,
             "end_byte": 9
@@ -48,7 +49,19 @@ expression: "serde_json::to_string_pretty(&snapshot_json).expect(\"ambiguous doc
           "dynamic_precedence": 0,
           "in_error": false,
           "cost": 0,
-          "node_count": 11
+          "node_count": 10
+        },
+        {
+          "index": 2,
+          "root_symbol": 6,
+          "span": {
+            "start_byte": 0,
+            "end_byte": 9
+          },
+          "dynamic_precedence": 0,
+          "in_error": false,
+          "cost": 0,
+          "node_count": 10
         }
       ]
     }
