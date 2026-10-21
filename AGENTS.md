@@ -103,16 +103,19 @@ just --version    # Command runner
 
 ### GitHub PR Gate
 
-The required `adze-swarm` merge gate is:
+The required `adze-swarm` merge gates are:
 
 ```text
 Rust Small Result
+Product Proof Result
 ```
 
-This is the normalized result check from the routed Rust-small workflow. Do not
-require the implementation lanes (`Rust Small on CPX42`, `Rust Small on CX43`,
-`Rust Small on CX33`, `Rust Small on CX53`, or `Rust Small on GitHub Hosted`)
-directly; exactly one of those may run or skip depending on router state.
+These are the two contexts in the live branch protection for `main` (mirrored
+in `.github/settings.yml`). `Rust Small Result` is the normalized result check
+from the routed Rust-small workflow. Do not require the implementation lanes
+(`Rust Small on CPX42`, `Rust Small on CX43`, `Rust Small on CX33`,
+`Rust Small on CX53`, or `Rust Small on GitHub Hosted`) directly; exactly one
+of those may run or skip depending on router state.
 
 ### Local Supported Proof
 
@@ -321,7 +324,8 @@ just ci-supported
 cargo insta review
 ```
 
-Hosted `adze-swarm` PRs must also pass `Rust Small Result` before merge.
+Hosted `adze-swarm` PRs must also pass `Rust Small Result` and
+`Product Proof Result` before merge.
 
 ## Environment Variables
 
