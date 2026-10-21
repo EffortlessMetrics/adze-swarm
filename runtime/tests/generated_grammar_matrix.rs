@@ -8,9 +8,9 @@
 use adze_example::fielded_precedence_typed_cst_contract::grammar::Expr as FieldedExpr;
 use adze_example::typed_ast_contract::grammar::Expr;
 
-/// Row: regex leaf + infallible transform (`\d+` -> `i32`).
+/// Row: regex leaf + transform closure (`\d+` -> `i32`).
 #[test]
-fn matrix_regex_leaf_transform_exact_value() {
+fn test_regex_leaf_transform_valid_number_exact_value() {
     let parsed =
         adze_example::typed_ast_contract::grammar::parse("42").expect("number should parse");
     assert_eq!(parsed, Expr::Number(42));
@@ -19,7 +19,7 @@ fn matrix_regex_leaf_transform_exact_value() {
 /// Row: tuple enum variant + `Box<T>` recursion + `#[adze::prec_left(1)]`.
 /// Left associativity is asserted by exact tree shape, not parse success.
 #[test]
-fn matrix_tuple_variant_box_recursion_prec_left_exact_shape() {
+fn test_tuple_variant_box_recursion_prec_left_exact_shape() {
     let parsed = adze_example::typed_ast_contract::grammar::parse("1 + 2 + 3")
         .expect("addition chain should parse");
     assert_eq!(
@@ -38,7 +38,7 @@ fn matrix_tuple_variant_box_recursion_prec_left_exact_shape() {
 
 /// Row: extras (whitespace) are skipped around tokens and operators.
 #[test]
-fn matrix_extras_whitespace_skipped_exact_value() {
+fn test_extras_whitespace_skipped_exact_value() {
     let parsed = adze_example::typed_ast_contract::grammar::parse("  1   +   2  ")
         .expect("spaced addition should parse");
     assert_eq!(
@@ -50,7 +50,7 @@ fn matrix_extras_whitespace_skipped_exact_value() {
 /// Row: named-field struct variants + two precedence levels.
 /// `*` binds tighter than `+`, asserted by exact tree shape.
 #[test]
-fn matrix_named_fields_precedence_levels_exact_shape() {
+fn test_named_fields_precedence_levels_exact_shape() {
     let parsed = adze_example::fielded_precedence_typed_cst_contract::grammar::parse("1 + 2 * 3")
         .expect("precedence expression should parse");
     assert_eq!(
@@ -70,7 +70,7 @@ fn matrix_named_fields_precedence_levels_exact_shape() {
 /// Row: `parse()` and `parse_document().ast()` agree on the same input
 /// (typed extraction vs canonical document truth, SPEC-0012).
 #[test]
-fn matrix_parse_and_document_ast_agree() {
+fn test_parse_and_document_when_clean_input_ast_agrees() {
     let source = "1 + 2 * 3";
     let parsed = adze_example::fielded_precedence_typed_cst_contract::grammar::parse(source)
         .expect("typed parse should succeed");
