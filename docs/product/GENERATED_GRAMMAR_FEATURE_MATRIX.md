@@ -38,7 +38,7 @@ stability claims; rows below link to that file instead of restating tiers.
 
 | Construct | Status | Evidence / blocker |
 | --- | --- | --- |
-| Delimited non-empty repetition (CSV list) | Gap | `example/src/csv_list.rs` tests assert only `is_ok() \|\| is_err()`; the fixture tests accept either outcome and no checked-in test asserts an exact multi-item value, so no exact-value proof exists. |
+| Delimited non-empty repetition (CSV list) | Gap | In `example/src/csv_list.rs`, the valid-input tests assert only `is_ok() \|\| is_err()` (malformed-input tests assert `is_err()`), and no checked-in test asserts an exact multi-item value, so no exact-value proof exists. |
 | `Option<T>` and optional fields | Gap | `example/src/optionals.rs` exists; no exact-value matrix proof yet. Cardinality agreement across typed AST, typed CST, and node schema is unproved. |
 | Undelimited `Vec<T>` repetition | Gap | `example/src/repetitions.rs` exists; no exact-value matrix proof yet. |
 | Keyword-versus-identifier (word tokens) | Gap | `example/src/words.rs` exists; keyword/identifier interaction is not proved by exact values here. |
