@@ -30,24 +30,24 @@ expression: "serde_json::to_string_pretty(&json).expect(\"diagnostic document JS
           "column": 3
         }
       },
-      "found": "end",
+      "found": "end of input",
       "expected": [
         "/\\d+/"
       ],
       "related_nodes": [
         1
       ],
-      "message": "end; expected one of: /\\d+/"
+      "message": "end of input; expected one of: /\\d+/"
     }
   ],
   "ambiguities": [],
   "tree": {
     "root": {
       "id": 0,
-      "kind": "Whitespace__ws",
-      "kind_id": 4,
-      "grammar_kind": "Whitespace__ws",
-      "grammar_id": 4,
+      "kind": "source_file",
+      "kind_id": 1,
+      "grammar_kind": "source_file",
+      "grammar_id": 1,
       "alias_symbol_id": null,
       "has_alias": false,
       "range": {

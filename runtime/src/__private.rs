@@ -346,9 +346,19 @@ pub fn parse_document(
     let diagnostics = document_diagnostics_for_parse_errors(input, lang, &parser_errors);
     let root = root
         .as_ref()
-        .map(|root_node| convert_parsed_node_to_document_node(root_node, lang))
+        .map(|root_node| {
+            wrap_root_in_start_symbol(
+                convert_parsed_node_to_document_node(root_node, lang),
+                public_symbol_id_for_index(lang, parse_table.start_symbol.0),
+                input.len(),
+            )
+        })
         .unwrap_or_else(|| {
-            synthetic_document_root_for_errors(input, parse_table.start_symbol, &diagnostics)
+            synthetic_document_root_for_errors(
+                input,
+                public_symbol_id_for_index(lang, parse_table.start_symbol.0),
+                &diagnostics,
+            )
         });
 
     Ok(
@@ -424,7 +434,11 @@ pub fn adze_document_from_streaming_parse(
     grammar: &adze_ir::Grammar,
     parse_table: &adze_glr_core::ParseTable,
 ) -> crate::document::AdzeDocument {
-    let root = convert_subtree_to_document_node(&parsed.root, language, parse_table, grammar);
+    let root = wrap_root_in_start_symbol(
+        convert_subtree_to_document_node(&parsed.root, language, parse_table, grammar),
+        public_symbol_id_for_index(language, parse_table.start_symbol.0),
+        source.len(),
+    );
     let ambiguities = parsed.ambiguities.into_iter().collect::<Vec<_>>();
 
     crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
@@ -592,7 +606,11 @@ fn parse_document_with_true_glr_runtime(
         .flatten()
         .into_iter()
         .collect::<Vec<_>>();
-    let root = convert_subtree_to_document_node(&root_node, language, &parse_table, &grammar);
+    let root = wrap_root_in_start_symbol(
+        convert_subtree_to_document_node(&root_node, language, &parse_table, &grammar),
+        public_symbol_id_for_index(language, parse_table.start_symbol.0),
+        source.len(),
+    );
 
     Ok(
         crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
@@ -644,7 +662,11 @@ fn parse_document_from_glr_errors(
         })
         .collect::<Vec<_>>();
     let error_count = diagnostics.len();
-    let root = synthetic_document_root_for_errors(input, parse_table.start_symbol, &diagnostics);
+    let root = synthetic_document_root_for_errors(
+        input,
+        public_symbol_id_for_index(language, parse_table.start_symbol.0),
+        &diagnostics,
+    );
 
     crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
         input,
@@ -1403,6 +1425,32 @@ fn document_diagnostics_for_parse_errors(
             }
         })
         .collect()
+}
+
+/// Generated tables unit-inline the synthetic `source_file -> root`
+/// production, so the selected tree root is the language root rather than
+/// the canonical start symbol. Wrap it so generated documents expose the
+/// start symbol (`source_file`) as their root, matching the document
+/// contract typed extraction already expects to unwrap.
+#[cfg(feature = "pure-rust")]
+fn wrap_root_in_start_symbol(
+    root: crate::parser_v4::ParseNode,
+    start_symbol: adze_ir::SymbolId,
+    source_len: usize,
+) -> crate::parser_v4::ParseNode {
+    if root.symbol == start_symbol {
+        return root;
+    }
+
+    crate::parser_v4::ParseNode {
+        symbol: start_symbol,
+        symbol_id: start_symbol,
+        start_byte: 0,
+        end_byte: source_len,
+        field_name: None,
+        alias_symbol_id: None,
+        children: vec![root],
+    }
 }
 
 #[cfg(feature = "pure-rust")]

@@ -72,12 +72,17 @@ fn parse_document_tree_topology_matches_parser_expectations() {
         source
     );
 
-    // Root is the explicit #[adze::language] start symbol with at least one child
-    assert_eq!(root.kind_name(), Some("Expr"));
+    // Root is the canonical source_file start symbol wrapping the
+    // #[adze::language] root expression
+    assert_eq!(root.kind_name(), Some("source_file"));
     assert!(
         root.child_count() >= 1,
-        "Expr root should have at least one child expression"
+        "source_file root should have at least one child expression"
     );
+    let language_root = root
+        .child(0)
+        .expect("source_file root should wrap the language root");
+    assert_eq!(language_root.kind_name(), Some("Expr"));
 
     // Collect full topology
     let mut topology = Vec::new();
