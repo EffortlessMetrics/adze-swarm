@@ -17,7 +17,7 @@ use crate::subtree::{ChildEdge, FIELD_NONE, Subtree, SubtreeNode};
 use adze_glr_core::parse_forest::ERROR_SYMBOL;
 use adze_glr_core::{
     Driver, ForestView, LexMode, ParseTable, build_lex_modes_from_shiftable_terminals,
-    driver::GlrError,
+    driver::{GlrError, GlrUnexpectedToken},
 };
 use adze_ir::{Grammar, Symbol, SymbolId};
 use std::sync::Arc;
@@ -250,10 +250,35 @@ pub fn parse_with_streaming_driver(
     record_route(TrueGlrParseRoute::StreamingDriver);
     let parse_table = prepare_streaming_parse_table(language, parse_table);
     let mut driver = Driver::new(&parse_table);
-    let mut internal_lexer = make_generated_internal_streaming_lexer(language);
+    let (mut internal_lexer, lex_failure_pos) = make_generated_internal_streaming_lexer(language);
 
-    let forest =
-        parse_with_optional_external_scanner(&mut driver, input, language, &mut internal_lexer)?;
+    let forest = match parse_with_optional_external_scanner(
+        &mut driver,
+        input,
+        language,
+        &mut internal_lexer,
+    ) {
+        Ok(forest) => forest,
+        Err(error) => {
+            // The driver reports a cannot-lex failure at the position before
+            // grammar extras were skipped; the lexer adapter recorded the
+            // exact stall byte. Surface the structured error so diagnostics
+            // point at the offending byte, not the preceding extra.
+            if let GlrError::Parse(message) = &error
+                && message.starts_with("cannot lex at byte")
+                && let Some(stall) = lex_failure_pos.get()
+            {
+                return Err(GlrError::UnexpectedToken(Box::new(GlrUnexpectedToken {
+                    byte_start: stall,
+                    byte_end: stall,
+                    found: None,
+                    found_is_eof: stall >= input.len(),
+                    expected: Vec::new(),
+                })));
+            }
+            return Err(error);
+        }
+    };
 
     materialize_streaming_forest(&forest, language, &parse_table, grammar)
 }
