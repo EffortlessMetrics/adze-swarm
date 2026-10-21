@@ -38,7 +38,16 @@ pub struct ParseResult {
     pub errors: Vec<ParseError>,
     pub timing: ParseTiming,
     pub visualization: Option<String>,
+    /// True when no parser backend executed at all. An unavailable result
+    /// must never be counted as a passing (or genuinely failing) parse.
+    #[serde(default)]
+    pub unavailable: bool,
 }
+
+/// Message reported when a parse is requested but no parser backend is
+/// connected to the session.
+pub const BACKEND_UNAVAILABLE_MESSAGE: &str =
+    "playground parser backend unavailable: no generated parser is connected to this session";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParseError {
@@ -129,24 +138,13 @@ impl PlaygroundSession {
         Ok(())
     }
 
-    /// Parse input text
-    pub fn parse(&self, input: &str) -> Result<ParseResult> {
-        let start_time = std::time::Instant::now();
-
-        // Placeholder for actual parsing
-        let parse_time = start_time.elapsed();
-
-        Ok(ParseResult {
-            success: true,
-            tree: Some(format!("(program {})", input)),
-            errors: Vec::new(),
-            timing: ParseTiming {
-                lexing_ms: 0.5,
-                parsing_ms: parse_time.as_secs_f64() * 1000.0,
-                total_ms: parse_time.as_secs_f64() * 1000.0,
-            },
-            visualization: None,
-        })
+    /// Parse input text.
+    ///
+    /// No generated parser backend is connected to this session yet, so this
+    /// returns an explicit unavailable error instead of fabricating a
+    /// successful parse. Callers must not report the input as parsed.
+    pub fn parse(&self, _input: &str) -> Result<ParseResult> {
+        anyhow::bail!(BACKEND_UNAVAILABLE_MESSAGE)
     }
 
     /// Add a test case
@@ -175,6 +173,7 @@ impl PlaygroundSession {
                         total_ms: 0.0,
                     },
                     visualization: None,
+                    unavailable: true,
                 });
                 (test.clone(), result)
             })
@@ -313,7 +312,13 @@ impl PlaygroundBuilder {
                         println!(
                             "{}: {}",
                             test.name,
-                            if result.success { "PASS" } else { "FAIL" }
+                            if result.unavailable {
+                                "UNAVAILABLE"
+                            } else if result.success {
+                                "PASS"
+                            } else {
+                                "FAIL"
+                            }
                         );
                     }
                 }
@@ -356,6 +361,48 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_without_backend_reports_unavailable_not_success() {
+        let session = PlaygroundSession::new(Grammar::default());
+
+        for input in ["1 + 2", "this is not valid !!!"] {
+            let error = session
+                .parse(input)
+                .expect_err("no backend is connected, so parse must not report success");
+            assert!(
+                error.to_string().contains("backend unavailable"),
+                "error should name the unavailable backend: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_run_tests_marks_unavailable_results_distinctly() {
+        let mut session = PlaygroundSession::new(Grammar::default());
+        session.add_test_case(TestCase {
+            name: "expects-pass".to_string(),
+            input: "1 + 2".to_string(),
+            expected_tree: None,
+            should_pass: true,
+            tags: vec![],
+        });
+        session.add_test_case(TestCase {
+            name: "expects-fail".to_string(),
+            input: "!!!".to_string(),
+            expected_tree: None,
+            should_pass: false,
+            tags: vec![],
+        });
+
+        let results = session.run_tests();
+        assert_eq!(results.len(), 2);
+        for (_, result) in &results {
+            assert!(result.unavailable, "no backend ran for any test case");
+            assert!(!result.success, "unavailable must not look like success");
+            assert!(result.tree.is_none(), "unavailable must not invent a tree");
+        }
+    }
+
+    #[test]
     fn test_test_case_creation() {
         let test_case = TestCase {
             name: "test-case".to_string(),
@@ -384,6 +431,7 @@ mod tests {
                 total_ms: 1.5,
             },
             visualization: None,
+            unavailable: false,
         };
 
         assert!(result.success);
@@ -410,6 +458,7 @@ mod tests {
                 total_ms: 0.5,
             },
             visualization: None,
+            unavailable: false,
         };
 
         assert!(!result.success);
@@ -610,6 +659,7 @@ mod tests {
                 total_ms: 0.1,
             },
             visualization: None,
+            unavailable: false,
         };
 
         assert!(!result.success);
@@ -629,6 +679,7 @@ mod tests {
                 total_ms: 1.5,
             },
             visualization: Some("<svg>...</svg>".to_string()),
+            unavailable: false,
         };
 
         assert!(result.success);
