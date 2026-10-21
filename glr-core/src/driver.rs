@@ -527,6 +527,7 @@ impl<'t> Driver<'t> {
             ),
         >,
     {
+        self.last_token_end = 0;
         // Initialize state with grammar from parse table
         // Use initial_state from ParseTable (default 0, Tree-sitter uses 1)
         let mut state = GlrState {

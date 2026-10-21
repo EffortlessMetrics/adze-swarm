@@ -588,9 +588,9 @@ pub(crate) fn glr_error_to_parse_errors(
         let expected = glr_expected_token_names(language, &unexpected.expected);
         let found_name = match unexpected.found {
             Some(found) => glr_found_token_name(language, found),
-            None if start < source_len => input[start..]
-                .chars()
-                .next()
+            None if start < source_len => input
+                .get(start..)
+                .and_then(|rest| rest.chars().next())
                 .map(|ch| ch.to_string())
                 .unwrap_or_else(|| "end of input".to_string()),
             None => "end of input".to_string(),
