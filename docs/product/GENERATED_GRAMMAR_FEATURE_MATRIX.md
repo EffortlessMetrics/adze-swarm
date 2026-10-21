@@ -28,22 +28,23 @@ stability claims; rows below link to that file instead of restating tiers.
 
 | Construct | Fixture | Expected typed shape | Engine | Status |
 | --- | --- | --- | --- | --- |
-| Regex leaf + infallible transform (`\d+` -> `i32`) | `example/src/typed_ast_contract.rs` | `parse("42") == Expr::Number(42)` | pure-rust | Proved (`matrix_regex_leaf_transform_exact_value`) |
-| Tuple enum variant + `Box<T>` recursion + `#[adze::prec_left(1)]` | `example/src/typed_ast_contract.rs` | `1 + 2 + 3` parses as left-nested `Add(Add(1, 2), 3)` | pure-rust | Proved (`matrix_tuple_variant_box_recursion_prec_left_exact_shape`) |
-| Extras (whitespace) skipped around tokens | `example/src/typed_ast_contract.rs` | `"  1   +   2  "` equals the unspaced `Add(1, 2)` value | pure-rust | Proved (`matrix_extras_whitespace_skipped_exact_value`) |
-| Named-field struct variants + two precedence levels | `example/src/fielded_precedence_typed_cst_contract.rs` | `1 + 2 * 3` parses as `Add { left: 1, right: Mul { left: 2, right: 3 } }` | pure-rust | Proved (`matrix_named_fields_precedence_levels_exact_shape`) |
-| `parse()` / `parse_document().ast()` agreement | `example/src/fielded_precedence_typed_cst_contract.rs` | Document-extracted AST equals the typed `parse()` value for `1 + 2 * 3` | pure-rust | Proved (`matrix_parse_and_document_ast_agree`) |
+| Regex leaf + transform closure (`\d+` -> `i32`) | `example/src/typed_ast_contract.rs` | `parse("42") == Expr::Number(42)` | pure-rust | Proved (`test_regex_leaf_transform_valid_number_exact_value`) |
+| Tuple enum variant + `Box<T>` recursion + `#[adze::prec_left(1)]` | `example/src/typed_ast_contract.rs` | `1 + 2 + 3` parses as left-nested `Add(Add(1, 2), 3)` | pure-rust | Proved (`test_tuple_variant_box_recursion_prec_left_exact_shape`) |
+| Extras (whitespace) skipped around tokens | `example/src/typed_ast_contract.rs` | `"  1   +   2  "` equals the unspaced `Add(1, 2)` value | pure-rust | Proved (`test_extras_whitespace_skipped_exact_value`) |
+| Named-field struct variants + two precedence levels | `example/src/fielded_precedence_typed_cst_contract.rs` | `1 + 2 * 3` parses as `Add { left: 1, right: Mul { left: 2, right: 3 } }` | pure-rust | Proved (`test_named_fields_precedence_levels_exact_shape`) |
+| `parse()` / `parse_document().ast()` agreement | `example/src/fielded_precedence_typed_cst_contract.rs` | Document-extracted AST equals the typed `parse()` value for `1 + 2 * 3` | pure-rust | Proved (`test_parse_and_document_when_clean_input_ast_agrees`) |
 
 ## Gap and blocked rows (not supported claims)
 
 | Construct | Status | Evidence / blocker |
 | --- | --- | --- |
-| Delimited non-empty repetition (CSV list) | Gap | `example/src/csv_list.rs` tests assert only `is_ok() \|\| is_err()`; checked-in cookbook evidence shows multi-item delimited input does not yet produce exact values. No exact-value proof exists. |
+| Delimited non-empty repetition (CSV list) | Gap | In `example/src/csv_list.rs`, the valid-input tests assert only `is_ok() \|\| is_err()` (malformed-input tests assert `is_err()`), and no checked-in test asserts an exact multi-item value, so no exact-value proof exists. |
 | `Option<T>` and optional fields | Gap | `example/src/optionals.rs` exists; no exact-value matrix proof yet. Cardinality agreement across typed AST, typed CST, and node schema is unproved. |
 | Undelimited `Vec<T>` repetition | Gap | `example/src/repetitions.rs` exists; no exact-value matrix proof yet. |
 | Keyword-versus-identifier (word tokens) | Gap | `example/src/words.rs` exists; keyword/identifier interaction is not proved by exact values here. |
 | Fields/aliases cardinality in node schema | Blocked by #863 | Semantic schema work in #863 is open; `node_types`-style cardinality is not yet derived from the grammar contract. |
-| Fallible transforms | Blocked by #864 | Fallible-transform work in #864 is open; only infallible transforms are proved above. |
+| Numeric transform overflow | Gap | The proved leaf transform unwraps its `i32` conversion, so digit strings beyond `i32` range panic instead of producing a value or a diagnostic; no overflow proof exists. |
+| Fallible transforms | Blocked by #864 | Fallible-transform work in #864 is open; only unwrapping transform closures are proved above. |
 | Invalid annotation diagnostics | Gap | The trybuild-style proof is not wired as a blocking harness; invalid combinations do not yet have bounded compile-diagnostic proof in this matrix. |
 | External tokens/scanners | Gap (honest tier in SUPPORT_TIERS) | Kept at the tier stated in `docs/status/SUPPORT_TIERS.md`; not part of the generated-grammar contract proved here. |
 | Hidden/inline rules, supertypes, empty/nullable productions | Gap | No exact-value proof in this PR; rows stay visible until fixtures prove them. |
