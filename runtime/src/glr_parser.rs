@@ -1655,6 +1655,10 @@ impl GLRParser {
         }
         let (alternatives, selected_index) =
             canonicalize_alternatives(alternatives, structural_keys, selected_index);
+        if alternatives.len() < 2 {
+            // Every retained stack described the same distinct parse.
+            return Ok(None);
+        }
 
         Ok(Some(AmbiguitySummary {
             span: span_start..span_end,

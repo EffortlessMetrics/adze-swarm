@@ -161,6 +161,65 @@ pub(crate) fn subtree_node_count(node: &Subtree) -> usize {
         .sum::<usize>()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn alternative(index: usize) -> AlternativeSummary {
+        AlternativeSummary {
+            index,
+            root_symbol: SymbolId(6),
+            span: 0..9,
+            dynamic_precedence: 0,
+            in_error: false,
+            cost: 0,
+            node_count: 10,
+        }
+    }
+
+    fn key(seed: usize) -> SubtreeSelectionKey {
+        vec![(0, 9, 6, 0, 2), (seed, seed + 1, 3, 0, 0)]
+    }
+
+    #[test]
+    fn canonicalize_alternatives_collapses_exact_duplicates_and_remaps_selected() {
+        let (alternatives, selected) = canonicalize_alternatives(
+            vec![alternative(0), alternative(1), alternative(2)],
+            vec![key(1), key(1), key(2)],
+            Some(1),
+        );
+
+        assert_eq!(alternatives.len(), 2);
+        assert_eq!(alternatives[0].index, 0);
+        assert_eq!(alternatives[1].index, 1);
+        assert_eq!(selected, Some(0));
+    }
+
+    #[test]
+    fn canonicalize_alternatives_keeps_structurally_distinct_alternatives_in_key_order() {
+        let (alternatives, selected) = canonicalize_alternatives(
+            vec![alternative(0), alternative(1)],
+            vec![key(9), key(2)],
+            Some(0),
+        );
+
+        assert_eq!(alternatives.len(), 2);
+        assert_eq!(selected, Some(1));
+    }
+
+    #[test]
+    fn canonicalize_alternatives_collapses_to_one_when_all_keys_match() {
+        let (alternatives, selected) = canonicalize_alternatives(
+            vec![alternative(0), alternative(1)],
+            vec![key(4), key(4)],
+            Some(0),
+        );
+
+        assert_eq!(alternatives.len(), 1);
+        assert_eq!(selected, Some(0));
+    }
+}
+
 pub(super) fn version_selection_reason(left: &ParseStack, right: &ParseStack) -> SelectionReason {
     if left.version.in_error != right.version.in_error || left.version.cost != right.version.cost {
         return SelectionReason::ErrorCost;

@@ -333,7 +333,9 @@ pub fn materialize_streaming_forest(
             .collect();
         let (alternatives, selected) =
             canonicalize_alternatives(alternatives, structural_keys, Some(selected_index));
-        Some(AmbiguitySummary {
+        // Distinct roots can still describe the same parse; that is not an
+        // ambiguity worth reporting.
+        (alternatives.len() > 1).then_some(AmbiguitySummary {
             span: span_start..span_end,
             alternatives,
             selected,
