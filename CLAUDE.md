@@ -41,7 +41,7 @@ contains unrelated staged changes.
 ## Quick Reference
 
 ```bash
-# Required adze-swarm GitHub merge gate: Rust Small Result
+# Required adze-swarm GitHub merge gates: Rust Small Result, Product Proof Result
 just ci-supported          # Local supported/product proof
 cargo t2                   # Run tests (2 threads, stable)
 just test                  # Run core lib tests
@@ -122,13 +122,14 @@ just check-msrv            # Verify MSRV consistency across all Cargo.toml files
 ```
 
 ### PR Gate
-The required `adze-swarm` GitHub merge gate is:
+The required `adze-swarm` GitHub merge gates are:
 
 ```text
 Rust Small Result
+Product Proof Result
 ```
 
-This is the normalized result check from `.github/workflows/em-ci-routed-rust.yml`.
+`Rust Small Result` is the normalized result check from `.github/workflows/em-ci-routed-rust.yml`.
 Do not require `Rust Small on CX43`, `Rust Small on CX53`, or `Rust Small on
 GitHub Hosted` directly; those are router implementation lanes.
 
