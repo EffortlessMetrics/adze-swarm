@@ -1209,9 +1209,14 @@ pub mod errors {
 
     #[derive(Debug)]
     /// An explanation for an error that occurred during parsing.
+    #[non_exhaustive]
     pub enum ParseErrorReason {
         /// The parser did not expect to see some token.
         UnexpectedToken(String),
+        /// The parser reached the end of input while expecting more tokens.
+        /// Expected token names, when available, are in
+        /// [`ParseError::expected`].
+        UnexpectedEof,
         /// Tree Sitter failed to parse a specific intermediate node.
         /// The underlying failures are in the vector.
         FailedNode(Vec<ParseError>),
@@ -1327,6 +1332,9 @@ pub mod errors {
                         write!(f, "unexpected token {token:?}")
                     }
                 }
+                ParseErrorReason::UnexpectedEof => {
+                    write!(f, "unexpected end of input")
+                }
                 ParseErrorReason::FailedNode(errors) if errors.is_empty() => {
                     write!(f, "failed to parse node")
                 }
@@ -1345,8 +1353,10 @@ pub mod errors {
     impl std::fmt::Display for ParseError {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             let reason = self.reason.to_string();
-            if matches!(self.reason, ParseErrorReason::UnexpectedToken(_))
-                && !self.expected.is_empty()
+            if matches!(
+                self.reason,
+                ParseErrorReason::UnexpectedToken(_) | ParseErrorReason::UnexpectedEof
+            ) && !self.expected.is_empty()
                 && !reason.contains("expected one of:")
             {
                 write!(
@@ -1373,10 +1383,21 @@ pub mod errors {
     impl std::fmt::Display for ParseErrorWithSource<'_> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             let span = self.error.source_span(self.source.as_bytes());
+            let reason_text = if matches!(self.error.reason, ParseErrorReason::UnexpectedEof)
+                && !self.error.expected.is_empty()
+            {
+                format!(
+                    "{}, expected one of: {}",
+                    self.error.reason,
+                    self.error.expected.join(", ")
+                )
+            } else {
+                self.error.reason.to_string()
+            };
             write!(
                 f,
                 "{} at {} (bytes {}..{})",
-                self.error.reason, span.start, self.error.start, self.error.end
+                reason_text, span.start, self.error.start, self.error.end
             )?;
 
             if let Some(line) = source_line(self.source, span.start.byte) {

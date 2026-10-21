@@ -595,10 +595,15 @@ pub(crate) fn glr_error_to_parse_errors(
                 .unwrap_or_else(|| "end of input".to_string()),
             None => "end of input".to_string(),
         };
-        return vec![crate::errors::ParseError {
-            reason: crate::errors::ParseErrorReason::UnexpectedToken(
+        let reason = if unexpected.found_is_eof || found_name == "end of input" {
+            crate::errors::ParseErrorReason::UnexpectedEof
+        } else {
+            crate::errors::ParseErrorReason::UnexpectedToken(
                 crate::diagnostic_format::unexpected_token_message(found_name, expected.clone()),
-            ),
+            )
+        };
+        return vec![crate::errors::ParseError {
+            reason,
             start,
             end,
             expected,

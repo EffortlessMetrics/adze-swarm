@@ -38,6 +38,17 @@ fn convert_parse_error_to_diagnostics(
             }],
         }),
 
+        ParseErrorReason::UnexpectedEof => diagnostics.push(Diagnostic {
+            level: Level::Error,
+            message: "Unexpected end of input".to_string(),
+            code: Some("S000".to_string()),
+            spans: vec![SpanLabel {
+                span: file_span.subspan(error.start as u64, error.end as u64),
+                style: SpanStyle::Primary,
+                label: Some("end of input".to_string()),
+            }],
+        }),
+
         ParseErrorReason::FailedNode(errors) => {
             if errors.is_empty() {
                 diagnostics.push(Diagnostic {
@@ -56,6 +67,17 @@ fn convert_parse_error_to_diagnostics(
                 }
             }
         }
+
+        _ => diagnostics.push(Diagnostic {
+            level: Level::Error,
+            message: error.to_string(),
+            code: Some("S000".to_string()),
+            spans: vec![SpanLabel {
+                span: file_span.subspan(error.start as u64, error.end as u64),
+                style: SpanStyle::Primary,
+                label: Some("parse error".to_string()),
+            }],
+        }),
     }
 }
 

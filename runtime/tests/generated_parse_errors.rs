@@ -170,13 +170,17 @@ fn generated_typed_parser_unexpected_eof_lists_expected_tokens() {
         .first()
         .expect("generated parser should return at least one parse error");
 
-    let ParseErrorReason::UnexpectedToken(message) = &first.reason else {
-        panic!(
-            "truncated generated-parser input should report an unexpected token: {:?}",
-            first.reason
-        );
-    };
+    assert!(
+        matches!(first.reason, ParseErrorReason::UnexpectedEof),
+        "truncated generated-parser input should report the explicit EOF reason, got: {:?}",
+        first.reason
+    );
 
+    let message = first.to_string();
+    assert!(
+        message.contains("unexpected end of input"),
+        "EOF diagnostic should name end of input: {message}"
+    );
     assert!(
         message.contains("expected one of:"),
         "unexpected-token detail should include normalized expected tokens: {message}"

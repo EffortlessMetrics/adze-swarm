@@ -65,7 +65,7 @@ The main user-facing crate. Re-exports `adze-macro` proc-macros at the top level
 
 | Module | Stability | Feature | Docs | Tests |
 |--------|-----------|---------|------|-------|
-| `errors` (ParseError, ParseErrorReason) | **Stable** | — | ✅ | ✅ |
+| `errors` (ParseError, ParseErrorReason) | **Stable** (see 0.10.0 note below) | — | ✅ | ✅ |
 | `ffi` | **Internal** | — | ✅ | ✅ |
 | `__private` | **Internal** | — | — | — |
 | `sealed` | **Deprecated** | — | ✅ | — |
@@ -112,6 +112,12 @@ The main user-facing crate. Re-exports `adze-macro` proc-macros at the top level
 | `parser_selection` | Unstable | — | ✅ | ✅ |
 | `optimizations` | Unstable | — | ✅ | — |
 | `pure_external_scanner` | Unstable | — | ✅ | — |
+
+> **0.10.0 note (errors):** `ParseErrorReason` is `#[non_exhaustive]` and
+> gained an explicit `UnexpectedEof` variant so true end-of-input is
+> distinguishable from an unexpected non-EOF token. This is an intentional
+> pre-1.0 breaking change at the 0.10.0 boundary (issue #871): downstream
+> exhaustive matches need a wildcard arm. Display text is unchanged.
 
 ### Feature-Gated Re-exports
 
