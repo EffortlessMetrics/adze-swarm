@@ -81,7 +81,7 @@ pub fn lex_generated_internal_at(
             return Ok(None);
         }
         if extra_skips > MAX_EXTRA_SKIPS {
-            return Err(StreamingInternalLexError::ExtraSkipBudgetExceeded { pos });
+            return Err(StreamingInternalLexError::ExtraSkipBudgetExceeded { pos: cursor });
         }
 
         let start = cursor;
@@ -210,13 +210,23 @@ pub fn make_generated_internal_streaming_lexer(
     let lexer = move |input: &str, pos: usize, mode: LexMode| match lex_generated_internal_at(
         language, input, pos, mode,
     ) {
-        Ok(token) => token,
+        Ok(token) => {
+            // A successful lex in any mode clears an earlier mode's stall
+            // so a later diagnostic cannot reuse a stale byte.
+            if token.is_some() {
+                recorded.set(None);
+            }
+            token
+        }
         Err(error) => {
+            // The extra-skip budget variant is not an offending byte: its
+            // position is where legitimate extras ran out, so it is never
+            // recorded as a stall.
             let stall = match error {
                 StreamingInternalLexError::NoProgress { pos }
-                | StreamingInternalLexError::ZeroWidth { pos }
-                | StreamingInternalLexError::ExtraSkipBudgetExceeded { pos } => Some(pos),
-                StreamingInternalLexError::MissingLexerFn => None,
+                | StreamingInternalLexError::ZeroWidth { pos } => Some(pos),
+                StreamingInternalLexError::ExtraSkipBudgetExceeded { .. }
+                | StreamingInternalLexError::MissingLexerFn => None,
             };
             if stall.is_some() {
                 recorded.set(stall);
