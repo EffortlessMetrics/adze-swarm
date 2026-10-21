@@ -142,9 +142,7 @@ mod recovery;
 mod telemetry;
 
 pub use ambiguity::{AlternativeSummary, AmbiguitySummary, SelectionReason};
-pub(crate) use ambiguity::{
-    canonicalize_alternatives, subtree_node_count, subtree_selection_key,
-};
+pub(crate) use ambiguity::{canonicalize_alternatives, subtree_node_count, subtree_selection_key};
 #[allow(unused_imports)]
 pub use config::{DEFAULT_SAFE_DEDUP_THRESHOLD, safe_dedup_threshold};
 pub use parse_stack::ParseStack;

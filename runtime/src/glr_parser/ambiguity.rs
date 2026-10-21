@@ -138,7 +138,8 @@ pub(crate) fn canonicalize_alternatives(
     let mut seen = std::collections::HashSet::new();
     entries.retain(|(key, _)| seen.insert(key.clone()));
 
-    let selected = selected_key.and_then(|key| entries.iter().position(|(candidate, _)| *candidate == key));
+    let selected =
+        selected_key.and_then(|key| entries.iter().position(|(candidate, _)| *candidate == key));
 
     let alternatives = entries
         .into_iter()
