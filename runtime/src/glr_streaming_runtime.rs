@@ -586,10 +586,15 @@ pub(crate) fn glr_error_to_parse_errors(
             source_len
         };
         let expected = glr_expected_token_names(language, &unexpected.expected);
-        let found_name = unexpected
-            .found
-            .map(|found| glr_found_token_name(language, found))
-            .unwrap_or_else(|| "end of input".to_string());
+        let found_name = match unexpected.found {
+            Some(found) => glr_found_token_name(language, found),
+            None if start < source_len => input[start..]
+                .chars()
+                .next()
+                .map(|ch| ch.to_string())
+                .unwrap_or_else(|| "end of input".to_string()),
+            None => "end of input".to_string(),
+        };
         return vec![crate::errors::ParseError {
             reason: crate::errors::ParseErrorReason::UnexpectedToken(
                 crate::diagnostic_format::unexpected_token_message(found_name, expected.clone()),
@@ -622,12 +627,10 @@ pub(crate) fn glr_error_to_parse_errors(
 /// Generated name for a structured GLR failure symbol, with the EOF
 /// symbol rendered as `end of input` like the LR diagnostics.
 fn glr_found_token_name(language: &'static TSLanguage, found: SymbolId) -> String {
-    let name = glr_symbol_name(language, found);
-    if name == "end" {
-        "end of input".to_string()
-    } else {
-        name
+    if found.0 == language.eof_symbol {
+        return "end of input".to_string();
     }
+    glr_symbol_name(language, found)
 }
 
 /// Sorted, deduplicated diagnostic names for structured GLR expected

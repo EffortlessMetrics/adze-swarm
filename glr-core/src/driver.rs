@@ -80,6 +80,9 @@ pub struct Driver<'t> {
     /// LR tables used by the driver
     #[allow(dead_code)]
     tables: &'t ParseTable,
+    /// End of the last token-stream token, for EOF failure positions
+    /// when the forest carries no source text.
+    last_token_end: usize,
     /// Telemetry instance for performance monitoring
     #[cfg(feature = "glr_telemetry")]
     telemetry: Option<&'t Telemetry>,
@@ -137,6 +140,7 @@ impl<'t> Driver<'t> {
 
         Self {
             tables,
+            last_token_end: 0,
             #[cfg(feature = "glr_telemetry")]
             telemetry: None,
         }
@@ -147,8 +151,11 @@ impl<'t> Driver<'t> {
     /// as expected tokens would mislead diagnostics.
     fn expected_terminals_for_tops(&self, tops: &[StateId]) -> Vec<SymbolId> {
         let mut expected = Vec::new();
-        for index in 0..self.tables.symbol_count {
-            let sym = SymbolId(index as u16);
+        // Symbol ids can be sparse in hand-built tables, so visit the
+        // mapped symbols rather than assuming dense `0..symbol_count`.
+        let mut symbols: Vec<SymbolId> = self.tables.symbol_to_index.keys().copied().collect();
+        symbols.sort_unstable();
+        for sym in symbols {
             if self.tables.nonterminal_to_index.contains_key(&sym)
                 || self.tables.extras.contains(&sym)
             {
@@ -530,6 +537,7 @@ impl<'t> Driver<'t> {
 
         // Main token loop
         for (kind, start, end) in tokens.into_iter() {
+            self.last_token_end = self.last_token_end.max(end as usize);
             // Add debug assert for token width
             debug_assert!(kind <= u16::MAX as u32, "terminal id overflow");
             let lookahead = SymbolId(kind as u16);
@@ -821,9 +829,15 @@ impl<'t> Driver<'t> {
             return Ok(Self::wrap_forest(state.forest));
         }
 
+        let eof_byte = if state.forest.source.is_empty() {
+            // Token-stream parses carry no source text in the forest.
+            self.last_token_end
+        } else {
+            state.forest.source.len()
+        };
         Err(GlrError::UnexpectedToken(Box::new(GlrUnexpectedToken {
-            byte_start: state.forest.source.len(),
-            byte_end: state.forest.source.len(),
+            byte_start: eof_byte,
+            byte_end: eof_byte,
             found: Some(eof),
             expected: self.expected_terminals_for_tops(&eof_tops),
         })))
