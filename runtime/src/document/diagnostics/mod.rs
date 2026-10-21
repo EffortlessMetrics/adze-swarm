@@ -23,11 +23,14 @@ pub(super) fn build_diagnostics(
     let end_byte = span.end.min(source.len()).max(start_byte);
     let point_range = PointRange::from_byte_range(source, start_byte..end_byte);
 
+    let found =
+        (start_byte == end_byte && start_byte == source.len()).then(|| "end of input".to_string());
+
     vec![ParseDiagnostic {
         start_byte,
         end_byte,
         point_range,
-        found: None,
+        found,
         expected: Vec::new(),
         related_nodes: Vec::new(),
         message: format!("parser recorded {error_count} recovery/error event(s)"),
