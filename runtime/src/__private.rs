@@ -606,7 +606,11 @@ fn parse_document_with_true_glr_runtime(
         .flatten()
         .into_iter()
         .collect::<Vec<_>>();
-    let root = convert_subtree_to_document_node(&root_node, language, &parse_table, &grammar);
+    let root = wrap_root_in_start_symbol(
+        convert_subtree_to_document_node(&root_node, language, &parse_table, &grammar),
+        public_symbol_id_for_index(language, parse_table.start_symbol.0),
+        source.len(),
+    );
 
     Ok(
         crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
