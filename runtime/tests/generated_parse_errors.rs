@@ -170,13 +170,17 @@ fn generated_typed_parser_unexpected_eof_lists_expected_tokens() {
         .first()
         .expect("generated parser should return at least one parse error");
 
-    let ParseErrorReason::UnexpectedToken(message) = &first.reason else {
-        panic!(
-            "truncated generated-parser input should report an unexpected token: {:?}",
-            first.reason
-        );
-    };
+    assert!(
+        matches!(first.reason, ParseErrorReason::UnexpectedEof),
+        "truncated generated-parser input should report the explicit EOF reason, got: {:?}",
+        first.reason
+    );
 
+    let message = first.to_string();
+    assert!(
+        message.contains("unexpected end of input"),
+        "EOF diagnostic should name end of input: {message}"
+    );
     assert!(
         message.contains("expected one of:"),
         "unexpected-token detail should include normalized expected tokens: {message}"
@@ -198,6 +202,24 @@ fn generated_typed_parser_unexpected_eof_lists_expected_tokens() {
     assert!(
         rendered.contains(r"/\d+/"),
         "rendered diagnostic should include the expected token name: {rendered}"
+    );
+}
+
+#[test]
+fn test_document_ast_extraction_when_truncated_input_reports_unexpected_eof() {
+    let source = "if";
+    let document = adze_example::words::grammar::parse_document(source)
+        .expect("document parse should return partial parse facts");
+    let errors = document
+        .ast::<adze_example::words::grammar::Words>()
+        .expect_err("typed AST extraction should reject diagnostic documents");
+    let first = errors
+        .first()
+        .expect("extraction should return at least one parse error");
+    assert!(
+        matches!(first.reason, ParseErrorReason::UnexpectedEof),
+        "document extraction for truncated input should report the explicit EOF reason, got: {:?}",
+        first.reason
     );
 }
 

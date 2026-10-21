@@ -980,8 +980,13 @@ impl ParseDiagnostic {
     }
 
     fn to_parse_error(&self) -> crate::errors::ParseError {
+        let reason = if self.found.as_deref() == Some("end of input") {
+            crate::errors::ParseErrorReason::UnexpectedEof
+        } else {
+            crate::errors::ParseErrorReason::UnexpectedToken(self.message.clone())
+        };
         crate::errors::ParseError {
-            reason: crate::errors::ParseErrorReason::UnexpectedToken(self.message.clone()),
+            reason,
             start: self.start_byte,
             end: self.end_byte,
             expected: self.expected.clone(),

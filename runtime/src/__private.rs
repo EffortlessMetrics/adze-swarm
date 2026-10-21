@@ -655,7 +655,10 @@ fn parse_document_from_glr_errors(
                     input,
                     start_byte..end_byte,
                 ),
-                found: Some(error.reason.to_string()),
+                found: Some(match &error.reason {
+                    crate::errors::ParseErrorReason::UnexpectedEof => "end of input".to_string(),
+                    _ => error.reason.to_string(),
+                }),
                 expected: error.expected.clone(),
                 related_nodes: Vec::new(),
                 message: error.to_string(),
@@ -714,13 +717,18 @@ fn parse_with_pure_parser<T: Extract<T>>(
             .map(|e| {
                 let symbol_name = diagnostic_found_name_for_error(input, lang, e.found, e.position);
                 let expected = expected_symbol_names_for_diagnostic(lang, &e.expected);
-                crate::errors::ParseError {
-                    reason: crate::errors::ParseErrorReason::UnexpectedToken(
+                let reason = if symbol_name == "end of input" {
+                    crate::errors::ParseErrorReason::UnexpectedEof
+                } else {
+                    crate::errors::ParseErrorReason::UnexpectedToken(
                         crate::diagnostic_format::unexpected_token_message(
                             symbol_name,
                             expected.clone(),
                         ),
-                    ),
+                    )
+                };
+                crate::errors::ParseError {
+                    reason,
                     start: e.position,
                     end: diagnostic_end_for_byte(input.as_bytes(), e.position),
                     expected,
