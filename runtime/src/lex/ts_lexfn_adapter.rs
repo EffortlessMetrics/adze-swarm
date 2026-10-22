@@ -6,6 +6,9 @@ use core::ffi::c_void;
 /// Wrapper for the Tree-sitter lexer state value.
 pub struct TSLexState(pub u32);
 
+/// Friendly name for [`TSLexState`]; both names denote the same type.
+pub type LexState = TSLexState;
+
 #[repr(C)]
 /// FFI-compatible lexer structure used by Tree-sitter.
 pub struct TsLexer {

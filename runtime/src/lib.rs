@@ -62,6 +62,13 @@
 //!
 //! Lower-level modules include the [`pure_parser`] (LR parser),
 //! [`parser_v4`](parser) (GLR parser), and [`visitor`] (tree traversal).
+//!
+//! # Friendly ABI names
+//!
+//! ABI wrapper types keep their Tree-sitter `TS`-prefixed names, and each
+//! also has a friendly alias at the same public path (for example
+//! [`ffi::Symbol`], [`pure_parser::Language`], and [`ts_format::ActionTag`]).
+//! Both names denote the same type; new code may prefer the friendly names.
 
 /// Private implementation details exposed for macro use only.
 pub mod __private;

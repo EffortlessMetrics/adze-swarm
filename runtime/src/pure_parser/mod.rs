@@ -39,6 +39,15 @@ pub type TSStateId = u16;
 #[allow(dead_code)]
 pub type TSFieldId = u16;
 
+/// Friendly name for [`TSSymbol`]; both names denote the same type.
+pub type Symbol = TSSymbol;
+
+/// Friendly name for [`TSStateId`]; both names denote the same type.
+pub type StateId = TSStateId;
+
+/// Friendly name for [`TSFieldId`]; both names denote the same type.
+pub type FieldId = TSFieldId;
+
 /// Lex state for external scanners
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -46,6 +55,9 @@ pub struct TSLexState {
     pub lex_state: u16,
     pub external_lex_state: u16,
 }
+
+/// Friendly name for [`TSLexState`]; both names denote the same type.
+pub type LexState = TSLexState;
 
 // Language version constants
 pub const TREE_SITTER_LANGUAGE_VERSION: u32 = 15;
@@ -135,6 +147,9 @@ pub struct TSLanguage {
     pub rule_count: u16,                  // Number of rules
 }
 
+/// Friendly name for [`TSLanguage`]; both names denote the same type.
+pub type Language = TSLanguage;
+
 /// Rule metadata for Tree-sitter grammars
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -143,6 +158,9 @@ pub struct TSRule {
     pub rhs_len: u8, // number of symbols on RHS
     pub _pad: u8,    // keep alignment
 }
+
+/// Friendly name for [`TSRule`]; both names denote the same type.
+pub type Rule = TSRule;
 
 // SAFETY: TSLanguage is a read-only structure that doesn't contain any mutable state.
 // All pointers point to static data that is never modified after initialization.
@@ -157,6 +175,9 @@ pub struct TSParseAction {
     pub dynamic_precedence: i8,
     pub symbol: TSSymbol,
 }
+
+/// Friendly name for [`TSParseAction`]; both names denote the same type.
+pub type ParseAction = TSParseAction;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
