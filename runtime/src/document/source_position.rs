@@ -67,12 +67,30 @@ pub(super) struct SourceLineIndex {
     line_starts: Vec<usize>,
 }
 
+#[cfg(test)]
+std::thread_local! {
+    static INDEX_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static INDEXED_BYTES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(super) fn index_build_stats() -> (usize, usize) {
+    (INDEX_BUILDS.with(|n| n.get()), INDEXED_BYTES.with(|n| n.get()))
+}
+
 impl SourceLineIndex {
     pub(super) fn new(source: &str) -> Self {
-        let line_starts = source
-            .bytes()
-            .enumerate()
-            .filter_map(|(byte, value)| (value == b'\n').then_some(byte + 1))
+        #[cfg(test)]
+        INDEX_BUILDS.with(|n| n.set(n.get().saturating_add(1)));
+
+        let bytes = source.bytes().enumerate();
+        #[cfg(test)]
+        let bytes = bytes.inspect(|_| {
+            INDEXED_BYTES.with(|n| n.set(n.get().saturating_add(1)));
+        });
+        let line_starts = bytes
+            .filter(|&(_, value)| value == b'\n')
+            .map(|(byte, _)| byte + 1)
             .collect();
         Self {
             source_len: source.len(),
