@@ -1,0 +1,322 @@
+{
+  "profile": "cfg.nullable_first_follow.v1",
+  "schema_version": 1,
+  "required_denominator": 13,
+  "cases": [
+    {
+      "case_id": "single_terminal",
+      "start": "S",
+      "terminals": ["a"],
+      "nonterminals": ["S"],
+      "productions": [{ "lhs": "S", "rhs": ["a"] }],
+      "expectation": {
+        "authority": "reasoned_semantic",
+        "nullable": [],
+        "first": { "S": ["a"] },
+        "follow": { "S": { "terminals": [], "eof": true } }
+      },
+      "rationale": "Smallest grammar: one terminal production."
+    },
+    {
+      "case_id": "direct_epsilon",
+      "start": "S",
+      "terminals": [],
+      "nonterminals": ["S"],
+      "productions": [{ "lhs": "S", "rhs": [] }],
+      "expectation": {
+        "authority": "reasoned_semantic",
+        "nullable": ["S"],
+        "first": { "S": [] },
+        "follow": { "S": { "terminals": [], "eof": true } }
+      },
+      "rationale": "Empty RHS is the only epsilon spelling; FIRST is empty."
+    },
+    {
+      "case_id": "nullable_prefix",
+      "start": "S",
+      "terminals": ["a", "b"],
+      "nonterminals": ["S", "A"],
+      "productions": [
+        { "lhs": "S", "rhs": ["A", "b"] },
+        { "lhs": "A", "rhs": ["a"] },
+        { "lhs": "A", "rhs": [] }
+      ],
+      "expectation": {
+        "authority": "reasoned_semantic",
+        "nullable": ["A"],
+        "first": { "S": ["a", "b"], "A": ["a"] },
+        "follow": {
+          "S": { "terminals": [], "eof": true },
+          "A": { "terminals": ["b"], "eof": false }
+        }
+      },
+      "rationale": "Nullable prefix lets FIRST and FOLLOW cross A."
+    },
+    {
+      "case_id": "nullable_suffix",
+      "start": "S",
+      "terminals": ["a", "b"],
+      "nonterminals": ["S", "A"],
+      "productions": [
+        { "lhs": "S", "rhs": ["a", "A"] },
+        { "lhs": "A", "rhs": ["b"] },
+        { "lhs": "A", "rhs": [] }
+      ],
+      "expectation": {
+        "authority": "reasoned_semantic",
+        "nullable": ["A"],
+        "first": { "S": ["a"], "A": ["b"] },
+        "follow": {
+          "S": { "terminals": [], "eof": true },
+          "A": { "terminals": [], "eof": true }
+        }
+      },
+      "rationale": "Nullable suffix inherits FOLLOW of the parent."
+    },
+    {
+      "case_id": "fully_nullable_production",
+      "start": "S",
+      "terminals": ["a", "b"],
+      "nonterminals": ["S", "A", "B"],
+      "productions": [
+        { "lhs": "S", "rhs": ["A", "B"] },
+        { "lhs": "A", "rhs": ["a"] },
+        { "lhs": "A", "rhs": [] },
+        { "lhs": "B", "rhs": ["b"] },
+        { "lhs": "B", "rhs": [] }
+      ],
+      "expectation": {
+        "authority": "reasoned_semantic",
+        "nullable": ["A", "B", "S"],
+        "first": { "S": ["a", "b"], "A": ["a"], "B": ["b"] },
+        "follow": {
+          "S": { "terminals": [], "eof": true },
+          "A": { "terminals": ["b"], "eof": true },
+          "B": { "terminals": [], "eof": true }
+        }
+      },
+      "rationale": "Canonical dense case from the profile issue: every symbol nullable."
+    },
+    {
+      "case_id": "nullable_chain",
+      "start": "S",
+      "terminals": ["c"],
+      "nonterminals": ["S", "A", "B"],
+      "productions": [
+        { "lhs": "S", "rhs": ["A"] },
+        { "lhs": "A", "rhs": ["B"] },
+        { "lhs": "B", "rhs": ["c"] },
+        { "lhs": "B", "rhs": [] }
+      ],
+      "expectation": {
+        "authority": "reasoned_semantic",
+        "nullable": ["A", "B", "S"],
+        "first": { "S": ["c"], "A": ["c"], "B": ["c"] },
+        "follow": {
+          "S": { "terminals": [], "eof": true },
+          "A": { "terminals": [], "eof": true },
+          "B": { "terminals": [], "eof": true }
+        }
+      },
+      "rationale": "Nullability and FOLLOW propagate through a unit chain."
+    },
+    {
+      "case_id": "left_recursion",
+      "start": "S",
+      "terminals": ["a", "b"],
+      "nonterminals": ["S"],
+      "productions": [
+        { "lhs": "S", "rhs": ["S", "a"] },
+        { "lhs": "S", "rhs": ["b"] }
+      ],
+      "expectation": {
+        "authority": "reasoned_semantic",
+        "nullable": [],
+        "first": { "S": ["b"] },
+        "follow": { "S": { "terminals": ["a"], "eof": true } }
+      },
+      "rationale": "Left recursion contributes its own FIRST to FOLLOW."
+    },
+    {
+      "case_id": "mutual_recursion",
+      "start": "S",
+      "terminals": ["c", "d", "e"],
+      "nonterminals": ["S", "A"],
+      "productions": [
+        { "lhs": "S", "rhs": ["A", "c"] },
+        { "lhs": "A", "rhs": ["S", "d"] },
+        { "lhs": "A", "rhs": ["e"] }
+      ],
+      "expectation": {
+        "authority": "reasoned_semantic",
+        "nullable": [],
+        "first": { "S": ["e"], "A": ["e"] },
+        "follow": {
+          "S": { "terminals": ["d"], "eof": true },
+          "A": { "terminals": ["c"], "eof": false }
+        }
+      },
+      "rationale": "Mutual recursion: FIRST is shared, FOLLOW crosses the cycle once."
+    },
+    {
+      "case_id": "repeated_occurrence",
+      "start": "S",
+      "terminals": ["a", "b"],
+      "nonterminals": ["S", "A"],
+      "productions": [
+        { "lhs": "S", "rhs": ["A", "a", "A"] },
+        { "lhs": "A", "rhs": ["b"] },
+        { "lhs": "A", "rhs": [] }
+      ],
+      "expectation": {
+        "authority": "reasoned_semantic",
+        "nullable": ["A"],
+        "first": { "S": ["a", "b"], "A": ["b"] },
+        "follow": {
+          "S": { "terminals": [], "eof": true },
+          "A": { "terminals": ["a"], "eof": true }
+        }
+      },
+      "rationale": "Both occurrences of A contribute to FOLLOW(A)."
+    },
+    {
+      "case_id": "terminal_stopping",
+      "start": "S",
+      "terminals": ["a", "b"],
+      "nonterminals": ["S", "A", "B"],
+      "productions": [
+        { "lhs": "S", "rhs": ["A", "B"] },
+        { "lhs": "A", "rhs": ["a"] },
+        { "lhs": "A", "rhs": [] },
+        { "lhs": "B", "rhs": ["b"] }
+      ],
+      "expectation": {
+        "authority": "reasoned_semantic",
+        "nullable": ["A"],
+        "first": { "S": ["a", "b"], "A": ["a"], "B": ["b"] },
+        "follow": {
+          "S": { "terminals": [], "eof": true },
+          "A": { "terminals": ["b"], "eof": false },
+          "B": { "terminals": [], "eof": true }
+        }
+      },
+      "rationale": "Non-nullable B stops FOLLOW(S) from reaching A."
+    },
+    {
+      "case_id": "explicit_start_not_first_declared",
+      "start": "S",
+      "terminals": ["a", "b"],
+      "nonterminals": ["A", "S"],
+      "productions": [
+        { "lhs": "A", "rhs": ["a"] },
+        { "lhs": "S", "rhs": ["A", "b"] }
+      ],
+      "expectation": {
+        "authority": "reasoned_semantic",
+        "nullable": [],
+        "first": { "S": ["a"], "A": ["a"] },
+        "follow": {
+          "S": { "terminals": [], "eof": true },
+          "A": { "terminals": ["b"], "eof": false }
+        }
+      },
+      "rationale": "EOF seeds only the explicit start, not the first declared nonterminal."
+    },
+    {
+      "case_id": "unreachable_component",
+      "start": "S",
+      "terminals": ["a", "b", "c"],
+      "nonterminals": ["S", "U", "V"],
+      "productions": [
+        { "lhs": "S", "rhs": ["a"] },
+        { "lhs": "U", "rhs": ["V", "b"] },
+        { "lhs": "V", "rhs": ["c"] },
+        { "lhs": "V", "rhs": [] }
+      ],
+      "expectation": {
+        "authority": "reasoned_semantic",
+        "nullable": ["V"],
+        "first": { "S": ["a"], "U": ["b", "c"], "V": ["c"] },
+        "follow": {
+          "S": { "terminals": [], "eof": true },
+          "U": { "terminals": [], "eof": false },
+          "V": { "terminals": ["b"], "eof": false }
+        }
+      },
+      "rationale": "Unreachable nonterminals get local rows without EOF."
+    },
+    {
+      "case_id": "nonproductive_terminal_prefix",
+      "start": "S",
+      "terminals": ["a"],
+      "nonterminals": ["S", "A"],
+      "productions": [
+        { "lhs": "S", "rhs": ["a", "A"] },
+        { "lhs": "A", "rhs": ["A"] }
+      ],
+      "expectation": {
+        "authority": "reasoned_semantic",
+        "nullable": [],
+        "first": { "S": ["a"], "A": [] },
+        "follow": {
+          "S": { "terminals": [], "eof": true },
+          "A": { "terminals": [], "eof": true }
+        }
+      },
+      "rationale": "FIRST is over sentential forms: S keeps its terminal prefix even though A never terminates."
+    }
+  ],
+  "invalid_cases": [
+    {
+      "case_id": "invalid_duplicate_production",
+      "reject_class": "duplicate_production",
+      "document": {
+        "profile": "cfg.nullable_first_follow.v1",
+        "case_id": "invalid_duplicate_production",
+        "start": "S",
+        "terminals": ["a"],
+        "nonterminals": ["S"],
+        "productions": [
+          { "lhs": "S", "rhs": ["a"] },
+          { "lhs": "S", "rhs": ["a"] }
+        ]
+      }
+    },
+    {
+      "case_id": "invalid_undefined_symbol",
+      "reject_class": "undefined_symbol_reference",
+      "document": {
+        "profile": "cfg.nullable_first_follow.v1",
+        "case_id": "invalid_undefined_symbol",
+        "start": "S",
+        "terminals": ["a"],
+        "nonterminals": ["S"],
+        "productions": [{ "lhs": "S", "rhs": ["a", "Missing"] }]
+      }
+    },
+    {
+      "case_id": "invalid_unknown_start",
+      "reject_class": "missing_or_unknown_start",
+      "document": {
+        "profile": "cfg.nullable_first_follow.v1",
+        "case_id": "invalid_unknown_start",
+        "start": "Missing",
+        "terminals": ["a"],
+        "nonterminals": ["S"],
+        "productions": [{ "lhs": "S", "rhs": ["a"] }]
+      }
+    },
+    {
+      "case_id": "invalid_name_collision",
+      "reject_class": "terminal_nonterminal_collision",
+      "document": {
+        "profile": "cfg.nullable_first_follow.v1",
+        "case_id": "invalid_name_collision",
+        "start": "S",
+        "terminals": ["a", "S"],
+        "nonterminals": ["S"],
+        "productions": [{ "lhs": "S", "rhs": ["a"] }]
+      }
+    }
+  ]
+}

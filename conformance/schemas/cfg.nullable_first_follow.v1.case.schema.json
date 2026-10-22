@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cfg.nullable_first_follow.v1.case",
+  "title": "cfg.nullable_first_follow.v1 case document",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profile", "case_id", "start", "terminals", "nonterminals", "productions"],
+  "properties": {
+    "profile": { "const": "cfg.nullable_first_follow.v1" },
+    "case_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
+    "start": { "$ref": "#/$defs/name" },
+    "terminals": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/name" },
+      "uniqueItems": true,
+      "maxItems": 64
+    },
+    "nonterminals": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/name" },
+      "uniqueItems": true,
+      "minItems": 1,
+      "maxItems": 64
+    },
+    "productions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["lhs", "rhs"],
+        "properties": {
+          "lhs": { "$ref": "#/$defs/name" },
+          "rhs": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/name" },
+            "maxItems": 32
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "maxLength": 64,
+      "not": { "enum": ["EOF", "eof"] }
+    }
+  }
+}

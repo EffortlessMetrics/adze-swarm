@@ -700,3 +700,12 @@ classification = "docs"
 retired = true
 reason = "Legacy migration audit; preserved verbatim for historical record."
 covered_by = ["manual review"]
+
+[[allow]]
+glob = "conformance/**/*.json"
+kind = "conformance_corpus"
+owner = "conformance"
+surface = "fixtures"
+classification = "test"
+reason = "Engine-neutral conformance corpus and JSON schemas for ADZE-SPEC-0019 (cfg.nullable_first_follow.v1); expectations are hand-reasoned contract data, not generated output."
+covered_by = ["cargo test -p adze-glr-core --test conformance_corpus_contract"]

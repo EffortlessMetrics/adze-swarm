@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cfg.nullable_first_follow.v1.result",
+  "title": "cfg.nullable_first_follow.v1 engine result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["nullable", "first", "follow"],
+  "properties": {
+    "nullable": { "$ref": "#/$defs/nameSet" },
+    "first": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/nameSet" }
+    },
+    "follow": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["terminals", "eof"],
+        "properties": {
+          "terminals": { "$ref": "#/$defs/nameSet" },
+          "eof": { "type": "boolean" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "nameSet": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+        "maxLength": 64
+      },
+      "uniqueItems": true
+    }
+  }
+}
