@@ -604,24 +604,60 @@ fn packaged_manifest_member(crate_path: &Path) -> Result<String> {
     Ok(manifest_member)
 }
 
-fn manifest_contains_path_dependency(manifest: &str) -> bool {
-    let mut in_dependency_table = false;
-    for line in manifest.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('#') {
-            continue;
-        }
-        if trimmed.starts_with('[') {
-            in_dependency_table = trimmed.starts_with("[dependencies")
-                || trimmed.starts_with("[dev-dependencies")
-                || trimmed.starts_with("[build-dependencies");
-            continue;
-        }
-        if in_dependency_table && trimmed.contains("path =") {
-            return true;
+const DEPENDENCY_TABLE_NAMES: [&str; 3] =
+    ["dependencies", "dev-dependencies", "build-dependencies"];
+
+/// The package a dependency spec actually refers to: the `package` field
+/// for renamed dependencies, otherwise the TOML key.
+fn dependency_actual_package_name<'a>(key: &'a str, spec: &'a toml::Value) -> &'a str {
+    spec.as_table()
+        .and_then(|table| table.get("package"))
+        .and_then(toml::Value::as_str)
+        .unwrap_or(key)
+}
+
+/// Every dependency table in a manifest: the top-level normal/build/dev
+/// tables plus target-specific ones.
+fn dependency_tables<'a>(
+    root: &'a toml::map::Map<String, toml::Value>,
+) -> Vec<&'a toml::map::Map<String, toml::Value>> {
+    let mut tables = Vec::new();
+    for table_name in DEPENDENCY_TABLE_NAMES {
+        if let Some(deps) = root.get(table_name).and_then(toml::Value::as_table) {
+            tables.push(deps);
         }
     }
-    false
+    if let Some(target) = root.get("target").and_then(toml::Value::as_table) {
+        for target_table in target.values() {
+            let Some(target_table) = target_table.as_table() else {
+                continue;
+            };
+            for table_name in DEPENDENCY_TABLE_NAMES {
+                if let Some(deps) = target_table.get(table_name).and_then(toml::Value::as_table) {
+                    tables.push(deps);
+                }
+            }
+        }
+    }
+    tables
+}
+
+fn manifest_contains_path_dependency(manifest: &str) -> bool {
+    // Structural scan over every dependency table. Unparseable manifests
+    // fail closed: a receipt must never pass on content it cannot inspect.
+    let Ok(value) = manifest.parse::<toml::Value>() else {
+        return true;
+    };
+    let Some(root) = value.as_table() else {
+        return true;
+    };
+    dependency_tables(root)
+        .into_iter()
+        .flat_map(|deps| deps.values())
+        .any(|spec| {
+            spec.as_table()
+                .is_some_and(|table| table.contains_key("path"))
+        })
 }
 
 fn manifest_missing_registry_for_workspace_deps(
@@ -631,12 +667,12 @@ fn manifest_missing_registry_for_workspace_deps(
     let Ok(value) = manifest.parse::<toml::Value>() else {
         return true;
     };
-    for table_name in ["dependencies", "dev-dependencies", "build-dependencies"] {
-        let Some(deps) = value.get(table_name).and_then(toml::Value::as_table) else {
-            continue;
-        };
+    let Some(root) = value.as_table() else {
+        return true;
+    };
+    for deps in dependency_tables(root) {
         for (name, spec) in deps {
-            if !published_set.contains(name) {
+            if !published_set.contains(dependency_actual_package_name(name, spec)) {
                 continue;
             }
             if !dependency_spec_has_registry(spec) {
@@ -681,12 +717,13 @@ fn inject_registry_into_manifest(
         .as_table_mut()
         .context("packaged manifest root must be a table")?;
 
-    for table_name in ["dependencies", "dev-dependencies", "build-dependencies"] {
+    for table_name in DEPENDENCY_TABLE_NAMES {
         let Some(deps) = root.get_mut(table_name).and_then(toml::Value::as_table_mut) else {
             continue;
         };
         for (name, spec) in deps.iter_mut() {
-            if !published_set.contains(name) {
+            let actual = dependency_actual_package_name(name, spec).to_string();
+            if !published_set.contains(&actual) {
                 continue;
             }
             *spec = registry_pinned_dependency_spec(spec)?;
@@ -702,7 +739,7 @@ fn inject_registry_into_manifest(
             else {
                 continue;
             };
-            for table_name in ["dependencies", "dev-dependencies", "build-dependencies"] {
+            for table_name in DEPENDENCY_TABLE_NAMES {
                 let Some(deps) = target_table
                     .get_mut(table_name)
                     .and_then(toml::Value::as_table_mut)
@@ -710,7 +747,8 @@ fn inject_registry_into_manifest(
                     continue;
                 };
                 for (name, spec) in deps.iter_mut() {
-                    if !published_set.contains(name) {
+                    let actual = dependency_actual_package_name(name, spec).to_string();
+                    if !published_set.contains(&actual) {
                         continue;
                     }
                     *spec = registry_pinned_dependency_spec(spec)?;
@@ -1115,6 +1153,82 @@ adze = { version = "0.9.0", path = "../runtime" }
 adze = "0.9.0"
 "#;
         assert!(!manifest_contains_path_dependency(manifest));
+    }
+
+    #[test]
+    fn manifest_path_detection_flags_target_specific_path_dependency() {
+        // #1000 reproduced fixture: the old line scanner never entered
+        // target-specific tables.
+        let manifest = r#"
+[target.'cfg(windows)'.dependencies]
+adze = { path = '../runtime' }
+"#;
+        assert!(manifest_contains_path_dependency(manifest));
+    }
+
+    #[test]
+    fn manifest_path_detection_flags_compact_single_quoted_path() {
+        // #1000 reproduced fixture: no spaces around `=`.
+        let manifest = "[dependencies]\nadze = {path='../runtime'}\n";
+        assert!(manifest_contains_path_dependency(manifest));
+    }
+
+    #[test]
+    fn manifest_path_detection_fails_closed_on_malformed_manifest() {
+        assert!(manifest_contains_path_dependency("[dependencies\nadze = {"));
+        assert!(manifest_missing_registry_for_workspace_deps(
+            "[dependencies\nadze = {",
+            &BTreeSet::from(["adze".to_string()])
+        ));
+    }
+
+    #[test]
+    fn manifest_missing_registry_resolves_renamed_dependencies() {
+        let published = BTreeSet::from(["adze".to_string()]);
+        let renamed_unpinned = r#"
+[dependencies]
+adze-alias = { package = "adze", version = "0.9.0" }
+"#;
+        assert!(manifest_missing_registry_for_workspace_deps(
+            renamed_unpinned,
+            &published
+        ));
+        // Injection pins by actual package and preserves the rename.
+        let pinned =
+            inject_registry_into_manifest(renamed_unpinned, &published).expect("inject renamed");
+        assert!(pinned.contains(r#"package = "adze""#), "{pinned}");
+        assert!(
+            !manifest_missing_registry_for_workspace_deps(&pinned, &published),
+            "{pinned}"
+        );
+        // A rename to an external package is not a co-release edge.
+        let external_rename = r#"
+[dependencies]
+clap-alias = { package = "clap", version = "4.5" }
+"#;
+        assert!(!manifest_missing_registry_for_workspace_deps(
+            external_rename,
+            &published
+        ));
+    }
+
+    #[test]
+    fn manifest_missing_registry_checks_target_specific_dependencies() {
+        let published = BTreeSet::from(["adze".to_string()]);
+        let target_unpinned = r#"
+[target.'cfg(windows)'.dependencies]
+adze = "0.9.0"
+"#;
+        assert!(manifest_missing_registry_for_workspace_deps(
+            target_unpinned,
+            &published
+        ));
+        let pinned =
+            inject_registry_into_manifest(target_unpinned, &published).expect("inject target");
+        assert!(
+            !manifest_missing_registry_for_workspace_deps(&pinned, &published),
+            "{pinned}"
+        );
     }
 
     #[test]
