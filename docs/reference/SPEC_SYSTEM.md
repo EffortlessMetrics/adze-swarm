@@ -1,195 +1,124 @@
 # Repo source-of-truth system
 
-This repo uses a linked source-of-truth stack so humans and agents can find the
-right kind of truth without scraping chat history or treating stale status as
-current state.
-
-## Stack
-
-```text
-Roadmap
-  -> Proposal
-    -> Spec
-      -> ADR
-        -> Implementation plan
-          -> Active goal
-            -> PR
-              -> Proof
-```
+The current-v2 direction is tracked in #915–#920. #853 holds product execution;
+#1029 repairs operational guidance. This file separates authority, live work,
+implementation scope, execution evidence and public claims.
 
 ## Artifact roles
 
 | Artifact | Owns | Does not own |
 | --- | --- | --- |
-| Roadmap | release direction, milestone framing, lanes | PR queue, live status, proof receipts |
-| Proposal | why, users, alternatives, success criteria | behavior contract, detailed task list |
-| Spec | behavior, acceptance, proof, support impact | PR sequence, product rationale |
-| ADR | durable decision, context, consequences | task list, current metric state |
-| Plan | PR order, work items, proof commands, rollback | product rationale, durable decisions |
-| Active goal | current machine-readable work, commands, claim boundaries | generated status, long prose |
-| Support tiers | public claim proof, tier, limitations, promotion rule | feature design, task sequencing |
-| Policy ledgers | exceptions, owners, coverage, review dates | broad architecture or product strategy |
-
-## Rules
-
-1. One kind of truth per artifact.
-2. One semantic artifact per PR unless the selected plan item says otherwise.
-3. Specs define behavior; plans define sequencing.
-4. Proposals explain why; ADRs record durable choices.
-5. Active goals tell agents what to do now.
-6. Generated status is updated by tools, not by hand.
-7. Public claims require a support-tier row or equivalent proof pointer.
-8. Policy exceptions require owner, reason, coverage, and review date.
-
-## Required headers
-
-New proposals, specs, ADRs, and plans should use stable IDs and include the
-headers required by their local README templates. Use `n/a` where a field does
-not apply.
-
-Common linkage fields are:
+| Roadmap / #853 | Product endpoint, priorities, dependencies | A repository-wide active-work lock |
+| GitHub issues and PRs | Live coordination, findings, ownership, blockers | Proof merely because a checkbox or PR is closed |
+| Proposal | Problem, users, alternatives, rationale | Accepted behavior until ratified |
+| Accepted ADZE requirements / specs | Normative behavior and acceptance | Worker scheduling or current PR state |
+| ADR | Accepted durable decision and consequences | Automatic acceptance of a new proposal |
+| Plan / PR-local slice | Sequence, requirement deltas, owned/shared/forbidden seams | Another canonical parser/schema or global task queue |
+| Receipts | Exact executed work, source/configuration and outcomes | Stronger claims than the run supports |
+| Support tiers | Public claims, limitations, proof and promotion criteria | Work selection or silent feature promotion |
+| Policy ledgers | Reviewed exceptions, owners, coverage and expiry | Automatic approval of generated baselines |
 
 ```text
-Status:
-Owner:
-Created:
-Linked proposal:
-Linked specs:
-Linked ADRs:
-Linked plan:
-Linked issues:
-Linked PRs:
-Support-tier impact:
-Policy impact:
+issue + accepted requirements/decisions
+ -> PR-local slice + implementation
+ -> local proof + review/repair
+ -> integration qualification + protected landing
+ -> acceptance reconciliation
 ```
 
-## Agent workflow
+There is no authoritative repository-global active task. Many independent lanes
+may operate concurrently. One coherent semantic work item per PR is a review
+boundary, not a one-PR-at-a-time scheduling rule.
 
-Agents must:
+## Before and during implementation
 
-1. Read `AGENTS.md` or `CLAUDE.md`.
-2. Read this file.
-3. Read `docs/reference/adze-swarm-operating-model.md`.
-4. Read `.adze/goals/active.toml`.
-5. Read the linked implementation plan.
-6. Read the linked proposal only for why.
-7. Read the linked spec for acceptance.
-8. Read linked ADRs for constraints.
-9. Inspect the current git status.
-10. Refresh the live PR queue with
-   `gh pr list --repo EffortlessMetrics/adze-swarm --state open`.
-11. Check for same-title, same-scope, or overlapping PRs.
-12. Pick exactly one ready work item.
-13. Implement only that work item.
-14. Run the proof commands.
-15. Update status, receipts, support tiers, or policy ledgers only when the work
-    item requires it.
+Read `AGENTS.md`, the operating model, the current issue/related PRs, and linked
+accepted specs/ADRs. Inspect the current source and worktree state. Refresh the
+queue before starting a writer or opening a PR:
 
-If no ready work item exists, stop and write a handoff instead of inventing one.
-If an overlapping PR exists, stop and report whether the existing PR should be
-merged, amended, superseded, or closed instead of opening another PR.
-
-## Stop conditions
-
-Stop and report instead of guessing when:
-
-- the active goal is missing, stale, or contradictory;
-- linked files do not exist;
-- generated status is dirty;
-- proof commands cannot run;
-- unrelated staged files exist;
-- an open PR already covers the same work item or semantic scope;
-- requested work conflicts with an ADR;
-- a public claim lacks support-tier proof;
-- the request would require a new proposal, spec, or ADR that was not asked for.
-
-## Active goal lifecycle
-
-The active goal lives at:
-
-```text
-.adze/goals/active.toml
+```bash
+gh pr list --repo EffortlessMetrics/adze-swarm --state open
 ```
 
-Use `status = "active"` when a lane has a selected ready queue. Use
-`status = "paused"` with a reason when no lane is selected. Archive completed or
-superseded manifests under:
+Choose an eligible bounded slice from the selected product campaign. Record:
 
-```text
-.adze/goals/archive/YYYY-MM-DD-<lane>.toml
-```
+- the behavior to establish and the independent acceptance oracle;
+- owned, shared and forbidden files/interfaces, plus existing PR dependencies;
+- focused proof commands and feature profiles, cost and rollback;
+- support-tier impact and explicit non-claims.
 
-Do not leave multiple active goals.
+Use the existing owning PR rather than duplicating it. Coordinate shared seams
+and isolate writer worktrees. A research task has a named question/output;
+waiting CI or a slow baseline is not a reason to idle independent lanes.
 
-## Closeout format
+Specs define behavior; plans and PR slices define sequencing. Preserve proposal,
+spec and ADR distinctions. A needed decision packet can be prepared without
+claiming its recommendation has been accepted. Runtime changes cite their actual
+accepted behavior owner; issue prose does not overrule a conflicting accepted ADR.
 
-At the end of a lane, write a closeout at:
+Until #918's structural slice format lands, carry equivalent scope, requirements
+and seam information in PR prose. Do not wait for the entire governance migration
+to begin an otherwise specified, independently testable product repair.
 
-```text
-plans/<lane>/closeout.md
-```
+## Legacy migration boundary
 
-Closeouts record what shipped, proof commands, receipts, PRs, CI runs, generated
-status, support-tier updates, policy updates, deferred work, claim boundaries,
-and the next lane recommendation.
+`.adze/goals/active.toml`, its archives, older active-goal references and checkers
+are legacy migration artifacts. Their paused/complete/missing state is not
+current work-selection authority and does not stop independent eligible work.
+Older plans/specs that point at that file must be read with this migration rule.
 
-## Common failure modes
+#920 owns retirement after structural parity. Do not delete or bypass an enforced
+check, fabricate an active-goal row, or introduce a replacement singleton to get
+a PR through. Record the exact affected check and migration owner. An unresolved
+qualification blocker remains real for that lane; other useful lanes continue.
 
-### Spec becomes a task list
+## Evidence and claims
 
-Move PR order to `plans/<lane>/implementation-plan.md`; keep the spec to
-behavior, examples, evidence, and claim boundaries.
+Record actual source/build identity, toolchain/features/configuration, full
+commands, exit status and selected/executed/ignored test counts. A test-name
+substring, helper function, cfg-disabled test, zero-test invocation or missing
+failure text is not evidence that the intended behavior ran. Distinguish local
+proof from actual integration qualification and landed acceptance.
 
-### Plan becomes product rationale
+A prior clean review does not suppress further substantive review. Preserve a
+new finding with its owning PR or a linked follow-up. Replace weak assertions
+with independent expected facts, not merely agreement between two projections
+that may share the same bug. Do not bless snapshots from output alone.
 
-Move why and user value to the proposal; keep the plan to work items,
-dependencies, proof, and rollback.
+Run named generators/checkers rather than hand-editing their output. Record
+unavailable proof, substitutes at their actual scope, and what remains blocked.
+For example, a source review or Python model check is not a Rust execution receipt.
+No support-tier promotion follows from issue counts, declarations or local green.
 
-### Active goal becomes prose
+Policy exceptions retain owner, reason, coverage, review date and required expiry.
+A proposal generator does not approve an exception; an expired receipt does not
+become current authorization merely because its text still matches.
 
-Keep `active.toml` machine-readable. Link out to proposals, specs, ADRs, plans,
-status docs, and policy ledgers.
+## Checkpoints and blockers
 
-### Agent hand-edits generated status
+After a merge or completed slice, reconcile its actual acceptance against the
+landed source and select the next eligible issue. A child can finish while its
+parent remains open. A finished batch, empty PR list or session progress estimate
+is not the selected product endpoint.
 
-Run the named generator or checker instead. If it cannot run, record the command,
-reason, substitute evidence, and whether that blocks merge.
+A lane pauses when its decision/interface/capability/evidence is unavailable or
+the proposed action exceeds authority. State that blocker precisely and complete
+independent work. Stop the campaign only when selected acceptance is satisfied,
+Steven directs a pause, or concrete blockers cover all useful remaining work.
+Do not overwrite unrelated staged work or take another writer's worktree.
 
-### Support claims drift
+## Required headers and closeout
 
-Require a support-tier impact field and a proof pointer before broadening README
-or release claims.
+New proposals/specs/ADRs/plans retain their local templates and stable IDs.
+Use `n/a` for fields that genuinely do not apply. Link the owning issues/PRs,
+accepted requirements/decisions, proof, support-tier impact and policy impact.
+A bundled operational-documentation change may implement one issue across
+multiple entrypoints; it is not a license to mix unrelated semantic changes.
 
-### Policy exceptions become silent debt
+Use an existing lane closeout where one is maintained, otherwise the owning
+issue/PR. Record what landed, its evidence, remaining acceptance and next action.
+Do not duplicate the live queue or turn historical closeouts into current status.
 
-Every exception must have an owner, reason, `covered_by`, `review_after`, and an
-expiry when temporary.
-
-### Mega PR
-
-Use one semantic artifact per PR and one implementation work item per runtime PR
-unless the plan explicitly permits a bundled documentation batch.
-
-### Duplicate PR
-
-Before opening a PR, inspect the live `adze-swarm` queue. If same-scope work is
-already open, do not create a competing branch. Amend the existing branch when
-you own it, or report a merge/supersede/close recommendation to the maintainer.
-
-## What good looks like
-
-A new contributor or agent can arrive cold and answer:
-
-```text
-What are we doing?
-Why?
-What must be true?
-What decision constrains it?
-What PR lands next?
-What command proves it?
-What may we claim?
-What must we not claim?
-```
-
-If the repo answers those questions without chat history, the source-of-truth
-system is working.
+A cold reader should be able to locate the behavior contract, current owner,
+next eligible slice, proving command, evidence limits and public claim boundary
+without reconstructing the campaign from chat.
