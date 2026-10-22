@@ -15,7 +15,7 @@ if [[ $endpoint == *per_page* ]]; then
   [[ ${7:-} == --paginate && ${8:-} == --slurp ]] || exit 95
 fi
 sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-other=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+other=$(printf '%040d' 0); other=${other//0/b}
 case "$endpoint" in
   */branches/main)
     if [[ $CASE == moved-main ]]; then
