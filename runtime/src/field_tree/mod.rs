@@ -8,5 +8,8 @@ mod reduction;
 mod types;
 
 pub use language::TSLanguage;
+
+/// Friendly name for [`TSLanguage`]; both names denote the same type.
+pub use language::TSLanguage as Language;
 pub use node::{ParsedChild, ParsedNode};
 pub use types::Point;
