@@ -1,6 +1,7 @@
 //! Syntax-tree record and edge construction helpers.
 
 use super::diagnostics::is_error_parse_node;
+use super::source_position::SourceLineIndex;
 use super::*;
 
 pub(super) fn build_node_index(root: &ParseNode) -> Vec<NodeIndex> {
@@ -18,6 +19,18 @@ pub(in crate::document) fn collect_node_records(
     is_root: bool,
     nodes: &mut Vec<NodeRecord>,
 ) -> bool {
+    let positions = SourceLineIndex::new(source);
+    collect_node_records_indexed(node, &positions, language, error_count, is_root, nodes)
+}
+
+fn collect_node_records_indexed(
+    node: &ParseNode,
+    positions: &SourceLineIndex,
+    language: &LanguageMetadata,
+    error_count: usize,
+    is_root: bool,
+    nodes: &mut Vec<NodeRecord>,
+) -> bool {
     let id = NodeId::new(nodes.len());
     let grammar_id = node.symbol_id;
     let alias_symbol_id = node.alias_symbol_id;
@@ -27,7 +40,7 @@ pub(in crate::document) fn collect_node_records(
         visible_id,
         grammar_id,
         byte_range: node.start_byte..node.end_byte,
-        point_range: PointRange::from_byte_range(source, node.start_byte..node.end_byte),
+        point_range: positions.point_range(node.start_byte..node.end_byte),
         edge_range: EdgeRange::default(),
         alias_symbol_id,
         flags: NodeFlags::default(),
@@ -35,7 +48,8 @@ pub(in crate::document) fn collect_node_records(
 
     let mut child_has_error = false;
     for child in &node.children {
-        child_has_error |= collect_node_records(child, source, language, error_count, false, nodes);
+        child_has_error |=
+            collect_node_records_indexed(child, positions, language, error_count, false, nodes);
     }
 
     let error = is_error_parse_node(node);
