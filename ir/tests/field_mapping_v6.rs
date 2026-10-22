@@ -247,9 +247,9 @@ fn test_normalize_preserves_alias_sequences() {
 #[test]
 fn test_normalize_preserves_production_ids_map() {
     let mut g = grammar_with_production_ids();
-    let pids_before = g.production_ids.len();
     let _ = g.normalize();
-    assert_eq!(g.production_ids.len(), pids_before);
+    // #980: production_ids is a derived total map, rebuilt at this boundary.
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
 }
 
 #[test]
@@ -323,9 +323,9 @@ fn test_optimize_preserves_alias_sequences() {
 #[test]
 fn test_optimize_preserves_production_ids() {
     let mut g = grammar_with_production_ids();
-    let pids_before = g.production_ids.len();
     g.optimize();
-    assert_eq!(g.production_ids.len(), pids_before);
+    // #980: production_ids is a derived total map, rebuilt at this boundary.
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
 }
 
 #[test]
