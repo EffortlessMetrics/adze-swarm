@@ -729,3 +729,12 @@ surface = "fixtures"
 classification = "test"
 reason = "Engine-neutral conformance corpus and JSON schemas for ADZE-SPEC-0019 (cfg.nullable_first_follow.v1); expectations are hand-reasoned contract data, not generated output."
 covered_by = ["cargo test -p adze-glr-core --test conformance_corpus_contract"]
+# Independent Python conformance reference (#975, SPEC-0019)
+[[allow]]
+glob = "reference/python/**"
+kind = "python_reference"
+owner = "conformance"
+surface = "test"
+classification = "test"
+reason = "Permanent independent pure-Python (stdlib-only) reference and bounded observer for cfg.nullable_first_follow.v1 under SPEC-0019 (#975). Not admitted through the generic **/*.py fixture entry."
+covered_by = ["python -m compileall reference/python", "python -m unittest discover -s reference/python/tests"]
