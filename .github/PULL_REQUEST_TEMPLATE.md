@@ -7,8 +7,8 @@ What changed?
 Proposal:
 Spec:
 ADR:
-Plan item:
-Active goal:
+Owning issue / plan item:
+PR-local requirements / acceptance:
 Support-tier row:
 Policy ledger:
 
@@ -30,11 +30,18 @@ gh pr list --repo EffortlessMetrics/adze-swarm --state open
 - [ ] Spec / behavior contract
 - [ ] ADR / durable decision
 - [ ] Plan / sequencing
-- [ ] Active goal / current execution state
+- [ ] PR-local scope / acceptance
 - [ ] Runtime / implementation
 - [ ] Policy ledger
 - [ ] Support-tier update
 - [ ] Generated status / receipt
+
+### Seam ownership
+
+Owned:
+Shared / coordinated with:
+Forbidden:
+Existing PRs or dependencies:
 
 ## Non-goals
 
@@ -52,7 +59,12 @@ issue number. Prefer wording such as `leaves issue #123 open` or
 
 ## Results
 
-What passed? What failed? What could not run?
+Record source/build identity, feature profile, command, exit status and actual
+selected/executed/ignored counts. Name unavailable proof and its effect on
+qualification. Zero selected tests and absent failure text are not success.
+
+Local proof, integration proof and landed acceptance are separate states.
+Do not claim a queued or merged PR proves every parent acceptance condition.
 
 ## Claim boundary
 
