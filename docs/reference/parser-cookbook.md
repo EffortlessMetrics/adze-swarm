@@ -238,7 +238,7 @@ tracks the same gaps.
 | Comma-separated multi-item lists | Delimited repetition has no exact-value proof (matrix `Gap`) |
 | Keywords versus identifiers | Word-token happy path has no repeatable proof |
 | Optional and repeated fields | Cardinality agreement across typed AST, typed CST, and node schema is unproved |
-| Fallible numeric transforms | Blocked by issue #864; overflowing digit strings panic in unwrapping transforms today |
+| Fallible numeric transforms | Proved in the generated-grammar matrix via `try_transform` (#864); no cookbook recipe yet |
 | Document-backed queries | The query recipe builds its tree by hand; queries over a parsed document are a named gap (#861/#878) |
 | Performance claims | No cookbook speed claims; see [perf baselines](../perf/baselines.md) for how performance receipts are produced |
 

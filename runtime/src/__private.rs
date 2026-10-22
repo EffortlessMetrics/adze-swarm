@@ -107,6 +107,127 @@ pub fn extract_struct_or_variant<T>(
     construct_expr(&mut cursor_opt, &mut node.start_byte())
 }
 
+#[cfg(not(feature = "pure-rust"))]
+pub fn extract_struct_or_variant_try<T>(
+    node: tree_sitter::Node,
+    construct_expr: impl Fn(
+        &mut Option<tree_sitter::TreeCursor>,
+        &mut usize,
+    ) -> core::result::Result<T, crate::errors::ParseError>,
+) -> core::result::Result<T, crate::errors::ParseError> {
+    let mut parent_cursor = node.walk();
+    let has_child = parent_cursor.goto_first_child();
+    let mut cursor_opt = if has_child { Some(parent_cursor) } else { None };
+    construct_expr(&mut cursor_opt, &mut node.start_byte())
+}
+
+/// Fallible counterpart of [`extract_struct_or_variant`]: conversion
+/// failures from `try_transform` leaves propagate as structured errors.
+#[cfg(feature = "pure-rust")]
+pub fn extract_struct_or_variant_try<T>(
+    node: &ParsedNode,
+    construct_expr: impl Fn(
+        &mut Option<TreeCursor>,
+        &mut usize,
+    ) -> core::result::Result<T, crate::errors::ParseError>,
+) -> core::result::Result<T, crate::errors::ParseError> {
+    let mut cursor = TreeCursor::new(node);
+    let mut cursor_opt = if cursor.goto_first_child() {
+        Some(cursor)
+    } else {
+        None
+    };
+    let mut start_byte = node.start_byte;
+    construct_expr(&mut cursor_opt, &mut start_byte)
+}
+
+#[cfg(not(feature = "pure-rust"))]
+pub fn extract_field_try<LT: Extract<T>, T>(
+    cursor_opt: &mut Option<tree_sitter::TreeCursor>,
+    source: &[u8],
+    last_idx: &mut usize,
+    field_name: &str,
+    closure_ref: Option<&LT::LeafFn>,
+) -> core::result::Result<T, crate::errors::ParseError> {
+    if let Some(cursor) = cursor_opt.as_mut() {
+        loop {
+            let n = cursor.node();
+            let name = cursor.field_name();
+            if name == Some(field_name) || (name.is_none() && n.kind() == field_name) {
+                let out = LT::try_extract(Some(n), source, *last_idx, closure_ref)?;
+                if !cursor.goto_next_sibling() {
+                    *cursor_opt = None;
+                };
+                *last_idx = n.end_byte();
+                return Ok(out);
+            } else if name.is_some() {
+                return LT::try_extract(None, source, *last_idx, closure_ref);
+            } else {
+                *last_idx = n.end_byte();
+            }
+            if !cursor.goto_next_sibling() {
+                return LT::try_extract(None, source, *last_idx, closure_ref);
+            }
+        }
+    } else {
+        LT::try_extract(None, source, *last_idx, closure_ref)
+    }
+}
+
+/// Fallible field extraction for pure-rust mode: identical navigation to
+/// [`extract_field`], but leaf conversion failures propagate.
+#[cfg(feature = "pure-rust")]
+pub fn extract_field_try<LT: Extract<T>, T>(
+    cursor_opt: &mut Option<TreeCursor>,
+    source: &[u8],
+    last_idx: &mut usize,
+    field_name: &str,
+    closure_ref: Option<&LT::LeafFn>,
+) -> core::result::Result<T, crate::errors::ParseError> {
+    if let Some(cursor) = cursor_opt.as_mut() {
+        let n = cursor.node();
+        if cursor.children.is_empty() && n.children.is_empty() && cursor.current_index == 0 {
+            *cursor_opt = None;
+            *last_idx = n.end_byte;
+            return LT::try_extract(Some(n), source, *last_idx, closure_ref);
+        }
+
+        loop {
+            let n = cursor.node();
+            if field_name
+                .parse::<usize>()
+                .is_ok_and(|idx| idx == cursor.current_index)
+            {
+                let out = LT::try_extract(Some(n), source, *last_idx, closure_ref)?;
+                if !cursor.goto_next_sibling() {
+                    *cursor_opt = None;
+                }
+                *last_idx = n.end_byte;
+                return Ok(out);
+            } else if let Some(name) = cursor.field_name() {
+                if name == field_name {
+                    let out = LT::try_extract(Some(n), source, *last_idx, closure_ref)?;
+                    if !cursor.goto_next_sibling() {
+                        *cursor_opt = None;
+                    }
+                    *last_idx = n.end_byte;
+                    return Ok(out);
+                } else {
+                    return LT::try_extract(None, source, *last_idx, closure_ref);
+                }
+            } else {
+                *last_idx = n.end_byte;
+            }
+
+            if !cursor.goto_next_sibling() {
+                return LT::try_extract(None, source, *last_idx, closure_ref);
+            }
+        }
+    } else {
+        LT::try_extract(None, source, *last_idx, closure_ref)
+    }
+}
+
 /// Extracts a struct or variant from a parsed node.
 #[cfg(feature = "pure-rust")]
 pub fn extract_struct_or_variant<T>(
@@ -263,12 +384,8 @@ pub fn parse<T: Extract<T>>(
 
         Err(errors)
     } else {
-        Ok(<T as crate::Extract<_>>::extract(
-            Some(root_node),
-            input.as_bytes(),
-            0,
-            None,
-        ))
+        <T as crate::Extract<_>>::try_extract(Some(root_node), input.as_bytes(), 0, None)
+            .map_err(|error| vec![error])
     }
 }
 
@@ -482,12 +599,8 @@ fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
         }
     }
 
-    Ok(<T as crate::Extract<_>>::extract(
-        Some(extract_node),
-        source,
-        0,
-        None,
-    ))
+    <T as crate::Extract<_>>::try_extract(Some(extract_node), source, 0, None)
+        .map_err(|error| vec![error])
 }
 
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
@@ -775,12 +888,8 @@ fn parse_with_pure_parser<T: Extract<T>>(
         &root_node
     };
 
-    Ok(<T as crate::Extract<_>>::extract(
-        Some(extract_node),
-        input.as_bytes(),
-        0,
-        None,
-    ))
+    <T as crate::Extract<_>>::try_extract(Some(extract_node), input.as_bytes(), 0, None)
+        .map_err(|error| vec![error])
 }
 
 /// Parse using the GLR parser (parser_v4)

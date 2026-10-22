@@ -235,7 +235,7 @@ pub mod grammar {{
     #[derive(Debug, PartialEq)]
     pub enum Expr {{
         Number(
-            #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+            #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<i32>())]
             i32,
         ),
 
