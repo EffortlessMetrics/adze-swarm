@@ -199,6 +199,7 @@ jobs:
     needs: [detect-stable-product-paths, ci-product-stable]
     if: >-
       always() &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
       needs.detect-stable-product-paths.result != 'cancelled' &&
       needs.ci-product-stable.result != 'cancelled'
     runs-on: ubuntu-latest
