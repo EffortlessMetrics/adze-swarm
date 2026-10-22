@@ -493,6 +493,16 @@ impl Grammar {
     /// Validate grammar consistency and detect issues
     #[must_use = "validation result must be checked"]
     pub fn validate(&self) -> Result<(), GrammarError> {
+        // One numeric ID must not name two symbol categories (#978):
+        // validation by existence in either map would otherwise accept a
+        // grammar whose terminal and nonterminal identities collide.
+        for lhs in self.rules.keys() {
+            if self.tokens.contains_key(lhs)
+                || self.externals.iter().any(|ext| ext.symbol_id == *lhs)
+            {
+                return Err(GrammarError::SymbolCategoryCollision(*lhs));
+            }
+        }
         // Validate field name ordering (must be lexicographic)
         let mut field_names: Vec<_> = self.fields.values().collect();
         field_names.sort();
@@ -519,11 +529,147 @@ impl Grammar {
         // This will be implemented based on Tree-sitter's optimization strategies
     }
 
-    /// Normalize complex symbols by creating auxiliary rules
-    /// This expands Optional, Repeat, Choice, etc. into standard rules
-    pub fn normalize(&mut self) -> Vec<Rule> {
-        let max_id = self.rules.keys().map(|id| id.0).max().unwrap_or(0);
-        let mut aux_counter = max_id + 1000; // Start auxiliary IDs well above existing ones
+    /// Every symbol identity this grammar already carries, across all
+    /// categories that share the `SymbolId(u16)` space (#978).
+    fn occupied_symbol_ids(&self) -> Vec<bool> {
+        fn mark(occupied: &mut [bool], id: SymbolId) {
+            occupied[id.0 as usize] = true;
+        }
+        fn mark_symbol(occupied: &mut [bool], symbol: &Symbol) {
+            match symbol {
+                Symbol::Terminal(id) | Symbol::NonTerminal(id) | Symbol::External(id) => {
+                    mark(occupied, *id);
+                }
+                Symbol::Optional(inner) | Symbol::Repeat(inner) | Symbol::RepeatOne(inner) => {
+                    mark_symbol(occupied, inner)
+                }
+                Symbol::Choice(choices) | Symbol::Sequence(choices) => {
+                    for choice in choices {
+                        mark_symbol(occupied, choice);
+                    }
+                }
+                Symbol::Epsilon => {}
+            }
+        }
+
+        let mut occupied = vec![false; usize::from(u16::MAX) + 1];
+        // SymbolId(0) is reserved for EOF and is never handed out.
+        occupied[0] = true;
+        for (lhs, rules) in &self.rules {
+            mark(&mut occupied, *lhs);
+            for rule in rules {
+                for symbol in &rule.rhs {
+                    mark_symbol(&mut occupied, symbol);
+                }
+            }
+        }
+        for id in self.tokens.keys() {
+            mark(&mut occupied, *id);
+        }
+        for external in &self.externals {
+            mark(&mut occupied, external.symbol_id);
+        }
+        for id in self.rule_names.keys() {
+            mark(&mut occupied, *id);
+        }
+        for id in self
+            .extras
+            .iter()
+            .chain(&self.supertypes)
+            .chain(&self.inline_rules)
+        {
+            mark(&mut occupied, *id);
+        }
+        if let Some(start) = self.start_symbol {
+            mark(&mut occupied, start);
+        }
+        if let Some(word) = self.word_token {
+            mark(&mut occupied, word);
+        }
+        for id in self.lexical_metadata.keys() {
+            mark(&mut occupied, *id);
+        }
+        for (wrapper, backing) in &self.wrapper_token_relations {
+            mark(&mut occupied, *wrapper);
+            mark(&mut occupied, *backing);
+        }
+        for precedence in &self.precedences {
+            for id in &precedence.symbols {
+                mark(&mut occupied, *id);
+            }
+        }
+        for conflict in &self.conflicts {
+            for id in &conflict.symbols {
+                mark(&mut occupied, *id);
+            }
+        }
+        if let Some(registry) = &self.symbol_registry {
+            for (_, info) in registry.iter() {
+                mark(&mut occupied, info.id);
+            }
+        }
+        occupied
+    }
+
+    /// Upper bound on helpers normalization will allocate: one per
+    /// `Optional`/`Repeat`/`RepeatOne`/`Choice` node in the current rules.
+    fn count_complex_symbols(symbols: &[Symbol]) -> usize {
+        symbols
+            .iter()
+            .map(|symbol| match symbol {
+                Symbol::Optional(inner) | Symbol::Repeat(inner) | Symbol::RepeatOne(inner) => {
+                    1 + Self::count_complex_symbols(std::slice::from_ref(&**inner))
+                }
+                Symbol::Choice(choices) | Symbol::Sequence(choices) => {
+                    Self::count_complex_symbols(choices)
+                        + usize::from(matches!(symbol, Symbol::Choice(_)))
+                }
+                Symbol::Terminal(_)
+                | Symbol::NonTerminal(_)
+                | Symbol::External(_)
+                | Symbol::Epsilon => 0,
+            })
+            .sum()
+    }
+
+    /// Normalize complex symbols by creating auxiliary rules, returning a
+    /// typed error instead of panicking, wrapping, or colliding when the
+    /// symbol ID space cannot supply a free helper (#978).
+    ///
+    /// Helpers take the lowest unoccupied IDs (never the reserved EOF id
+    /// `SymbolId(0)`), so identical input normalizes identically.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GrammarError::SymbolSpaceExhausted`] before mutating the
+    /// grammar when fewer free IDs remain than helpers required.
+    pub fn try_normalize(&mut self) -> Result<Vec<Rule>, GrammarError> {
+        let mut occupied = self.occupied_symbol_ids();
+        let helpers_needed: usize = self
+            .rules
+            .values()
+            .flat_map(|rules| rules.iter())
+            .map(|rule| Self::count_complex_symbols(&rule.rhs))
+            .sum();
+        let free = occupied.iter().filter(|taken| !**taken).count();
+        if helpers_needed > free {
+            return Err(GrammarError::SymbolSpaceExhausted);
+        }
+        // Monotonic lowest-free cursor: deterministic for identical input.
+        let mut aux_cursor: u32 = 1;
+        let mut next_aux = move |occupied: &mut [bool]| -> Result<SymbolId, GrammarError> {
+            while aux_cursor <= u32::from(u16::MAX) {
+                let candidate = aux_cursor;
+                aux_cursor += 1;
+                if !occupied[candidate as usize] {
+                    occupied[candidate as usize] = true;
+                    return Ok(SymbolId(
+                        u16::try_from(candidate).expect("candidate is within u16 range"),
+                    ));
+                }
+            }
+            Err(GrammarError::SymbolSpaceExhausted)
+        };
 
         // We need to keep processing until no complex symbols remain
         loop {
@@ -549,8 +695,7 @@ impl Grammar {
                         Symbol::Optional(inner) => {
                             found_complex = true;
                             // Create aux rule: aux -> inner | ε
-                            let aux_id = SymbolId(aux_counter);
-                            aux_counter += 1;
+                            let aux_id = next_aux(&mut occupied)?;
 
                             // aux -> inner (recursively normalize the inner symbol)
                             let inner_rule = Rule {
@@ -578,8 +723,7 @@ impl Grammar {
                         Symbol::Repeat(inner) => {
                             found_complex = true;
                             // Create aux rule: aux -> aux inner | ε
-                            let aux_id = SymbolId(aux_counter);
-                            aux_counter += 1;
+                            let aux_id = next_aux(&mut occupied)?;
 
                             // aux -> aux inner (recursively normalize)
                             self.add_rule(Rule {
@@ -606,8 +750,7 @@ impl Grammar {
                         Symbol::RepeatOne(inner) => {
                             found_complex = true;
                             // Create aux rule: aux -> aux inner | inner
-                            let aux_id = SymbolId(aux_counter);
-                            aux_counter += 1;
+                            let aux_id = next_aux(&mut occupied)?;
 
                             // aux -> aux inner
                             self.add_rule(Rule {
@@ -634,8 +777,7 @@ impl Grammar {
                         Symbol::Choice(choices) => {
                             found_complex = true;
                             // Create aux rules: aux -> choice1 | choice2 | ...
-                            let aux_id = SymbolId(aux_counter);
-                            aux_counter += 1;
+                            let aux_id = next_aux(&mut occupied)?;
 
                             for choice in choices {
                                 self.add_rule(Rule {
@@ -670,7 +812,21 @@ impl Grammar {
         }
 
         // Return all rules for compatibility (though caller probably doesn't need this)
-        self.rules.values().flatten().cloned().collect()
+        Ok(self.rules.values().flatten().cloned().collect())
+    }
+
+    /// Normalize complex symbols by creating auxiliary rules.
+    /// This expands Optional, Repeat, Choice, etc. into standard rules.
+    ///
+    /// # Panics
+    ///
+    /// Panics only when the entire non-EOF symbol ID space is occupied and
+    /// a helper cannot be allocated. Use [`try_normalize`](Self::try_normalize)
+    /// for the typed-error form; this infallible signature is retained for
+    /// the existing consumer base (#978).
+    pub fn normalize(&mut self) -> Vec<Rule> {
+        self.try_normalize()
+            .unwrap_or_else(|error| panic!("grammar normalization failed: {error}"))
     }
 }
 
@@ -696,6 +852,14 @@ pub enum GrammarError {
     /// Conflict in grammar
     #[error("Conflict in grammar: {0}")]
     ConflictError(String),
+
+    /// No unoccupied symbol ID remains for a normalization helper
+    #[error("symbol ID space exhausted during normalization: no unoccupied SymbolId remains")]
+    SymbolSpaceExhausted,
+
+    /// One numeric ID is assigned to multiple symbol categories
+    #[error("symbol {0} is assigned to multiple symbol categories (rule, token, or external)")]
+    SymbolCategoryCollision(SymbolId),
 
     /// Invalid precedence declaration
     #[error("Invalid precedence declaration: {0}")]
