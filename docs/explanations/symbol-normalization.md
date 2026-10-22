@@ -2,238 +2,139 @@
 
 ## Overview
 
-Symbol normalization is a crucial preprocessing step in the adze GLR parser generation pipeline. It converts complex grammar symbols (like `Optional`, `Repeat`, `Sequence`, `Choice`) into equivalent simple productions that only contain `Terminal`, `NonTerminal`, `External`, and `Epsilon` symbols.
+Symbol normalization is a preprocessing step in the adze grammar pipeline.
+It rewrites complex grammar symbols (`Optional`, `Repeat`, `RepeatOne`,
+`Choice`, `Sequence`) into productions that only contain `Terminal`,
+`NonTerminal`, `External`, and `Epsilon` symbols, which is the form the
+FIRST/FOLLOW computation and LR item generation consume.
 
-## Why Normalization is Needed
-
-The GLR core's FIRST/FOLLOW computation algorithms expect all grammar symbols to be in normalized form. Complex symbols like `Repeat(Sequence([Terminal(a), Terminal(b)]))` cannot be directly processed by the mathematical algorithms used for:
-
-1. **FIRST set computation** - Computing which terminal symbols can start a production
-2. **FOLLOW set computation** - Computing which terminal symbols can follow a non-terminal
-3. **LR(1) item generation** - Building the parser state machine
+This page describes the implementation as it exists today. Claims are
+labelled by evidence state: **current** behavior is implemented and tested;
+**known defect** entries are tracked bugs with reproduction witnesses, not
+guarantees.
 
 ## How Normalization Works
 
-The normalization process transforms complex symbols into auxiliary non-terminal symbols with equivalent grammar rules:
+`Grammar::normalize(&mut self) -> Vec<Rule>` (in `ir/src/lib.rs`) rewrites
+rules in repeated passes until no complex symbols remain, so nested
+constructs such as `Optional(Repeat(x))` are expanded one layer per pass.
+It returns the grammar's full rule list after rewriting.
 
-### Optional Symbols
-```rust
-// Before: rule -> symbol?
-rule -> optional_symbol
+| Construct | Rewrite |
+|---|---|
+| `Optional(inner)` | New helper rule: `aux -> inner` and `aux -> ` (empty) |
+| `Repeat(inner)` | New helper rule: `aux -> aux inner` (left-recursive) and `aux -> ` (empty) |
+| `RepeatOne(inner)` | New helper rule: `aux -> aux inner` and `aux -> inner` |
+| `Choice([a, b, ...])` | New helper rule with one production per alternative |
+| `Sequence([a, b, ...])` | Flattened inline into the parent production; no helper rule |
 
-// After: (creates auxiliary rules)
-rule -> _aux1001
-_aux1001 -> symbol
-_aux1001 -> ε
-```
+The parent production keeps its position: the complex symbol is replaced
+by `NonTerminal(aux)` (or, for `Sequence`, by the flattened children).
 
-### Repeat Symbols  
-```rust
-// Before: rule -> symbol*
-rule -> repeat_symbol
+### Helper symbol IDs (known defect)
 
-// After: (creates auxiliary rules)
-rule -> _aux1002  
-_aux1002 -> _aux1002 symbol    // left-recursive for efficiency
-_aux1002 -> ε
-```
+**Current:** helper IDs start at `max_rule_lhs + 1000` and increment. The
+maximum is computed over rule left-hand sides only, and the arithmetic is
+unchecked.
 
-### RepeatOne Symbols
-```rust
-// Before: rule -> symbol+
-rule -> repeat_one_symbol
+**Known defect:** a token, external, or metadata symbol above the maximum
+rule LHS can therefore collide with a helper ID, and a grammar whose
+maximum rule LHS is within 1000 of `u16::MAX` overflows (panic in debug
+builds, wraparound in release builds, potentially onto the reserved EOF
+ID `SymbolId(0)`). Tracked in
+[#978](https://github.com/EffortlessMetrics/adze-swarm/issues/978) with
+reproduction witnesses; a full-domain allocation repair is in review but
+not yet landed. Until then, do not rely on helper IDs being disjoint from
+the rest of the symbol space, and do not use the `id > 1000` band as an
+auxiliary-symbol heuristic in new code.
 
-// After: (creates auxiliary rules)  
-rule -> _aux1003
-_aux1003 -> _aux1003 symbol    // left-recursive
-_aux1003 -> symbol
-```
+### Rule names and production identity
 
-### Choice Symbols
-```rust
-// Before: rule -> (symbol1 | symbol2 | symbol3)
-rule -> choice_symbol
+Normalization does **not** add entries to `Grammar::rule_names` for helper
+symbols, and every helper rule is created with `ProductionId(0)`; helper
+productions do not get unique production IDs today.
 
-// After: (creates auxiliary rules)
-rule -> _aux1004
-_aux1004 -> symbol1
-_aux1004 -> symbol2
-_aux1004 -> symbol3
-```
+`ProductionId` is a grammar-local production slot that distinct rules may
+share. `RuleId` is the separate dense index of a rule in
+`Grammar::all_rules()` order, and `Grammar::production_ids` is the
+`RuleId -> ProductionId` map. On the builder path that map is currently
+left empty, so it is not yet an authoritative total map; giving it that
+contract is tracked in
+[#980](https://github.com/EffortlessMetrics/adze-swarm/issues/980).
 
-### Sequence Symbols
-```rust
-// Before: rule -> (symbol1 symbol2 symbol3)
-rule -> sequence_symbol
+### Positional metadata (known defect)
 
-// After: (flattens or creates auxiliary rule)
-// For multi-element sequences:
-rule -> _aux1005
-_aux1005 -> symbol1 symbol2 symbol3
+**Current:** `Sequence` flattening changes the arity of a production, and
+positional metadata such as `Rule.fields` is copied unchanged.
 
-// For single-element sequences:
-rule -> symbol1  // directly flattened
-```
-
-## Recursive Normalization
-
-The normalization process handles nested complex symbols recursively:
-
-```rust
-// Before: rule -> (symbol*)?
-rule -> optional_repeat_symbol
-
-// After: (creates multiple auxiliary rules)
-rule -> _aux1006           // For the Optional
-_aux1006 -> _aux1007       // For the Repeat  
-_aux1006 -> ε
-_aux1007 -> _aux1007 symbol
-_aux1007 -> ε
-```
-
-## Implementation Details
-
-### Auxiliary Symbol ID Assignment
-
-- Auxiliary symbols are assigned IDs starting from `max_existing_id + 1000`
-- This avoids conflicts with user-defined symbols
-- IDs are assigned sequentially during normalization
-- The upper bound is `u16::MAX` (65535) to fit the `SymbolId` type
-
-### Grammar Rule Names
-
-- Auxiliary symbols get generated rule names like `_aux1001`, `_aux1002`, etc.
-- These names are added to the grammar's `rule_names` mapping
-- They appear in debug output and error messages
-
-### Production ID Management
-
-- Each auxiliary rule gets a unique `ProductionId`
-- Production IDs are managed to avoid conflicts
-- The counter increments for each new rule created
+**Known defect:** a field that designated the child after a flattened
+sequence silently designates a different child afterwards. Tracked in
+[#981](https://github.com/EffortlessMetrics/adze-swarm/issues/981); an
+origin-map repair is in review but not yet landed.
 
 ## API Usage
 
-### Automatic Normalization
-
-Normalization happens automatically during `FirstFollowSets::compute()`:
-
-```rust
-use adze_glr_core::FirstFollowSets;
-
-let mut grammar = create_grammar_with_complex_symbols();
-
-// Normalization happens automatically here
-let first_follow = FirstFollowSets::compute(&mut grammar)?;
-```
-
-### Manual Normalization  
-
-You can also normalize grammars explicitly:
+Normalization is infallible by signature; it does not return a `Result`.
 
 ```rust
 use adze_ir::Grammar;
 
 let mut grammar = create_grammar_with_complex_symbols();
-
-// Manually normalize the grammar
-grammar.normalize()?;
-
-// Now all symbols are simple
-assert!(all_symbols_are_simple(&grammar));
+let all_rules: Vec<adze_ir::Rule> = grammar.normalize();
 ```
+
+FIRST/FOLLOW entry points in `adze-glr-core`:
+
+- `FirstFollowSets::compute(&Grammar)` clones the grammar and normalizes
+  the clone; the caller's grammar is unchanged.
+- `FirstFollowSets::compute_normalized(&mut Grammar)` normalizes the
+  caller's grammar in place first.
+
+Both return `Result<FirstFollowSets, GLRError>` for set-computation
+failures (for example the checked-capacity failures guarded by
+[#982](https://github.com/EffortlessMetrics/adze-swarm/issues/982)).
 
 ### Idempotency
 
-Normalization is idempotent - calling it multiple times has no effect:
-
-```rust
-let mut grammar = create_grammar_with_complex_symbols();
-
-grammar.normalize()?;
-let after_first = grammar.clone();
-
-grammar.normalize()?;  // Second call does nothing
-let after_second = grammar.clone();
-
-assert_eq!(after_first, after_second);
-```
+Normalization is idempotent: once no complex symbols remain, a second
+call allocates no new helpers and returns the same rules. This is covered
+by the `adze-ir` normalization suites.
 
 ## Testing
 
-The normalization functionality is comprehensively tested:
-
 ```bash
-# Run normalization-specific tests
-cargo test -p adze-ir --test test_normalization
+# Normalization behavior (adze-ir)
+cargo test -p adze-ir normalize
 
-# Run integration test that was originally failing
-cargo test test_json_language_generation -p adze-tablegen
+# FIRST/FOLLOW integration (adze-glr-core)
+cargo test -p adze-glr-core first_follow
+
+# This page's accuracy contract
+cargo test -p adze-ir --test normalization_doc_contract
 ```
 
 ## Error Handling
 
-Normalization can fail with `GrammarError` in these cases:
-
-- **Symbol ID overflow** - Too many auxiliary symbols created (exceeds u16 range)  
-- **Recursive symbol definitions** - Self-referencing complex symbols (future work)
-- **Memory constraints** - Extremely large grammars (unlikely in practice)
+`Grammar::normalize(&mut self) -> Vec<Rule>` cannot fail by signature.
+The one failure mode today is the helper-ID overflow described above,
+which panics (debug) or wraps (release) instead of returning an error;
+[#978](https://github.com/EffortlessMetrics/adze-swarm/issues/978) tracks
+making that a typed error. `FirstFollowSets::compute(&Grammar)` and
+`compute_normalized(&mut Grammar)` return typed `GLRError`s for
+set-computation problems.
 
 ## Performance Considerations
 
-- **Memory usage** - Each complex symbol may create 1-3 auxiliary rules
-- **Parse table size** - More rules = larger parse tables, but equivalent functionality
-- **Runtime performance** - No impact on parsing speed, only affects compilation time
-- **Compilation time** - Minimal overhead, runs once during grammar processing
+- Each complex symbol creates one helper rule with one to three
+  productions (`Choice` creates one production per alternative).
+- More rules mean larger parse tables, with equivalent accepted language.
+- Normalization runs at grammar-processing time, not per parse.
 
-## Backward Compatibility
+## Compatibility Notes
 
-The normalization feature maintains full backward compatibility:
-
-- Existing grammars with simple symbols work unchanged
-- Complex symbols are transparently normalized  
-- Generated parser behavior is identical
-- API remains the same except for the mutability requirement in `FirstFollowSets::compute()`
-
-## Debugging
-
-### Debug Output
-
-Set environment variables to see normalization in action:
-
-```bash
-RUST_LOG=trace cargo test test_json_language_generation
-```
-
-### Inspecting Normalized Grammars
-
-After normalization, you can inspect the generated auxiliary rules:
-
-```rust
-grammar.normalize()?;
-
-for (symbol_id, rules) in &grammar.rules {
-    if symbol_id.0 > 1000 {  // Auxiliary symbols start at 1000+
-        println!("Auxiliary symbol {}: {} rules", symbol_id.0, rules.len());
-        for rule in rules {
-            println!("  {:?}", rule);
-        }
-    }
-}
-```
-
-### Common Debug Scenarios
-
-1. **Complex symbols not normalized** - Check that `FirstFollowSets::compute()` is called with `&mut Grammar`
-2. **Unexpected auxiliary rules** - Verify the original grammar structure
-3. **Symbol ID conflicts** - Ensure no user symbols have IDs > 1000
-
-## Future Improvements
-
-Potential enhancements to the normalization system:
-
-1. **Symbol ID optimization** - Better auxiliary ID assignment strategies
-2. **Rule deduplication** - Merge equivalent auxiliary rules to reduce grammar size  
-3. **Error reporting** - Better error messages for normalization failures
-4. **Performance optimization** - Faster normalization for very large grammars
-5. **Rule naming** - More descriptive names for auxiliary rules in debug output
+- Grammars with only simple symbols are unchanged by normalization.
+- No identical-behavior guarantee is proved beyond the tested rewrites
+  above; in particular the helper-ID collision and positional-metadata
+  defects mean normalized output must not be assumed collision-free until
+  [#978](https://github.com/EffortlessMetrics/adze-swarm/issues/978) and
+  [#981](https://github.com/EffortlessMetrics/adze-swarm/issues/981) land.
