@@ -160,8 +160,12 @@ impl<'a> NodeTypesGenerator<'a> {
                     // a field bound twice here is multiple even without a
                     // repeat wrapper.
                     let mut bound_in_rule: HashMap<&str, usize> = HashMap::new();
-                    for (field_id, _) in &rule.fields {
-                        if let Some(field_name) = self.grammar.fields.get(field_id) {
+                    for (field_id, position) in &rule.fields {
+                        // A field whose position is out of bounds binds
+                        // nothing and is skipped entirely.
+                        if rule.rhs.get(*position).is_some()
+                            && let Some(field_name) = self.grammar.fields.get(field_id)
+                        {
                             *bound_in_rule.entry(field_name.as_str()).or_default() += 1;
                         }
                     }
@@ -291,6 +295,12 @@ impl<'a> NodeTypesGenerator<'a> {
             }
             Symbol::Choice(choices) => {
                 let mut combined = FieldCardinality::default();
+                if choices.is_empty() {
+                    combined.types.push(TypeRef {
+                        type_name: "empty".to_string(),
+                        named: false,
+                    });
+                }
                 for choice in choices {
                     let cardinality = self.symbol_cardinality(choice, symbol_names);
                     combined.optional |= cardinality.optional;
@@ -303,10 +313,17 @@ impl<'a> NodeTypesGenerator<'a> {
                 }
                 combined
             }
-            Symbol::Sequence(seq) => seq
-                .first()
-                .map(|first| self.symbol_cardinality(first, symbol_names))
-                .unwrap_or_default(),
+            Symbol::Sequence(seq) => seq.first().map_or_else(
+                || FieldCardinality {
+                    optional: false,
+                    multiple: false,
+                    types: vec![TypeRef {
+                        type_name: "empty".to_string(),
+                        named: false,
+                    }],
+                },
+                |first| self.symbol_cardinality(first, symbol_names),
+            ),
             _ => FieldCardinality {
                 optional: false,
                 multiple: false,
