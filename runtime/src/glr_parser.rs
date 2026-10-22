@@ -142,7 +142,10 @@ mod recovery;
 mod telemetry;
 
 pub use ambiguity::{AlternativeSummary, AmbiguitySummary, SelectionReason};
-pub(crate) use ambiguity::{canonicalize_alternatives, subtree_node_count, subtree_selection_key};
+pub(crate) use ambiguity::{
+    canonicalize_alternative_entries, canonicalize_alternatives, subtree_node_count,
+    subtree_selection_key,
+};
 #[allow(unused_imports)]
 pub use config::{DEFAULT_SAFE_DEDUP_THRESHOLD, safe_dedup_threshold};
 pub use parse_stack::ParseStack;
@@ -1103,24 +1106,23 @@ impl GLRParser {
         // Skip merging to preserve all reduction paths for true GLR behavior
         // self.merge_stacks(&mut result);
 
-        // Closure-local deduplication: drop exact duplicates by (state, top-node pointer)
-        // This prevents epsilon chains from blowing up
-        use std::ptr;
-        // Don't remove stacks with no nodes - they may be valid initial states
-        result.sort_by_key(|s| {
-            (
-                s.current_state().0,
-                s.nodes.last().map(|n| Arc::as_ptr(n) as usize).unwrap_or(0),
-            )
-        });
-        result.dedup_by(|a, b| {
-            // Only dedup if both stacks have the same state AND the same top node
-            a.current_state() == b.current_state()
-                && match (a.nodes.last(), b.nodes.last()) {
-                    (Some(node_a), Some(node_b)) => ptr::eq(node_a.as_ref(), node_b.as_ref()),
-                    (None, None) => true, // Two stacks with no nodes and same state are duplicates
-                    _ => false,           // Different node counts means different stacks
-                }
+        // Closure-local deduplication: drop exact duplicates by (state,
+        // top-node identity). This prevents epsilon chains from blowing up.
+        // The first stack of each duplicate group survives, in construction
+        // order. This intentionally does not sort by the top-node pointer:
+        // heap addresses differ per process, and grouping by a stable
+        // first-wins retain gives the same survivor set deterministically.
+        // Stacks with no nodes are keyed by state alone; they may be valid
+        // initial states, so only exact state duplicates are dropped.
+        let mut seen_tops: std::collections::HashSet<(u16, usize)> =
+            std::collections::HashSet::default();
+        result.retain(|stack| {
+            let top_key = stack
+                .nodes
+                .last()
+                .map(|node| Arc::as_ptr(node) as usize)
+                .unwrap_or(0);
+            seen_tops.insert((stack.current_state().0, top_key))
         });
 
         debug_glr!(
@@ -1877,20 +1879,30 @@ impl GLRParser {
             }
         }
 
-        let mut alternatives = Vec::new();
-
         // Collect all successfully parsed stacks
+        let mut entries = Vec::new();
         for stack in &self.stacks {
             if stack.nodes.len() == 1 {
                 // Accept if we have exactly one node after EOF processing
                 // This should be the root of the parse tree (the start symbol)
-                #[allow(unused_variables)]
                 let node = &stack.nodes[0];
                 debug_glr!("Debug stack node symbol: {:?}", node.node.symbol_id);
 
                 // CRITICAL: Check that the parse consumed all input
                 if node.node.byte_range.end == self.input_length {
-                    alternatives.push(node.clone());
+                    entries.push((
+                        AlternativeSummary {
+                            index: entries.len(),
+                            root_symbol: node.node.symbol_id,
+                            span: node.node.byte_range.clone(),
+                            dynamic_precedence: stack.version.dynamic_prec,
+                            in_error: stack.version.in_error,
+                            cost: stack.version.cost,
+                            node_count: subtree_node_count(node),
+                        },
+                        subtree_selection_key(node),
+                        node.clone(),
+                    ));
                 } else {
                     debug_glr!(
                         "DEBUG: Rejecting incomplete stack - ends at byte {} but input is {} bytes",
@@ -1900,6 +1912,12 @@ impl GLRParser {
                 }
             }
         }
+
+        // Report alternatives in the same canonical order (and with the
+        // same exact-duplicate removal) as the ambiguity summary, so a
+        // summary `selected` index addresses the same alternative here.
+        let (canonical, _) = canonicalize_alternative_entries(entries, None);
+        let alternatives: Vec<Arc<Subtree>> = canonical.into_iter().map(|(_, tree)| tree).collect();
 
         if alternatives.is_empty() {
             // If no accepted stack, return error with debugging info

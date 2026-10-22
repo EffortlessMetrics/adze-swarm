@@ -119,34 +119,61 @@ pub(crate) fn canonicalize_alternatives(
     structural_keys: Vec<SubtreeSelectionKey>,
     selected: Option<usize>,
 ) -> (Vec<AlternativeSummary>, Option<usize>) {
-    debug_assert_eq!(alternatives.len(), structural_keys.len());
-
-    let selected_key = selected.and_then(|index| {
+    let (alternatives, selected) = canonicalize_alternative_entries(
         alternatives
+            .into_iter()
+            .zip(structural_keys)
+            .map(|(alternative, key)| (alternative, key, ()))
+            .collect(),
+        selected,
+    );
+    (
+        alternatives
+            .into_iter()
+            .map(|(alternative, _)| alternative)
+            .collect(),
+        selected,
+    )
+}
+
+/// Payload-carrying form of [`canonicalize_alternatives`]: each alternative
+/// keeps an attached value (for example its parse tree) through sorting and
+/// deduplication, so every API that reports alternatives shares one index
+/// space.
+pub(crate) fn canonicalize_alternative_entries<T>(
+    entries: Vec<(AlternativeSummary, SubtreeSelectionKey, T)>,
+    selected: Option<usize>,
+) -> (Vec<(AlternativeSummary, T)>, Option<usize>) {
+    let selected_key = selected.and_then(|index| {
+        entries
             .get(index)
-            .zip(structural_keys.get(index))
-            .map(|(alternative, key)| alternative_canonical_key(alternative, key))
+            .map(|(alternative, key, _)| alternative_canonical_key(alternative, key))
     });
 
-    let mut entries: Vec<(AlternativeCanonicalKey, AlternativeSummary)> = alternatives
+    let mut keyed: Vec<(AlternativeCanonicalKey, AlternativeSummary, T)> = entries
         .into_iter()
-        .zip(structural_keys.iter())
-        .map(|(alternative, key)| (alternative_canonical_key(&alternative, key), alternative))
+        .map(|(alternative, key, payload)| {
+            (
+                alternative_canonical_key(&alternative, &key),
+                alternative,
+                payload,
+            )
+        })
         .collect();
-    entries.sort_by(|left, right| left.0.cmp(&right.0));
+    keyed.sort_by(|left, right| left.0.cmp(&right.0));
 
     let mut seen = std::collections::HashSet::new();
-    entries.retain(|(key, _)| seen.insert(key.clone()));
+    keyed.retain(|(key, _, _)| seen.insert(key.clone()));
 
     let selected =
-        selected_key.and_then(|key| entries.iter().position(|(candidate, _)| *candidate == key));
+        selected_key.and_then(|key| keyed.iter().position(|(candidate, _, _)| *candidate == key));
 
-    let alternatives = entries
+    let alternatives = keyed
         .into_iter()
         .enumerate()
-        .map(|(index, (_, mut alternative))| {
+        .map(|(index, (_, mut alternative, payload))| {
             alternative.index = index;
-            alternative
+            (alternative, payload)
         })
         .collect();
 
