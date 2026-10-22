@@ -461,9 +461,7 @@ mod tests {
         // that lands on the field's old position after flattening.
         let mut grammar = Grammar::new("field_origins".to_string());
         grammar.start_symbol = Some(SymbolId(1));
-        grammar
-            .rule_names
-            .insert(SymbolId(1), "expr".to_string());
+        grammar.rule_names.insert(SymbolId(1), "expr".to_string());
         for (id, name) in [(2u16, "a"), (3, "b"), (4, "c")] {
             grammar.tokens.insert(
                 SymbolId(id),
