@@ -55,6 +55,29 @@ API is requested.
 The compatibility adapter exposes the selected tree only. Ambiguity summaries
 remain an Adze-native capability.
 
+### B6. Alternative ordering and deduplication are canonical
+
+Ambiguity alternatives are emitted in a canonical deterministic order, not
+in runtime retention order (implemented by #1021, closing #1017):
+
+- Alternatives sort by the structural subtree selection key first, then by
+  dynamic precedence, cost, error flag, root symbol, node count, and span.
+- An alternative is a duplicate only when its structural key and every
+  serialized summary field agree; duplicates are removed. Alternatives that
+  share summary fields but have different tree structures are retained.
+- `index` is reassigned `0..n` after ordering, and `selected` points at the
+  canonical position of the alternative that selection picked before
+  reordering. Selection itself is unchanged by canonicalization.
+- When deduplication leaves fewer than two distinct alternatives, no
+  ambiguity summary is reported for that site.
+
+Two root conventions exist today and both are accepted: the streaming
+builder reports the bare grammar root (wrapper excluded from `node_count`),
+while the legacy builder reports the augmented start root (wrapper
+included). Unifying them is an open spec question, not current behavior;
+consumers must not assume one convention across engines. The selected tree
+is byte-identical under either convention.
+
 ## Non-Goals
 
 - No stable full SPPF/forest schema yet.
@@ -69,6 +92,9 @@ remain an Adze-native capability.
 - Selection reason is present.
 - Typed AST projection uses the selected tree.
 - Raw forest export remains experimental or absent by default.
+- Alternative ordering and deduplication follow B6: the ambiguity snapshot
+  test passes in repeated separate processes with no snapshot drift, and a
+  duplicate-only retention set produces no summary.
 
 ## Acceptance Examples
 
@@ -88,6 +114,8 @@ assert_eq!(ast, ambiguities[0].selected_ast_shape());
 
 - `runtime/tests/test_e2e_ambiguous_grammar_glr.rs`
 - `adze-glr-core` ambiguity and conflict tests
+- `runtime/tests/adze_document_json.rs` ambiguity snapshot and determinism
+  tests (B6)
 - future document ambiguity projection tests
 
 ## Implementation Mapping
