@@ -72,7 +72,14 @@ pub struct Grammar {
     pub inline_rules: Vec<SymbolId>,
     /// Alias sequences for productions
     pub alias_sequences: IndexMap<ProductionId, AliasSequence>,
-    /// Maps rule IDs to production IDs
+    /// Total many-to-one map from rule IDs to production IDs (#980).
+    ///
+    /// A [`RuleId`] is the dense flattened index of [`all_rules`](Grammar::all_rules)
+    /// in insertion order; a [`ProductionId`] is a grammar-local production
+    /// slot that distinct rules may legitimately share. The map is a
+    /// derived cache: rebuild it with
+    /// [`refresh_production_ids`](Grammar::refresh_production_ids) after
+    /// mutating rules outside the builder/normalize/optimize boundaries.
     pub production_ids: IndexMap<RuleId, ProductionId>,
     /// Maximum alias sequence length
     pub max_alias_sequence_length: usize,
@@ -108,6 +115,47 @@ impl Grammar {
     /// Iterate over all rules in the grammar
     pub fn all_rules(&self) -> impl Iterator<Item = &Rule> {
         self.rules.values().flat_map(|rules| rules.iter())
+    }
+
+    /// Rebuild [`production_ids`](Self::production_ids) from the current
+    /// rules so the `RuleId -> ProductionId` map is total (#980).
+    ///
+    /// `RuleId(index)` denotes the `index`-th rule of
+    /// [`all_rules`](Self::all_rules). The mapping is many-to-one:
+    /// production IDs are grammar-local slots and are never renumbered.
+    pub fn refresh_production_ids(&mut self) {
+        let entries: Vec<(RuleId, ProductionId)> = self
+            .all_rules()
+            .enumerate()
+            .map(|(index, rule)| {
+                let rule_id =
+                    RuleId(u16::try_from(index).expect("rule count exceeds the RuleId range"));
+                (rule_id, rule.production_id)
+            })
+            .collect();
+        self.production_ids.clear();
+        self.production_ids.extend(entries);
+    }
+
+    /// Production slot for one rule, when `rule_id` is in the current
+    /// rule domain. Refresh with
+    /// [`refresh_production_ids`](Self::refresh_production_ids) after
+    /// mutating rules directly.
+    pub fn production_id_for_rule(&self, rule_id: RuleId) -> Option<ProductionId> {
+        self.production_ids.get(&rule_id).copied()
+    }
+
+    /// Every rule that shares one production slot, in rule order. This is
+    /// the legitimate reverse direction of the many-to-one map; a
+    /// production must never be inverted to a single rule.
+    pub fn rule_ids_for_production(
+        &self,
+        production_id: ProductionId,
+    ) -> impl Iterator<Item = RuleId> + '_ {
+        self.production_ids
+            .iter()
+            .filter(move |(_, candidate)| **candidate == production_id)
+            .map(|(rule_id, _)| *rule_id)
     }
 
     /// Get the start symbol for this grammar.

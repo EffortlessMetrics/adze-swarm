@@ -97,9 +97,9 @@ fn builder_grammar_max_alias_length_zero_by_default() {
 }
 
 #[test]
-fn builder_grammar_production_ids_map_empty_by_default() {
+fn builder_grammar_production_ids_map_total_by_default() {
     let g = build_two_rules("aaseq_v9_two_rules_pid");
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
 }
 
 #[test]
@@ -358,6 +358,9 @@ fn production_ids_populated_manually() {
 #[test]
 fn production_ids_map_preserves_insertion_order() {
     let mut g = build_minimal("aaseq_v9_pid_order");
+    // Builder grammars arrive with a total map (#980); this test's subject
+    // is manual insertion order, so start from an empty map.
+    g.production_ids.clear();
     g.production_ids.insert(RuleId(5), ProductionId(50));
     g.production_ids.insert(RuleId(2), ProductionId(20));
     g.production_ids.insert(RuleId(8), ProductionId(80));

@@ -254,13 +254,17 @@ fn test_grammar_production_ids_get_returns_none_for_missing() {
 }
 
 #[test]
-fn test_grammar_production_ids_from_builder_are_empty() {
+fn test_grammar_production_ids_from_builder_are_total() {
     let grammar = GrammarBuilder::new("example")
         .token("NUM", r"\d+")
         .rule("start", vec!["NUM"])
         .start("start")
         .build();
-    assert!(grammar.production_ids.is_empty());
+    assert_eq!(grammar.production_ids.len(), grammar.all_rules().count());
+    assert_eq!(
+        grammar.production_id_for_rule(RuleId(0)),
+        grammar.all_rules().next().map(|rule| rule.production_id)
+    );
 }
 
 // ============================================================

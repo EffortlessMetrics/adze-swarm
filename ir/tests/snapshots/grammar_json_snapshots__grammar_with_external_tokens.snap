@@ -87,7 +87,10 @@ expression: grammar_json(&grammar)
   "supertypes": [],
   "inline_rules": [],
   "alias_sequences": {},
-  "production_ids": {},
+  "production_ids": {
+    "0": 0,
+    "1": 1
+  },
   "max_alias_sequence_length": 0,
   "rule_names": {
     "3": "pass",

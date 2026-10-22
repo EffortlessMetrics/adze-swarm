@@ -50,7 +50,7 @@ fn builder_empty_build_produces_default_fields() {
     let g = GrammarBuilder::new("defaults").build();
     assert!(g.fields.is_empty());
     assert!(g.alias_sequences.is_empty());
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
     assert_eq!(g.max_alias_sequence_length, 0);
     assert!(g.symbol_registry.is_none());
     assert!(g.inline_rules.is_empty());

@@ -169,7 +169,7 @@ fn uniqueness_btreeset_preserves_all() {
 #[test]
 fn uniqueness_empty_grammar_no_ids() {
     let g = grammar_with_n_rules(0);
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
 }
 
 #[test]
@@ -190,7 +190,7 @@ fn uniqueness_manual_ids_can_have_gaps() {
 fn scale_one_rule_one_id() {
     let mut g = grammar_with_n_rules(1);
     populate_sequential_production_ids(&mut g);
-    assert_eq!(g.production_ids.len(), 1);
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
 }
 
 #[test]
@@ -422,7 +422,7 @@ fn normalize_does_not_remove_production_ids() {
 fn normalize_empty_grammar_no_crash() {
     let mut g = GrammarBuilder::new("empty").build();
     let rules = g.normalize();
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
     // normalize returns collected rules
     let _ = rules;
 }
@@ -572,14 +572,14 @@ fn edge_single_rule_grammar() {
         .start("s")
         .build();
     assert_eq!(g.rules.len(), 1);
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
 }
 
 #[test]
 fn edge_no_rules_grammar() {
     let g = GrammarBuilder::new("empty").build();
     assert!(g.rules.is_empty());
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
     assert!(g.alias_sequences.is_empty());
     assert_eq!(g.max_alias_sequence_length, 0);
 }
@@ -625,7 +625,7 @@ fn edge_production_id_as_map_key() {
 #[test]
 fn edge_default_grammar_has_empty_production_ids() {
     let g = Grammar::default();
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
     assert!(g.alias_sequences.is_empty());
     assert_eq!(g.max_alias_sequence_length, 0);
 }

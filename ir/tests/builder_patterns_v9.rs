@@ -1215,6 +1215,6 @@ fn integration_05_grammar_fields_default_empty() {
         .build();
     assert!(g.fields.is_empty());
     assert!(g.alias_sequences.is_empty());
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
     assert_eq!(g.max_alias_sequence_length, 0);
 }

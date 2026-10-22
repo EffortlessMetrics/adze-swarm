@@ -345,7 +345,7 @@ impl GrammarBuilder {
             .start_symbol
             .or_else(|| ordered_rules.keys().next().copied());
 
-        Grammar {
+        let mut grammar = Grammar {
             name: self.name,
             rules: ordered_rules,
             tokens: self.tokens,
@@ -365,7 +365,10 @@ impl GrammarBuilder {
             lexical_metadata: self.lexical_metadata,
             start_symbol,
             wrapper_token_relations,
-        }
+        };
+        // The RuleId -> ProductionId map is total from build time (#980).
+        grammar.refresh_production_ids();
+        grammar
     }
 }
 
