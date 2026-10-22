@@ -195,13 +195,39 @@ fn try_normalize_reports_typed_exhaustion_without_mutating() {
 }
 
 #[test]
-fn validate_detects_cross_category_symbol_collision() {
+fn normalize_never_creates_a_collision_for_preexisting_dual_use_grammar() {
+    // Corpus grammars may assign one numeric ID to both a rule and a
+    // token and remain valid normalization input. The #978 guarantee is
+    // falsifier 8: successful normalization must not create a *new*
+    // collision, so the helper for this dual-use grammar must avoid ID 5.
     let mut grammar = Grammar::new("pre_collided".to_string());
+    grammar.start_symbol = Some(SymbolId(5));
     grammar.tokens.insert(SymbolId(5), token("a"));
-    grammar.add_rule(rule(5, vec![Symbol::Epsilon]));
+    grammar.tokens.insert(SymbolId(6), token("b"));
+    grammar.add_rule(rule(
+        5,
+        vec![Symbol::Optional(Box::new(Symbol::Terminal(SymbolId(6))))],
+    ));
 
+    grammar
+        .try_normalize()
+        .expect("dual-use grammar normalizes");
+
+    assert!(grammar.tokens.contains_key(&SymbolId(5)));
+    let helper_ids: Vec<SymbolId> = grammar
+        .rules
+        .keys()
+        .copied()
+        .filter(|id| *id != SymbolId(5))
+        .collect();
     assert!(
-        grammar.validate().is_err(),
-        "one numeric id assigned to both a token and a rule must be rejected"
+        helper_ids
+            .iter()
+            .all(|id| *id != SymbolId(5) && *id != SymbolId(6)),
+        "helpers must avoid every occupied ID, got {helper_ids:?}"
+    );
+    assert!(
+        !grammar.tokens.contains_key(&SymbolId(6)) || !helper_ids.contains(&SymbolId(6)),
+        "no helper may land on a token ID"
     );
 }

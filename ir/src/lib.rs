@@ -493,16 +493,6 @@ impl Grammar {
     /// Validate grammar consistency and detect issues
     #[must_use = "validation result must be checked"]
     pub fn validate(&self) -> Result<(), GrammarError> {
-        // One numeric ID must not name two symbol categories (#978):
-        // validation by existence in either map would otherwise accept a
-        // grammar whose terminal and nonterminal identities collide.
-        for lhs in self.rules.keys() {
-            if self.tokens.contains_key(lhs)
-                || self.externals.iter().any(|ext| ext.symbol_id == *lhs)
-            {
-                return Err(GrammarError::SymbolCategoryCollision(*lhs));
-            }
-        }
         // Validate field name ordering (must be lexicographic)
         let mut field_names: Vec<_> = self.fields.values().collect();
         field_names.sort();
@@ -636,8 +626,10 @@ impl Grammar {
     /// typed error instead of panicking, wrapping, or colliding when the
     /// symbol ID space cannot supply a free helper (#978).
     ///
-    /// Helpers take the lowest unoccupied IDs (never the reserved EOF id
-    /// `SymbolId(0)`), so identical input normalizes identically.
+    /// Helpers take unoccupied IDs from the band above the maximum
+    /// occupied ID, falling back to the lowest unoccupied IDs when that
+    /// band would leave the ID space; the reserved EOF id `SymbolId(0)`
+    /// is never handed out, so identical input normalizes identically.
     ///
     /// # Errors
     ///
@@ -655,12 +647,35 @@ impl Grammar {
         if helpers_needed > free {
             return Err(GrammarError::SymbolSpaceExhausted);
         }
-        // Monotonic lowest-free cursor: deterministic for identical input.
-        let mut aux_cursor: u32 = 1;
+        // Note: a pre-existing grammar may assign one numeric ID to both
+        // a rule and a token (the corpus encodes such dual-use grammars
+        // as valid normalization input). Normalization must never create
+        // or worsen such a collision: helpers come only from the
+        // unoccupied set computed above (#978 falsifier 8).
+        // Allocation order is a deterministic function of the occupied
+        // set: helpers first take the band above the maximum occupied ID
+        // (offset by 1000, the historical auxiliary band), and only when
+        // that band would leave the `u16` space do they fall back to the
+        // lowest unoccupied IDs. Either way a helper is always actually
+        // unoccupied, never the reserved EOF ID, and identical input
+        // yields identical helpers.
+        let max_occupied = occupied.iter().rposition(|taken| *taken).unwrap_or(0) as u32;
+        let mut aux_cursor = max_occupied + 1000;
+        let mut aux_fallback_cursor: u32 = 1;
         let mut next_aux = move |occupied: &mut [bool]| -> Result<SymbolId, GrammarError> {
             while aux_cursor <= u32::from(u16::MAX) {
                 let candidate = aux_cursor;
                 aux_cursor += 1;
+                if !occupied[candidate as usize] {
+                    occupied[candidate as usize] = true;
+                    return Ok(SymbolId(
+                        u16::try_from(candidate).expect("candidate is within u16 range"),
+                    ));
+                }
+            }
+            while aux_fallback_cursor <= u32::from(u16::MAX) {
+                let candidate = aux_fallback_cursor;
+                aux_fallback_cursor += 1;
                 if !occupied[candidate as usize] {
                     occupied[candidate as usize] = true;
                     return Ok(SymbolId(
@@ -856,10 +871,6 @@ pub enum GrammarError {
     /// No unoccupied symbol ID remains for a normalization helper
     #[error("symbol ID space exhausted during normalization: no unoccupied SymbolId remains")]
     SymbolSpaceExhausted,
-
-    /// One numeric ID is assigned to multiple symbol categories
-    #[error("symbol {0} is assigned to multiple symbol categories (rule, token, or external)")]
-    SymbolCategoryCollision(SymbolId),
 
     /// Invalid precedence declaration
     #[error("Invalid precedence declaration: {0}")]

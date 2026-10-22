@@ -5,12 +5,12 @@ expression: grammar_json(&grammar)
 {
   "name": "normalize_demo",
   "rules": {
-    "1001": [
+    "1003": [
       {
-        "lhs": 1001,
+        "lhs": 1003,
         "rhs": [
           {
-            "NonTerminal": 1001
+            "NonTerminal": 1003
           },
           {
             "Terminal": 3
@@ -25,7 +25,7 @@ expression: grammar_json(&grammar)
         "production_id": 0
       },
       {
-        "lhs": 1001,
+        "lhs": 1003,
         "rhs": [
           "Epsilon"
         ],
@@ -43,7 +43,7 @@ expression: grammar_json(&grammar)
             "Terminal": 2
           },
           {
-            "NonTerminal": 1001
+            "NonTerminal": 1003
           }
         ],
         "precedence": null,
