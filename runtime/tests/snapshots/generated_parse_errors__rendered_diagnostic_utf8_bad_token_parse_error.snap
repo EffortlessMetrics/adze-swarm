@@ -1,0 +1,7 @@
+---
+source: runtime/tests/generated_parse_errors.rs
+expression: rendered_error
+---
+unexpected token "λ", expected one of: number at 1:5 (bytes 4..6)
+1 + λ
+    ^^

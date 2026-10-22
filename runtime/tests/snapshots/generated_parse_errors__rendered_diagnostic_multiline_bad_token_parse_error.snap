@@ -1,0 +1,7 @@
+---
+source: runtime/tests/generated_parse_errors.rs
+expression: rendered_error
+---
+unexpected token "@", expected one of: number at 2:1 (bytes 4..5)
+@
+^

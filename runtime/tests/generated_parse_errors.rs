@@ -205,6 +205,65 @@ fn generated_typed_parser_unexpected_eof_lists_expected_tokens() {
     );
 }
 
+/// #875: rendered diagnostics are user-visible output, so lock them with
+/// snapshots on both surfaces (`ParseError` from `parse()` and
+/// `ParseDiagnostic` from `parse_document()`). The two renderings use
+/// different reason text today; the snapshots pin each surface, and the
+/// assertions below pin agreement on the shared facts: byte span and
+/// caret placement.
+#[test]
+fn rendered_diagnostic_snapshots_agree_on_span_and_caret() {
+    let cases: [(&str, &str); 4] = [
+        ("bad_token", "1 + @"),
+        ("eof", "1 +"),
+        ("utf8_bad_token", "1 + λ"),
+        ("multiline_bad_token", "1 +\n@"),
+    ];
+
+    for (name, source) in cases {
+        let errors = adze_example::typed_ast_contract::grammar::parse(source)
+            .expect_err("invalid input must fail through the generated typed parser");
+        let first = errors
+            .first()
+            .expect("generated parser should return at least one parse error");
+        let rendered_error = first.display_with_source(source).to_string();
+        insta::assert_snapshot!(
+            format!("rendered_diagnostic_{name}_parse_error"),
+            rendered_error
+        );
+
+        let document = adze_example::typed_ast_contract::grammar::parse_document(source)
+            .expect("document parse should return partial parse facts");
+        let diagnostic = document
+            .diagnostics()
+            .first()
+            .expect("document should carry at least one diagnostic");
+        let rendered_diagnostic = diagnostic.display_with_source(source).to_string();
+        insta::assert_snapshot!(
+            format!("rendered_diagnostic_{name}_document"),
+            rendered_diagnostic
+        );
+
+        assert_eq!(
+            first.byte_span(),
+            diagnostic.byte_span(),
+            "{name}: parse() and parse_document() should agree on the byte span"
+        );
+        let caret_line = |rendered: &str| {
+            rendered
+                .lines()
+                .find(|line| line.trim_start().starts_with('^'))
+                .unwrap_or_else(|| panic!("{name}: rendered diagnostic needs a caret line"))
+                .to_string()
+        };
+        assert_eq!(
+            caret_line(&rendered_error),
+            caret_line(&rendered_diagnostic),
+            "{name}: both surfaces should place the caret identically"
+        );
+    }
+}
+
 #[test]
 fn test_document_ast_extraction_when_truncated_input_reports_unexpected_eof() {
     let source = "if";

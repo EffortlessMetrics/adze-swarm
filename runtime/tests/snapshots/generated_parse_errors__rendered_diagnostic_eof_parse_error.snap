@@ -1,0 +1,7 @@
+---
+source: runtime/tests/generated_parse_errors.rs
+expression: rendered_error
+---
+unexpected end of input, expected one of: number at 1:4 (bytes 3..3)
+1 +
+   ^
