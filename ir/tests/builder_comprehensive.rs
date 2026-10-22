@@ -360,7 +360,7 @@ fn build_sets_default_fields() {
     assert!(g.supertypes.is_empty());
     assert!(g.inline_rules.is_empty());
     assert!(g.alias_sequences.is_empty());
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
     assert_eq!(g.max_alias_sequence_length, 0);
     assert!(g.symbol_registry.is_none());
 }

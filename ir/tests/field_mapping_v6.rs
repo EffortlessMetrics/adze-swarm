@@ -102,7 +102,7 @@ fn test_no_fields_alias_sequences_empty_by_default() {
 #[test]
 fn test_no_fields_production_ids_empty_by_default() {
     let g = minimal_grammar();
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
 }
 
 #[test]
@@ -428,7 +428,7 @@ fn test_production_id_map_overwrite() {
     g.production_ids.insert(RuleId(0), ProductionId(1));
     g.production_ids.insert(RuleId(0), ProductionId(2));
     assert_eq!(g.production_ids[&RuleId(0)], ProductionId(2));
-    assert_eq!(g.production_ids.len(), 1);
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
 }
 
 // ===========================================================================
@@ -691,7 +691,7 @@ fn test_edge_combined_fields_aliases_productions() {
 
     assert_eq!(g.fields.len(), 2);
     assert_eq!(g.alias_sequences.len(), 1);
-    assert_eq!(g.production_ids.len(), 1);
+    assert_eq!(g.production_ids[&RuleId(0)], ProductionId(0));
     assert_eq!(g.max_alias_sequence_length, 3);
 }
 
@@ -713,6 +713,6 @@ fn test_edge_fields_survive_normalize_then_optimize() {
     assert_eq!(g.fields.len(), 3);
     assert_eq!(g.fields[&FieldId(0)], "left");
     assert_eq!(g.alias_sequences.len(), 1);
-    assert_eq!(g.production_ids.len(), 1);
+    assert_eq!(g.production_ids[&RuleId(0)], ProductionId(0));
     assert_eq!(g.max_alias_sequence_length, 1);
 }

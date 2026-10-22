@@ -630,7 +630,7 @@ fn test_production_ids_empty_by_default() {
         .rule("s", vec!["A"])
         .start("s")
         .build();
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
 }
 
 #[test]

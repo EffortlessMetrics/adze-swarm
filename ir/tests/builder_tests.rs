@@ -314,7 +314,7 @@ fn builder_default_values_are_sensible() {
     assert!(grammar.supertypes.is_empty());
     assert!(grammar.inline_rules.is_empty());
     assert!(grammar.alias_sequences.is_empty());
-    assert!(grammar.production_ids.is_empty());
+    assert_eq!(grammar.production_ids.len(), grammar.all_rules().count());
     assert_eq!(grammar.max_alias_sequence_length, 0);
     assert!(grammar.symbol_registry.is_none());
     assert!(grammar.fields.is_empty());

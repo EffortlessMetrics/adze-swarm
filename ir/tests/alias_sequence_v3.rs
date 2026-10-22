@@ -167,9 +167,9 @@ fn alias_sequences_accessible_by_production_id() {
 // ===========================================================================
 
 #[test]
-fn production_ids_initially_empty() {
+fn production_ids_populated_by_builder() {
     let g = simple_grammar();
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
 }
 
 #[test]
@@ -843,6 +843,9 @@ fn production_ids_map_rule_to_production() {
 #[test]
 fn production_ids_non_sequential_mapping() {
     let mut g = simple_grammar();
+    // Builder grammars arrive with a total map (#980); this test's subject
+    // is manual non-sequential population, so start from an empty map.
+    g.production_ids.clear();
     g.production_ids.insert(RuleId(0), ProductionId(10));
     g.production_ids.insert(RuleId(5), ProductionId(50));
     g.production_ids.insert(RuleId(3), ProductionId(30));

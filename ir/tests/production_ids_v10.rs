@@ -65,13 +65,13 @@ fn populate_prod_ids(g: &mut Grammar, count: u16) {
 #[test]
 fn default_grammar_has_empty_production_ids() {
     let g = Grammar::default();
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
 }
 
 #[test]
 fn grammar_new_has_empty_production_ids() {
     let g = Grammar::new("pi_v10_new_empty_pid".to_string());
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
 }
 
 // ===========================================================================
@@ -666,7 +666,7 @@ fn all_fields_consistent_after_build() {
         .start("start")
         .build();
     assert_eq!(g.all_rules().count(), 2);
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
     assert!(g.alias_sequences.is_empty());
     assert_eq!(g.max_alias_sequence_length, 0);
     assert!(g.fields.is_empty());
@@ -1091,7 +1091,7 @@ fn token_only_grammar_has_no_production_ids() {
         .token("NUM", r"\d+")
         .token("IDENT", r"[a-z]+")
         .build();
-    assert!(g.production_ids.is_empty());
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
     assert!(g.alias_sequences.is_empty());
     assert_eq!(g.max_alias_sequence_length, 0);
 }

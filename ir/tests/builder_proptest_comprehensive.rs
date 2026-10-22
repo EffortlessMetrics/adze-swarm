@@ -335,7 +335,7 @@ proptest! {
     fn default_collections_empty(name in "[a-z]{1,8}") {
         let grammar = GrammarBuilder::new(&name).build();
         prop_assert!(grammar.alias_sequences.is_empty());
-        prop_assert!(grammar.production_ids.is_empty());
+        prop_assert_eq!(grammar.production_ids.len(), grammar.all_rules().count());
         prop_assert_eq!(grammar.max_alias_sequence_length, 0);
     }
 }
