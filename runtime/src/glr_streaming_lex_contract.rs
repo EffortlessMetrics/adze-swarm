@@ -15,17 +15,27 @@ use crate::pure_parser::{TSLanguage, TSLexState};
 /// A single contract obligation violated by the fixed state-0 pretokenization bridge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StreamingLexContractViolation {
+    /// Which contract obligation was violated.
     pub kind: StreamingLexContractViolationKind,
+    /// Human-readable detail about the violation.
     pub detail: String,
 }
 
 /// Categories of streaming-lexer contract failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StreamingLexContractViolationKind {
+    /// The bridge pretokenized with a fixed state-0 lexer instead of the
+    /// stack-aware lexer.
     FixedStateZeroPretokenization,
+    /// The bridge skipped a hard-coded ASCII whitespace set instead of the
+    /// grammar's declared extras.
     HardCodedAsciiWhitespaceSkip,
+    /// Distinct lex modes required by active stacks were collapsed into one.
     IgnoredDistinctLexModes,
+    /// A grammar extra (whitespace, comments) was not skipped.
     MissedGrammarExtra,
+    /// The external scanner's valid-symbol mask was not unioned across
+    /// active GLR stacks.
     ExternalScannerMaskNotUnioned,
 }
 

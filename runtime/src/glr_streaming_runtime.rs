@@ -404,16 +404,17 @@ where
     {
         if language.external_scanner.scan.is_some() {
             let mut external_scanner = make_generated_external_streaming_scanner(language);
-            return driver.parse_streaming(
-                input,
-                internal_lexer,
-                Some(move |scan_input, pos, valid, mode| {
-                    external_scanner
-                        .scan_at(scan_input, pos, valid, mode)
-                        .ok()
-                        .flatten()
-                }),
-            );
+            let external_lexer = move |scan_input: &str,
+                                       pos: usize,
+                                       valid: &[bool],
+                                       mode: LexMode|
+                  -> Option<adze_glr_core::ts_lexer::NextToken> {
+                external_scanner
+                    .scan_at(scan_input, pos, valid, mode)
+                    .ok()
+                    .flatten()
+            };
+            return driver.parse_streaming(input, internal_lexer, Some(external_lexer));
         }
     }
 
