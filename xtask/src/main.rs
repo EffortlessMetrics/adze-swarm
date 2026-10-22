@@ -23,6 +23,7 @@ mod perf_receipt;
 mod policy;
 mod profile;
 mod publish_install;
+mod queue_admission;
 mod release_graph;
 mod ripr;
 mod test_grammars;
@@ -365,6 +366,11 @@ enum Commands {
         #[arg(long, default_value = "blocking")]
         mode: String,
     },
+    /// Cheap merge-queue admission (#1026): emit/validate/revoke admission records.
+    QueueAdmission {
+        #[command(subcommand)]
+        action: Box<QueueAdmissionAction>,
+    },
     /// Compute the CI plan for the current PR (LEM + lane selection).
     ///
     /// Reads policy/ci-lane-whitelist.toml and policy/ci-risk-packs.toml,
@@ -494,6 +500,86 @@ impl Grammar {
             Grammar::Rust => Some("https://github.com/tree-sitter/tree-sitter-rust"),
             Grammar::Python => Some("https://github.com/tree-sitter/tree-sitter-python"),
             Grammar::C => Some("https://github.com/tree-sitter/tree-sitter-c"),
+        }
+    }
+}
+
+#[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)]
+enum QueueAdmissionAction {
+    /// Emit a deterministic admission record binding H to proof/review evidence.
+    Emit {
+        #[arg(long)]
+        repository: String,
+        #[arg(long)]
+        pr: u64,
+        #[arg(long)]
+        head: String,
+        #[arg(long = "scope-issue")]
+        scope_issues: Vec<u64>,
+        #[arg(long)]
+        acceptance_ref: Option<String>,
+        #[arg(long)]
+        proof_command: String,
+        #[arg(long)]
+        proof_summary: String,
+        #[arg(long)]
+        proof_ref: String,
+        #[arg(long)]
+        proof_digest: Option<String>,
+        #[arg(long)]
+        proof_file: Option<std::path::PathBuf>,
+        #[arg(long)]
+        reviewer: String,
+        #[arg(long, value_enum, default_value = "approved")]
+        verdict: ReviewVerdictArg,
+        #[arg(long)]
+        findings_ref: String,
+        #[arg(long)]
+        requester: String,
+        #[arg(long)]
+        integration_sha: Option<String>,
+        #[arg(long = "group-pr")]
+        group_prs: Vec<u64>,
+        #[arg(long)]
+        decided_at: Option<String>,
+        #[arg(long)]
+        out: std::path::PathBuf,
+    },
+    /// Validate a record against live PR state from a fixture JSON (offline seam).
+    Validate {
+        #[arg(long)]
+        record: std::path::PathBuf,
+        #[arg(long)]
+        live: std::path::PathBuf,
+    },
+    /// Revoke/withdraw a record; validation then fails closed.
+    Revoke {
+        #[arg(long)]
+        record: std::path::PathBuf,
+        #[arg(long)]
+        reason: String,
+        #[arg(long)]
+        at: Option<String>,
+        #[arg(long)]
+        withdraw: bool,
+        #[arg(long)]
+        out: Option<std::path::PathBuf>,
+    },
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug)]
+enum ReviewVerdictArg {
+    Approved,
+    ChangesRequested,
+    Commented,
+}
+impl From<ReviewVerdictArg> for queue_admission::ReviewVerdict {
+    fn from(v: ReviewVerdictArg) -> Self {
+        match v {
+            ReviewVerdictArg::Approved => queue_admission::ReviewVerdict::Approved,
+            ReviewVerdictArg::ChangesRequested => queue_admission::ReviewVerdict::ChangesRequested,
+            ReviewVerdictArg::Commented => queue_admission::ReviewVerdict::Commented,
         }
     }
 }
@@ -689,6 +775,59 @@ fn main() -> Result<()> {
         Commands::CheckActiveGoal { mode } => {
             policy::active_goal::run(&mode)?;
         }
+        Commands::QueueAdmission { action } => match *action {
+            QueueAdmissionAction::Emit {
+                repository,
+                pr,
+                head,
+                scope_issues,
+                acceptance_ref,
+                proof_command,
+                proof_summary,
+                proof_ref,
+                proof_digest,
+                proof_file,
+                reviewer,
+                verdict,
+                findings_ref,
+                requester,
+                integration_sha,
+                group_prs,
+                decided_at,
+                out,
+            } => {
+                queue_admission::run_emit(queue_admission::EmitArgs {
+                    repository,
+                    pr,
+                    head,
+                    scope_issues,
+                    acceptance_ref,
+                    proof_command,
+                    proof_summary,
+                    proof_ref,
+                    proof_digest,
+                    proof_file,
+                    reviewer,
+                    verdict: verdict.into(),
+                    findings_ref,
+                    requester,
+                    integration_sha,
+                    group_prs,
+                    decided_at,
+                    out,
+                })?;
+            }
+            QueueAdmissionAction::Validate { record, live } => {
+                queue_admission::run_validate(&record, &live)?
+            }
+            QueueAdmissionAction::Revoke {
+                record,
+                reason,
+                at,
+                withdraw,
+                out,
+            } => queue_admission::run_revoke(&record, &reason, at, withdraw, out.as_deref())?,
+        },
         Commands::CiPlan {
             base,
             head,
