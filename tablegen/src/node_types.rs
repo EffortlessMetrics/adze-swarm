@@ -454,6 +454,60 @@ mod tests {
     }
 
     #[test]
+    fn generate_fields_follow_normalized_sequence_origin() {
+        // #981 downstream proof: the audited witness grammar (field names
+        // source child `c`), normalized and then projected to node-types.
+        // The `chosen` field must attach to c's type, not to the symbol
+        // that lands on the field's old position after flattening.
+        let mut grammar = Grammar::new("field_origins".to_string());
+        grammar.start_symbol = Some(SymbolId(1));
+        grammar
+            .rule_names
+            .insert(SymbolId(1), "expr".to_string());
+        for (id, name) in [(2u16, "a"), (3, "b"), (4, "c")] {
+            grammar.tokens.insert(
+                SymbolId(id),
+                Token {
+                    name: name.to_string(),
+                    pattern: TokenPattern::Regex(name.to_string()),
+                    fragile: false,
+                },
+            );
+        }
+        grammar.fields.insert(FieldId(0), "chosen".to_string());
+        grammar.add_rule(adze_ir::Rule {
+            lhs: SymbolId(1),
+            rhs: vec![
+                Symbol::Sequence(vec![
+                    Symbol::Terminal(SymbolId(2)),
+                    Symbol::Terminal(SymbolId(3)),
+                ]),
+                Symbol::Terminal(SymbolId(4)),
+            ],
+            precedence: None,
+            associativity: None,
+            fields: vec![(FieldId(0), 1)],
+            production_id: adze_ir::ProductionId(7),
+        });
+
+        grammar.normalize();
+
+        let json = NodeTypesGenerator::new(&grammar).generate().unwrap();
+        let parsed: Vec<NodeType> = serde_json::from_str(&json).unwrap();
+        let expr = parsed
+            .iter()
+            .find(|nt| nt.type_name == "expr")
+            .expect("expr rule must be present");
+        let fields = expr.fields.as_ref().expect("fields populated");
+        let chosen = fields.get("chosen").expect("chosen field present");
+        assert_eq!(chosen.types.len(), 1);
+        assert_eq!(
+            chosen.types[0].type_name, "c",
+            "field must resolve to source child c after normalization"
+        );
+    }
+
+    #[test]
     fn generate_omits_empty_fields_block() {
         // Rule with no fields -> fields key serialized as absent.
         let grammar = make_grammar_with_named_rule("plain", SymbolId(1), vec![], vec![]);
