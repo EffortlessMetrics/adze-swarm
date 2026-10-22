@@ -16,6 +16,28 @@ fn test_regex_leaf_transform_valid_number_exact_value() {
     assert_eq!(parsed, Expr::Number(42));
 }
 
+/// Row: fallible leaf transform (`try_transform`, #864). Valid values keep
+/// their exact typed shape; an overflowing digit string returns a
+/// structured conversion diagnostic over the token range instead of
+/// panicking or defaulting.
+#[test]
+fn test_fallible_transform_overflow_structured_error() {
+    use adze::errors::ParseErrorReason;
+
+    let parsed =
+        adze_example::typed_ast_contract::grammar::parse("2147483647").expect("i32::MAX parses");
+    assert_eq!(parsed, Expr::Number(i32::MAX));
+
+    let errors = adze_example::typed_ast_contract::grammar::parse("2147483648")
+        .expect_err("one past i32::MAX must be a conversion error");
+    let first = errors.first().expect("at least one conversion error");
+    assert!(
+        matches!(first.reason, ParseErrorReason::ConversionFailed(_)),
+        "overflow should be a conversion failure: {first:?}"
+    );
+    assert_eq!(first.byte_span(), 0..10);
+}
+
 /// Row: tuple enum variant + `Box<T>` recursion + `#[adze::prec_left(1)]`.
 /// Left associativity is asserted by exact tree shape, not parse success.
 #[test]

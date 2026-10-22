@@ -353,7 +353,8 @@ impl AdzeDocument {
             .unwrap_or(&parsed_root);
 
         let value =
-            <T as crate::Extract<_>>::extract(Some(extract_node), self.source_bytes(), 0, None);
+            <T as crate::Extract<_>>::try_extract(Some(extract_node), self.source_bytes(), 0, None)
+                .map_err(|error| vec![error])?;
 
         Ok(TypedAst {
             value,
@@ -390,7 +391,8 @@ impl AdzeDocument {
 
         let parsed_node = document_node_to_parsed_node(node, language, self.source_bytes());
         let value =
-            <T as crate::Extract<_>>::extract(Some(&parsed_node), self.source_bytes(), 0, None);
+            <T as crate::Extract<_>>::try_extract(Some(&parsed_node), self.source_bytes(), 0, None)
+                .map_err(|error| vec![error])?;
 
         Ok(TypedAst {
             value,

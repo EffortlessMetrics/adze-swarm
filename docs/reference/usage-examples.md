@@ -34,7 +34,7 @@ pub mod grammar {
     #[adze::language]
     pub enum Expression {
         Number(
-            #[adze::leaf(pattern = r"-?\d+(\.\d+)?", transform = |v| v.parse().unwrap())]
+            #[adze::leaf(pattern = r"-?\d+(\.\d+)?", try_transform = |v| v.parse::<f64>())]
             f64
         ),
         #[adze::prec_left(1)]
