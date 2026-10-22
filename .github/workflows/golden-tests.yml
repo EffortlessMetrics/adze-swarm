@@ -10,9 +10,6 @@ name: Golden-Master Tests
 # `paths` setup job and is consumed by the matrix job's `if:`.
 
 on:
-  pull_request:
-    branches: [ main ]
-    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 
 concurrency:

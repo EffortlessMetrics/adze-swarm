@@ -1,9 +1,6 @@
 name: PR Gate
 
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, closed]
   merge_group:
   workflow_dispatch:
 

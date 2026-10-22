@@ -6,9 +6,6 @@ name: Coverage
 # Codecov upload is publication only; LCOV artifact generation is the proof.
 
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
     inputs:
       mode:

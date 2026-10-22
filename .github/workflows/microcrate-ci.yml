@@ -5,9 +5,6 @@ name: Microcrate CI
 # See docs/ci/adze-rollout-plan.md (PR 14).
 
 on:
-  pull_request:
-    branches: [main, master]
-    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 
 concurrency:
