@@ -649,6 +649,15 @@ impl Grammar {
         occupied
     }
 
+    /// Number of children a symbol expands to when sequences flatten:
+    /// sequences sum their children, every other symbol stays one child.
+    fn sequence_expansion_len(symbol: &Symbol) -> usize {
+        match symbol {
+            Symbol::Sequence(seq) => seq.iter().map(Self::sequence_expansion_len).sum(),
+            _ => 1,
+        }
+    }
+
     /// Upper bound on helpers normalization will allocate: one per
     /// `Optional`/`Repeat`/`RepeatOne`/`Choice` node in the current rules.
     fn count_complex_symbols(symbols: &[Symbol]) -> usize {
@@ -710,6 +719,20 @@ impl Grammar {
         let max_occupied = occupied.iter().rposition(|taken| *taken).unwrap_or(0) as u32;
         let mut aux_cursor = max_occupied + 1000;
         let mut aux_fallback_cursor: u32 = 1;
+        // A field positioned on a sequence that expands to zero children
+        // has no normalized child to designate (#981); reject before
+        // mutating anything.
+        for rules in self.rules.values() {
+            for rule in rules {
+                for (_, position) in &rule.fields {
+                    if let Some(Symbol::Sequence(_)) = rule.rhs.get(*position)
+                        && Self::sequence_expansion_len(&rule.rhs[*position]) == 0
+                    {
+                        return Err(GrammarError::FieldOnEmptySequence { lhs: rule.lhs });
+                    }
+                }
+            }
+        }
         let mut next_aux = move |occupied: &mut [bool]| -> Result<SymbolId, GrammarError> {
             while aux_cursor <= u32::from(u16::MAX) {
                 let candidate = aux_cursor;
@@ -752,8 +775,14 @@ impl Grammar {
             // Process each rule
             for mut rule in all_rules {
                 let mut new_rhs = Vec::new();
+                // Normalized range each source RHS position expands to in
+                // this pass; positional field metadata is remapped through
+                // it below so fields keep their semantic children (#981).
+                let mut field_ranges: Vec<std::ops::Range<usize>> =
+                    Vec::with_capacity(rule.rhs.len());
 
                 for symbol in rule.rhs {
+                    let range_start = new_rhs.len();
                     match symbol {
                         Symbol::Optional(inner) => {
                             found_complex = true;
@@ -862,6 +891,27 @@ impl Grammar {
                         }
                         other => new_rhs.push(other),
                     }
+                    field_ranges.push(range_start..new_rhs.len());
+                }
+
+                if !rule.fields.is_empty() {
+                    // Remap each field through this pass's expansion: a
+                    // field on a flattened sequence designates every child
+                    // the sequence expanded to; other fields shift with
+                    // their child. Unknown positions are left for
+                    // validation to reject.
+                    let mut remapped = Vec::new();
+                    for (field_id, position) in &rule.fields {
+                        match field_ranges.get(*position) {
+                            Some(range) => {
+                                for new_position in range.clone() {
+                                    remapped.push((*field_id, new_position));
+                                }
+                            }
+                            None => remapped.push((*field_id, *position)),
+                        }
+                    }
+                    rule.fields = remapped;
                 }
 
                 rule.rhs = new_rhs;
@@ -919,6 +969,13 @@ pub enum GrammarError {
     /// No unoccupied symbol ID remains for a normalization helper
     #[error("symbol ID space exhausted during normalization: no unoccupied SymbolId remains")]
     SymbolSpaceExhausted,
+
+    /// A field targets a sequence that expands to no children
+    #[error("field on rule {lhs} targets an empty sequence; no child can be designated")]
+    FieldOnEmptySequence {
+        /// Rule whose field cannot be preserved
+        lhs: SymbolId,
+    },
 
     /// Invalid precedence declaration
     #[error("Invalid precedence declaration: {0}")]
