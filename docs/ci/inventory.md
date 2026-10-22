@@ -21,21 +21,21 @@ See `adze-rollout-status.md` for status of each item.
 | --- | --- | --- |
 | `em-ci-routed-rust.yml` | Routed `Rust Small Result` base gate for `adze-swarm` PRs and merge groups | Active required context |
 | `cx53-rust-large-diagnostic.yml` | Manual CX53 `rust-large` probe and selected host-smoke diagnostic for #598 | Active dispatch |
-| `pr-plan.yml` | Reusable; computes LEM/band/docs_only from `xtask ci-plan` | Active |
-| `pr-gate.yml` | Aggregates Supported + Docs Gate → `PR Gate Success` | Active |
-| `ci.yml` | Legacy public full-CI support lane; schedule/dispatch in swarm | Active scheduled/manual |
-| `ci-policy.yml` | CI lane whitelist advisory lint | Active |
-| `ripr.yml` | ripr advisory with workspace MSRV install and stub fallback | Active advisory |
-| `pure-rust-ci.yml` | Matrix-setup: ubuntu/stable on code-path PRs; full matrix on labels/dispatch | Active |
-| `ts-bridge-smoke.yml` | Path-routed bridge smoke; Linux by default, full OS matrix on labels/dispatch | Active |
+| `pr-plan.yml` | Reusable; computes LEM/band/docs_only from `xtask ci-plan` | Active reusable/dispatch only; no direct PR trigger |
+| `pr-gate.yml` | Aggregates Supported + Docs Gate → `PR Gate Success` | Active on `merge_group`/dispatch only (#1027); no PR trigger |
+| `ci.yml` | Legacy public full-CI support lane; schedule/dispatch in swarm | Active scheduled/manual; already had no PR trigger at #1027 base |
+| `ci-policy.yml` | CI lane whitelist advisory lint | Active on push to `main`/dispatch only (#1027); no PR trigger |
+| `ripr.yml` | ripr advisory with workspace MSRV install and stub fallback | Dispatch only (#1027); no PR trigger |
+| `pure-rust-ci.yml` | Matrix-setup: ubuntu/stable on code-path PRs; full matrix on labels/dispatch | Dispatch only (#1027); no PR trigger |
+| `ts-bridge-smoke.yml` | Path-routed bridge smoke; Linux by default, full OS matrix on labels/dispatch | Active on push to `main` (path-routed)/dispatch only (#1027); no PR trigger |
 | `ts-bridge-parity.yml` | Scheduled/manual bridge parity advisory lane | Active advisory |
-| `golden-tests.yml` | Grammar-path and `ci:golden`/`full-ci` label gated | Active |
-| `microcrate-ci.yml` | Risk-pack-routed crate groups plus path-routed receipt jobs | Active |
-| `coverage.yml` | Path/label-routed coverage-lite/full; LCOV artifacts are proof and Codecov upload is non-blocking | Active advisory |
+| `golden-tests.yml` | Grammar-path and `ci:golden`/`full-ci` label gated | Dispatch only (#1027); no PR trigger |
+| `microcrate-ci.yml` | Risk-pack-routed crate groups plus path-routed receipt jobs | Dispatch only (#1027); no PR trigger |
+| `coverage.yml` | Path/label-routed coverage-lite/full; LCOV artifacts are proof and Codecov upload is non-blocking | Dispatch only (#1027); no PR trigger |
 | `criterion-smoke.yml` | Scheduled/manual benchmark compile smoke | Active advisory |
 | `product-proof.yml` | Required `Product Proof Result` aggregate gate plus selected Stable canaries and broad advisory product proof lanes | Active required aggregate; broad lane advisory |
 | `core-tests.yml` | Scheduled/manual core all-features canary | Active scheduled/manual |
-| `test-policy.yml` | Static policy checks on PRs plus manual runtime caps | Active advisory |
+| `test-policy.yml` | Static policy checks plus manual runtime caps | Dispatch only (#1027); no PR trigger |
 | `clippy-quarantine-report.yml` | Weekly/manual quarantine report | Active advisory |
 | `badge-endpoints.yml` | Manual badge endpoint refresh automation | Active dispatch |
 

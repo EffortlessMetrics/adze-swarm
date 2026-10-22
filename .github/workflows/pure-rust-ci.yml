@@ -7,9 +7,6 @@ name: Pure Rust Implementation CI
 # 'platform-matrix' or 'full-ci'. See docs/ci/adze-rollout-plan.md (PR 13).
 
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 
 concurrency:
