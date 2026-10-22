@@ -2,12 +2,10 @@ name: EM CI Routed Rust
 
 on:
   workflow_dispatch:
-  pull_request:
-    types: [opened, synchronize, reopened]
   merge_group:
 
 concurrency:
-  group: em-ci-routed-rust-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  group: em-ci-routed-rust-${{ github.repository }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -20,11 +18,7 @@ jobs:
     timeout-minutes: 5
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'merge_group' ||
-      (
-        github.event_name == 'pull_request' &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      )
+      github.event_name == 'merge_group'
     outputs:
       rust_needed: ${{ steps.detect.outputs.rust_needed }}
       reason: ${{ steps.detect.outputs.reason }}
@@ -35,39 +29,15 @@ jobs:
       - id: detect
         name: Detect whether Rust lanes are needed
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "rust_needed=true" >> "$GITHUB_OUTPUT"
-            echo "reason=event:${{ github.event_name }}" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          base_sha="${{ github.event.pull_request.base.sha }}"
-          head_sha="${{ github.event.pull_request.head.sha }}"
-          git fetch --no-tags --depth=1 origin "$base_sha" "$head_sha"
-          changed_paths="$(git diff --name-only "$base_sha" "$head_sha")"
-          echo "Changed paths:"
-          printf '%s\n' "$changed_paths"
-          while IFS= read -r changed_path; do
-            [ -z "$changed_path" ] && continue
-            case "$changed_path" in
-              docs/*|*.md|.adze/*)
-                ;;
-              policy/ci-lane-whitelist.toml|policy/ci-risk-packs.toml)
-                echo "rust_needed=true" >> "$GITHUB_OUTPUT"
-                echo "reason=ci_policy:$changed_path" >> "$GITHUB_OUTPUT"
-                exit 0
-                ;;
-              policy/*)
-                ;;
-              *)
-                echo "rust_needed=true" >> "$GITHUB_OUTPUT"
-                echo "reason=rust_or_workflow:$changed_path" >> "$GITHUB_OUTPUT"
-                exit 0
-                ;;
-            esac
-          done <<< "$changed_paths"
-          echo "rust_needed=false" >> "$GITHUB_OUTPUT"
-          echo "reason=docs_status_policy_only" >> "$GITHUB_OUTPUT"
+          # Only workflow_dispatch and merge_group reach this workflow.
+          # Both are authorized qualification requests, so fail closed and
+          # always select the Rust lanes instead of trusting a docs-only
+          # no-work decision on the queue integration commit.
+          echo "rust_needed=true" >> "$GITHUB_OUTPUT"
+          echo "reason=event:${EVENT_NAME}" >> "$GITHUB_OUTPUT"
 
   route-rust-small:
     name: Route Rust Small
@@ -79,11 +49,7 @@ jobs:
       needs.detect-rust-paths.outputs.rust_needed == 'true' &&
       (
         github.event_name == 'workflow_dispatch' ||
-        github.event_name == 'merge_group' ||
-        (
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        )
+        github.event_name == 'merge_group'
       )
 
     outputs:
@@ -97,6 +63,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.EM_RUNNER_READ_TOKEN }}
           ORG: EffortlessMetrics
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -uo pipefail
 
@@ -107,23 +74,16 @@ jobs:
           mkdir -p "$(dirname "$GITHUB_OUTPUT")"
 
           # Decide fallback eligibility up front so early routing failures
-          # (tool/token/API) honour the same policy as the no-idle-runner path:
-          # workflow_dispatch may fall back; PRs need the allow-github-hosted label.
+          # (tool/token/API) honour the same policy as the no-idle-runner
+          # path. Explicit queue policy, passed as data via EVENT_NAME:
+          # workflow_dispatch is an authorized manual request and
+          # merge_group is authorized by the enqueue decision itself, so
+          # both are hosted-fallback eligible. There is no pull_request
+          # route, and github.event.pull_request does not exist on
+          # merge_group, so no label lookup is performed.
           fallback_allowed=false
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ "$EVENT_NAME" = "merge_group" ]; then
             fallback_allowed=true
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            labels='${{ toJson(github.event.pull_request.labels.*.name) }}'
-            if LABELS_JSON="$labels" python3 - <<'PY'
-          import json
-          import os
-
-          labels = json.loads(os.environ.get("LABELS_JSON", "[]") or "[]")
-          raise SystemExit(0 if "allow-github-hosted" in {str(label).lower() for label in labels} else 1)
-          PY
-            then
-              fallback_allowed=true
-            fi
           fi
 
           fallback_github() {
@@ -813,9 +773,8 @@ jobs:
         run: |
           echo "Self-hosted routing failed or no idle runner was available."
           echo "target_reason=${{ needs.route-rust-small.outputs.target_reason }}"
-          echo "GitHub-hosted fallback is blocked by default in this workflow."
-          echo "To allow tiny GitHub-hosted fallback on PR, add label: allow-github-hosted"
-          echo "For trusted runs, wait for self-hosted capacity or use workflow_dispatch."
+          echo "GitHub-hosted fallback is blocked by explicit queue policy for this event."
+          echo "workflow_dispatch and merge_group are fallback-eligible; wait for self-hosted capacity or re-dispatch manually."
           exit 1
 
   supported-proof:
@@ -825,8 +784,7 @@ jobs:
       needs.detect-rust-paths.outputs.rust_needed == 'true' &&
       needs.route-rust-small.result == 'success' &&
       (github.event_name == 'workflow_dispatch' ||
-       github.event_name == 'merge_group' ||
-       github.event_name == 'pull_request')
+       github.event_name == 'merge_group')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -872,11 +830,7 @@ jobs:
       ) &&
       (
         github.event_name == 'workflow_dispatch' ||
-        github.event_name == 'merge_group' ||
-        (
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        )
+        github.event_name == 'merge_group'
       )
     runs-on: ubuntu-latest
 
@@ -895,7 +849,7 @@ jobs:
           target_reason="${{ needs.route-rust-small.outputs.target_reason }}"
 
           if [ "${{ needs.detect-rust-paths.outputs.rust_needed }}" = "false" ]; then
-            echo "Docs/status/policy-only PR: Rust lanes skipped by path detection."
+            echo "Docs/status/policy-only change: Rust lanes skipped by path detection."
             echo "reason=${{ needs.detect-rust-paths.outputs.reason }}"
             exit 0
           fi
