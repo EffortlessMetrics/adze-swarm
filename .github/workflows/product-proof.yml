@@ -2,6 +2,8 @@ name: Product Proof
 
 on:
   merge_group:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       lane:
@@ -75,6 +77,7 @@ concurrency:
 jobs:
   detect-stable-product-paths:
     name: Detect Product Proof Paths
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     outputs:
       run_stable: ${{ steps.detect.outputs.run_stable }}
@@ -92,22 +95,36 @@ jobs:
         # into the shell script.
         env:
           EVENT_NAME: ${{ github.event_name }}
+          LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
           MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
           MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          # Hosted fallback follows the same explicit queue policy as the
+          # Hosted fallback follows the same explicit policy as the
           # routed Rust lane: merge_group (authorized by the enqueue
           # decision) and workflow_dispatch (authorized manual request)
-          # may use GitHub-hosted runners, because the em-ci-small runner
-          # group currently has no runners registered. Scheduled runs keep
-          # the self-hosted em-ci-small group.
+          # may use GitHub-hosted runners, because the em-ci-small
+          # runner group currently has no runners registered. A
+          # non-draft pull_request is eligible only with the maintainer
+          # applied allow-github-hosted label (parsed as data, never
+          # executed). Scheduled runs keep the self-hosted group.
+          use_hosted=false
           if [[ "$EVENT_NAME" == "merge_group" || "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            echo "use_hosted=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "use_hosted=false" >> "$GITHUB_OUTPUT"
+            use_hosted=true
+          elif [[ "$EVENT_NAME" == "pull_request" ]]; then
+            if LABELS_JSON="${LABELS_JSON:-[]}" python3 - <<'PY'
+          import json, os, sys
+          labels = json.loads(os.environ.get("LABELS_JSON", "[]") or "[]")
+          sys.exit(0 if "allow-github-hosted" in {str(label).lower() for label in labels} else 1)
+          PY
+            then
+              use_hosted=true
+            fi
           fi
+          echo "use_hosted=${use_hosted}" >> "$GITHUB_OUTPUT"
 
-          if [[ "$EVENT_NAME" != "merge_group" ]]; then
+          if [[ "$EVENT_NAME" != "merge_group" && "$EVENT_NAME" != "pull_request" ]]; then
             echo "run_stable=true" >> "$GITHUB_OUTPUT"
             echo "reason=event:${EVENT_NAME}" >> "$GITHUB_OUTPUT"
             exit 0
@@ -115,9 +132,14 @@ jobs:
 
           # On merge_group, select from the actual integration difference
           # (base is the queue target, head is the integration commit G).
-          # Unresolved SHAs fail closed into running the stable canaries.
+          # On pull_request, select from the PR difference. Unresolved
+          # SHAs fail closed into running the stable canaries.
           base_sha="$MERGE_GROUP_BASE_SHA"
           head_sha="$MERGE_GROUP_HEAD_SHA"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base_sha="$PR_BASE_SHA"
+            head_sha="$PR_HEAD_SHA"
+          fi
           if [[ -z "$base_sha" || -z "$head_sha" ]]; then
             echo "run_stable=true" >> "$GITHUB_OUTPUT"
             echo "reason=merge_group_sha_unresolved_fail_closed" >> "$GITHUB_OUTPUT"
