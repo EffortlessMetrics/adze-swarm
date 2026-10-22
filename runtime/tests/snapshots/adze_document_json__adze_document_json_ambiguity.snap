@@ -11,6 +11,7 @@ expression: "serde_json::to_string_pretty(&snapshot_json).expect(\"ambiguous doc
     "name": "ambiguous_expr"
   },
   "metadata": {
+    "outcome": "complete",
     "error_count": 0,
     "incremental_requested": false,
     "incremental_used": false,
