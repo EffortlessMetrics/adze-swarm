@@ -691,6 +691,26 @@ classification = "tooling"
 reason = "Clippy quarantine list consumed by clippy-quarantine-report.yml."
 covered_by = ["clippy-quarantine-report.yml"]
 
+# Conformance comparator and retained receipts (#977)
+[[allow]]
+glob = "conformance/comparator/**"
+kind = "conformance_comparator"
+owner = "conformance"
+surface = "tooling"
+classification = "test"
+reason = "Pure-stdlib Python denominator-complete Rust/Python conformance comparator and its unittest suite (#977); components are inputs, not vendored."
+covered_by = ["python -m compileall conformance/comparator", "python -m unittest discover -s conformance/comparator/tests -v"]
+
+[[allow]]
+glob = "conformance/receipts/**"
+kind = "conformance_receipt"
+owner = "conformance"
+surface = "tooling"
+classification = "generated"
+generated_by = "python conformance/comparator/comparator.py"
+reason = "Retained deterministic conformance receipt (JSON + Markdown projection) proving denominator-complete Rust/Python agreement (#977)."
+covered_by = ["python -m unittest discover -s conformance/comparator/tests -v", "python conformance/comparator/comparator.py --corpus <corpus.json> --pyref <python-reference-checkout> --rust-checkout <rust-driver-checkout> --out-dir conformance/receipts/cfg.nullable_first_follow.v1"]
+
 [[allow]]
 glob = "*.md.ISSUES_DOCUMENTED"
 kind = "repo_docs"
