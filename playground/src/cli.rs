@@ -149,7 +149,12 @@ fn handle_run(session: &PlaygroundSession) -> Result<()> {
     println!();
 
     for (test, result) in results {
-        if result.success == test.should_pass {
+        if result.unavailable {
+            // No backend ran: never count this as passing (or as a genuine
+            // parse failure); surface it as its own terminal state.
+            println!("{} {} (backend unavailable)", "✗".red(), test.name);
+            failed += 1;
+        } else if result.success == test.should_pass {
             println!("{} {}", "✓".green(), test.name);
             passed += 1;
         } else {
