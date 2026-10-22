@@ -137,6 +137,43 @@ impl Grammar {
         self.production_ids.extend(entries);
     }
 
+    /// First production slot shared by rules whose field/alias metadata
+    /// disagree, if any (#980 PR3). Sharing a slot is legitimate only when
+    /// every sharing rule carries identical `fields` and, when an alias
+    /// sequence is recorded for the slot, every sharing rule has the same
+    /// RHS length as that sequence; otherwise a consumer that inverts the
+    /// slot to one rule's metadata would pick arbitrarily.
+    pub(crate) fn conflicting_production_share(&self) -> Option<(ProductionId, Vec<RuleId>)> {
+        let mut groups: IndexMap<ProductionId, Vec<(RuleId, &Rule)>> = IndexMap::new();
+        for (index, rule) in self.all_rules().enumerate() {
+            let rule_id =
+                RuleId(u16::try_from(index).expect("rule count exceeds the RuleId range"));
+            groups
+                .entry(rule.production_id)
+                .or_default()
+                .push((rule_id, rule));
+        }
+        for (production_id, sharing) in groups {
+            if sharing.len() < 2 {
+                continue;
+            }
+            let first = sharing[0].1;
+            let fields_conflict = sharing.iter().any(|(_, rule)| rule.fields != first.fields);
+            let alias_conflict = self.alias_sequences.get(&production_id).is_some_and(|seq| {
+                sharing
+                    .iter()
+                    .any(|(_, rule)| rule.rhs.len() != seq.aliases.len())
+            });
+            if fields_conflict || alias_conflict {
+                return Some((
+                    production_id,
+                    sharing.into_iter().map(|(rule_id, _)| rule_id).collect(),
+                ));
+            }
+        }
+        None
+    }
+
     /// Production slot for one rule, when `rule_id` is in the current
     /// rule domain. Refresh with
     /// [`refresh_production_ids`](Self::refresh_production_ids) after
@@ -549,6 +586,14 @@ impl Grammar {
             return Err(GrammarError::InvalidFieldOrdering);
         }
 
+        // Reject production shares whose field/alias metadata conflict (#980 PR3)
+        if let Some((production_id, rule_ids)) = self.conflicting_production_share() {
+            return Err(GrammarError::ConflictingProductionShare {
+                production_id,
+                rule_ids,
+            });
+        }
+
         // Validate symbol references
         for rule in self.all_rules() {
             for symbol in &rule.rhs {
@@ -565,6 +610,7 @@ impl Grammar {
         // Inline simple rules where beneficial
         // Optimize precedence declarations
         // This will be implemented based on Tree-sitter's optimization strategies
+        self.refresh_production_ids();
     }
 
     /// Every symbol identity this grammar already carries, across all
@@ -757,6 +803,25 @@ impl Grammar {
             Err(GrammarError::SymbolSpaceExhausted)
         };
 
+        // Helper rules get fresh production slots (#980 PR3): each helper
+        // alternative is a distinct rule, so it must not collapse into the
+        // shared ProductionId(0) slot. Slots stay shareable elsewhere; this
+        // only stops normalize() from manufacturing an ambiguous share.
+        let mut next_production_id = self
+            .all_rules()
+            .map(|rule| rule.production_id.0)
+            .max()
+            .map_or(0, |max| {
+                max.checked_add(1).expect("production id range exhausted")
+            });
+        let mut fresh_production_id = move || {
+            let id = ProductionId(next_production_id);
+            next_production_id = next_production_id
+                .checked_add(1)
+                .expect("production id range exhausted");
+            id
+        };
+
         // We need to keep processing until no complex symbols remain
         loop {
             let mut found_complex = false;
@@ -796,7 +861,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: ProductionId(0),
+                                production_id: fresh_production_id(),
                             };
                             self.add_rule(inner_rule);
 
@@ -807,7 +872,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: ProductionId(0),
+                                production_id: fresh_production_id(),
                             });
 
                             new_rhs.push(Symbol::NonTerminal(aux_id));
@@ -824,7 +889,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: ProductionId(0),
+                                production_id: fresh_production_id(),
                             });
 
                             // aux -> ε
@@ -834,7 +899,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: ProductionId(0),
+                                production_id: fresh_production_id(),
                             });
 
                             new_rhs.push(Symbol::NonTerminal(aux_id));
@@ -851,7 +916,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: ProductionId(0),
+                                production_id: fresh_production_id(),
                             });
 
                             // aux -> inner
@@ -861,7 +926,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: ProductionId(0),
+                                production_id: fresh_production_id(),
                             });
 
                             new_rhs.push(Symbol::NonTerminal(aux_id));
@@ -878,7 +943,7 @@ impl Grammar {
                                     precedence: None,
                                     associativity: None,
                                     fields: vec![],
-                                    production_id: ProductionId(0),
+                                    production_id: fresh_production_id(),
                                 });
                             }
 
@@ -925,6 +990,7 @@ impl Grammar {
         }
 
         // Return all rules for compatibility (though caller probably doesn't need this)
+        self.refresh_production_ids();
         Ok(self.rules.values().flatten().cloned().collect())
     }
 
@@ -961,6 +1027,17 @@ pub enum GrammarError {
     /// Unresolved external symbol reference
     #[error("Unresolved external symbol reference: {0}")]
     UnresolvedExternalSymbol(SymbolId),
+
+    /// Rules sharing one production slot carry conflicting field/alias metadata
+    #[error(
+        "Production {production_id} is shared by rules {rule_ids:?} with conflicting field/alias metadata"
+    )]
+    ConflictingProductionShare {
+        /// The ambiguously shared production slot
+        production_id: ProductionId,
+        /// Rules sharing the slot, in rule order
+        rule_ids: Vec<RuleId>,
+    },
 
     /// Conflict in grammar
     #[error("Conflict in grammar: {0}")]

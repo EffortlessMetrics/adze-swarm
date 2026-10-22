@@ -399,7 +399,11 @@ fn normalize_preserves_existing_production_ids_map() {
         .build();
     g.production_ids.insert(RuleId(0), ProductionId(42));
     g.normalize();
-    assert_eq!(g.production_ids[&RuleId(0)], ProductionId(42));
+    // #980: the map is derived from rules; a stale manual entry is rebuilt.
+    assert_eq!(
+        g.production_ids[&RuleId(0)],
+        g.all_rules().next().unwrap().production_id
+    );
 }
 
 #[test]
@@ -436,7 +440,11 @@ fn normalize_preserves_id_values() {
         .build();
     g.production_ids.insert(RuleId(0), ProductionId(99));
     g.normalize();
-    assert_eq!(g.production_ids[&RuleId(0)].0, 99);
+    // #980: the map is derived from rules; a stale manual entry is rebuilt.
+    assert_eq!(
+        g.production_ids[&RuleId(0)],
+        g.all_rules().next().unwrap().production_id
+    );
 }
 
 #[test]
@@ -482,7 +490,12 @@ fn normalize_multiple_times_preserves_ids() {
     g.normalize();
     g.normalize();
     g.normalize();
-    assert_eq!(g.production_ids[&RuleId(0)], ProductionId(7));
+    // #980: the map is derived from rules; a stale manual entry is rebuilt.
+    assert_eq!(
+        g.production_ids[&RuleId(0)],
+        g.all_rules().next().unwrap().production_id
+    );
+    assert_eq!(g.production_ids.len(), g.all_rules().count());
 }
 
 // ============================================================
