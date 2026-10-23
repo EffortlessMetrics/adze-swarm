@@ -546,7 +546,7 @@ fn sequence_symbol_uses_first_element() {
 }
 
 // ---------------------------------------------------------------------------
-// 15. Epsilon symbol produces "empty" type reference
+// 15. Epsilon symbol contributes no real child (no fictitious "empty" type)
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -569,9 +569,12 @@ fn epsilon_symbol_type_ref() {
 
     let nodes = generate_and_parse(&g);
     let void_rule = find_node(&nodes, "void_rule").expect("missing 'void_rule'");
-    let types = &void_rule["fields"]["phantom"]["types"];
-    assert_eq!(types[0]["type"].as_str(), Some("empty"));
-    assert_eq!(types[0]["named"], false);
+    let field = &void_rule["fields"]["phantom"];
+    assert!(
+        field["types"].as_array().is_some_and(|t| t.is_empty()),
+        "epsilon must yield no types, got {field}"
+    );
+    assert_eq!(field["required"], false);
 }
 
 // ---------------------------------------------------------------------------
@@ -1030,7 +1033,7 @@ fn repeat_one_symbol_delegates_to_inner() {
 }
 
 // ---------------------------------------------------------------------------
-// 29. Empty choice produces "empty" type reference
+// 29. Empty choice contributes no real child (no fictitious "empty" type)
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1053,13 +1056,16 @@ fn empty_choice_produces_empty_type() {
 
     let nodes = generate_and_parse(&g);
     let nothing = find_node(&nodes, "nothing").expect("missing 'nothing'");
-    let types = &nothing["fields"]["val"]["types"];
-    assert_eq!(types[0]["type"].as_str(), Some("empty"));
-    assert_eq!(types[0]["named"], false);
+    let field = &nothing["fields"]["val"];
+    assert!(
+        field["types"].as_array().is_some_and(|t| t.is_empty()),
+        "empty choice must yield no types, got {field}"
+    );
+    assert_eq!(field["required"], false);
 }
 
 // ---------------------------------------------------------------------------
-// 30. Empty sequence produces "empty" type reference
+// 30. Empty sequence contributes no real child (no fictitious "empty" type)
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1082,9 +1088,12 @@ fn empty_sequence_produces_empty_type() {
 
     let nodes = generate_and_parse(&g);
     let vs = find_node(&nodes, "void_seq").expect("missing 'void_seq'");
-    let types = &vs["fields"]["s"]["types"];
-    assert_eq!(types[0]["type"].as_str(), Some("empty"));
-    assert_eq!(types[0]["named"], false);
+    let field = &vs["fields"]["s"];
+    assert!(
+        field["types"].as_array().is_some_and(|t| t.is_empty()),
+        "empty sequence must yield no types, got {field}"
+    );
+    assert_eq!(field["required"], false);
 }
 
 // ---------------------------------------------------------------------------
