@@ -44,6 +44,38 @@ pub type FieldId = NonZeroU16;
 #[cfg(feature = "serialization")]
 pub const ADZE_DOCUMENT_JSON_SCHEMA: &str = "adze.document.v1";
 
+/// Explicit outcome of a parse that produced an [`AdzeDocument`].
+///
+/// This is a pre-1.0 experimental contract. It distinguishes a clean parse
+/// from a recovered document (diagnostics plus a trustworthy selected tree)
+/// and from a failed document (diagnostics without any trustworthy selected
+/// tree content). Failures too severe to construct a document at all are
+/// reported by `parse_document()` returning `Err`, not by a document with
+/// the `Failed` outcome.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ParseOutcome {
+    /// Clean parse: no diagnostics and no error facts in the selected tree.
+    Complete,
+    /// Recovered parse: diagnostics exist, and the selected tree still
+    /// contains trustworthy named syntax.
+    Recovered,
+    /// Failed parse: diagnostics exist, and the selected tree contains no
+    /// trustworthy named syntax (for example a synthetic error root after a
+    /// severe lexer or parser failure).
+    Failed,
+}
+
+impl ParseOutcome {
+    /// Stable lowercase name used by JSON and CLI projections.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Complete => "complete",
+            Self::Recovered => "recovered",
+            Self::Failed => "failed",
+        }
+    }
+}
+
 /// A native parse-product document.
 ///
 /// `AdzeDocument` owns the source text and the parser's selected concrete
@@ -144,6 +176,38 @@ impl AdzeDocument {
         &self.diagnostics
     }
 
+    /// Return the explicit outcome of the parse that produced this document.
+    ///
+    /// The outcome is derived from the recorded diagnostics and selected
+    /// tree facts, so it always agrees with `diagnostics()`, `tree()`, and
+    /// `metadata()`. A document is `Failed` when its selected tree holds no
+    /// named, non-error syntax below the root: the tree is only a synthetic
+    /// error/missing placeholder and must not be treated as a recovered
+    /// parse. Missing-token nodes still count as trustworthy content, so
+    /// unexpected-EOF documents with a real grammar root are `Recovered`.
+    pub fn outcome(&self) -> ParseOutcome {
+        if self.diagnostics.is_empty()
+            && self.metadata.error_count == 0
+            && !self.tree().has_errors()
+        {
+            return ParseOutcome::Complete;
+        }
+
+        // The root wrapper (index 0) is document structure, not content.
+        let has_trustworthy_content = self
+            .syntax
+            .nodes
+            .iter()
+            .skip(1)
+            .any(|record| record.flags().is_named() && !record.flags().is_error());
+
+        if has_trustworthy_content {
+            ParseOutcome::Recovered
+        } else {
+            ParseOutcome::Failed
+        }
+    }
+
     /// Return GLR ambiguity summaries recorded for this document.
     ///
     /// The alpha document path records summaries only when generated
@@ -220,6 +284,7 @@ impl AdzeDocument {
                 "name": self.language().name(),
             },
             "metadata": {
+                "outcome": self.outcome().as_str(),
                 "error_count": self.metadata().error_count,
                 "incremental_requested": self.metadata().incremental_requested,
                 "incremental_used": self.metadata().incremental_used,
@@ -288,7 +353,8 @@ impl AdzeDocument {
             .unwrap_or(&parsed_root);
 
         let value =
-            <T as crate::Extract<_>>::extract(Some(extract_node), self.source_bytes(), 0, None);
+            <T as crate::Extract<_>>::try_extract(Some(extract_node), self.source_bytes(), 0, None)
+                .map_err(|error| vec![error])?;
 
         Ok(TypedAst {
             value,
@@ -325,7 +391,8 @@ impl AdzeDocument {
 
         let parsed_node = document_node_to_parsed_node(node, language, self.source_bytes());
         let value =
-            <T as crate::Extract<_>>::extract(Some(&parsed_node), self.source_bytes(), 0, None);
+            <T as crate::Extract<_>>::try_extract(Some(&parsed_node), self.source_bytes(), 0, None)
+                .map_err(|error| vec![error])?;
 
         Ok(TypedAst {
             value,

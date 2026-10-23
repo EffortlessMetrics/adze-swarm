@@ -3,7 +3,7 @@ pub mod grammar {
     #[derive(Debug, PartialEq, Eq)]
     #[adze::language]
     pub enum Expr {
-        Number(#[adze::leaf(pattern = r"\d+", transform = |s| s.parse::<i32>().unwrap())] i32),
+        Number(#[adze::leaf(pattern = r"\d+", try_transform = |s| s.parse::<i32>())] i32),
 
         #[adze::prec_left(1)]
         Add(Box<Expr>, #[adze::leaf(text = "+")] (), Box<Expr>),

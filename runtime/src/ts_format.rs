@@ -18,6 +18,9 @@ pub enum TSActionTag {
     Accept = 4,
 }
 
+/// Friendly name for [`TSActionTag`]; both names denote the same type.
+pub type ActionTag = TSActionTag;
+
 /// Choose a single action from a GLR cell deterministically.
 ///
 /// Priority is `Accept > Shift > Reduce > Error`, matching existing runtime

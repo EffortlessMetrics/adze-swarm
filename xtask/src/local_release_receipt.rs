@@ -175,17 +175,19 @@ fn excerpt_option(text: &str) -> Option<String> {
     }
 }
 
+/// Truncate to at most `max_chars` characters (not bytes), appending `…`
+/// when truncation happens. The cut always lands on a character boundary.
 fn excerpt(text: &str, max_chars: usize) -> String {
     let trimmed = text.trim();
     if trimmed.chars().count() <= max_chars {
         trimmed.to_string()
     } else {
         let mut end = 0;
-        for (idx, _) in trimmed.char_indices() {
-            if idx >= max_chars {
+        for (count, (idx, ch)) in trimmed.char_indices().enumerate() {
+            if count == max_chars {
                 break;
             }
-            end = idx + 1;
+            end = idx + ch.len_utf8();
         }
         format!("{}…", &trimmed[..end])
     }
@@ -278,6 +280,49 @@ mod tests {
         }];
         let err = validate_starter_proof(&commands).expect_err("must fail");
         assert!(err.to_string().contains("failed to select a version"));
+    }
+
+    #[test]
+    fn test_excerpt_multibyte_input_truncates_on_char_boundary() {
+        // Regression: byte 239 splits the two-byte 'é' at the 240-char limit.
+        let input = "é".repeat(241);
+        let result = excerpt(&input, 240);
+        assert_eq!(result.chars().count(), 241, "240 chars plus ellipsis");
+        assert!(result.ends_with('…'));
+    }
+
+    #[test]
+    fn test_excerpt_respects_char_limit_across_unicode_widths() {
+        assert_eq!(excerpt("", 240), "");
+        assert_eq!(excerpt("hello", 240), "hello");
+        assert_eq!(excerpt("hello", 5), "hello");
+        assert_eq!(excerpt("hello!", 5), "hello…");
+        // Three- and four-byte characters count once each.
+        assert_eq!(excerpt("€€€€", 3), "€€€…");
+        assert_eq!(excerpt("🦀🦀🦀🦀", 2), "🦀🦀…");
+        // A combining sequence is bounded per char, never split mid-scalar.
+        let combining = "e\u{301}".repeat(10);
+        let result = excerpt(&combining, 4);
+        assert_eq!(result, "e\u{301}e\u{301}…");
+    }
+
+    #[test]
+    fn test_receipt_command_excerpt_preserves_unicode_output() {
+        let command = CapturedCommand {
+            name: "starter-cargo-test".to_string(),
+            argv: vec!["cargo".to_string(), "test".to_string()],
+            exit_code: 101,
+            stdout: String::new(),
+            stderr: "é".repeat(300),
+        };
+        let receipt_command = receipt_command_from_capture(&command);
+        let excerpted = receipt_command
+            .stderr_excerpt
+            .as_deref()
+            .expect("long stderr should produce an excerpt");
+        assert_eq!(excerpted.chars().count(), 241);
+        let json = serde_json::to_string(&receipt_command).expect("receipt serializes");
+        assert!(json.contains("é"), "serialized receipt keeps valid UTF-8");
     }
 
     #[test]

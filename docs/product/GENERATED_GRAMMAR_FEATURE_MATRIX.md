@@ -33,6 +33,7 @@ stability claims; rows below link to that file instead of restating tiers.
 | Extras (whitespace) skipped around tokens | `example/src/typed_ast_contract.rs` | `"  1   +   2  "` equals the unspaced `Add(1, 2)` value | pure-rust | Proved (`test_extras_whitespace_skipped_exact_value`) |
 | Named-field struct variants + two precedence levels | `example/src/fielded_precedence_typed_cst_contract.rs` | `1 + 2 * 3` parses as `Add { left: 1, right: Mul { left: 2, right: 3 } }` | pure-rust | Proved (`test_named_fields_precedence_levels_exact_shape`) |
 | `parse()` / `parse_document().ast()` agreement | `example/src/fielded_precedence_typed_cst_contract.rs` | Document-extracted AST equals the typed `parse()` value for `1 + 2 * 3` | pure-rust | Proved (`test_parse_and_document_when_clean_input_ast_agrees`) |
+| Fallible leaf transforms (`try_transform`, #864) | `example/src/typed_ast_contract.rs`, `example/src/fallible_transforms.rs` | Valid values keep exact typed shape; overflowing digits return `ConversionFailed` over the token byte range from `parse()`, `parse_document().ast()`, and node-targeted extraction | pure-rust | Proved (`test_fallible_transform_overflow_structured_error`; sibling harness `runtime/tests/fallible_transforms.rs`) |
 
 ## Gap and blocked rows (not supported claims)
 
@@ -43,8 +44,8 @@ stability claims; rows below link to that file instead of restating tiers.
 | Undelimited `Vec<T>` repetition | Gap | `example/src/repetitions.rs` exists; no exact-value matrix proof yet. |
 | Keyword-versus-identifier (word tokens) | Gap | `example/src/words.rs` exists; keyword/identifier interaction is not proved by exact values here. |
 | Fields/aliases cardinality in node schema | Blocked by #863 | Semantic schema work in #863 is open; `node_types`-style cardinality is not yet derived from the grammar contract. |
-| Numeric transform overflow | Gap | The proved leaf transform unwraps its `i32` conversion, so digit strings beyond `i32` range panic instead of producing a value or a diagnostic; no overflow proof exists. |
-| Fallible transforms | Blocked by #864 | Fallible-transform work in #864 is open; only unwrapping transform closures are proved above. |
+| Numeric transform overflow | Proved via fallible transforms row | Digit strings beyond `i32` range return a structured `ConversionFailed` diagnostic when the leaf uses `try_transform`; unwrapping `transform` closures remain the caller's responsibility. |
+| Fallible transforms on the tree-sitter backend | Gap | The macro generates the same fallible extraction mode for the non-pure-rust backend, but no exact-value proof runs there yet; only the pure-rust row above is proved. |
 | Invalid annotation diagnostics | Gap | The trybuild-style proof is not wired as a blocking harness; invalid combinations do not yet have bounded compile-diagnostic proof in this matrix. |
 | External tokens/scanners | Gap (honest tier in SUPPORT_TIERS) | Kept at the tier stated in `docs/status/SUPPORT_TIERS.md`; not part of the generated-grammar contract proved here. |
 | Hidden/inline rules, supertypes, empty/nullable productions | Gap | No exact-value proof in this PR; rows stay visible until fixtures prove them. |

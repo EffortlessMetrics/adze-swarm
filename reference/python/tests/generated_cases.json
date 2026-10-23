@@ -1,0 +1,840 @@
+{
+ "profile": "cfg.nullable_first_follow.v1",
+ "generated_by": "deterministic seed 975 acyclic generator (retained concrete inputs)",
+ "cases": [
+  {
+   "case_id": "generated_00",
+   "start": "S",
+   "terminals": [
+    "a",
+    "b",
+    "c",
+    "d"
+   ],
+   "nonterminals": [
+    "S",
+    "A",
+    "B",
+    "C"
+   ],
+   "productions": [
+    {
+     "lhs": "S",
+     "rhs": [
+      "A",
+      "d"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "B"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "a"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": []
+    },
+    {
+     "lhs": "S",
+     "rhs": [
+      "C",
+      "a"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": []
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "a",
+      "c"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": []
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "b",
+      "b",
+      "d"
+     ]
+    }
+   ]
+  },
+  {
+   "case_id": "generated_01",
+   "start": "S",
+   "terminals": [
+    "a",
+    "b"
+   ],
+   "nonterminals": [
+    "S",
+    "A",
+    "B",
+    "C"
+   ],
+   "productions": [
+    {
+     "lhs": "S",
+     "rhs": [
+      "A",
+      "b"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "B"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "b"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": [
+      "a"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": []
+    },
+    {
+     "lhs": "A",
+     "rhs": []
+    },
+    {
+     "lhs": "B",
+     "rhs": []
+    },
+    {
+     "lhs": "C",
+     "rhs": []
+    }
+   ]
+  },
+  {
+   "case_id": "generated_02",
+   "start": "S",
+   "terminals": [
+    "a",
+    "b"
+   ],
+   "nonterminals": [
+    "S",
+    "A",
+    "B",
+    "C"
+   ],
+   "productions": [
+    {
+     "lhs": "S",
+     "rhs": [
+      "A",
+      "a"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "B"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "b"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": []
+    },
+    {
+     "lhs": "A",
+     "rhs": []
+    },
+    {
+     "lhs": "C",
+     "rhs": []
+    }
+   ]
+  },
+  {
+   "case_id": "generated_03",
+   "start": "S",
+   "terminals": [
+    "a",
+    "b",
+    "c",
+    "d"
+   ],
+   "nonterminals": [
+    "S",
+    "A",
+    "B",
+    "C"
+   ],
+   "productions": [
+    {
+     "lhs": "S",
+     "rhs": [
+      "A",
+      "d"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "B"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "a"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": [
+      "B",
+      "B",
+      "d"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": [
+      "C",
+      "d",
+      "d"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "b"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": []
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "c",
+      "c"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "d"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": []
+    }
+   ]
+  },
+  {
+   "case_id": "generated_04",
+   "start": "S",
+   "terminals": [
+    "a",
+    "b",
+    "d"
+   ],
+   "nonterminals": [
+    "S",
+    "A",
+    "B",
+    "C"
+   ],
+   "productions": [
+    {
+     "lhs": "S",
+     "rhs": [
+      "A",
+      "a"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "B"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "b"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": [
+      "a",
+      "C"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": [
+      "a",
+      "A",
+      "a"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "d",
+      "d",
+      "a"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "b",
+      "b"
+     ]
+    }
+   ]
+  },
+  {
+   "case_id": "generated_05",
+   "start": "S",
+   "terminals": [
+    "a",
+    "b",
+    "c",
+    "d"
+   ],
+   "nonterminals": [
+    "S",
+    "A",
+    "B",
+    "C"
+   ],
+   "productions": [
+    {
+     "lhs": "S",
+     "rhs": [
+      "A",
+      "a"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "B"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "a"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "c",
+      "d"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "b",
+      "B",
+      "B"
+     ]
+    }
+   ]
+  },
+  {
+   "case_id": "generated_06",
+   "start": "S",
+   "terminals": [
+    "a",
+    "b",
+    "d"
+   ],
+   "nonterminals": [
+    "S",
+    "A",
+    "B",
+    "C"
+   ],
+   "productions": [
+    {
+     "lhs": "S",
+     "rhs": [
+      "A",
+      "a"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "B"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "b"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": [
+      "A"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "b",
+      "b"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "a",
+      "b",
+      "d"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": []
+    },
+    {
+     "lhs": "B",
+     "rhs": []
+    },
+    {
+     "lhs": "C",
+     "rhs": []
+    }
+   ]
+  },
+  {
+   "case_id": "generated_07",
+   "start": "S",
+   "terminals": [
+    "a",
+    "b",
+    "c",
+    "d"
+   ],
+   "nonterminals": [
+    "S",
+    "A",
+    "B",
+    "C"
+   ],
+   "productions": [
+    {
+     "lhs": "S",
+     "rhs": [
+      "A",
+      "b"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "B"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "d"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": [
+      "d",
+      "b",
+      "C"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": []
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "b",
+      "a",
+      "c"
+     ]
+    }
+   ]
+  },
+  {
+   "case_id": "generated_08",
+   "start": "S",
+   "terminals": [
+    "a",
+    "b",
+    "c"
+   ],
+   "nonterminals": [
+    "S",
+    "A",
+    "B",
+    "C"
+   ],
+   "productions": [
+    {
+     "lhs": "S",
+     "rhs": [
+      "A",
+      "c"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "B"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "c"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": [
+      "b",
+      "c"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": []
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "b",
+      "c"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": []
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "b"
+     ]
+    }
+   ]
+  },
+  {
+   "case_id": "generated_09",
+   "start": "S",
+   "terminals": [
+    "a",
+    "b",
+    "c",
+    "d"
+   ],
+   "nonterminals": [
+    "S",
+    "A",
+    "B",
+    "C"
+   ],
+   "productions": [
+    {
+     "lhs": "S",
+     "rhs": [
+      "A",
+      "c"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "B"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "c"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": []
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "a",
+      "a"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": []
+    },
+    {
+     "lhs": "B",
+     "rhs": []
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "a"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "b",
+      "a"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "b",
+      "a",
+      "d"
+     ]
+    }
+   ]
+  },
+  {
+   "case_id": "generated_10",
+   "start": "S",
+   "terminals": [
+    "a",
+    "c",
+    "d"
+   ],
+   "nonterminals": [
+    "S",
+    "A",
+    "B",
+    "C"
+   ],
+   "productions": [
+    {
+     "lhs": "S",
+     "rhs": [
+      "A",
+      "c"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "B"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "c"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "d",
+      "c",
+      "a"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": []
+    },
+    {
+     "lhs": "B",
+     "rhs": []
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "c",
+      "a"
+     ]
+    }
+   ]
+  },
+  {
+   "case_id": "generated_11",
+   "start": "S",
+   "terminals": [
+    "a",
+    "c",
+    "d"
+   ],
+   "nonterminals": [
+    "S",
+    "A",
+    "B",
+    "C"
+   ],
+   "productions": [
+    {
+     "lhs": "S",
+     "rhs": [
+      "A",
+      "d"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": [
+      "B"
+     ]
+    },
+    {
+     "lhs": "B",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "C",
+     "rhs": [
+      "c"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": [
+      "C",
+      "c"
+     ]
+    },
+    {
+     "lhs": "S",
+     "rhs": [
+      "C"
+     ]
+    },
+    {
+     "lhs": "A",
+     "rhs": []
+    },
+    {
+     "lhs": "C",
+     "rhs": []
+    }
+   ]
+  }
+ ]
+}

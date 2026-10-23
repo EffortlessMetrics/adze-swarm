@@ -1,11 +1,9 @@
 name: Product Proof
 
 on:
+  merge_group:
   pull_request:
-    branches: [main]
-    # labeled/unlabeled re-run detection so adding or removing the
-    # allow-github-hosted fallback label reroutes the stable canaries.
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       lane:
@@ -64,14 +62,22 @@ env:
     scripts/ci-product.sh
     scripts/ci-product-stable.sh
     .github/workflows/product-proof.yml
+    runtime/**
+    macro/**
+    tool/**
+    ir/**
+    glr-core/**
+    tablegen/**
+    cli/src/**
 
 concurrency:
-  group: product-proof-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && (github.event.action == 'synchronize' || github.event.action == 'labeled' || github.event.action == 'unlabeled') }}
+  group: product-proof-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   detect-stable-product-paths:
     name: Detect Product Proof Paths
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     outputs:
       run_stable: ${{ steps.detect.outputs.run_stable }}
@@ -85,31 +91,65 @@ jobs:
       - id: detect
         name: Detect Stable product surfaces
         shell: bash
-        # Label names are untrusted input: pass them through env, never
-        # interpolate them into the shell script.
+        # Event data is passed through env as data, never interpolated
+        # into the shell script.
         env:
+          EVENT_NAME: ${{ github.event_name }}
           LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          # Same opt-in contract as the routed Rust lane: a PR carrying the
-          # allow-github-hosted label may run stable canaries on
-          # GitHub-hosted runners when self-hosted capacity is unavailable.
-          if python3 -c 'import json, os, sys; labels = json.loads(os.environ.get("LABELS_JSON", "[]") or "[]") or []; sys.exit(0 if "allow-github-hosted" in {str(label).lower() for label in labels} else 1)'; then
-            echo "use_hosted=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "use_hosted=false" >> "$GITHUB_OUTPUT"
+          # Hosted fallback follows the same explicit policy as the
+          # routed Rust lane: merge_group (authorized by the enqueue
+          # decision) and workflow_dispatch (authorized manual request)
+          # may use GitHub-hosted runners, because the em-ci-small
+          # runner group currently has no runners registered. A
+          # non-draft pull_request is eligible only with the maintainer
+          # applied allow-github-hosted label (parsed as data, never
+          # executed). Scheduled runs keep the self-hosted group.
+          use_hosted=false
+          if [[ "$EVENT_NAME" == "merge_group" || "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            use_hosted=true
+          elif [[ "$EVENT_NAME" == "pull_request" ]]; then
+            if LABELS_JSON="${LABELS_JSON:-[]}" python3 - <<'PY'
+          import json, os, sys
+          labels = json.loads(os.environ.get("LABELS_JSON", "[]") or "[]")
+          sys.exit(0 if "allow-github-hosted" in {str(label).lower() for label in labels} else 1)
+          PY
+            then
+              use_hosted=true
+            fi
           fi
+          echo "use_hosted=${use_hosted}" >> "$GITHUB_OUTPUT"
 
-          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+          if [[ "$EVENT_NAME" != "merge_group" && "$EVENT_NAME" != "pull_request" ]]; then
             echo "run_stable=true" >> "$GITHUB_OUTPUT"
-            echo "reason=event:${{ github.event_name }}" >> "$GITHUB_OUTPUT"
+            echo "reason=event:${EVENT_NAME}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          base_sha="${{ github.event.pull_request.base.sha }}"
-          head_sha="${{ github.event.pull_request.head.sha }}"
-          git fetch --no-tags --depth=1 origin "$base_sha" "$head_sha"
+          # On merge_group, select from the actual integration difference
+          # (base is the queue target, head is the integration commit G).
+          # On pull_request, select from the PR difference. Unresolved
+          # SHAs fail closed into running the stable canaries.
+          base_sha="$MERGE_GROUP_BASE_SHA"
+          head_sha="$MERGE_GROUP_HEAD_SHA"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base_sha="$PR_BASE_SHA"
+            head_sha="$PR_HEAD_SHA"
+          fi
+          if [[ -z "$base_sha" || -z "$head_sha" ]]; then
+            echo "run_stable=true" >> "$GITHUB_OUTPUT"
+            echo "reason=merge_group_sha_unresolved_fail_closed" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
-          changed_paths="$(git diff --name-only "$base_sha" "$head_sha")"
+          if ! changed_paths="$(git diff --name-only "$base_sha" "$head_sha")"; then
+            echo "::error::Product Proof merge_group diff failed."
+            exit 1
+          fi
           echo "Changed paths:"
           printf '%s\n' "$changed_paths"
 
@@ -134,8 +174,9 @@ jobs:
     name: ci-product stable canaries
     needs: detect-stable-product-paths
     if: needs.detect-stable-product-paths.outputs.run_stable == 'true'
-    # Labeled PRs (allow-github-hosted) fall back to GitHub-hosted runners;
-    # everything else keeps the self-hosted em-ci-small group.
+    # Stable canaries use GitHub-hosted runners when the detector marks
+    # the event fallback-eligible (merge_group / workflow_dispatch);
+    # otherwise they keep the self-hosted em-ci-small group.
     runs-on: ${{ needs.detect-stable-product-paths.outputs.use_hosted == 'true' && 'ubuntu-latest' || fromJson('{"group":"em-ci-small","labels":["self-hosted","linux","x64","em-ci","trusted-pr"]}') }}
     steps:
       - uses: actions/checkout@v6.0.2
@@ -158,6 +199,7 @@ jobs:
     needs: [detect-stable-product-paths, ci-product-stable]
     if: >-
       always() &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
       needs.detect-stable-product-paths.result != 'cancelled' &&
       needs.ci-product-stable.result != 'cancelled'
     runs-on: ubuntu-latest

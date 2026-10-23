@@ -62,6 +62,13 @@
 //!
 //! Lower-level modules include the [`pure_parser`] (LR parser),
 //! [`parser_v4`](parser) (GLR parser), and [`visitor`] (tree traversal).
+//!
+//! # Friendly ABI names
+//!
+//! ABI wrapper types keep their Tree-sitter `TS`-prefixed names, and each
+//! also has a friendly alias at the same public path (for example
+//! [`ffi::Symbol`], [`pure_parser::Language`], and [`ts_format::ActionTag`]).
+//! Both names denote the same type; new code may prefer the friendly names.
 
 /// Private implementation details exposed for macro use only.
 pub mod __private;
@@ -423,6 +430,36 @@ pub trait Extract<Output> {
         last_idx: usize,
         leaf_fn: Option<&Self::LeafFn>,
     ) -> Output;
+
+    /// Fallible extraction: same contract as [`extract`](Self::extract),
+    /// but leaf conversion failures surface as a structured
+    /// [`ParseError`](crate::errors::ParseError) instead of panicking.
+    ///
+    /// The default implementation wraps the infallible extraction, so
+    /// existing implementations remain source-compatible (ADR-0008 trait
+    /// evolution rule). Generated grammars that use
+    /// `#[adze::leaf(try_transform = ...)]` override this method and
+    /// propagate conversion failures with the failing token's byte range.
+    #[cfg(not(feature = "pure-rust"))]
+    fn try_extract(
+        node: Option<crate::tree_sitter::Node>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<Output, crate::errors::ParseError> {
+        Ok(Self::extract(node, source, last_idx, leaf_fn))
+    }
+
+    /// Pure-Rust counterpart of the fallible extraction contract.
+    #[cfg(feature = "pure-rust")]
+    fn try_extract(
+        node: Option<&crate::pure_parser::ParsedNode>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<Output, crate::errors::ParseError> {
+        Ok(Self::extract(node, source, last_idx, leaf_fn))
+    }
 }
 
 /// Provides a default extraction path for types that have a natural default.
@@ -483,6 +520,144 @@ impl<L> Extract<L> for WithLeaf<L> {
             panic!(
                 "Leaf extraction failed: no transform function provided for type that requires one."
             )
+        }
+    }
+}
+
+/// Maximum byte length of a conversion-failure message retained in a
+/// structured diagnostic. Longer conversion errors are truncated on a
+/// UTF-8 boundary so diagnostics stay bounded.
+const MAX_CONVERSION_MESSAGE_BYTES: usize = 256;
+
+fn bounded_conversion_message(message: String) -> String {
+    if message.len() <= MAX_CONVERSION_MESSAGE_BYTES {
+        return message;
+    }
+    let mut end = MAX_CONVERSION_MESSAGE_BYTES - 3;
+    while !message.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}...", &message[..end])
+}
+
+fn conversion_error(message: String, start: usize, end: usize) -> crate::errors::ParseError {
+    crate::errors::ParseError {
+        reason: crate::errors::ParseErrorReason::ConversionFailed(bounded_conversion_message(
+            message,
+        )),
+        start,
+        end,
+        expected: Vec::new(),
+    }
+}
+
+#[cfg(feature = "pure-rust")]
+fn pure_node_leaf_span(node: &crate::pure_parser::ParsedNode) -> (usize, usize) {
+    let end = node
+        .children
+        .iter()
+        .filter(|child| child.is_extra)
+        .map(|child| child.start_byte)
+        .min()
+        .unwrap_or(node.end_byte);
+    (node.start_byte, end)
+}
+
+/// Helper struct for fallible leaf extraction logic.
+///
+/// Use `WithTryLeaf<L>` when a leaf token needs a user-supplied fallible
+/// transform to produce the output type `L`. The transform is provided via
+/// the `#[adze::leaf(try_transform = ...)]` attribute and returns
+/// `Result<L, E>`; conversion failures become structured
+/// [`ConversionFailed`](crate::errors::ParseErrorReason::ConversionFailed)
+/// diagnostics carrying the token's byte range instead of panicking.
+pub struct WithTryLeaf<L> {
+    _phantom: std::marker::PhantomData<L>,
+}
+
+impl<L> Extract<L> for WithTryLeaf<L> {
+    type LeafFn = dyn Fn(&str) -> Result<L, String>;
+
+    #[cfg(not(feature = "pure-rust"))]
+    fn extract(
+        node: Option<crate::tree_sitter::Node>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> L {
+        Self::try_extract(node, source, last_idx, leaf_fn).unwrap_or_else(|error| {
+            panic!(
+                "Leaf conversion failed at bytes {}..{}: {}",
+                error.start, error.end, error.reason
+            )
+        })
+    }
+
+    #[cfg(feature = "pure-rust")]
+    fn extract(
+        node: Option<&crate::pure_parser::ParsedNode>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> L {
+        Self::try_extract(node, source, last_idx, leaf_fn).unwrap_or_else(|error| {
+            panic!(
+                "Leaf conversion failed at bytes {}..{}: {}",
+                error.start, error.end, error.reason
+            )
+        })
+    }
+
+    #[cfg(not(feature = "pure-rust"))]
+    fn try_extract(
+        node: Option<crate::tree_sitter::Node>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<L, crate::errors::ParseError> {
+        let (text, start, end) = match node {
+            Some(node) => (
+                node.utf8_text(source).unwrap_or_default(),
+                node.start_byte(),
+                node.end_byte(),
+            ),
+            None => ("", last_idx, last_idx),
+        };
+        match leaf_fn {
+            Some(f) => f(text).map_err(|message| conversion_error(message, start, end)),
+            None => Err(conversion_error(
+                "no try_transform function provided for type that requires one".to_string(),
+                start,
+                end,
+            )),
+        }
+    }
+
+    #[cfg(feature = "pure-rust")]
+    fn try_extract(
+        node: Option<&crate::pure_parser::ParsedNode>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<L, crate::errors::ParseError> {
+        let (text, start, end) = match node {
+            Some(node) => {
+                let (start, end) = pure_node_leaf_span(node);
+                (
+                    pure_node_leaf_text(node, source).unwrap_or_default(),
+                    start,
+                    end,
+                )
+            }
+            None => ("", last_idx, last_idx),
+        };
+        match leaf_fn {
+            Some(f) => f(text).map_err(|message| conversion_error(message, start, end)),
+            None => Err(conversion_error(
+                "no try_transform function provided for type that requires one".to_string(),
+                start,
+                end,
+            )),
         }
     }
 }
@@ -774,6 +949,26 @@ impl Extract<()> for () {
         _leaf_fn: Option<&Self::LeafFn>,
     ) {
     }
+
+    #[cfg(not(feature = "pure-rust"))]
+    fn try_extract(
+        _node: Option<crate::tree_sitter::Node>,
+        _source: &[u8],
+        _last_idx: usize,
+        _leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<(), crate::errors::ParseError> {
+        Ok(())
+    }
+
+    #[cfg(feature = "pure-rust")]
+    fn try_extract(
+        _node: Option<&crate::pure_parser::ParsedNode>,
+        _source: &[u8],
+        _last_idx: usize,
+        _leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<(), crate::errors::ParseError> {
+        Ok(())
+    }
 }
 
 impl<T: Extract<U>, U> Extract<Option<U>> for Option<T> {
@@ -798,6 +993,28 @@ impl<T: Extract<U>, U> Extract<Option<U>> for Option<T> {
     ) -> Option<U> {
         node.map(|n| T::extract(Some(n), source, last_idx, leaf_fn))
     }
+
+    #[cfg(not(feature = "pure-rust"))]
+    fn try_extract(
+        node: Option<crate::tree_sitter::Node>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<Option<U>, crate::errors::ParseError> {
+        node.map(|n| T::try_extract(Some(n), source, last_idx, leaf_fn))
+            .transpose()
+    }
+
+    #[cfg(feature = "pure-rust")]
+    fn try_extract(
+        node: Option<&crate::pure_parser::ParsedNode>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<Option<U>, crate::errors::ParseError> {
+        node.map(|n| T::try_extract(Some(n), source, last_idx, leaf_fn))
+            .transpose()
+    }
 }
 
 impl<T: Extract<U>, U> Extract<Box<U>> for Box<T> {
@@ -821,6 +1038,26 @@ impl<T: Extract<U>, U> Extract<Box<U>> for Box<T> {
         leaf_fn: Option<&Self::LeafFn>,
     ) -> Box<U> {
         Box::new(T::extract(node, source, last_idx, leaf_fn))
+    }
+
+    #[cfg(not(feature = "pure-rust"))]
+    fn try_extract(
+        node: Option<crate::tree_sitter::Node>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<Box<U>, crate::errors::ParseError> {
+        Ok(Box::new(T::try_extract(node, source, last_idx, leaf_fn)?))
+    }
+
+    #[cfg(feature = "pure-rust")]
+    fn try_extract(
+        node: Option<&crate::pure_parser::ParsedNode>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<Box<U>, crate::errors::ParseError> {
+        Ok(Box::new(T::try_extract(node, source, last_idx, leaf_fn)?))
     }
 }
 
@@ -927,6 +1164,82 @@ impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
         })
         .unwrap_or_default()
     }
+
+    #[cfg(not(feature = "pure-rust"))]
+    fn try_extract(
+        node: Option<crate::tree_sitter::Node>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<Vec<U>, crate::errors::ParseError> {
+        let mut out = Vec::new();
+        if let Some(node) = node {
+            let mut cursor = node.walk();
+            let mut last_idx = last_idx;
+            if cursor.goto_first_child() {
+                loop {
+                    let n = cursor.node();
+                    if cursor.field_name().is_some() || n.is_named() {
+                        out.push(T::try_extract(Some(n), source, last_idx, leaf_fn)?);
+                    }
+                    last_idx = n.end_byte();
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    #[cfg(feature = "pure-rust")]
+    fn try_extract(
+        node: Option<&crate::pure_parser::ParsedNode>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<Vec<U>, crate::errors::ParseError> {
+        fn flatten_repeat1_try<T: Extract<U>, U>(
+            node: &crate::pure_parser::ParsedNode,
+            source: &[u8],
+            last_idx: usize,
+            leaf_fn: Option<&T::LeafFn>,
+            out: &mut Vec<U>,
+        ) -> Result<(), crate::errors::ParseError> {
+            if node.children.len() == 2
+                && !node.children.is_empty()
+                && node.children[0].symbol == node.symbol
+            {
+                flatten_repeat1_try::<T, U>(&node.children[0], source, last_idx, leaf_fn, out)?;
+                out.push(T::try_extract(
+                    Some(&node.children[1]),
+                    source,
+                    node.children[0].end_byte,
+                    leaf_fn,
+                )?);
+            } else if node.children.len() == 1 {
+                out.push(T::try_extract(
+                    Some(&node.children[0]),
+                    source,
+                    last_idx,
+                    leaf_fn,
+                )?);
+            } else {
+                let mut last_idx = last_idx;
+                for child in &node.children {
+                    out.push(T::try_extract(Some(child), source, last_idx, leaf_fn)?);
+                    last_idx = child.end_byte;
+                }
+            }
+            Ok(())
+        }
+
+        let mut out = Vec::new();
+        if let Some(node) = node {
+            flatten_repeat1_try::<T, U>(node, source, last_idx, leaf_fn, &mut out)?;
+        }
+        Ok(out)
+    }
 }
 
 /// A wrapper that pairs a parsed value with its byte-offset span in the source.
@@ -995,6 +1308,36 @@ impl<T: Extract<U>, U> Extract<Spanned<U>> for Spanned<T> {
                 .map(|n| (n.start_byte, n.end_byte))
                 .unwrap_or((last_idx, last_idx)),
         }
+    }
+
+    #[cfg(not(feature = "pure-rust"))]
+    fn try_extract(
+        node: Option<crate::tree_sitter::Node>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<Spanned<U>, crate::errors::ParseError> {
+        Ok(Spanned {
+            value: T::try_extract(node, source, last_idx, leaf_fn)?,
+            span: node
+                .map(|n| (n.start_byte(), n.end_byte()))
+                .unwrap_or((last_idx, last_idx)),
+        })
+    }
+
+    #[cfg(feature = "pure-rust")]
+    fn try_extract(
+        node: Option<&crate::pure_parser::ParsedNode>,
+        source: &[u8],
+        last_idx: usize,
+        leaf_fn: Option<&Self::LeafFn>,
+    ) -> Result<Spanned<U>, crate::errors::ParseError> {
+        Ok(Spanned {
+            value: T::try_extract(node, source, last_idx, leaf_fn)?,
+            span: node
+                .map(|n| (n.start_byte, n.end_byte))
+                .unwrap_or((last_idx, last_idx)),
+        })
     }
 }
 
@@ -1222,6 +1565,11 @@ pub mod errors {
         FailedNode(Vec<ParseError>),
         /// The parser expected a specific token, but it was not found.
         MissingToken(String),
+        /// A leaf value matched its token pattern but failed the
+        /// user-supplied fallible conversion (`try_transform`). The
+        /// message is the conversion error's `Display` text, bounded in
+        /// length by the runtime.
+        ConversionFailed(String),
     }
 
     #[derive(Debug)]
@@ -1346,6 +1694,9 @@ pub mod errors {
                     )
                 }
                 ParseErrorReason::MissingToken(token) => write!(f, "missing token {token:?}"),
+                ParseErrorReason::ConversionFailed(message) => {
+                    write!(f, "leaf conversion failed: {message}")
+                }
             }
         }
     }

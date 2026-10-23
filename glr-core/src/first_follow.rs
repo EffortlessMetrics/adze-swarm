@@ -289,11 +289,14 @@ fn symbol_count(grammar: &Grammar) -> usize {
         .max()
         .unwrap_or(0);
 
-    (max_rule_id
+    // Widen before the capacity arithmetic: adding in the u16 domain wraps
+    // (or panics in checked builds) for grammars using SymbolId(u16::MAX)
+    // or u16::MAX - 1, collapsing the bitset capacity.
+    let max_id = max_rule_id
         .max(max_token_id)
         .max(max_external_id)
-        .max(max_rhs_id)
-        + 2) as usize
+        .max(max_rhs_id) as usize;
+    max_id + 2
 }
 
 fn max_symbol_id(symbol: &Symbol) -> u16 {
@@ -476,6 +479,82 @@ mod tests {
         actual.sort();
         expected.sort();
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_first_follow_max_token_id_does_not_overflow_capacity() {
+        // Public-entry witness from #982: SymbolId(u16::MAX) as a token used
+        // to wrap the capacity to 1 and panic inside fixedbitset.
+        let s = SymbolId(1);
+        let max_token = SymbolId(u16::MAX);
+        let mut grammar = grammar_with_rules([(s, "S", vec![vec![Symbol::Terminal(max_token)]])]);
+        add_token(&mut grammar, max_token, "a");
+
+        let sets = FirstFollowSets::compute(&grammar)
+            .expect("high token IDs must compute without overflow");
+        assert!(sets.first(s).unwrap().contains(max_token.0 as usize));
+        assert!(
+            sets.follow(s).unwrap().contains(0),
+            "EOF bit must remain representable and distinct"
+        );
+
+        // Deterministic on recomputation.
+        let again = FirstFollowSets::compute(&grammar).expect("recompute succeeds");
+        assert!(again.first(s).unwrap().contains(max_token.0 as usize));
+    }
+
+    #[test]
+    fn test_first_follow_max_minus_one_token_id_does_not_overflow_capacity() {
+        let s = SymbolId(1);
+        let near_max = SymbolId(u16::MAX - 1);
+        let mut grammar = grammar_with_rules([(s, "S", vec![vec![Symbol::Terminal(near_max)]])]);
+        add_token(&mut grammar, near_max, "a");
+
+        let sets = FirstFollowSets::compute(&grammar)
+            .expect("u16::MAX - 1 must not cross the capacity boundary");
+        assert!(sets.first(s).unwrap().contains(near_max.0 as usize));
+    }
+
+    #[test]
+    fn test_first_follow_max_lhs_and_rhs_only_ids_do_not_overflow_capacity() {
+        // The LHS stays 1000 below u16::MAX: compute() clones and normalizes
+        // the grammar first, and Grammar::normalize's auxiliary-ID counter
+        // (`max_id + 1000`, owned by #978) overflows at the exact maximum
+        // before FIRST/FOLLOW capacity is even established. The token below
+        // still exercises the near-maximum capacity domain.
+        let max_lhs = SymbolId(u16::MAX - 1000);
+        let low = SymbolId(1);
+        let rhs_only = SymbolId(u16::MAX - 2);
+        let mut grammar = grammar_with_rules([
+            (low, "S", vec![vec![Symbol::NonTerminal(max_lhs)]]),
+            (max_lhs, "MaxRule", vec![vec![Symbol::Terminal(rhs_only)]]),
+        ]);
+        add_token(&mut grammar, rhs_only, "z");
+
+        let sets = FirstFollowSets::compute(&grammar)
+            .expect("high LHS/RHS IDs must compute without overflow");
+        assert!(sets.first(low).unwrap().contains(rhs_only.0 as usize));
+        assert!(sets.first(max_lhs).unwrap().contains(rhs_only.0 as usize));
+        assert!(
+            !sets.first(low).unwrap().contains(low.0 as usize),
+            "high IDs must not alias low IDs through wraparound"
+        );
+    }
+
+    #[test]
+    fn test_first_follow_max_external_id_does_not_overflow_capacity() {
+        let s = SymbolId(1);
+        let max_external = SymbolId(u16::MAX);
+        let mut grammar =
+            grammar_with_rules([(s, "S", vec![vec![Symbol::External(max_external)]])]);
+        grammar.externals.push(ExternalToken {
+            name: "ext".to_string(),
+            symbol_id: max_external,
+        });
+
+        let sets = FirstFollowSets::compute(&grammar)
+            .expect("high external IDs must compute without overflow");
+        assert!(sets.first(s).unwrap().contains(max_external.0 as usize));
     }
 
     #[test]

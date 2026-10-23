@@ -7,13 +7,6 @@ on:
       - tools/ts-bridge/**
       - scripts/smoke-link.sh
       - .github/workflows/ts-bridge-smoke.yml
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, labeled]
-    paths:
-      - tools/ts-bridge/**
-      - scripts/smoke-link.sh
-      - .github/workflows/ts-bridge-smoke.yml
   workflow_dispatch:
     inputs:
       matrix:

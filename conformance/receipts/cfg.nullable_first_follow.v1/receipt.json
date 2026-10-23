@@ -1,0 +1,201 @@
+{
+  "aggregate_disposition": "agrees",
+  "components": {
+    "corpus": {
+      "commit": "748903cc51c1e7bb00bbe9a9e6b72d6acddd27c9",
+      "obtained_via": "git -C <corpus checkout> rev-parse HEAD",
+      "source": "conformance/cases/cfg.nullable_first_follow.v1/corpus.json"
+    },
+    "python_reference": {
+      "commit": "ca3ed5b9df902cd071bd16274a908524f75223e0",
+      "interpreter": "3.14.6",
+      "interpreter_implementation": "CPython",
+      "obtained_via": "git -C <python reference checkout> rev-parse HEAD",
+      "obtained_via_interpreter": "platform.python_version()"
+    },
+    "rust_candidate": {
+      "build": "cargo build -p adze-glr-core --example conformance_sets (once, batched request)",
+      "commit": "017bdc93ae2efb5126816a03f1e79daa9a06528a",
+      "driver": "glr-core/examples/conformance_sets.rs",
+      "obtained_via": "git -C <rust driver checkout> rev-parse HEAD"
+    }
+  },
+  "corpus_digest": "c0e4a3302e230c06bde7ea64cfa4a581d3c258733bc1dc001cd920cb99761347",
+  "corpus_digest_algorithm": "sha256(canonical corpus JSON)",
+  "counts": {
+    "python": {
+      "executed": 13,
+      "failed": 0,
+      "missing": 0,
+      "ok": 13,
+      "selected": 13
+    },
+    "rust": {
+      "executed": 13,
+      "failed": 0,
+      "missing": 0,
+      "ok": 13,
+      "selected": 13
+    },
+    "selected": 13
+  },
+  "engine_identities": {
+    "python": {
+      "engine": "adze_reference",
+      "interpreter": "3.14.6",
+      "interpreter_implementation": "CPython",
+      "package_parent": "python"
+    },
+    "rust": {
+      "binary_sha256": "9b9ade5b2b1e833bd1770947af5c37ac4f2d261882018f14fe3949dedd15df7e",
+      "driver": "glr-core/examples/conformance_sets.rs",
+      "engine": "adze-glr-core",
+      "engine_version": "0.9.0"
+    }
+  },
+  "expectation_digest": "7323dc7046ed360c361fe1e1fe7c6757a17d8af2edee56043cff0699150f6553",
+  "expectation_digest_algorithm": "sha256(canonical expectations JSON)",
+  "harness_controls_executed": [
+    "full required denominator selected before engine invocation",
+    "expectation keys guarded out of engine requests"
+  ],
+  "per_case": [
+    {
+      "case_id": "single_terminal",
+      "detail": "",
+      "disposition": "agrees",
+      "engine_status": {
+        "python": "ok",
+        "rust": "ok"
+      }
+    },
+    {
+      "case_id": "direct_epsilon",
+      "detail": "",
+      "disposition": "agrees",
+      "engine_status": {
+        "python": "ok",
+        "rust": "ok"
+      }
+    },
+    {
+      "case_id": "nullable_prefix",
+      "detail": "",
+      "disposition": "agrees",
+      "engine_status": {
+        "python": "ok",
+        "rust": "ok"
+      }
+    },
+    {
+      "case_id": "nullable_suffix",
+      "detail": "",
+      "disposition": "agrees",
+      "engine_status": {
+        "python": "ok",
+        "rust": "ok"
+      }
+    },
+    {
+      "case_id": "fully_nullable_production",
+      "detail": "",
+      "disposition": "agrees",
+      "engine_status": {
+        "python": "ok",
+        "rust": "ok"
+      }
+    },
+    {
+      "case_id": "nullable_chain",
+      "detail": "",
+      "disposition": "agrees",
+      "engine_status": {
+        "python": "ok",
+        "rust": "ok"
+      }
+    },
+    {
+      "case_id": "left_recursion",
+      "detail": "",
+      "disposition": "agrees",
+      "engine_status": {
+        "python": "ok",
+        "rust": "ok"
+      }
+    },
+    {
+      "case_id": "mutual_recursion",
+      "detail": "",
+      "disposition": "agrees",
+      "engine_status": {
+        "python": "ok",
+        "rust": "ok"
+      }
+    },
+    {
+      "case_id": "repeated_occurrence",
+      "detail": "",
+      "disposition": "agrees",
+      "engine_status": {
+        "python": "ok",
+        "rust": "ok"
+      }
+    },
+    {
+      "case_id": "terminal_stopping",
+      "detail": "",
+      "disposition": "agrees",
+      "engine_status": {
+        "python": "ok",
+        "rust": "ok"
+      }
+    },
+    {
+      "case_id": "explicit_start_not_first_declared",
+      "detail": "",
+      "disposition": "agrees",
+      "engine_status": {
+        "python": "ok",
+        "rust": "ok"
+      }
+    },
+    {
+      "case_id": "unreachable_component",
+      "detail": "",
+      "disposition": "agrees",
+      "engine_status": {
+        "python": "ok",
+        "rust": "ok"
+      }
+    },
+    {
+      "case_id": "nonproductive_terminal_prefix",
+      "detail": "",
+      "disposition": "agrees",
+      "engine_status": {
+        "python": "ok",
+        "rust": "ok"
+      }
+    }
+  ],
+  "profile": "cfg.nullable_first_follow.v1",
+  "receipt_version": 1,
+  "required_denominator": 13,
+  "schema_version": 1,
+  "selected_case_ids": [
+    "single_terminal",
+    "direct_epsilon",
+    "nullable_prefix",
+    "nullable_suffix",
+    "fully_nullable_production",
+    "nullable_chain",
+    "left_recursion",
+    "mutual_recursion",
+    "repeated_occurrence",
+    "terminal_stopping",
+    "explicit_start_not_first_declared",
+    "unreachable_component",
+    "nonproductive_terminal_prefix"
+  ],
+  "semantic_digest": "bac8995e566c77dfd96473106e327743032fe0befe00d93c7360c93db91b90d2"
+}

@@ -125,6 +125,185 @@ fn test_init_generates_buildable_project() {
         .success();
 }
 
+fn write_tiny_project(dir: &std::path::Path, package: &str, test_name: &str, passes: bool) {
+    std::fs::create_dir_all(dir.join("src")).expect("create tiny project src");
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        format!("[package]\nname = \"{package}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n"),
+    )
+    .expect("write tiny project manifest");
+    let assertion = if passes {
+        "assert_eq!(1 + 1, 2);"
+    } else {
+        "assert_eq!(1 + 1, 3, \"target failure marker\");"
+    };
+    std::fs::write(
+        dir.join("src/lib.rs"),
+        format!(
+            "#[cfg(test)]\nmod tests {{\n    #[test]\n    fn {test_name}() {{ {assertion} }}\n}}\n"
+        ),
+    )
+    .expect("write tiny project lib");
+}
+
+#[test]
+fn test_cli_test_failing_target_from_passing_caller_reports_failure() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let caller = temp.path().join("passing caller");
+    let target = temp.path().join("failing-target");
+    write_tiny_project(&caller, "passing_caller", "passing_caller_test", true);
+    write_tiny_project(&target, "failing_target", "failing_target_test", false);
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.current_dir(&caller)
+        .arg("test")
+        .arg(&target)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("failing_target_test"));
+}
+
+#[test]
+fn test_cli_test_passing_target_from_failing_caller_reports_success() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let caller = temp.path().join("failing-caller");
+    let target = temp.path().join("passing target");
+    write_tiny_project(&caller, "failing_caller", "failing_caller_test", false);
+    write_tiny_project(&target, "passing_target", "passing_target_test", true);
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.current_dir(&caller)
+        .arg("test")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("All tests passed!"));
+}
+
+#[test]
+fn test_cli_test_missing_or_nonproject_path_fails_before_cargo() {
+    let temp = tempfile::tempdir().expect("tempdir");
+
+    let mut missing = cargo_bin_cmd!("adze");
+    missing
+        .current_dir(temp.path())
+        .arg("test")
+        .arg(temp.path().join("does-not-exist"))
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("does not exist"));
+
+    let not_a_project = temp.path().join("not-a-project");
+    std::fs::create_dir_all(&not_a_project).expect("create non-project dir");
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.current_dir(temp.path())
+        .arg("test")
+        .arg(&not_a_project)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("does not contain a Cargo.toml"));
+}
+
+#[test]
+fn test_init_existing_project_refusal_preserves_user_files() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg("calc")
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    let project_dir = temp.path().join("calc");
+    let manifest = project_dir.join("Cargo.toml");
+    let grammar = project_dir.join("src/grammar.rs");
+    std::fs::write(&manifest, "sentinel manifest").expect("write manifest sentinel");
+    std::fs::write(&grammar, "sentinel grammar").expect("write grammar sentinel");
+
+    let mut rerun = cargo_bin_cmd!("adze");
+    rerun
+        .arg("init")
+        .arg("calc")
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("not empty"));
+
+    assert_eq!(
+        std::fs::read_to_string(&manifest).expect("read manifest"),
+        "sentinel manifest",
+        "refused rerun must not truncate the existing manifest"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&grammar).expect("read grammar"),
+        "sentinel grammar",
+        "refused rerun must not truncate the existing grammar"
+    );
+}
+
+#[test]
+fn test_init_path_like_or_invalid_names_fail_without_effects() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    for name in ["../escaped", "a/b", "..", "9bad", "type", "bad name", ""] {
+        let mut cmd = cargo_bin_cmd!("adze");
+        cmd.arg("init")
+            .arg(name)
+            .arg("--output")
+            .arg(temp.path())
+            .assert()
+            .failure();
+    }
+
+    assert!(
+        !temp.path().join("escaped").exists(),
+        "escaped init must not create a project outside the output root"
+    );
+    let entries = std::fs::read_dir(temp.path())
+        .expect("read output root")
+        .count();
+    assert_eq!(entries, 0, "rejected names must leave no files behind");
+}
+
+#[test]
+fn test_init_existing_empty_directory_is_filled() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let project_dir = temp.path().join("calc");
+    std::fs::create_dir_all(&project_dir).expect("create empty project dir");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("init")
+        .arg("calc")
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    assert!(project_dir.join("Cargo.toml").exists());
+    assert!(project_dir.join("src/grammar.rs").exists());
+}
+
+#[test]
+fn test_init_hyphenated_name_generates_underscore_crate_names() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("init")
+        .arg("my-lang")
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    let project_dir = temp.path().join("my-lang");
+    let manifest = std::fs::read_to_string(project_dir.join("Cargo.toml"))
+        .expect("read hyphenated project manifest");
+    assert!(manifest.contains("name = \"my-lang\""));
+    let grammar = std::fs::read_to_string(project_dir.join("src/grammar.rs"))
+        .expect("read hyphenated project grammar");
+    assert!(grammar.contains("grammar(\"my_lang\")"));
+}
+
 #[test]
 fn test_init_project_supports_cli_stats_and_check_end_to_end() {
     let temp = tempfile::tempdir().expect("tempdir");

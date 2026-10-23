@@ -27,7 +27,7 @@ pub mod grammar {
     #[adze::language]
     #[derive(PartialEq, Eq, Debug)]
     pub enum Expression {
-        Number(#[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap_or_default())] i32),
+        Number(#[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<i32>())] i32),
 
         /// Subtraction: precedence level 1 (lower precedence, looser binding)
         /// Left associative: "1 - 2 - 3" → "(1 - 2) - 3"

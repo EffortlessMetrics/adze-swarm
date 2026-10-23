@@ -170,9 +170,72 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+/// Rust keywords that cannot name a generated crate or grammar module.
+const RESERVED_INIT_NAMES: &[&str] = &[
+    "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern",
+    "false", "fn", "for", "gen", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut",
+    "pub", "ref", "return", "self", "Self", "static", "struct", "super", "trait", "true", "type",
+    "unsafe", "use", "where", "while", "abstract", "become", "box", "do", "final", "macro",
+    "override", "priv", "typeof", "unsized", "virtual", "yield", "try",
+];
+
+/// Validate a requested project name before any filesystem effect.
+///
+/// The name becomes a Cargo package name, a crate name (hyphens become
+/// underscores), and generated string content, so it must be a single
+/// path component that is valid in all three roles.
+fn validate_init_name(name: &str) -> Result<()> {
+    if name.is_empty() {
+        anyhow::bail!("project name must not be empty");
+    }
+    if name == "." || name == ".." || name.contains(['/', '\\']) {
+        anyhow::bail!("project name {name:?} must be a single directory name, not a path");
+    }
+    let mut chars = name.chars();
+    let first = chars.next().expect("non-empty name checked above");
+    if !first.is_ascii_alphabetic() {
+        anyhow::bail!(
+            "project name {name:?} must start with a letter so it is a valid Cargo package name"
+        );
+    }
+    if !chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_') {
+        anyhow::bail!(
+            "project name {name:?} may only contain letters, digits, hyphens, and underscores"
+        );
+    }
+    let crate_name = name.replace('-', "_");
+    if RESERVED_INIT_NAMES.contains(&crate_name.as_str()) {
+        anyhow::bail!(
+            "project name {name:?} is a reserved Rust keyword and cannot name a generated crate"
+        );
+    }
+    Ok(())
+}
+
 fn init_grammar(name: &str, output: Option<PathBuf>) -> Result<()> {
+    // Validate everything before any filesystem effect so a refusal can
+    // never truncate or partially rewrite an existing project.
+    validate_init_name(name)?;
+
     let dir = output.unwrap_or_else(|| PathBuf::from("."));
-    let project_dir = dir.join(name);
+    fs::create_dir_all(&dir)?;
+    let output_root = dir.canonicalize()?;
+    let project_dir = output_root.join(name);
+
+    if let Ok(metadata) = project_dir.symlink_metadata() {
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            anyhow::bail!(
+                "refusing to initialize into {}: path already exists and is not an empty directory",
+                project_dir.display()
+            );
+        }
+        if fs::read_dir(&project_dir)?.next().is_some() {
+            anyhow::bail!(
+                "refusing to initialize into {}: directory is not empty; move or remove the existing files first",
+                project_dir.display()
+            );
+        }
+    }
 
     println!(
         "{} Creating new grammar project: {}",
@@ -180,8 +243,42 @@ fn init_grammar(name: &str, output: Option<PathBuf>) -> Result<()> {
         name.bright_blue()
     );
 
-    // Create project structure
-    fs::create_dir_all(&project_dir)?;
+    // Generate into a staging sibling and rename into place only on full
+    // success, so a mid-generation failure leaves no mixed project behind.
+    let staging_dir = output_root.join(format!(".adze-init-{name}-{}", std::process::id()));
+    if staging_dir.exists() {
+        fs::remove_dir_all(&staging_dir)?;
+    }
+    let staging_result = generate_project_files(name, &staging_dir);
+    if let Err(error) = staging_result {
+        let _ = fs::remove_dir_all(&staging_dir);
+        return Err(error);
+    }
+    if project_dir.exists() {
+        // Verified empty above; remove so the rename can land.
+        fs::remove_dir(&project_dir)?;
+    }
+    if let Err(error) = fs::rename(&staging_dir, &project_dir) {
+        let _ = fs::remove_dir_all(&staging_dir);
+        return Err(error.into());
+    }
+
+    println!(
+        "{} Project created at {}",
+        "✅".green(),
+        project_dir.display().to_string().bright_blue()
+    );
+    println!("\n{}", "Next steps:".bright_yellow());
+    println!("  cd {}", name);
+    println!("  cargo test");
+    println!("  cargo run --example parse -- \"1 + 2 * 3\"");
+
+    Ok(())
+}
+
+/// Write the full starter project into `project_dir` (created fresh).
+fn generate_project_files(name: &str, project_dir: &Path) -> Result<()> {
+    fs::create_dir_all(project_dir)?;
     fs::create_dir_all(project_dir.join("src"))?;
     fs::create_dir_all(project_dir.join("tests"))?;
     fs::create_dir_all(project_dir.join("examples"))?;
@@ -235,7 +332,7 @@ pub mod grammar {{
     #[derive(Debug, PartialEq)]
     pub enum Expr {{
         Number(
-            #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+            #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<i32>())]
             i32,
         ),
 
@@ -418,16 +515,6 @@ MIT
     );
 
     fs::write(project_dir.join("README.md"), readme)?;
-
-    println!(
-        "{} Project created at {}",
-        "✅".green(),
-        project_dir.display().to_string().bright_blue()
-    );
-    println!("\n{}", "Next steps:".bright_yellow());
-    println!("  cd {}", name);
-    println!("  cargo test");
-    println!("  cargo run --example parse -- \"1 + 2 * 3\"");
 
     Ok(())
 }
@@ -1225,16 +1312,48 @@ fn toml_basic_string_literal(value: &str) -> String {
     escaped
 }
 
-fn test_grammar(_path: &Path, update: bool) -> Result<()> {
+/// Resolve the `Cargo.toml` for the project `adze test` was asked to test.
+///
+/// Accepts a project directory (the documented form) or a direct path to a
+/// `Cargo.toml`. Anything else fails before Cargo is spawned.
+fn resolve_project_manifest(path: &Path) -> Result<PathBuf> {
+    if !path.exists() {
+        anyhow::bail!("test path {} does not exist", path.display());
+    }
+
+    if path.is_file() {
+        if path.file_name().is_some_and(|name| name == "Cargo.toml") {
+            return Ok(path.to_path_buf());
+        }
+        anyhow::bail!(
+            "test path {} is not a project directory or Cargo.toml",
+            path.display()
+        );
+    }
+
+    let manifest_path = path.join("Cargo.toml");
+    if !manifest_path.is_file() {
+        anyhow::bail!("test path {} does not contain a Cargo.toml", path.display());
+    }
+    Ok(manifest_path)
+}
+
+fn test_grammar(path: &Path, update: bool) -> Result<()> {
     println!("{} Testing grammar...", "🧪".blue());
 
     if update {
         println!("  {} Updating snapshots", "📸".yellow());
     }
 
-    // Run cargo test
+    // Resolve and validate the requested project before spawning Cargo so a
+    // passing caller directory can never mask the target project's result.
+    let manifest_path = resolve_project_manifest(path)?;
+
+    // Run cargo test for the requested project only.
     let mut cmd = std::process::Command::new("cargo");
     cmd.arg("test");
+    cmd.arg("--manifest-path");
+    cmd.arg(&manifest_path);
     if update {
         cmd.env("INSTA_UPDATE", "always");
     }

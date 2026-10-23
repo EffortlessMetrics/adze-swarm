@@ -49,6 +49,9 @@ pub struct TSLexer {
     pub result_symbol: u16,
 }
 
+/// Friendly name for [`TSLexer`]; both names denote the same type.
+pub type Lexer = TSLexer;
+
 // Compile-time assertions for FFI struct layout
 // These ensure our struct matches the expected C ABI
 const _: () = {
@@ -83,6 +86,9 @@ pub struct TSExternalScannerData {
     pub serialize: Option<SerializeFn>,
     pub deserialize: Option<DeserializeFn>,
 }
+
+/// Friendly name for [`TSExternalScannerData`]; both names denote the same type.
+pub type ExternalScannerData = TSExternalScannerData;
 
 // Compile-time assertions for TSExternalScannerData
 const _: () = {

@@ -53,6 +53,7 @@ ADZE-SPEC-0011-product-proof-and-support-tiers.md
 ADZE-SPEC-0012-glr-toolkit-product-contract.md
 ADZE-SPEC-0013-query-compatibility.md
 ADZE-SPEC-0014-performance-and-regression.md
+ADZE-SPEC-0019-nullable-first-follow-conformance-profile.md
 ```
 
 ## Header

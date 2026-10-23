@@ -33,7 +33,7 @@ use expansion::*;
 /// #[adze::language]
 /// pub enum Expr {
 ///     Number(
-///         #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+///         #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<i32>())]
 ///         i32
 ///     ),
 ///     #[adze::prec_left(1)]
@@ -76,6 +76,12 @@ pub fn extra(
 /// such as a number, then the `transform` argument can be used to specify a function
 /// that will be called with the token's text.
 ///
+/// When the conversion can fail (for example, a digit token that overflows
+/// the target integer type), use `try_transform` instead: it returns
+/// `Result<T, E>`, and a failure becomes a structured parse diagnostic over
+/// the token's byte range instead of panicking. Specifying both `transform`
+/// and `try_transform` on one leaf is a compile-time error.
+///
 /// The attribute can also be applied to a struct or enum variant with no fields.
 ///
 /// ## Examples
@@ -83,7 +89,7 @@ pub fn extra(
 /// Using the `leaf` attribute on a field:
 /// ```ignore
 /// Number(
-///     #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+///     #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<u32>())]
 ///     u32
 /// )
 /// ```
@@ -276,7 +282,7 @@ pub fn word(
 ///     #[adze::language]
 ///     pub enum Expr {
 ///         Number(
-///             #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+///             #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<i32>())]
 ///             i32
 ///         ),
 ///         #[adze::prec_left(1)]
@@ -380,6 +386,27 @@ mod tests {
         ));
 
         Ok(())
+    }
+
+    #[test]
+    fn leaf_transform_and_try_transform_conflict_is_error() {
+        let error = expand_grammar(parse_quote! {
+            #[adze::grammar("test")]
+            mod grammar {
+                #[adze::language]
+                pub enum Expression {
+                    Number(
+                        #[adze::leaf(pattern = r"\d+", transform = |v| v.parse::<i32>().unwrap(), try_transform = |v| v.parse::<i32>())]
+                        i32
+                    ),
+                }
+            }
+        })
+        .expect_err("transform + try_transform must be rejected at expansion time");
+        assert!(
+            error.to_string().contains("cannot specify both"),
+            "conflict error should name both attributes: {error}"
+        );
     }
 
     #[test]

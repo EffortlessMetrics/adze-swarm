@@ -56,7 +56,12 @@ fn safe_arith_parse(input: &str) -> String {
     match std::panic::catch_unwind(move || adze_example::arithmetic::grammar::parse(&input_owned)) {
         Ok(Ok(expr)) => arith_to_sexpr(&expr),
         Ok(Err(errors)) => {
-            let msgs: Vec<String> = errors.iter().map(|e| format!("{:?}", e)).collect();
+            // Render the user-visible diagnostic, not the Debug form: the
+            // snapshots below lock what users actually see (#875).
+            let msgs: Vec<String> = errors
+                .iter()
+                .map(|e| e.display_with_source(input).to_string())
+                .collect();
             format!("(ERROR {})", msgs.join("; "))
         }
         Err(_) => "(PANIC)".to_string(),
@@ -80,7 +85,10 @@ fn safe_ambig_parse(input: &str) -> String {
     }) {
         Ok(Ok(expr)) => ambig_to_sexpr(&expr),
         Ok(Err(errors)) => {
-            let msgs: Vec<String> = errors.iter().map(|e| format!("{:?}", e)).collect();
+            let msgs: Vec<String> = errors
+                .iter()
+                .map(|e| e.display_with_source(input).to_string())
+                .collect();
             format!("(ERROR {})", msgs.join("; "))
         }
         Err(_) => "(PANIC)".to_string(),

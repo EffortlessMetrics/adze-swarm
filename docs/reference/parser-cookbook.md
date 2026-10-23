@@ -94,11 +94,18 @@ one `AdzeDocument`.
 
 ## Clean Versus Recovered Documents
 
-There is no complete/recovered/failed status enum on `AdzeDocument`. The
-supported proxy is diagnostics plus tree error facts:
+`AdzeDocument::outcome()` reports the parse outcome explicitly:
+`ParseOutcome::Complete`, `ParseOutcome::Recovered`, or
+`ParseOutcome::Failed`. A recovered document keeps a trustworthy selected
+tree alongside its diagnostics; a failed document has diagnostics but no
+trustworthy tree content (only a synthetic error/missing placeholder), so
+it must not be treated as a recovered parse.
 
 ```rust
+use adze::document::ParseOutcome;
+
 let clean = grammar::parse_document("1+2*3")?;
+assert_eq!(clean.outcome(), ParseOutcome::Complete);
 assert!(clean.diagnostics().is_empty());
 assert!(!clean.tree().has_errors());
 assert_eq!(clean.metadata().error_count, 0);
@@ -107,13 +114,20 @@ assert_eq!(
     Some("1+2*3")
 );
 
-let recovered = grammar::parse_document("1 +")?;
-assert!(!recovered.diagnostics().is_empty());
-assert!(recovered.tree().has_errors());
+// "{ answer: 42, }" (object-like grammar) recovers with a real tree:
+// assert_eq!(recovered.outcome(), ParseOutcome::Recovered);
+
+// "1 +" in the fielded grammar retains only a synthetic missing node, so
+// its outcome is Failed, not Recovered:
+let failed = grammar::parse_document("1 +")?;
+assert_eq!(failed.outcome(), ParseOutcome::Failed);
+assert!(!failed.diagnostics().is_empty());
 ```
 
-Word recipes as this proxy, not as a parse-status type. The tested recipe
-uses `adze_example::fielded_precedence_typed_cst_contract::grammar`.
+The outcome is derived from the same diagnostics and tree facts, and the
+JSON projection carries it as `metadata.outcome`. The tested recipe uses
+`adze_example::fielded_precedence_typed_cst_contract::grammar` plus the
+object-like grammar for the recovered case.
 
 ## Typed CST Fields On The Document
 
@@ -238,7 +252,7 @@ tracks the same gaps.
 | Comma-separated multi-item lists | Delimited repetition has no exact-value proof (matrix `Gap`) |
 | Keywords versus identifiers | Word-token happy path has no repeatable proof |
 | Optional and repeated fields | Cardinality agreement across typed AST, typed CST, and node schema is unproved |
-| Fallible numeric transforms | Blocked by issue #864; overflowing digit strings panic in unwrapping transforms today |
+| Fallible numeric transforms | Proved in the generated-grammar matrix via `try_transform` (#864); no cookbook recipe yet |
 | Document-backed queries | The query recipe builds its tree by hand; queries over a parsed document are a named gap (#861/#878) |
 | Performance claims | No cookbook speed claims; see [perf baselines](../perf/baselines.md) for how performance receipts are produced |
 

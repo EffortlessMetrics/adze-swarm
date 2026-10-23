@@ -137,6 +137,43 @@ impl Grammar {
         self.production_ids.extend(entries);
     }
 
+    /// First production slot shared by rules whose field/alias metadata
+    /// disagree, if any (#980 PR3). Sharing a slot is legitimate only when
+    /// every sharing rule carries identical `fields` and, when an alias
+    /// sequence is recorded for the slot, every sharing rule has the same
+    /// RHS length as that sequence; otherwise a consumer that inverts the
+    /// slot to one rule's metadata would pick arbitrarily.
+    pub(crate) fn conflicting_production_share(&self) -> Option<(ProductionId, Vec<RuleId>)> {
+        let mut groups: IndexMap<ProductionId, Vec<(RuleId, &Rule)>> = IndexMap::new();
+        for (index, rule) in self.all_rules().enumerate() {
+            let rule_id =
+                RuleId(u16::try_from(index).expect("rule count exceeds the RuleId range"));
+            groups
+                .entry(rule.production_id)
+                .or_default()
+                .push((rule_id, rule));
+        }
+        for (production_id, sharing) in groups {
+            if sharing.len() < 2 {
+                continue;
+            }
+            let first = sharing[0].1;
+            let fields_conflict = sharing.iter().any(|(_, rule)| rule.fields != first.fields);
+            let alias_conflict = self.alias_sequences.get(&production_id).is_some_and(|seq| {
+                sharing
+                    .iter()
+                    .any(|(_, rule)| rule.rhs.len() != seq.aliases.len())
+            });
+            if fields_conflict || alias_conflict {
+                return Some((
+                    production_id,
+                    sharing.into_iter().map(|(rule_id, _)| rule_id).collect(),
+                ));
+            }
+        }
+        None
+    }
+
     /// Production slot for one rule, when `rule_id` is in the current
     /// rule domain. Refresh with
     /// [`refresh_production_ids`](Self::refresh_production_ids) after
@@ -549,6 +586,14 @@ impl Grammar {
             return Err(GrammarError::InvalidFieldOrdering);
         }
 
+        // Reject production shares whose field/alias metadata conflict (#980 PR3)
+        if let Some((production_id, rule_ids)) = self.conflicting_production_share() {
+            return Err(GrammarError::ConflictingProductionShare {
+                production_id,
+                rule_ids,
+            });
+        }
+
         // Validate symbol references
         for rule in self.all_rules() {
             for symbol in &rule.rhs {
@@ -565,13 +610,217 @@ impl Grammar {
         // Inline simple rules where beneficial
         // Optimize precedence declarations
         // This will be implemented based on Tree-sitter's optimization strategies
+        self.refresh_production_ids();
     }
 
-    /// Normalize complex symbols by creating auxiliary rules
-    /// This expands Optional, Repeat, Choice, etc. into standard rules
-    pub fn normalize(&mut self) -> Vec<Rule> {
-        let max_id = self.rules.keys().map(|id| id.0).max().unwrap_or(0);
-        let mut aux_counter = max_id + 1000; // Start auxiliary IDs well above existing ones
+    /// Every symbol identity this grammar already carries, across all
+    /// categories that share the `SymbolId(u16)` space (#978).
+    fn occupied_symbol_ids(&self) -> Vec<bool> {
+        fn mark(occupied: &mut [bool], id: SymbolId) {
+            occupied[id.0 as usize] = true;
+        }
+        fn mark_symbol(occupied: &mut [bool], symbol: &Symbol) {
+            match symbol {
+                Symbol::Terminal(id) | Symbol::NonTerminal(id) | Symbol::External(id) => {
+                    mark(occupied, *id);
+                }
+                Symbol::Optional(inner) | Symbol::Repeat(inner) | Symbol::RepeatOne(inner) => {
+                    mark_symbol(occupied, inner)
+                }
+                Symbol::Choice(choices) | Symbol::Sequence(choices) => {
+                    for choice in choices {
+                        mark_symbol(occupied, choice);
+                    }
+                }
+                Symbol::Epsilon => {}
+            }
+        }
+
+        let mut occupied = vec![false; usize::from(u16::MAX) + 1];
+        // SymbolId(0) is reserved for EOF and is never handed out.
+        occupied[0] = true;
+        for (lhs, rules) in &self.rules {
+            mark(&mut occupied, *lhs);
+            for rule in rules {
+                for symbol in &rule.rhs {
+                    mark_symbol(&mut occupied, symbol);
+                }
+            }
+        }
+        for id in self.tokens.keys() {
+            mark(&mut occupied, *id);
+        }
+        for external in &self.externals {
+            mark(&mut occupied, external.symbol_id);
+        }
+        for id in self.rule_names.keys() {
+            mark(&mut occupied, *id);
+        }
+        for id in self
+            .extras
+            .iter()
+            .chain(&self.supertypes)
+            .chain(&self.inline_rules)
+        {
+            mark(&mut occupied, *id);
+        }
+        if let Some(start) = self.start_symbol {
+            mark(&mut occupied, start);
+        }
+        if let Some(word) = self.word_token {
+            mark(&mut occupied, word);
+        }
+        for id in self.lexical_metadata.keys() {
+            mark(&mut occupied, *id);
+        }
+        for (wrapper, backing) in &self.wrapper_token_relations {
+            mark(&mut occupied, *wrapper);
+            mark(&mut occupied, *backing);
+        }
+        for precedence in &self.precedences {
+            for id in &precedence.symbols {
+                mark(&mut occupied, *id);
+            }
+        }
+        for conflict in &self.conflicts {
+            for id in &conflict.symbols {
+                mark(&mut occupied, *id);
+            }
+        }
+        if let Some(registry) = &self.symbol_registry {
+            for (_, info) in registry.iter() {
+                mark(&mut occupied, info.id);
+            }
+        }
+        occupied
+    }
+
+    /// Number of children a symbol expands to when sequences flatten:
+    /// sequences sum their children, every other symbol stays one child.
+    fn sequence_expansion_len(symbol: &Symbol) -> usize {
+        match symbol {
+            Symbol::Sequence(seq) => seq.iter().map(Self::sequence_expansion_len).sum(),
+            _ => 1,
+        }
+    }
+
+    /// Upper bound on helpers normalization will allocate: one per
+    /// `Optional`/`Repeat`/`RepeatOne`/`Choice` node in the current rules.
+    fn count_complex_symbols(symbols: &[Symbol]) -> usize {
+        symbols
+            .iter()
+            .map(|symbol| match symbol {
+                Symbol::Optional(inner) | Symbol::Repeat(inner) | Symbol::RepeatOne(inner) => {
+                    1 + Self::count_complex_symbols(std::slice::from_ref(&**inner))
+                }
+                Symbol::Choice(choices) | Symbol::Sequence(choices) => {
+                    Self::count_complex_symbols(choices)
+                        + usize::from(matches!(symbol, Symbol::Choice(_)))
+                }
+                Symbol::Terminal(_)
+                | Symbol::NonTerminal(_)
+                | Symbol::External(_)
+                | Symbol::Epsilon => 0,
+            })
+            .sum()
+    }
+
+    /// Normalize complex symbols by creating auxiliary rules, returning a
+    /// typed error instead of panicking, wrapping, or colliding when the
+    /// symbol ID space cannot supply a free helper (#978).
+    ///
+    /// Helpers take unoccupied IDs from the band above the maximum
+    /// occupied ID, falling back to the lowest unoccupied IDs when that
+    /// band would leave the ID space; the reserved EOF id `SymbolId(0)`
+    /// is never handed out, so identical input normalizes identically.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GrammarError::SymbolSpaceExhausted`] before mutating the
+    /// grammar when fewer free IDs remain than helpers required.
+    pub fn try_normalize(&mut self) -> Result<Vec<Rule>, GrammarError> {
+        let mut occupied = self.occupied_symbol_ids();
+        let helpers_needed: usize = self
+            .rules
+            .values()
+            .flat_map(|rules| rules.iter())
+            .map(|rule| Self::count_complex_symbols(&rule.rhs))
+            .sum();
+        let free = occupied.iter().filter(|taken| !**taken).count();
+        if helpers_needed > free {
+            return Err(GrammarError::SymbolSpaceExhausted);
+        }
+        // Note: a pre-existing grammar may assign one numeric ID to both
+        // a rule and a token (the corpus encodes such dual-use grammars
+        // as valid normalization input). Normalization must never create
+        // or worsen such a collision: helpers come only from the
+        // unoccupied set computed above (#978 falsifier 8).
+        // Allocation order is a deterministic function of the occupied
+        // set: helpers first take the band above the maximum occupied ID
+        // (offset by 1000, the historical auxiliary band), and only when
+        // that band would leave the `u16` space do they fall back to the
+        // lowest unoccupied IDs. Either way a helper is always actually
+        // unoccupied, never the reserved EOF ID, and identical input
+        // yields identical helpers.
+        let max_occupied = occupied.iter().rposition(|taken| *taken).unwrap_or(0) as u32;
+        let mut aux_cursor = max_occupied + 1000;
+        let mut aux_fallback_cursor: u32 = 1;
+        // A field positioned on a sequence that expands to zero children
+        // has no normalized child to designate (#981); reject before
+        // mutating anything.
+        for rules in self.rules.values() {
+            for rule in rules {
+                for (_, position) in &rule.fields {
+                    if let Some(Symbol::Sequence(_)) = rule.rhs.get(*position)
+                        && Self::sequence_expansion_len(&rule.rhs[*position]) == 0
+                    {
+                        return Err(GrammarError::FieldOnEmptySequence { lhs: rule.lhs });
+                    }
+                }
+            }
+        }
+        let mut next_aux = move |occupied: &mut [bool]| -> Result<SymbolId, GrammarError> {
+            while aux_cursor <= u32::from(u16::MAX) {
+                let candidate = aux_cursor;
+                aux_cursor += 1;
+                if !occupied[candidate as usize] {
+                    occupied[candidate as usize] = true;
+                    return Ok(SymbolId(
+                        u16::try_from(candidate).expect("candidate is within u16 range"),
+                    ));
+                }
+            }
+            while aux_fallback_cursor <= u32::from(u16::MAX) {
+                let candidate = aux_fallback_cursor;
+                aux_fallback_cursor += 1;
+                if !occupied[candidate as usize] {
+                    occupied[candidate as usize] = true;
+                    return Ok(SymbolId(
+                        u16::try_from(candidate).expect("candidate is within u16 range"),
+                    ));
+                }
+            }
+            Err(GrammarError::SymbolSpaceExhausted)
+        };
+
+        // Helper rules get fresh production slots (#980 PR3): each helper
+        // alternative is a distinct rule, so it must not collapse into the
+        // shared ProductionId(0) slot. Slots stay shareable elsewhere; this
+        // only stops normalize() from manufacturing an ambiguous share.
+        let mut next_production_id = self
+            .all_rules()
+            .map(|rule| rule.production_id.0)
+            .max()
+            .map_or(0, |max| {
+                max.checked_add(1).expect("production id range exhausted")
+            });
+        let mut fresh_production_id = move || {
+            let id = ProductionId(next_production_id);
+            next_production_id = next_production_id
+                .checked_add(1)
+                .expect("production id range exhausted");
+            id
+        };
 
         // We need to keep processing until no complex symbols remain
         loop {
@@ -591,14 +840,19 @@ impl Grammar {
             // Process each rule
             for mut rule in all_rules {
                 let mut new_rhs = Vec::new();
+                // Normalized range each source RHS position expands to in
+                // this pass; positional field metadata is remapped through
+                // it below so fields keep their semantic children (#981).
+                let mut field_ranges: Vec<std::ops::Range<usize>> =
+                    Vec::with_capacity(rule.rhs.len());
 
                 for symbol in rule.rhs {
+                    let range_start = new_rhs.len();
                     match symbol {
                         Symbol::Optional(inner) => {
                             found_complex = true;
                             // Create aux rule: aux -> inner | ε
-                            let aux_id = SymbolId(aux_counter);
-                            aux_counter += 1;
+                            let aux_id = next_aux(&mut occupied)?;
 
                             // aux -> inner (recursively normalize the inner symbol)
                             let inner_rule = Rule {
@@ -607,7 +861,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: ProductionId(0),
+                                production_id: fresh_production_id(),
                             };
                             self.add_rule(inner_rule);
 
@@ -618,7 +872,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: ProductionId(0),
+                                production_id: fresh_production_id(),
                             });
 
                             new_rhs.push(Symbol::NonTerminal(aux_id));
@@ -626,8 +880,7 @@ impl Grammar {
                         Symbol::Repeat(inner) => {
                             found_complex = true;
                             // Create aux rule: aux -> aux inner | ε
-                            let aux_id = SymbolId(aux_counter);
-                            aux_counter += 1;
+                            let aux_id = next_aux(&mut occupied)?;
 
                             // aux -> aux inner (recursively normalize)
                             self.add_rule(Rule {
@@ -636,7 +889,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: ProductionId(0),
+                                production_id: fresh_production_id(),
                             });
 
                             // aux -> ε
@@ -646,7 +899,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: ProductionId(0),
+                                production_id: fresh_production_id(),
                             });
 
                             new_rhs.push(Symbol::NonTerminal(aux_id));
@@ -654,8 +907,7 @@ impl Grammar {
                         Symbol::RepeatOne(inner) => {
                             found_complex = true;
                             // Create aux rule: aux -> aux inner | inner
-                            let aux_id = SymbolId(aux_counter);
-                            aux_counter += 1;
+                            let aux_id = next_aux(&mut occupied)?;
 
                             // aux -> aux inner
                             self.add_rule(Rule {
@@ -664,7 +916,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: ProductionId(0),
+                                production_id: fresh_production_id(),
                             });
 
                             // aux -> inner
@@ -674,7 +926,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: ProductionId(0),
+                                production_id: fresh_production_id(),
                             });
 
                             new_rhs.push(Symbol::NonTerminal(aux_id));
@@ -682,8 +934,7 @@ impl Grammar {
                         Symbol::Choice(choices) => {
                             found_complex = true;
                             // Create aux rules: aux -> choice1 | choice2 | ...
-                            let aux_id = SymbolId(aux_counter);
-                            aux_counter += 1;
+                            let aux_id = next_aux(&mut occupied)?;
 
                             for choice in choices {
                                 self.add_rule(Rule {
@@ -692,7 +943,7 @@ impl Grammar {
                                     precedence: None,
                                     associativity: None,
                                     fields: vec![],
-                                    production_id: ProductionId(0),
+                                    production_id: fresh_production_id(),
                                 });
                             }
 
@@ -705,6 +956,27 @@ impl Grammar {
                         }
                         other => new_rhs.push(other),
                     }
+                    field_ranges.push(range_start..new_rhs.len());
+                }
+
+                if !rule.fields.is_empty() {
+                    // Remap each field through this pass's expansion: a
+                    // field on a flattened sequence designates every child
+                    // the sequence expanded to; other fields shift with
+                    // their child. Unknown positions are left for
+                    // validation to reject.
+                    let mut remapped = Vec::new();
+                    for (field_id, position) in &rule.fields {
+                        match field_ranges.get(*position) {
+                            Some(range) => {
+                                for new_position in range.clone() {
+                                    remapped.push((*field_id, new_position));
+                                }
+                            }
+                            None => remapped.push((*field_id, *position)),
+                        }
+                    }
+                    rule.fields = remapped;
                 }
 
                 rule.rhs = new_rhs;
@@ -718,7 +990,22 @@ impl Grammar {
         }
 
         // Return all rules for compatibility (though caller probably doesn't need this)
-        self.rules.values().flatten().cloned().collect()
+        self.refresh_production_ids();
+        Ok(self.rules.values().flatten().cloned().collect())
+    }
+
+    /// Normalize complex symbols by creating auxiliary rules.
+    /// This expands Optional, Repeat, Choice, etc. into standard rules.
+    ///
+    /// # Panics
+    ///
+    /// Panics only when the entire non-EOF symbol ID space is occupied and
+    /// a helper cannot be allocated. Use [`try_normalize`](Self::try_normalize)
+    /// for the typed-error form; this infallible signature is retained for
+    /// the existing consumer base (#978).
+    pub fn normalize(&mut self) -> Vec<Rule> {
+        self.try_normalize()
+            .unwrap_or_else(|error| panic!("grammar normalization failed: {error}"))
     }
 }
 
@@ -741,9 +1028,31 @@ pub enum GrammarError {
     #[error("Unresolved external symbol reference: {0}")]
     UnresolvedExternalSymbol(SymbolId),
 
+    /// Rules sharing one production slot carry conflicting field/alias metadata
+    #[error(
+        "Production {production_id} is shared by rules {rule_ids:?} with conflicting field/alias metadata"
+    )]
+    ConflictingProductionShare {
+        /// The ambiguously shared production slot
+        production_id: ProductionId,
+        /// Rules sharing the slot, in rule order
+        rule_ids: Vec<RuleId>,
+    },
+
     /// Conflict in grammar
     #[error("Conflict in grammar: {0}")]
     ConflictError(String),
+
+    /// No unoccupied symbol ID remains for a normalization helper
+    #[error("symbol ID space exhausted during normalization: no unoccupied SymbolId remains")]
+    SymbolSpaceExhausted,
+
+    /// A field targets a sequence that expands to no children
+    #[error("field on rule {lhs} targets an empty sequence; no child can be designated")]
+    FieldOnEmptySequence {
+        /// Rule whose field cannot be preserved
+        lhs: SymbolId,
+    },
 
     /// Invalid precedence declaration
     #[error("Invalid precedence declaration: {0}")]

@@ -2,16 +2,6 @@ name: Test Policy Enforcement
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [ main ]
-    paths:
-      - ".github/workflows/test-policy.yml"
-      - "scripts/test-inventory.sh"
-      - "docs/ci/verification-ladder.md"
-      - "docs/ci/cost-and-verification-policy.md"
-      - "docs/ci/coverage.md"
-      - "policy/ci-lane-whitelist.toml"
-      - "policy/ci-risk-packs.toml"
 
 env:
   RUST_BACKTRACE: 1

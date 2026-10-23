@@ -9,6 +9,9 @@ pub use crate::external_scanner_ffi::TSExternalScannerData;
 // Type alias for TSSymbol
 pub type TSSymbol = u16;
 
+/// Friendly name for [`TSSymbol`]; both names denote the same type.
+pub type Symbol = TSSymbol;
+
 /// Tree-sitter symbol metadata
 #[repr(C)]
 pub struct TSSymbolMetadata {
@@ -16,6 +19,9 @@ pub struct TSSymbolMetadata {
     pub named: bool,
     pub supertype: bool,
 }
+
+/// Friendly name for [`TSSymbolMetadata`]; both names denote the same type.
+pub type SymbolMetadata = TSSymbolMetadata;
 
 /// Tree-sitter parse action types
 #[repr(C)]
@@ -26,6 +32,9 @@ pub enum TSParseActionType {
     Error = 3,
 }
 
+/// Friendly name for [`TSParseActionType`]; both names denote the same type.
+pub type ParseActionType = TSParseActionType;
+
 /// Tree-sitter parse action entry
 #[repr(C)]
 pub struct TSParseActionEntry {
@@ -35,6 +44,12 @@ pub struct TSParseActionEntry {
     pub child_count: u8,
     pub production_id: u8,
 }
+
+/// Friendly name for [`TSParseActionEntry`]; both names denote the same type.
+pub type ParseActionEntry = TSParseActionEntry;
+
+/// Friendly name for [`TSExternalScannerData`]; both names denote the same type.
+pub use crate::external_scanner_ffi::TSExternalScannerData as ExternalScannerData;
 
 /// Runtime state for the lexer adapter
 pub struct LexerAdapterState {

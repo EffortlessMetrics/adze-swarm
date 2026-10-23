@@ -5,7 +5,7 @@
 
 mod symbol_walk;
 
-use crate::{FieldId, Grammar, Symbol, SymbolId};
+use crate::{FieldId, Grammar, ProductionId, RuleId, Symbol, SymbolId};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
 use symbol_walk::{add_reachable_from_symbol, collect_used_in_symbol, is_symbol_productive};
@@ -72,6 +72,13 @@ pub enum ValidationError {
         pattern: String,
         /// Error message
         error: String,
+    },
+    /// Rules sharing one production slot carry conflicting field/alias metadata
+    ConflictingProductionShare {
+        /// The ambiguously shared production slot
+        production_id: ProductionId,
+        /// Rules sharing the slot, in rule order
+        rule_ids: Vec<RuleId>,
     },
     /// External token conflict
     ExternalTokenConflict {
@@ -149,6 +156,16 @@ impl fmt::Display for ValidationError {
                     f,
                     "Invalid regex pattern for token {:?}: '{}' - {}",
                     token, pattern, error
+                )
+            }
+            ValidationError::ConflictingProductionShare {
+                production_id,
+                rule_ids,
+            } => {
+                write!(
+                    f,
+                    "Production {:?} is shared by rules {:?} with conflicting field/alias metadata",
+                    production_id, rule_ids
                 )
             }
             ValidationError::ExternalTokenConflict { token1, token2 } => {
@@ -325,6 +342,15 @@ impl GrammarValidator {
 
         // External token validation
         self.validate_external_tokens(grammar);
+
+        // Conflicting production shares (#980 PR3)
+        if let Some((production_id, rule_ids)) = grammar.conflicting_production_share() {
+            self.errors
+                .push(ValidationError::ConflictingProductionShare {
+                    production_id,
+                    rule_ids,
+                });
+        }
 
         // Check for cycles
         self.check_cycles(grammar);

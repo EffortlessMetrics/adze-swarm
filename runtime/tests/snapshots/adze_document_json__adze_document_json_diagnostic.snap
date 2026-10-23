@@ -1,6 +1,5 @@
 ---
 source: runtime/tests/adze_document_json.rs
-assertion_line: 170
 expression: "serde_json::to_string_pretty(&json).expect(\"diagnostic document JSON should render as pretty JSON\")"
 ---
 {
@@ -12,6 +11,7 @@ expression: "serde_json::to_string_pretty(&json).expect(\"diagnostic document JS
     "name": "typed_ast_contract"
   },
   "metadata": {
+    "outcome": "failed",
     "error_count": 1,
     "incremental_requested": false,
     "incremental_used": false,

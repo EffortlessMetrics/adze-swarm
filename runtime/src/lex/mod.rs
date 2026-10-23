@@ -10,3 +10,6 @@ pub mod ts_lexfn_adapter;
 pub use char_scanner::CharScanner;
 pub use token_source::{Token, TokenSource};
 pub use ts_lexfn_adapter::{TSLexState, TsLexFnAdapter, TsLexer};
+
+/// Friendly name for [`TSLexState`]; both names denote the same type.
+pub use ts_lexfn_adapter::TSLexState as LexState;
