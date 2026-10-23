@@ -192,7 +192,11 @@ mod tests {
         collect_node_records(&root, &source, &language, 0, true, &mut records);
         let after = index_build_stats();
         assert_eq!(after.0 - before.0, 1, "one index per record-building call");
-        assert_eq!(after.1 - before.1, source.len(), "one visit per source byte");
+        assert_eq!(
+            after.1 - before.1,
+            source.len(),
+            "one visit per source byte"
+        );
         assert_eq!(records.len(), 65);
         for (row, record) in records.iter().skip(1).enumerate() {
             assert_eq!(
