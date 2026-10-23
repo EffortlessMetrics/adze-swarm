@@ -623,11 +623,7 @@ impl<L> Extract<L> for WithTryLeaf<L> {
                 // substituting "" would let an empty-accepting converter
                 // report success for bytes that are not valid UTF-8.
                 let text = node.utf8_text(source).map_err(|_| {
-                    conversion_error(
-                        "leaf token text is not valid UTF-8".to_string(),
-                        start,
-                        end,
-                    )
+                    conversion_error("leaf token text is not valid UTF-8".to_string(), start, end)
                 })?;
                 (text, start, end)
             }
@@ -1015,13 +1011,9 @@ mod tests {
             Ok(text.to_string())
         };
 
-        let value = <WithTryLeaf<String> as Extract<String>>::try_extract(
-            None,
-            b"",
-            7,
-            Some(&leaf_fn),
-        )
-        .expect("absent node must still reach the converter");
+        let value =
+            <WithTryLeaf<String> as Extract<String>>::try_extract(None, b"", 7, Some(&leaf_fn))
+                .expect("absent node must still reach the converter");
         assert_eq!(value, "");
         assert_eq!(CALLS.load(Ordering::SeqCst), 1);
     }
