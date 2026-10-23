@@ -1,8 +1,10 @@
 # Getting Started with Adze
 
-> **Doc status:** Up to date for Adze 0.9.0.
+> **Doc status:** Up to date for Adze 0.9.0 (0.10.0 RC pending #325).
 > If something here disagrees with the repo, treat the repo as truth
 > and log it in [`docs/status/FRICTION_LOG.md`](../status/FRICTION_LOG.md).
+> For the `i32` + `try_transform` typed-value shape, see `quickstart-10-minutes.md`.
+> Repetition/`Vec` claim boundaries live in `GENERATED_GRAMMAR_FEATURE_MATRIX.md`.
 
 A guide to building parsers with Adze's macro-based grammar generation.
 
