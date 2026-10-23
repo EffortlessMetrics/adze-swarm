@@ -75,7 +75,10 @@ std::thread_local! {
 
 #[cfg(test)]
 pub(super) fn index_build_stats() -> (usize, usize) {
-    (INDEX_BUILDS.with(|n| n.get()), INDEXED_BYTES.with(|n| n.get()))
+    (
+        INDEX_BUILDS.with(|n| n.get()),
+        INDEXED_BYTES.with(|n| n.get()),
+    )
 }
 
 impl SourceLineIndex {
