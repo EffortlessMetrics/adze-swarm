@@ -3,7 +3,7 @@
 
 use adze_ir::{Grammar, Symbol, TokenPattern};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 #[cfg(not(debug_assertions))]
 macro_rules! debug_trace {
@@ -28,13 +28,30 @@ pub struct NodeTypesGenerator<'a> {
     grammar: &'a Grammar,
 }
 
+/// Accumulated facts for one field across a node kind's alternatives.
+#[derive(Debug, Default)]
+struct FieldFacts {
+    present_in_alternatives: usize,
+    optional: bool,
+    multiple: bool,
+    types: Vec<TypeRef>,
+}
+
+/// Cardinality and target types derived from one field position's symbol.
+#[derive(Debug, Default)]
+struct FieldCardinality {
+    optional: bool,
+    multiple: bool,
+    types: Vec<TypeRef>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct NodeType {
     #[serde(rename = "type")]
     type_name: String,
     named: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    fields: Option<HashMap<String, FieldInfo>>,
+    fields: Option<BTreeMap<String, FieldInfo>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     children: Option<ChildrenInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -55,7 +72,7 @@ struct ChildrenInfo {
     types: Vec<TypeRef>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 struct TypeRef {
     #[serde(rename = "type")]
     type_name: String,
@@ -130,25 +147,81 @@ impl<'a> NodeTypesGenerator<'a> {
                 // Skip internal rules (starting with _)
                 let is_internal = name.starts_with('_');
 
-                // Collect fields from all rules for this symbol
-                let mut fields = HashMap::new();
+                // Collect fields from all rules (production alternatives)
+                // for this symbol. Cardinality is derived from the grammar
+                // structure: a field is required only when every alternative
+                // provides it in a non-optional position, and it is multiple
+                // when any occurrence repeats or a single alternative binds
+                // it more than once. Type sets are the deterministic union
+                // across alternatives and choice targets.
+                let mut field_facts: BTreeMap<String, FieldFacts> = BTreeMap::new();
                 for rule in rules {
+                    // Count bindings per field within this one alternative so
+                    // a field bound twice here is multiple even without a
+                    // repeat wrapper.
+                    let mut bound_in_rule: HashMap<&str, usize> = HashMap::new();
+                    for (field_id, position) in &rule.fields {
+                        // A field whose position is out of bounds binds
+                        // nothing and is skipped entirely.
+                        if rule.rhs.get(*position).is_some()
+                            && let Some(field_name) = self.grammar.fields.get(field_id)
+                        {
+                            *bound_in_rule.entry(field_name.as_str()).or_default() += 1;
+                        }
+                    }
+                    // Combine occurrences within this one alternative before
+                    // combining alternatives: a mandatory plus an optional
+                    // occurrence in the same rule still guarantees presence,
+                    // so per-rule optionality is AND, not OR.
+                    let mut per_rule: HashMap<String, Vec<FieldCardinality>> = HashMap::new();
                     for (field_id, position) in &rule.fields {
                         if let Some(field_name) = self.grammar.fields.get(field_id)
                             && let Some(symbol) = rule.rhs.get(*position)
                         {
-                            let type_ref = self.symbol_to_type_ref(symbol, &symbol_names);
-                            fields.insert(
-                                field_name.clone(),
-                                FieldInfo {
-                                    multiple: false, // TODO: Detect repetition
-                                    required: true,  // TODO: Detect optionality
-                                    types: vec![type_ref],
-                                },
-                            );
+                            let cardinality = self.symbol_cardinality(symbol, &symbol_names);
+                            per_rule
+                                .entry(field_name.clone())
+                                .or_default()
+                                .push(cardinality);
                         }
                     }
+                    for (field_name, cards) in per_rule {
+                        let rule_optional = cards.iter().all(|c| c.optional);
+                        let rule_multiple = cards.len() > 1 || cards.iter().any(|c| c.multiple);
+                        let facts = field_facts.entry(field_name.clone()).or_default();
+                        facts.multiple |= rule_multiple;
+                        facts.optional |= rule_optional;
+                        for card in &cards {
+                            for type_ref in &card.types {
+                                if !facts.types.contains(type_ref) {
+                                    facts.types.push(type_ref.clone());
+                                }
+                            }
+                        }
+                    }
+                    for field_name in bound_in_rule.into_keys() {
+                        field_facts
+                            .entry(field_name.to_string())
+                            .or_default()
+                            .present_in_alternatives += 1;
+                    }
                 }
+                let fields: BTreeMap<String, FieldInfo> = field_facts
+                    .into_iter()
+                    .map(|(field_name, mut facts)| {
+                        facts.types.sort();
+                        let required =
+                            facts.present_in_alternatives == rules.len() && !facts.optional;
+                        (
+                            field_name,
+                            FieldInfo {
+                                multiple: facts.multiple,
+                                required,
+                                types: facts.types,
+                            },
+                        )
+                    })
+                    .collect();
 
                 // Add the node type if it's not internal
                 if !is_internal {
@@ -208,6 +281,140 @@ impl<'a> NodeTypesGenerator<'a> {
 
         // Fallback
         Some(format!("rule_{}", symbol_id.0))
+    }
+
+    /// Derive cardinality and the complete target type set for one field
+    /// position from its grammar symbol structure.
+    ///
+    /// Epsilon and empty alternatives contribute no real child: they yield no
+    /// types and are optional. Sequences contribute every admitted member, not
+    /// just the first.
+    fn symbol_cardinality(
+        &self,
+        symbol: &Symbol,
+        symbol_names: &HashMap<adze_ir::SymbolId, String>,
+    ) -> FieldCardinality {
+        match symbol {
+            Symbol::Epsilon => FieldCardinality {
+                optional: true,
+                multiple: false,
+                types: Vec::new(),
+            },
+            Symbol::Optional(inner) => {
+                let mut cardinality = self.symbol_cardinality(inner, symbol_names);
+                cardinality.optional = true;
+                cardinality
+            }
+            Symbol::Repeat(inner) => {
+                let cardinality = self.symbol_cardinality(inner, symbol_names);
+                if cardinality.types.is_empty() {
+                    // Repeating nothing still yields nothing.
+                    return FieldCardinality {
+                        optional: true,
+                        multiple: false,
+                        types: Vec::new(),
+                    };
+                }
+                FieldCardinality {
+                    optional: true,
+                    multiple: true,
+                    types: cardinality.types,
+                }
+            }
+            Symbol::RepeatOne(inner) => {
+                let cardinality = self.symbol_cardinality(inner, symbol_names);
+                if cardinality.types.is_empty() {
+                    return FieldCardinality {
+                        optional: true,
+                        multiple: false,
+                        types: Vec::new(),
+                    };
+                }
+                FieldCardinality {
+                    optional: cardinality.optional,
+                    multiple: true,
+                    types: cardinality.types,
+                }
+            }
+            Symbol::Choice(choices) => {
+                let mut combined = FieldCardinality {
+                    optional: false,
+                    multiple: false,
+                    types: Vec::new(),
+                };
+                if choices.is_empty() {
+                    combined.optional = true;
+                    return combined;
+                }
+                let mut any_branch = false;
+                for choice in choices {
+                    any_branch = true;
+                    let cardinality = self.symbol_cardinality(choice, symbol_names);
+                    combined.optional |= cardinality.optional;
+                    combined.multiple |= cardinality.multiple;
+                    for type_ref in cardinality.types {
+                        if !combined.types.contains(&type_ref) {
+                            combined.types.push(type_ref);
+                        }
+                    }
+                }
+                if !any_branch {
+                    combined.optional = true;
+                }
+                combined
+            }
+            Symbol::Sequence(seq) => {
+                if seq.is_empty() {
+                    return FieldCardinality {
+                        optional: true,
+                        multiple: false,
+                        types: Vec::new(),
+                    };
+                }
+                let mut combined = FieldCardinality {
+                    // A sequence is absent only when every member is absent.
+                    optional: true,
+                    multiple: false,
+                    types: Vec::new(),
+                };
+                let mut presentable = 0usize;
+                for member in seq {
+                    let cardinality = self.symbol_cardinality(member, symbol_names);
+                    // Epsilon members contribute no child; they do not make a
+                    // sequence multiple nor affect its type set.
+                    if cardinality.types.is_empty() {
+                        // An epsilon-only member is vacuously optional; a
+                        // non-optional empty is treated as absent as well so
+                        // empty alternatives never become required children.
+                        continue;
+                    }
+                    presentable += 1;
+                    combined.optional &= cardinality.optional;
+                    combined.multiple |= cardinality.multiple;
+                    for type_ref in cardinality.types {
+                        if !combined.types.contains(&type_ref) {
+                            combined.types.push(type_ref);
+                        }
+                    }
+                }
+                if presentable == 0 {
+                    return FieldCardinality {
+                        optional: true,
+                        multiple: false,
+                        types: Vec::new(),
+                    };
+                }
+                if presentable > 1 {
+                    combined.multiple = true;
+                }
+                combined
+            }
+            _ => FieldCardinality {
+                optional: false,
+                multiple: false,
+                types: vec![self.symbol_to_type_ref(symbol, symbol_names)],
+            },
+        }
     }
 
     fn symbol_to_type_ref(
@@ -453,6 +660,150 @@ mod tests {
         assert!(lhs.types[0].named);
     }
 
+    fn generated_field(grammar: &Grammar, node_name: &str, field_name: &str) -> FieldInfo {
+        let json = NodeTypesGenerator::new(grammar).generate().unwrap();
+        let parsed: Vec<NodeType> = serde_json::from_str(&json).unwrap();
+        let node = parsed
+            .iter()
+            .find(|nt| nt.type_name == node_name)
+            .unwrap_or_else(|| panic!("node {node_name} must be present in {json}"));
+        node.fields
+            .as_ref()
+            .and_then(|fields| fields.get(field_name))
+            .map(|info| FieldInfo {
+                multiple: info.multiple,
+                required: info.required,
+                types: info.types.clone(),
+            })
+            .unwrap_or_else(|| panic!("field {field_name} must be present on {node_name}"))
+    }
+
+    fn grammar_with_field(symbol: Symbol) -> Grammar {
+        let mut grammar =
+            make_grammar_with_named_rule("node", SymbolId(10), vec![symbol], vec![(FieldId(0), 0)]);
+        grammar.fields.insert(FieldId(0), "value".to_string());
+        grammar.tokens.insert(
+            SymbolId(1),
+            Token {
+                name: "num".to_string(),
+                pattern: TokenPattern::Regex(r"\d+".to_string()),
+                fragile: false,
+            },
+        );
+        grammar
+    }
+
+    #[test]
+    fn generate_optional_field_is_not_required() {
+        let grammar = grammar_with_field(Symbol::Optional(Box::new(Symbol::Terminal(SymbolId(1)))));
+        let field = generated_field(&grammar, "node", "value");
+        assert!(!field.required, "optional field must emit required: false");
+        assert!(!field.multiple);
+    }
+
+    #[test]
+    fn generate_repeat_fields_are_multiple() {
+        let repeated = grammar_with_field(Symbol::Repeat(Box::new(Symbol::Terminal(SymbolId(1)))));
+        let field = generated_field(&repeated, "node", "value");
+        assert!(field.multiple, "repeat field must emit multiple: true");
+        assert!(!field.required, "zero-or-more repeat is not required");
+
+        let repeated_one =
+            grammar_with_field(Symbol::RepeatOne(Box::new(Symbol::Terminal(SymbolId(1)))));
+        let field = generated_field(&repeated_one, "node", "value");
+        assert!(field.multiple);
+        assert!(field.required, "repeat-one field stays required");
+    }
+
+    #[test]
+    fn generate_field_present_in_one_alternative_is_not_required() {
+        let mut grammar = grammar_with_field(Symbol::Terminal(SymbolId(1)));
+        grammar.add_rule(Rule {
+            lhs: SymbolId(10),
+            rhs: vec![],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(1),
+        });
+
+        let field = generated_field(&grammar, "node", "value");
+        assert!(
+            !field.required,
+            "field absent from one alternative must be optional at the node level"
+        );
+    }
+
+    #[test]
+    fn generate_choice_field_emits_complete_type_set() {
+        let grammar = grammar_with_field(Symbol::Choice(vec![
+            Symbol::Terminal(SymbolId(1)),
+            Symbol::NonTerminal(SymbolId(2)),
+        ]));
+        let mut grammar = grammar;
+        grammar.add_rule(Rule {
+            lhs: SymbolId(2),
+            rhs: vec![],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(7),
+        });
+        grammar
+            .rule_names
+            .insert(SymbolId(2), "ident_rule".to_string());
+
+        let field = generated_field(&grammar, "node", "value");
+        let type_names: Vec<&str> = field
+            .types
+            .iter()
+            .map(|type_ref| type_ref.type_name.as_str())
+            .collect();
+        assert_eq!(
+            type_names,
+            vec!["ident_rule", "num"],
+            "choice targets must emit the complete deterministic type set"
+        );
+        assert!(field.required);
+        assert!(!field.multiple);
+    }
+
+    #[test]
+    fn generate_field_type_set_unions_alternative_targets() {
+        let mut grammar = grammar_with_field(Symbol::Terminal(SymbolId(1)));
+        grammar.add_rule(Rule {
+            lhs: SymbolId(10),
+            rhs: vec![Symbol::NonTerminal(SymbolId(2))],
+            precedence: None,
+            associativity: None,
+            fields: vec![(FieldId(0), 0)],
+            production_id: ProductionId(1),
+        });
+        grammar.add_rule(Rule {
+            lhs: SymbolId(2),
+            rhs: vec![],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(7),
+        });
+        grammar
+            .rule_names
+            .insert(SymbolId(2), "ident_rule".to_string());
+
+        let field = generated_field(&grammar, "node", "value");
+        let type_names: Vec<&str> = field
+            .types
+            .iter()
+            .map(|type_ref| type_ref.type_name.as_str())
+            .collect();
+        assert_eq!(type_names, vec!["ident_rule", "num"]);
+        assert!(
+            field.required,
+            "field present in every alternative is required"
+        );
+    }
+
     #[test]
     fn generate_fields_follow_normalized_sequence_origin() {
         // #981 downstream proof: the audited witness grammar (field names
@@ -659,5 +1010,147 @@ mod tests {
         let json = NodeTypesGenerator::new(&grammar).generate().unwrap();
         let parsed: Vec<NodeType> = serde_json::from_str(&json).unwrap();
         assert!(parsed.is_empty(), "expected empty array, got {:?}", parsed);
+    }
+
+    #[test]
+    fn test_mandatory_plus_optional_same_field_in_one_rule_is_required() {
+        // One alternative binds `item` twice: once mandatory, once optional.
+        // Presence is guaranteed, so the field must stay required.
+        let mut grammar = Grammar::new("g".to_string());
+        grammar.fields.insert(FieldId(0), "item".to_string());
+        grammar.tokens.insert(
+            SymbolId(1),
+            Token {
+                name: "a".to_string(),
+                pattern: TokenPattern::Regex("a".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.tokens.insert(
+            SymbolId(2),
+            Token {
+                name: "b".to_string(),
+                pattern: TokenPattern::Regex("b".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.add_rule(Rule {
+            lhs: SymbolId(10),
+            rhs: vec![
+                Symbol::Terminal(SymbolId(1)),
+                Symbol::Optional(Box::new(Symbol::Terminal(SymbolId(2)))),
+            ],
+            precedence: None,
+            associativity: None,
+            fields: vec![(FieldId(0), 0), (FieldId(0), 1)],
+            production_id: ProductionId(0),
+        });
+        grammar.rule_names.insert(SymbolId(10), "node".to_string());
+
+        let field = generated_field(&grammar, "node", "item");
+        assert!(
+            field.required,
+            "mandatory+optional in one alternative must stay required, got {field:?}"
+        );
+    }
+
+    #[test]
+    fn test_sequence_contributes_all_children_and_types() {
+        // Sequence [Optional(A), B, Repeat(C)]: all three targets admitted,
+        // mandatory B guarantees presence, tail repeat forces multiple.
+        let mut grammar = Grammar::new("g".to_string());
+        grammar.fields.insert(FieldId(0), "item".to_string());
+        for (id, name) in [(1u16, "a"), (2, "b"), (3, "c")] {
+            grammar.tokens.insert(
+                SymbolId(id),
+                Token {
+                    name: name.to_string(),
+                    pattern: TokenPattern::Regex(name.to_string()),
+                    fragile: false,
+                },
+            );
+        }
+        grammar.rule_names.insert(SymbolId(10), "node".to_string());
+        let seq = Symbol::Sequence(vec![
+            Symbol::Optional(Box::new(Symbol::Terminal(SymbolId(1)))),
+            Symbol::Terminal(SymbolId(2)),
+            Symbol::Repeat(Box::new(Symbol::Terminal(SymbolId(3)))),
+        ]);
+        grammar.add_rule(Rule {
+            lhs: SymbolId(10),
+            rhs: vec![seq],
+            precedence: None,
+            associativity: None,
+            fields: vec![(FieldId(0), 0)],
+            production_id: ProductionId(0),
+        });
+
+        let field = generated_field(&grammar, "node", "item");
+        let mut names: Vec<&str> = field.types.iter().map(|t| t.type_name.as_str()).collect();
+        names.sort_unstable();
+        assert_eq!(names, vec!["a", "b", "c"]);
+        assert!(
+            field.required,
+            "optional prefix + mandatory member is required"
+        );
+        assert!(
+            field.multiple,
+            "multi-member sequence with repeat tail is multiple"
+        );
+    }
+
+    #[test]
+    fn test_epsilon_and_empty_sequence_yield_no_required_child() {
+        let grammar = grammar_with_field(Symbol::Epsilon);
+        let field = generated_field(&grammar, "node", "value");
+        assert!(field.types.is_empty(), "epsilon must not invent a type");
+        assert!(!field.required);
+
+        let grammar = grammar_with_field(Symbol::Sequence(vec![]));
+        let field = generated_field(&grammar, "node", "value");
+        assert!(field.types.is_empty());
+        assert!(!field.required);
+
+        let grammar = grammar_with_field(Symbol::Choice(vec![]));
+        let field = generated_field(&grammar, "node", "value");
+        assert!(field.types.is_empty());
+        assert!(!field.required);
+    }
+
+    #[test]
+    fn test_normalized_grammar_path_preserves_sequence_cardinality() {
+        // End-to-end through the real normalize() expansion, not hand-built IR.
+        let mut grammar = Grammar::new("g".to_string());
+        grammar.fields.insert(FieldId(0), "item".to_string());
+        for (id, name) in [(1u16, "a"), (2, "b")] {
+            grammar.tokens.insert(
+                SymbolId(id),
+                Token {
+                    name: name.to_string(),
+                    pattern: TokenPattern::Regex(name.to_string()),
+                    fragile: false,
+                },
+            );
+        }
+        grammar.rule_names.insert(SymbolId(10), "node".to_string());
+        grammar.add_rule(Rule {
+            lhs: SymbolId(10),
+            rhs: vec![Symbol::Sequence(vec![
+                Symbol::Terminal(SymbolId(1)),
+                Symbol::Terminal(SymbolId(2)),
+            ])],
+            precedence: None,
+            associativity: None,
+            fields: vec![(FieldId(0), 0)],
+            production_id: ProductionId(0),
+        });
+        grammar.normalize();
+        // Re-resolve the node rule name after helper expansion (LHS is stable).
+        let json = NodeTypesGenerator::new(&grammar).generate().unwrap();
+        let parsed: Vec<NodeType> = serde_json::from_str(&json).unwrap();
+        assert!(
+            parsed.iter().any(|nt| nt.type_name == "node"),
+            "node must survive normalization: {json}"
+        );
     }
 }
