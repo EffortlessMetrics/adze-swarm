@@ -1,6 +1,7 @@
 //! Syntax-tree record and edge construction helpers.
 
 use super::diagnostics::is_error_parse_node;
+use super::source_position::SourceLineIndex;
 use super::*;
 
 pub(super) fn build_node_index(root: &ParseNode) -> Vec<NodeIndex> {
@@ -18,6 +19,18 @@ pub(in crate::document) fn collect_node_records(
     is_root: bool,
     nodes: &mut Vec<NodeRecord>,
 ) -> bool {
+    let positions = SourceLineIndex::new(source);
+    collect_node_records_indexed(node, &positions, language, error_count, is_root, nodes)
+}
+
+fn collect_node_records_indexed(
+    node: &ParseNode,
+    positions: &SourceLineIndex,
+    language: &LanguageMetadata,
+    error_count: usize,
+    is_root: bool,
+    nodes: &mut Vec<NodeRecord>,
+) -> bool {
     let id = NodeId::new(nodes.len());
     let grammar_id = node.symbol_id;
     let alias_symbol_id = node.alias_symbol_id;
@@ -27,7 +40,7 @@ pub(in crate::document) fn collect_node_records(
         visible_id,
         grammar_id,
         byte_range: node.start_byte..node.end_byte,
-        point_range: PointRange::from_byte_range(source, node.start_byte..node.end_byte),
+        point_range: positions.point_range(node.start_byte..node.end_byte),
         edge_range: EdgeRange::default(),
         alias_symbol_id,
         flags: NodeFlags::default(),
@@ -35,7 +48,8 @@ pub(in crate::document) fn collect_node_records(
 
     let mut child_has_error = false;
     for child in &node.children {
-        child_has_error |= collect_node_records(child, source, language, error_count, false, nodes);
+        child_has_error |=
+            collect_node_records_indexed(child, positions, language, error_count, false, nodes);
     }
 
     let error = is_error_parse_node(node);
@@ -137,5 +151,67 @@ pub(in crate::document) fn insert_symbol(symbols: &mut Vec<NodeKind>, symbol: No
         *existing = symbol;
     } else {
         symbols.push(symbol);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::source_position::index_build_stats;
+
+    #[test]
+    fn test_node_records_many_nodes_index_source_once() {
+        let source = "a\n".repeat(64);
+        let children = (0..64)
+            .map(|row| ParseNode {
+                symbol: SymbolId(1),
+                symbol_id: SymbolId(1),
+                start_byte: row * 2,
+                end_byte: row * 2 + 1,
+                field_name: None,
+                alias_symbol_id: None,
+                children: Vec::new(),
+            })
+            .collect();
+        let root = ParseNode {
+            symbol: SymbolId(1),
+            symbol_id: SymbolId(1),
+            start_byte: 0,
+            end_byte: source.len(),
+            field_name: None,
+            alias_symbol_id: None,
+            children,
+        };
+        let language = LanguageMetadata {
+            name: "index-test".to_string(),
+            symbols: Vec::new(),
+            fields: Vec::new(),
+        };
+        let mut records = Vec::new();
+        let before = index_build_stats();
+        collect_node_records(&root, &source, &language, 0, true, &mut records);
+        let after = index_build_stats();
+        assert_eq!(after.0 - before.0, 1, "one index per record-building call");
+        assert_eq!(
+            after.1 - before.1,
+            source.len(),
+            "one visit per source byte"
+        );
+        assert_eq!(records.len(), 65);
+        for (row, record) in records.iter().skip(1).enumerate() {
+            assert_eq!(
+                record.point_range(),
+                PointRange {
+                    start: DocumentPoint {
+                        row: row as u32,
+                        column: 0,
+                    },
+                    end: DocumentPoint {
+                        row: row as u32,
+                        column: 1,
+                    },
+                }
+            );
+        }
     }
 }
