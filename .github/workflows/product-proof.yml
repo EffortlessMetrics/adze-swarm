@@ -76,6 +76,7 @@ concurrency:
 
 jobs:
   detect-stable-product-paths:
+    timeout-minutes: 5
     name: Detect Product Proof Paths
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
@@ -171,6 +172,7 @@ jobs:
           echo "reason=no_stable_product_surface_changed" >> "$GITHUB_OUTPUT"
 
   ci-product-stable:
+    timeout-minutes: 30
     name: ci-product stable canaries
     needs: detect-stable-product-paths
     if: needs.detect-stable-product-paths.outputs.run_stable == 'true'
@@ -195,6 +197,7 @@ jobs:
         run: scripts/ci-product-stable.sh
 
   product-proof-result:
+    timeout-minutes: 5
     name: Product Proof Result
     needs: [detect-stable-product-paths, ci-product-stable]
     if: >-
@@ -235,6 +238,7 @@ jobs:
           exit 1
 
   ci-product:
+    timeout-minutes: 30
     name: ci-product advisory canaries
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.lane == 'all')
     runs-on:
