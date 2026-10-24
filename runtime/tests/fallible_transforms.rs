@@ -183,3 +183,45 @@ fn fallible_transform_arithmetic_overflow_is_not_silently_zero() {
 
     assert_eq!(first_error(&errors).byte_span(), 0..10);
 }
+
+#[cfg(feature = "pure-rust")]
+#[test]
+fn with_try_leaf_invalid_present_node_bytes_fail_without_calling_converter() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use adze::errors::ParseErrorReason;
+    use adze::{Extract, WithTryLeaf};
+
+    // Node spans bytes 1..3, which hold 0xFF bytes that are never valid
+    // UTF-8, so there is no decodable leaf text for a present node.
+    let source = b"a\xff\xffz";
+    let node = adze::pure_parser::ParsedNode::builder(1, vec![], 1, 3).build();
+
+    // 'static counter: WithTryLeaf::LeafFn is `dyn Fn...` ('static).
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    CALLS.store(0, Ordering::SeqCst);
+    // Empty-accepting converter: succeeds even on "". Before the fix,
+    // undecodable bytes were coerced to "" and this converter succeeded.
+    let leaf_fn = |_: &str| -> Result<String, String> {
+        CALLS.fetch_add(1, Ordering::SeqCst);
+        Ok(String::new())
+    };
+
+    let error = <WithTryLeaf<String> as Extract<String>>::try_extract(
+        Some(&node),
+        source,
+        0,
+        Some(&leaf_fn),
+    )
+    .expect_err("invalid present-node text must be a structured failure");
+    assert_eq!(error.byte_span(), 1..3);
+    assert!(
+        matches!(error.reason, ParseErrorReason::ConversionFailed(_)),
+        "invalid leaf text must be ConversionFailed, got: {error:?}"
+    );
+    assert_eq!(
+        CALLS.load(Ordering::SeqCst),
+        0,
+        "converter must not be invoked for undecodable leaf text"
+    );
+}
