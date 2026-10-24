@@ -725,6 +725,33 @@ impl Grammar {
             .sum()
     }
 
+    /// Fresh production slots normalization will allocate for these
+    /// symbols: each `Optional`/`Repeat` helper adds two rules, each
+    /// `Choice` alternative adds one, and nested helpers inside a
+    /// helper right-hand side cost their own slots when that helper is
+    /// expanded on a later pass. A `RepeatOne` helper carries its inner
+    /// symbol in both alternatives, so its nested cost counts twice.
+    /// Sequences flatten for free.
+    fn count_production_slots(symbols: &[Symbol]) -> usize {
+        symbols
+            .iter()
+            .map(|symbol| match symbol {
+                Symbol::Optional(inner) | Symbol::Repeat(inner) => {
+                    2 + Self::count_production_slots(std::slice::from_ref(&**inner))
+                }
+                Symbol::RepeatOne(inner) => {
+                    2 + 2 * Self::count_production_slots(std::slice::from_ref(&**inner))
+                }
+                Symbol::Choice(choices) => choices.len() + Self::count_production_slots(choices),
+                Symbol::Sequence(seq) => Self::count_production_slots(seq),
+                Symbol::Terminal(_)
+                | Symbol::NonTerminal(_)
+                | Symbol::External(_)
+                | Symbol::Epsilon => 0,
+            })
+            .sum()
+    }
+
     /// Normalize complex symbols by creating auxiliary rules, returning a
     /// typed error instead of panicking, wrapping, or colliding when the
     /// symbol ID space cannot supply a free helper (#978).
@@ -737,7 +764,11 @@ impl Grammar {
     /// # Errors
     ///
     /// Returns [`GrammarError::SymbolSpaceExhausted`] before mutating the
-    /// grammar when fewer free IDs remain than helpers required.
+    /// grammar when fewer free IDs remain than helpers required, and
+    /// [`GrammarError::ProductionSpaceExhausted`] before mutating the
+    /// grammar when fewer free production slots remain than helper rules
+    /// require. A grammar that needs no helper rules succeeds even when
+    /// the production maximum is already saturated.
     pub fn try_normalize(&mut self) -> Result<Vec<Rule>, GrammarError> {
         let mut occupied = self.occupied_symbol_ids();
         let helpers_needed: usize = self
@@ -746,9 +777,27 @@ impl Grammar {
             .flat_map(|rules| rules.iter())
             .map(|rule| Self::count_complex_symbols(&rule.rhs))
             .sum();
+        let production_slots_needed: usize = self
+            .rules
+            .values()
+            .flat_map(|rules| rules.iter())
+            .map(|rule| Self::count_production_slots(&rule.rhs))
+            .sum();
+        // The allocator below never reuses a slot: fresh production IDs
+        // run strictly above the maximum in use, so the free capacity is
+        // the range above that maximum, or the whole `u16` range when the
+        // grammar has no rules yet.
+        let max_production_id = self.all_rules().map(|rule| rule.production_id.0).max();
         let free = occupied.iter().filter(|taken| !**taken).count();
         if helpers_needed > free {
             return Err(GrammarError::SymbolSpaceExhausted);
+        }
+        let free_production_slots: usize = match max_production_id {
+            Some(max) => usize::from(u16::MAX - max),
+            None => usize::from(u16::MAX) + 1,
+        };
+        if production_slots_needed > free_production_slots {
+            return Err(GrammarError::ProductionSpaceExhausted);
         }
         // Note: a pre-existing grammar may assign one numeric ID to both
         // a rule and a token (the corpus encodes such dual-use grammars
@@ -807,19 +856,17 @@ impl Grammar {
         // alternative is a distinct rule, so it must not collapse into the
         // shared ProductionId(0) slot. Slots stay shareable elsewhere; this
         // only stops normalize() from manufacturing an ambiguous share.
-        let mut next_production_id = self
-            .all_rules()
-            .map(|rule| rule.production_id.0)
-            .max()
-            .map_or(0, |max| {
-                max.checked_add(1).expect("production id range exhausted")
-            });
-        let mut fresh_production_id = move || {
-            let id = ProductionId(next_production_id);
-            next_production_id = next_production_id
-                .checked_add(1)
-                .expect("production id range exhausted");
-            id
+        // The capacity pre-check above guarantees these slots fit in
+        // `u16`, so the fallible step below is unreachable unless the
+        // counter drifts from the allocator. It stays typed so a fallible
+        // API never panics.
+        let mut next_production_id: u32 = max_production_id.map_or(0, |max| u32::from(max) + 1);
+        let mut fresh_production_id = move || -> Result<ProductionId, GrammarError> {
+            let id = u16::try_from(next_production_id)
+                .map(ProductionId)
+                .map_err(|_| GrammarError::ProductionSpaceExhausted)?;
+            next_production_id += 1;
+            Ok(id)
         };
 
         // We need to keep processing until no complex symbols remain
@@ -861,7 +908,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: fresh_production_id(),
+                                production_id: fresh_production_id()?,
                             };
                             self.add_rule(inner_rule);
 
@@ -872,7 +919,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: fresh_production_id(),
+                                production_id: fresh_production_id()?,
                             });
 
                             new_rhs.push(Symbol::NonTerminal(aux_id));
@@ -889,7 +936,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: fresh_production_id(),
+                                production_id: fresh_production_id()?,
                             });
 
                             // aux -> ε
@@ -899,7 +946,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: fresh_production_id(),
+                                production_id: fresh_production_id()?,
                             });
 
                             new_rhs.push(Symbol::NonTerminal(aux_id));
@@ -916,7 +963,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: fresh_production_id(),
+                                production_id: fresh_production_id()?,
                             });
 
                             // aux -> inner
@@ -926,7 +973,7 @@ impl Grammar {
                                 precedence: None,
                                 associativity: None,
                                 fields: vec![],
-                                production_id: fresh_production_id(),
+                                production_id: fresh_production_id()?,
                             });
 
                             new_rhs.push(Symbol::NonTerminal(aux_id));
@@ -943,7 +990,7 @@ impl Grammar {
                                     precedence: None,
                                     associativity: None,
                                     fields: vec![],
-                                    production_id: fresh_production_id(),
+                                    production_id: fresh_production_id()?,
                                 });
                             }
 
@@ -999,8 +1046,10 @@ impl Grammar {
     ///
     /// # Panics
     ///
-    /// Panics only when the entire non-EOF symbol ID space is occupied and
-    /// a helper cannot be allocated. Use [`try_normalize`](Self::try_normalize)
+    /// Panics only when normalization has no room left: the entire
+    /// non-EOF symbol ID space is occupied and a helper cannot be
+    /// allocated, or no free production slot remains for a helper rule.
+    /// Use [`try_normalize`](Self::try_normalize)
     /// for the typed-error form; this infallible signature is retained for
     /// the existing consumer base (#978).
     pub fn normalize(&mut self) -> Vec<Rule> {
@@ -1046,6 +1095,10 @@ pub enum GrammarError {
     /// No unoccupied symbol ID remains for a normalization helper
     #[error("symbol ID space exhausted during normalization: no unoccupied SymbolId remains")]
     SymbolSpaceExhausted,
+
+    /// No free production ID remains for a normalization helper rule
+    #[error("production ID space exhausted during normalization: no free ProductionId remains")]
+    ProductionSpaceExhausted,
 
     /// A field targets a sequence that expands to no children
     #[error("field on rule {lhs} targets an empty sequence; no child can be designated")]
@@ -1302,6 +1355,105 @@ mod tests {
             Err(GrammarError::UnresolvedExternalSymbol(SymbolId(999))) => {}
             _ => panic!("Expected unresolved external symbol error"),
         }
+    }
+
+    fn production_test_token(name: &str) -> Token {
+        Token {
+            name: name.to_string(),
+            pattern: TokenPattern::String(name.to_string()),
+            fragile: false,
+        }
+    }
+
+    #[test]
+    fn try_normalize_with_saturated_production_id_and_no_helpers_succeeds() {
+        // A primitive grammar needs no fresh slots, so even a saturated
+        // production maximum must succeed (the old eager `max + 1`
+        // panicked here).
+        let mut grammar = Grammar::new("saturated_primitive".to_string());
+        grammar.add_rule(Rule {
+            lhs: SymbolId(1),
+            rhs: vec![Symbol::Terminal(SymbolId(2))],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(u16::MAX),
+        });
+        grammar
+            .tokens
+            .insert(SymbolId(2), production_test_token("a"));
+
+        let rules = grammar
+            .try_normalize()
+            .expect("primitive grammar needing no helpers must succeed");
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].production_id, ProductionId(u16::MAX));
+    }
+
+    #[test]
+    fn try_normalize_allocates_last_production_slot() {
+        // One `Optional` needs exactly two fresh slots; with the maximum
+        // at `u16::MAX - 2` the allocator must hand out the last slot
+        // instead of failing.
+        let mut grammar = Grammar::new("last_slot".to_string());
+        grammar.add_rule(Rule {
+            lhs: SymbolId(1),
+            rhs: vec![Symbol::Optional(Box::new(Symbol::Terminal(SymbolId(2))))],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(u16::MAX - 2),
+        });
+        grammar
+            .tokens
+            .insert(SymbolId(2), production_test_token("a"));
+
+        let rules = grammar
+            .try_normalize()
+            .expect("last free production slot must be usable");
+        let mut slots: Vec<u16> = rules.iter().map(|rule| rule.production_id.0).collect();
+        slots.sort_unstable();
+        assert_eq!(
+            slots,
+            vec![u16::MAX - 2, u16::MAX - 1, u16::MAX],
+            "helper slots must extend to the last slot"
+        );
+    }
+
+    #[test]
+    fn try_normalize_reports_production_exhaustion_without_mutating() {
+        // The production space is saturated while the symbol space still
+        // has room: one `Optional` needs two slots that cannot exist. The
+        // failure must be the typed error and the grammar stays untouched.
+        let mut grammar = Grammar::new("production_exhausted".to_string());
+        grammar.add_rule(Rule {
+            lhs: SymbolId(1),
+            rhs: vec![Symbol::Optional(Box::new(Symbol::Terminal(SymbolId(2))))],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(u16::MAX),
+        });
+        grammar
+            .tokens
+            .insert(SymbolId(2), production_test_token("a"));
+        let before = grammar.clone();
+
+        let error = grammar
+            .try_normalize()
+            .expect_err("saturated production space must fail");
+        assert!(
+            matches!(error, GrammarError::ProductionSpaceExhausted),
+            "unexpected error: {error:?}"
+        );
+        assert_eq!(
+            error.to_string(),
+            "production ID space exhausted during normalization: no free ProductionId remains"
+        );
+        assert_eq!(
+            grammar, before,
+            "exhaustion must not partially mutate the grammar"
+        );
     }
 
     #[test]
