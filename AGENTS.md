@@ -16,66 +16,99 @@ For the durable repo-boundary and release-candidate workflow, read
 `docs/reference/adze-swarm-operating-model.md`.
 
 
-## Repo Source-of-Truth Stack
+## Current execution contract
 
-This repo uses a linked source-of-truth stack:
+This is the canonical agent entrypoint; `CLAUDE.md` points here. Read this file,
+`docs/reference/SPEC_SYSTEM.md`, the operating model, the current owning issue
+and related PRs, then the linked accepted spec/ADR before changing a seam.
 
-```text
-Roadmap → Proposal → Spec → ADR → Plan → Active goal → PR → Proof
-```
+GitHub #853 defines the selected **0.10.0** product endpoint. #617 holds research;
+#915–#920 own the current-v2 governance migration; #1029 owns these instructions.
+GitHub issues/PRs hold live work. Accepted ADZE requirements/specs hold behavior,
+PR-local slices hold scope and owned/shared/forbidden seams, receipts hold
+execution evidence, and support tiers hold public claims.
 
-Before changing files for lane work, read:
+There is no authoritative repository-global active task. `.adze/goals` files
+and older singleton checks are migration artifacts, not a work-selection lock.
+Do not delete or bypass a still-enforced check: #920 owns retirement after
+structural parity. Record a concrete migration blocker for the affected lane
+rather than inventing an active-goal entry or stopping independent work.
 
-1. `docs/reference/SPEC_SYSTEM.md`
-2. `docs/reference/adze-swarm-operating-model.md`
-3. `.adze/goals/active.toml`
-4. The linked implementation plan
-5. The linked spec for the selected work item
-6. Linked ADRs
+### Select, implement, review, continue
 
-Before opening a PR, refresh the live queue:
+Refresh the live queue before opening or taking over work:
 
 ```bash
 gh pr list --repo EffortlessMetrics/adze-swarm --state open
+gh issue view 853 --repo EffortlessMetrics/adze-swarm
 ```
 
-Check for same-title, same-scope, or overlapping work. If a similar PR already
-exists, do not open another PR. Review the existing PR and report whether it
-should be merged, amended, superseded, or closed.
+Read the selected issue, its current PR head and review findings. Reuse an
+existing same-scope PR; do not create a competing branch. One coherent work item
+belongs in each PR, but several independent PRs/workflows may progress at once.
+Each writer has an isolated worktree and explicit seam ownership. Coordinate
+shared compiler/runtime/CLI interfaces; waiting CI or a baseline worker does not
+serialize unrelated useful work. Research answers a named question with a
+bounded output; it is not a recurring permission request.
 
-### Scope rule
+Use focused red/green tests, substantive review and repair before integration
+qualification. A previous clean review never suppresses a new finding. Fix a
+coherent defect in its owning PR, or link a separate durable owner. Do not change
+an oracle merely because the implementation disagrees with it.
 
-Implement one work item per PR unless the selected plan item explicitly allows a
-bundled documentation batch. Docs-only artifacts are separate semantic changes:
+After each merge or checkpoint, reconcile the landed child acceptance and pick
+the next eligible issue under #853. A session percentage, finished PR batch,
+empty queue or green subset is not product completion. Stop for the selected
+product acceptance being satisfied, Steven's pause, or concrete blockers covering
+all useful remaining work. A blocked lane names the missing capability, decision,
+interface or evidence while independent lanes continue.
 
-- proposal PRs explain why;
-- spec PRs define behavior;
-- ADR PRs record durable decisions;
-- plan PRs define sequencing;
-- active goal PRs define current execution state.
+### Proof and landing
 
-Runtime/code PRs must link to the spec and plan item they implement.
+#1025–#1028 own the requested lifecycle:
 
-Do not duplicate an open work item. Queue hygiene is part of the source-of-truth
-contract: one active PR per semantic work item unless the maintainer explicitly
-asks for competing alternatives.
+```text
+focused local proof + review + repair
+ -> exact source head H + revocable conditional landing authorization
+ -> cheap trusted admission
+ -> actual integration composition G qualified once
+ -> protected landing M + cheap acceptance readback
+```
 
-### Proof rule
+H, a PR test-merge/check subject, G and M are different identities. New findings,
+changed heads and revoked authorization invalidate eligibility. Successful G
+fulfills the conditional landing decision without a routine second approval wait.
 
-Run the proof commands listed in the plan item. If a proof command cannot run,
-record the command, reason unavailable, substitute evidence if any, and whether
-that blocks merge.
+**Deployment is not inferred from this text.** At the October 22, 2026 readback,
+#1070 restores expensive non-draft PR qualification before queue qualification;
+that is the recorded workaround, not the requested final spending policy.
+Consult #1028 and current effective protection/workflows before acting. Do not
+remove required producers before their replacement works, synthesize passing
+proof statuses, relax protection, or treat Ready/reopen as a cheap control action.
+Finish the protected cutover without stranding otherwise qualified candidates.
 
-### Generated status rule
+Record source/build identity, features, full command, exit status and actual
+selected/executed/ignored counts. Zero selected tests, an ignored-only run, absent
+failure text, or a count of `test result:` lines is not executed proof. Record
+unavailable commands and their exact effect on qualification; substitute checks
+retain their actual scope. A source review or model cross-check is not a Rust run.
 
-Do not hand-edit generated status. Run the generator or checker named in the
-plan.
+Cancel only explicitly owned process/run IDs after checking repository, workflow
+identity, event and subject/ref. A repository-wide sweep based on workflow display
+names is forbidden. Do not discard in-progress attempts before selecting the
+current required check: an older success must not hide current pending/failing
+work. Preserve actual group membership and current authorization; queue limits or
+one PR number in a ref are not a membership oracle.
 
-### Policy rule
+Clean only owned worktrees/caches after changes and receipts are retained. Never
+delete another worker's uncommitted work or cancel an unknown owner's run.
 
-If you add an exception, add or update the relevant `policy/*.toml` ledger with
-owner, reason, `covered_by`, `created`, `review_after`, and `expires` when the
-exception is temporary.
+### Generated status and policy
+
+Run the named generator/checker; do not hand-edit generated status. New exceptions
+need the relevant policy ledger's owner, reason, coverage, review date and required
+expiry. Baseline generation proposes exceptions; it does not approve them. Keep
+scope and evidence accurate rather than weakening a gate to obtain green.
 
 ## Project Overview
 
@@ -83,12 +116,12 @@ Adze is an AST-first grammar toolchain for Rust. It generates Tree-sitter parser
 
 - **Language**: Rust 2024 edition
 - **MSRV**: 1.95.0
-- **Workspace**: 29 crates
+- **Workspace/package scope**: derive from `Cargo.toml` and the release graph; do not treat the core proof list as the publish denominator.
 - **Command runner**: `just` (see `justfile`)
 
 ## Setup
 
-The toolchain is auto-configured via `rust-toolchain.toml` — no manual Rust installation steps needed.
+`rust-toolchain.toml` selects the toolchain. Verify the required tools are actually available before reporting a build or test receipt.
 
 ```bash
 # Verify toolchain
@@ -119,8 +152,7 @@ of those may run or skip depending on router state.
 
 ### Local Supported Proof
 
-Run this before submitting changes that touch the supported core pipeline or
-release-facing proof surface:
+Use this when the selected supported-core proof obligation requires the aggregate:
 
 ```bash
 just ci-supported
@@ -128,7 +160,8 @@ just ci-supported
 
 This runs formatting, clippy, and tests on the 7 core pipeline crates. It is
 the local supported/product proof, not the `adze-swarm` branch-protection
-context.
+context. Do not precede it with duplicate full core lint/test commands by habit.
+Start with focused tests; retain all distinct selected obligations.
 
 ### Building
 
@@ -178,12 +211,13 @@ export RUSTC_WRAPPER=sccache
 ```
 
 Add to `~/.bashrc` or `~/.zshrc` for persistence:
+
 ```bash
 export RUSTC_WRAPPER=sccache
 ```
 
 sccache caches compiled artifacts, significantly reducing rebuild times. This is
-still useful for the post-collapse 29-package workspace, especially after
+still useful for the workspace, especially after
 `cargo clean` or toolchain updates.
 
 ### Linting
@@ -218,7 +252,7 @@ These are checked by `just ci-supported`:
 
 ### Other Layers
 
-- **`runtime2/`** — Production GLR runtime with Tree-sitter compatible API
+- **`runtime2/`** — Development-only proving ground; not the supported production runtime.
 - **`grammars/`** — Language implementations: `python`, `javascript`, `go`, `python-simple`, `test-vec-wrapper`
 - **`crates/`** — durable support crates after the microcrate-to-SRP collapse:
   `bdd-governance-core`, `common-type-ops-core`, `linecol-core`,
@@ -231,7 +265,8 @@ These are checked by `just ci-supported`:
 
 ### Workspace Exclusions
 
-These are excluded from workspace commands — build with `-p` explicitly:
+These are excluded from workspace commands. Use the selected package’s explicit
+`--manifest-path <path>/Cargo.toml` and required features where appropriate:
 ```
 runtime/fuzz, tools/ts-bridge, crates/ts-c-harness, example
 ```
@@ -284,48 +319,26 @@ Enforced via `[workspace.lints.rust]`:
 - Test naming: `test_<what>_<condition>_<expected>`
 - Default test threads: 2 (`RUST_TEST_THREADS=2`)
 
-## CI Workflows
+## Verification and CI selection
 
-19 workflows in `.github/workflows/`. Key ones:
+Read `.github/workflows/`, `docs/ci/inventory.md`, and the current #1028 readback
+for actual triggers and required contexts. A workflow catalogue is not an
+instruction to run every lane. `docs/status/KNOWN_RED.md` records exclusions.
 
-| Workflow | Purpose |
-|----------|---------|
-| `em-ci-routed-rust.yml` | Required routed PR gate that emits `Rust Small Result` |
-| `ci.yml` | Scheduled/manual legacy supported CI lane |
-| `pure-rust-ci.yml` | Path-routed Pure-Rust implementation |
-| `core-tests.yml` | Core crate testing |
-| `golden-tests.yml` | Tree-sitter parity |
-| `microcrate-ci.yml` | Post-collapse support/governance risk packs |
-| `coverage.yml` | Coverage lite/full lanes |
-| `product-proof.yml` | Stable/advisory product canaries |
-| `pr-gate.yml` | PR policy and lightweight receipts |
-| `ci-policy.yml` | CI lane whitelist and source-of-truth checks |
+For each slice:
 
-See `docs/status/KNOWN_RED.md` for intentional exclusions.
+1. Run focused failing/passing tests with the required feature profile; verify
+   nonzero selection. Run relevant formatting/lint checks.
+2. Review the diff and repair findings. Recheck affected obligations after edits.
+3. Run the selected aggregate only where required, without duplicating its work.
+   Broad matrix, fuzz, coverage and performance campaigns need an explicit scope.
+4. Review intentional snapshot changes against independently expected semantics.
+5. Admit only the exact reviewed head through the current protected path. Retain
+   integration and landing identities; reconcile the actual landed acceptance.
 
-## Verification Checklist
-
-Before submitting any changes, run these in order:
-
-```bash
-# 1. Format
-cargo fmt --all
-
-# 2. Lint
-just clippy
-
-# 3. Test
-just test
-
-# 4. Local supported proof when touching the supported core pipeline
-just ci-supported
-
-# 5. If snapshots changed
-cargo insta review
-```
-
-Hosted `adze-swarm` PRs must also pass `Rust Small Result` and
-`Product Proof Result` before merge.
+`--all-features` is not a substitute for separately advertised feature profiles.
+Do not invalidate unaffected evidence merely because main moved; do refresh
+proof whose source, dependencies, configuration or integration composition changed.
 
 ## Environment Variables
 
@@ -336,13 +349,13 @@ Hosted `adze-swarm` PRs must also pass `Rust Small Result` and
 | `CARGO_BUILD_JOBS` | `4` (CI: `2`) | Parallel build jobs |
 | `TOKIO_WORKER_THREADS` | `2` | Tokio worker threads |
 | `ADZE_EMIT_ARTIFACTS` | unset | Set `true` to output generated grammar files |
-| `ADZE_LOG_PERFORMANCE` | unset | Set `true` for GLR performance logging |
+| `ADZE_LOG_PERFORMANCE` | unset | Enables GLR performance logging |
 
 ## Key Files
 
 - `justfile` — Development recipes
 - `rust-toolchain.toml` — Toolchain pinning
-- `Cargo.toml` — Workspace root with 29 members
+- `Cargo.toml` — Workspace membership and dependency definitions
 - `.githooks/pre-commit` — Pre-commit checks (install via `.githooks/install.sh`)
 - `docs/status/KNOWN_RED.md` — Intentional CI exclusions
 - `scripts/test-matrix.sh` — Feature matrix testing

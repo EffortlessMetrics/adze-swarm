@@ -3,230 +3,159 @@
 Status: active operating policy
 Owner: repo governance
 Created: 2026-05-29
-Last reviewed: 2026-06-04
-Linked policy: `docs/reference/CODEX_CI_EFFICIENCY_COMPATIBILITY.md`
-Linked source-of-truth system: `docs/reference/SPEC_SYSTEM.md`
-Linked release checklist: `docs/reference/PUBLISH_CHECKLIST.md`
-Linked research board: `adze-swarm#617`
-Linked release authorization tracker: `adze-swarm#325`
-Linked runner evidence tracker: `adze-swarm#598`
+Last reviewed: 2026-10-22
+Linked issues: #853, #617, #1025–#1029, #915–#920
+Linked source-of-truth system: [SPEC_SYSTEM.md](SPEC_SYSTEM.md)
+Linked release authorization tracker: #325
+Linked runner evidence tracker: #598
 Support-tier impact: none
-Policy impact: defines repo-boundary and CI-boundary expectations
+Policy impact: execution guidance; no workflow or protection mutation
 
-## Mission
+## Mission and repository boundary
 
-`EffortlessMetrics/adze-swarm` is the development, proof, and
-release-candidate factory for Adze.
+`EffortlessMetrics/adze-swarm` develops and proves release-promotable Adze states.
+Public `EffortlessMetrics/adze` remains promotion, release and external intake.
+Ordinary swarm code, tests, research, docs and CI work belongs in adze-swarm.
+Public promotion, tags, publishing, signing, Cargo-token operations and real
+crates.io-install claims require the separate #325 authority and receipts.
 
-Public `EffortlessMetrics/adze` is the release, public intake, promotion, tag,
-publish, signing, Cargo-token, and crates.io receipt surface.
+The selected product endpoint is the **0.10.0** boundary in #853, not 1.0 and not
+the completion of a session's chosen batch. ADZE-SPEC-0012 defines three user
+paths: typed values, native tooling documents, and a selected-tree compatibility
+subset. Improvements must make those paths work, not merely raise a test count.
 
-The steady-state rule is:
+## Read current state, then select work
 
-```text
-adze-swarm produces proof-backed, release-promotable states.
-public adze receives explicit promotion or release PRs from those states.
-```
-
-## Source-of-truth anchors
-
-Use these anchors before opening new work:
-
-- Research board: <https://github.com/EffortlessMetrics/adze-swarm/issues/617>
-- Release authorization and install receipt:
-  <https://github.com/EffortlessMetrics/adze-swarm/issues/325>
-- Runner evidence and quarantine decisions:
-  <https://github.com/EffortlessMetrics/adze-swarm/issues/598>
-- Support tiers and proof commands: [`docs/status/SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md)
-- Required and intentionally excluded lanes: [`docs/status/KNOWN_RED.md`](../status/KNOWN_RED.md)
-- Branch protection rule: [`docs/ci/branch-protection.md`](../ci/branch-protection.md)
-- Runner class model: [`docs/ci/runner-classes.md`](../ci/runner-classes.md)
-
-Start each cycle by refreshing live state:
+Start from [AGENTS.md](../../AGENTS.md), the current owning issue/PR and accepted
+spec/ADR. #617 retains bounded research questions; it is not a global work lock.
+Refresh live state before opening or taking over a PR:
 
 ```bash
 gh pr list --repo EffortlessMetrics/adze-swarm --state open
-gh pr list --repo EffortlessMetrics/adze --state open
-gh issue view 617 --repo EffortlessMetrics/adze-swarm
-gh issue view 325 --repo EffortlessMetrics/adze-swarm
+gh issue view 853 --repo EffortlessMetrics/adze-swarm
 ```
 
-Then choose at most one active lane:
+Choose eligible issue-led work with a named behavior/oracle, known facts,
+unknowns, dependencies, seam ownership and proof. Do not create speculative
+replacement systems or competing same-scope PRs. Several independent lanes may
+progress concurrently; every writer uses an isolated worktree. Coordinate shared
+interfaces without making whole-parent closure a dependency when only one
+concrete interface is needed.
 
-- a research question,
-- a bounded issue-linked proof task,
-- a narrow implementation PR that answers a named issue, or
-- a queue cleanup action backed by current PR evidence.
-
-Do not start speculative implementation just because the queue is quiet.
-
-## Issue-first evidence rule
-
-Work should start as an issue, research question, decision packet, or existing
-source-of-truth item. Each active lane records:
-
-- known facts,
-- unknowns,
-- blockers,
-- next evidence,
-- whether implementation is allowed,
-- proof commands or receipts needed to close the question.
-
-Update durable issues with new facts. Do not rely on chat context as the only
-record. Do not repeat diagnostics unless they add a new fact or answer a
-current question.
-
-## Responsibilities
-
-Use `adze-swarm` for:
-
-- runtime, tablegen, GLR, query, diagnostics, recovery, examples, docs, and
-  performance proof work;
-- CI economics and self-hosted runner policy;
-- source-of-truth updates for proposals, specs, ADRs, plans, active goals,
-  support tiers, policy ledgers, and proof receipts;
-- same-repo swarm PRs that start from `adze-swarm/main`;
-- release-candidate preparation before a deliberate public promotion.
-
-Use public `adze` for:
-
-- public release-readable state after explicit promotion;
-- public intake and external contributions;
-- release branches, tags, publish workflows, signing, Cargo-token handling, and
-  crates.io post-publish install receipts.
-
-Do not open implementation, productization, CI-hardening, docs-proof, examples,
-runtime, tablegen, query, diagnostics, or performance PRs in public `adze`
-unless the task is explicitly a public promotion or release task.
-
-## Normal swarm PR flow
-
-For routine work:
+For a new owned lane, a typical worktree setup is:
 
 ```bash
-git fetch origin --prune
-git switch main
-git pull --ff-only origin main
-gh pr list --repo EffortlessMetrics/adze-swarm --state open
-
-git switch -c swarm/<task>
+git fetch origin
+git worktree add -b swarm/<task> ../adze-wt-<task> origin/main
 ```
 
-Each PR must:
+Use an existing owning branch when one already exists. Do not move or clean
+another worker's checkout. #915–#920 govern migration to requirements and PR-local
+slices; legacy `.adze/goals` state does not govern scheduling. Still-enforced
+legacy checks remain real qualification dependencies until their reviewed
+replacement lands; do not bypass them.
 
-- cover one work item;
-- link the relevant proposal, spec, ADR, plan, active goal, support-tier row, or
-  policy ledger;
-- state its claim boundary, proof commands, CI cost expectation, and rollback
-  path;
-- avoid duplicate same-scope work in the live PR queue;
-- wait for `Rust Small Result` plus the relevant path-routed proof.
+## Proof before expensive integration
 
-## CI boundary
+Implement and test the selected slice locally, then review, repair and simplify.
+Prove useful expected values/tree facts as well as projection agreement. For
+invalid input, prove the actual failure class/span and no fabricated success.
+A previous clean review does not exempt the next diff or a newly found defect.
 
-`adze-swarm` defaults to self-hosted execution. GitHub Actions remains the
-orchestrator, but default PR proof should run on project-controlled runners.
-Hosted control-plane jobs that only route work, detect changed paths, check
-source-of-truth policy, report no-capacity policy, or aggregate required
-contexts are an explicit exception so branch protection and advisory policy
-checks do not spend scarce self-hosted slots before actual work is selected.
-Rust and product-canary execution remains self-hosted unless an explicit
-fallback exception is selected.
+Retain source/build identity, feature profile, argv, exit status and actual test
+selection/execution. Reuse evidence only where its source/dependency/configuration
+scope is unchanged. Do not run the same full baseline in every worker or run
+standalone broad lint/test aggregates immediately before another aggregate that
+already performs them. Missing tools, zero-test selections and killed processes
+must not be reported as successful proof.
 
-Required base gate:
+## Requested lifecycle versus deployed controls
+
+#1025–#1028 own this target:
 
 ```text
-Rust Small Result
+implementation + focused local proof + review + repair
+ -> exact reviewed source head H + revocable conditional landing decision
+ -> cheap trusted native-queue admission
+ -> selected expensive proof once on actual integration composition G
+ -> protected squash M
+ -> cheap landed acceptance reconciliation
 ```
 
-Do not require implementation lanes directly:
+Keep source H, PR test-merge/check subjects, G and M distinct. Check actual group
+membership; build/merge limits do not identify the source members. Changed heads,
+new material findings and revoked authorization invalidate eligibility. Successful
+G completes the conditional landing decision without a routine new approval pause.
 
-```text
-Rust Small on CX43
-Rust Small on CPX42
-Rust Small on CX33
-Rust Small on CX53 (dormant while adze-swarm#598 is blocked)
-Rust Small on GitHub Hosted
-```
+At the October 22, 2026 readback, the native queue exists but #1070 restores full
+non-draft PR qualification before G qualification. This is deployed reality, not
+acceptance of expensive Ready CI as the final policy. #1028 holds live cutover
+status. Recheck effective repository/inherited/classic protection and workflow
+producers; a checked-in settings file or this document is not deployment proof.
 
-Exactly one implementation lane may run while the others skip. A GitHub-hosted
-fallback must not be introduced silently. Hosted execution in `adze-swarm`
-requires an explicit recorded exception, such as a scoped label, manual dispatch
-input, or release/public-safety note.
+The observed required contexts are `Rust Small Result` and `Product Proof Result`,
+not individual routed runner jobs. Their absence, unexpected skip/cancellation or
+missing selected proof must not become success. #995 owns result integrity;
+#998/#1058 own selected/executed accounting. #1063's offline record validator is
+not by itself a trusted live admission provider.
 
-Heavy, advisory, coverage, benchmark, product-proof, and full-matrix lanes run
-only when path-routed, labeled, scheduled, manually dispatched, or otherwise
-explicitly budgeted.
+Do not delete old producers before protected replacement admission works, spoof
+qualification success, silently introduce runner fallback, relax protection or
+use direct unqualified merging. Ready/reopen can currently trigger expensive
+work: it is not a cheap admission API. The delivery owner finishes the bounded
+protected cutover; other product lanes continue local implementation/review.
+A current infrastructure blocker is not a permanent reason to warehouse all PRs.
 
-## Product proof boundary
+## Run and worktree ownership
 
-Adze product claims must become true in `adze-swarm` before they are promoted to
-public `adze`.
+Maintain explicit owned process/run IDs and their repository, workflow, event,
+source/check subject and ref. Cancel only those validated owned runs when they
+are superseded or otherwise selected for cancellation. Never cancel all recent
+repository runs merely because their workflow display name is outside a list.
+Unknown ownership means leave the run alone and resolve the owner.
 
-The architectural invariant is:
+When reading checks, retain the current pending/in-progress attempt; filtering
+for completed conclusions first can let an older success hide current work.
+Validate the exact expected head/subject/App/event and current authorization.
+Do not synthesize a passing status to compensate for a deficient poller.
 
-```text
-AdzeDocument is the canonical parse product.
-Every public view is a projection over that document.
-```
+Clean owned worktrees/cache only after code and receipts are retained and current
+state is checked. A cleanup helper is not authorization to delete another lane's
+uncommitted changes.
 
-Typed CST, typed AST, diagnostics, ambiguity summaries, Tree-sitter-compatible
-selected-tree output, query surfaces, JSON, CLI, WASM, and benchmark receipts
-must not invent independent semantic state. Optimizations may add compact
-storage or caches only when they are document-local, invalidation-aware, and
-covered by equivalence proof.
+## Worked checkpoint
 
-A feature is not Stable merely because code exists. Stable public claims require
-aligned README wording, support-tier rows, proof commands, CI lanes, examples,
-and known limitations.
+For example, after #1023's target-manifest repair lands, reconcile its narrow
+acceptance; #1073 still owns Cargo cwd/config and snapshot isolation. Select that
+remaining first-hour slice rather than declare #874 complete. Independently,
+#1068 can improve document source indexing while the CLI owner works. Neither
+lane needs closure of the other or the entire #859 architecture epic to start.
 
-Do not claim any of the following without a current receipt:
+After either lands, verify its actual accepted behavior and continue through
+#853's next eligible gap. The example is a dependency pattern, not a frozen
+current-status board: reread the issues/PRs before taking ownership.
 
-- `cargo install adze-cli` works from crates.io;
-- full Tree-sitter parity;
-- full query parity;
-- stable incremental reuse or performance;
-- general GLR coverage beyond the proven grammar classes;
-- benchmark throughput or memory numbers as public claims.
+## Product truth and claims
 
-## Promotion boundary
+`AdzeDocument` is the canonical tooling product; `parse()` remains the typed-value
+fast path. Typed CST/AST, diagnostics, ambiguity, compatibility, queries, JSON and
+CLI must agree on covered source/tree/schema facts without inventing a separate
+parse truth. A document root is not an internal forest root; a syntax-complete
+parse can still have a semantic conversion failure.
 
-Release flow is deliberate:
+Support tiers and current receipts govern public claims. No whole-query parity,
+full GLR coverage, stable incremental reuse, package-install portability or public
+performance promise follows from code existence. runtime2 is development-only;
+stateful scanners remain Experimental under #931. Read the selected support and
+package graph rather than treating all declared features as supported.
 
-1. Develop and prove in `adze-swarm`.
-2. Freeze a release-candidate snapshot.
-3. Promote the selected state into public `adze` with an explicit promotion PR.
-4. Run public release preflight from public `adze`.
-5. Tag and publish from public `adze` only after human authorization.
-6. Record crates.io install receipts after publish.
+## Stopping and handoff
 
-Do not move release, publish, signing, or Cargo-token workflows into
-`adze-swarm`.
+A lane stops at a concrete missing authority, interface, tool or evidence; name
+it and preserve the next executable action. Continue independent useful work.
+Stop the campaign for the selected product acceptance being satisfied, Steven's
+explicit pause, or blockers covering all useful remaining work. A batch ending,
+empty PR list, session percentage or green subset is not such a stop condition.
 
-## Stop conditions
-
-Stop and report instead of guessing when:
-
-- the live `adze-swarm` queue already has same-scope work;
-- the active goal is complete or paused and no new lane was explicitly selected;
-- the work would touch public `adze` without a promotion or release instruction;
-- a public claim lacks support-tier proof;
-- a CI change introduces hosted fallback without a recorded exception;
-- a release, tag, publish, signing, Cargo-token, or crates.io install-receipt
-  action would be required.
-
-## Endpoint
-
-The endpoint is boring operation:
-
-```text
-A worker opens one adze-swarm PR.
-The PR links source-of-truth artifacts.
-Self-hosted scoped proof runs.
-The claim boundary is explicit.
-The PR merges after green proof.
-Public adze changes only through intentional promotion or release.
-```
-
-That makes `adze-swarm` the workshop, lab, and ledger, while public `adze`
-remains the storefront and release counter.
+Release remains separate: develop/prove here, prepare an exact candidate, then
+promote/publish from public adze only through the separately authorized process.
