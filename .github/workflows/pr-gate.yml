@@ -9,17 +9,12 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: pr-gate-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: >-
-    ${{ github.event_name == 'pull_request' &&
-        (github.event.action == 'synchronize' || github.event.action == 'closed') }}
+  group: pr-gate-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 jobs:
   plan:
     name: PR Plan
-    if: >-
-      github.event_name != 'merge_group' &&
-      !(github.event_name == 'pull_request' && github.event.action == 'closed')
     uses: ./.github/workflows/pr-plan.yml
 
   supported:
@@ -27,10 +22,9 @@ jobs:
     needs: plan
     if: |
       always() &&
-      !(github.event_name == 'pull_request' && github.event.action == 'closed') &&
       (needs.plan.result == 'skipped' ||
         (needs.plan.result == 'success' && needs.plan.outputs.docs_only != 'true'))
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6.0.2
@@ -52,10 +46,9 @@ jobs:
     needs: plan
     if: |
       always() &&
-      !(github.event_name == 'pull_request' && github.event.action == 'closed') &&
       needs.plan.result == 'success' &&
       needs.plan.outputs.docs_only == 'true'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6.0.2
@@ -70,11 +63,10 @@ jobs:
     needs: [plan, supported, docs-gate]
     if: >-
       always() &&
-      !(github.event_name == 'pull_request' && github.event.action == 'closed') &&
       needs.plan.result != 'cancelled' &&
       needs.supported.result != 'cancelled' &&
       needs.docs-gate.result != 'cancelled'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Aggregate gate result
@@ -111,7 +103,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@v6.0.2
         if: always()
-      - name: Verify self-hosted reporting tools
+      - name: Verify reporting tools
         if: always()
         run: command -v python3
       - name: Download ci-plan artifact

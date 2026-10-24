@@ -2,8 +2,6 @@ name: EM CI Routed Rust
 
 on:
   workflow_dispatch:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
   merge_group:
 
 concurrency:
@@ -20,8 +18,7 @@ jobs:
     timeout-minutes: 5
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+      github.event_name == 'merge_group'
     outputs:
       rust_needed: ${{ steps.detect.outputs.rust_needed }}
       reason: ${{ steps.detect.outputs.reason }}
@@ -35,10 +32,10 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
         run: |
-          # workflow_dispatch, merge_group, and non-draft pull_request
-          # events reach this workflow. All are qualification requests,
-          # so fail closed and always select the Rust lanes instead of
-          # trusting a docs-only no-work decision.
+          # workflow_dispatch and merge_group events reach this workflow.
+          # All are qualification requests, so fail closed and always
+          # select the Rust lanes instead of trusting a docs-only
+          # no-work decision.
           echo "rust_needed=true" >> "$GITHUB_OUTPUT"
           echo "reason=event:${EVENT_NAME}" >> "$GITHUB_OUTPUT"
 
@@ -52,8 +49,7 @@ jobs:
       needs.detect-rust-paths.outputs.rust_needed == 'true' &&
       (
         github.event_name == 'workflow_dispatch' ||
-        github.event_name == 'merge_group' ||
-        (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+        github.event_name == 'merge_group'
       )
 
     outputs:
@@ -68,7 +64,6 @@ jobs:
           GH_TOKEN: ${{ secrets.EM_RUNNER_READ_TOKEN }}
           ORG: EffortlessMetrics
           EVENT_NAME: ${{ github.event_name }}
-          LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
         run: |
           set -uo pipefail
 
@@ -78,27 +73,28 @@ jobs:
           fi
           mkdir -p "$(dirname "$GITHUB_OUTPUT")"
 
+          # Merge-queue entries qualify on GitHub-hosted runners without
+          # consulting self-hosted capacity: the fleet is decommissioned,
+          # so probing it only burns queue minutes. workflow_dispatch
+          # keeps the capacity probe below for manual runs.
+          if [ "$EVENT_NAME" = "merge_group" ]; then
+            echo "router_target=github"
+            echo "router_error=false"
+            echo "router_reason=merge_group_github_hosted"
+            echo "target=github" >> "$GITHUB_OUTPUT"
+            echo "target_reason=merge_group_github_hosted" >> "$GITHUB_OUTPUT"
+            echo "fallback_allowed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           # Decide fallback eligibility up front so early routing failures
           # (tool/token/API) honour the same policy as the no-idle-runner
           # path. Explicit policy, passed as data via env (never shell
           # interpolation of event payloads): workflow_dispatch is an
-          # authorized manual request and merge_group is authorized by
-          # the enqueue decision itself, so both are hosted-fallback
-          # eligible. A non-draft pull_request is eligible only when the
-          # maintainer applied the allow-github-hosted label; the label
-          # list arrives as LABELS_JSON data and is parsed, not executed.
+          # authorized manual request and is hosted-fallback eligible.
           fallback_allowed=false
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ "$EVENT_NAME" = "merge_group" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             fallback_allowed=true
-          elif [ "$EVENT_NAME" = "pull_request" ]; then
-            if LABELS_JSON="${LABELS_JSON:-[]}" python3 - <<'PY'
-          import json, os, sys
-          labels = json.loads(os.environ.get("LABELS_JSON", "[]") or "[]")
-          sys.exit(0 if "allow-github-hosted" in {str(label).lower() for label in labels} else 1)
-          PY
-            then
-              fallback_allowed=true
-            fi
           fi
 
           fallback_github() {
@@ -788,8 +784,8 @@ jobs:
         run: |
           echo "Self-hosted routing failed or no idle runner was available."
           echo "target_reason=${{ needs.route-rust-small.outputs.target_reason }}"
-          echo "GitHub-hosted fallback is blocked by explicit queue policy for this event."
-          echo "workflow_dispatch and merge_group are fallback-eligible; wait for self-hosted capacity or re-dispatch manually."
+          echo "GitHub-hosted fallback applies to workflow_dispatch and merge_group only."
+          echo "Expensive Rust lanes no longer run on pull_request events; qualification happens in the merge queue."
           exit 1
 
   supported-proof:
@@ -799,8 +795,7 @@ jobs:
       needs.detect-rust-paths.outputs.rust_needed == 'true' &&
       needs.route-rust-small.result == 'success' &&
       (github.event_name == 'workflow_dispatch' ||
-       github.event_name == 'merge_group' ||
-       (github.event_name == 'pull_request' && github.event.pull_request.draft == false))
+       github.event_name == 'merge_group')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -846,8 +841,7 @@ jobs:
       ) &&
       (
         github.event_name == 'workflow_dispatch' ||
-        github.event_name == 'merge_group' ||
-        (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+        github.event_name == 'merge_group'
       )
     runs-on: ubuntu-latest
 
