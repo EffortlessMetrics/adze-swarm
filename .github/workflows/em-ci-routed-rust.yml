@@ -3,6 +3,12 @@ name: EM CI Routed Rust
 on:
   workflow_dispatch:
   merge_group:
+  # Ready (non-draft) PRs run the cheap admission job only: formatting
+  # plus routing/detection so the required contexts report real signal
+  # and the entry stays queueable. Full qualification runs once per
+  # merge-queue entry. Drafts run nothing and cannot queue.
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: em-ci-routed-rust-${{ github.repository }}-${{ github.ref }}
@@ -18,7 +24,8 @@ jobs:
     timeout-minutes: 5
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'merge_group'
+      github.event_name == 'merge_group' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
     outputs:
       rust_needed: ${{ steps.detect.outputs.rust_needed }}
       reason: ${{ steps.detect.outputs.reason }}
@@ -49,7 +56,8 @@ jobs:
       needs.detect-rust-paths.outputs.rust_needed == 'true' &&
       (
         github.event_name == 'workflow_dispatch' ||
-        github.event_name == 'merge_group'
+        github.event_name == 'merge_group' ||
+        (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
       )
 
     outputs:
@@ -76,13 +84,24 @@ jobs:
           # Merge-queue entries qualify on GitHub-hosted runners without
           # consulting self-hosted capacity: the fleet is decommissioned,
           # so probing it only burns queue minutes. workflow_dispatch
-          # keeps the capacity probe below for manual runs.
+          # keeps the capacity probe below for manual runs. Ready PRs
+          # select the pseudo-target `pr`: no lane runs on PR events, the
+          # pr-admission job owns the PR signal instead.
           if [ "$EVENT_NAME" = "merge_group" ]; then
             echo "router_target=github"
             echo "router_error=false"
             echo "router_reason=merge_group_github_hosted"
             echo "target=github" >> "$GITHUB_OUTPUT"
             echo "target_reason=merge_group_github_hosted" >> "$GITHUB_OUTPUT"
+            echo "fallback_allowed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "router_target=pr"
+            echo "router_error=false"
+            echo "router_reason=pull_request_admission_only"
+            echo "target=pr" >> "$GITHUB_OUTPUT"
+            echo "target_reason=pull_request_admission_only" >> "$GITHUB_OUTPUT"
             echo "fallback_allowed=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -427,6 +446,27 @@ jobs:
             echo "target_reason=${reason}" >> "$GITHUB_OUTPUT"
             echo "fallback_allowed=${fallback_allowed}" >> "$GITHUB_OUTPUT"
           fi
+
+  pr-admission:
+    name: PR Admission (fmt)
+    needs: route-rust-small
+    # Cheap real signal on ready PRs only: formatting must be clean for
+    # the entry to stay queueable. Drafts run nothing. Full proof runs
+    # once per merge-queue entry, never here.
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 1
+      - name: Install Rust fmt
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
   rust-small-cpx42:
     name: Rust Small on CPX42
@@ -820,6 +860,7 @@ jobs:
     needs:
       - detect-rust-paths
       - route-rust-small
+      - pr-admission
       - rust-small-cpx42
       - rust-small-cx43
       - rust-small-cx33
@@ -828,7 +869,9 @@ jobs:
       - supported-proof
     if: >-
       always() &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
       needs.route-rust-small.result != 'cancelled' &&
+      needs.pr-admission.result != 'cancelled' &&
       needs.rust-small-cpx42.result != 'cancelled' &&
       needs.rust-small-cx43.result != 'cancelled' &&
       needs.rust-small-cx33.result != 'cancelled' &&
@@ -841,7 +884,8 @@ jobs:
       ) &&
       (
         github.event_name == 'workflow_dispatch' ||
-        github.event_name == 'merge_group'
+        github.event_name == 'merge_group' ||
+        (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
       )
     runs-on: ubuntu-latest
 
@@ -849,6 +893,18 @@ jobs:
       - name: Check selected lane
         run: |
           set -euo pipefail
+
+          # Two-tier meaning, stated explicitly: on pull_request this
+          # check is the cheap admission signal (formatting clean), and
+          # full qualification happens once per merge-queue entry. On
+          # merge_group and workflow_dispatch it verifies the selected
+          # lane plus the supported proof.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "mode=pull-request-admission"
+            test "${{ needs.pr-admission.result }}" = "success"
+            exit 0
+          fi
+          echo "mode=full-qualification"
 
           target="${{ needs.route-rust-small.outputs.target }}"
           cpx42="${{ needs.rust-small-cpx42.result }}"
