@@ -30,7 +30,7 @@ concurrency:
 jobs:
   plan:
     name: PR Plan
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
       docs_only: ${{ steps.classify.outputs.docs_only }}
@@ -41,7 +41,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
-      - name: Verify self-hosted planning tools
+      - name: Verify planning tools
         run: |
           set -euo pipefail
           command -v cargo
