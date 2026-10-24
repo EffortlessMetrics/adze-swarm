@@ -189,8 +189,8 @@ fn fallible_transform_arithmetic_overflow_is_not_silently_zero() {
 fn with_try_leaf_invalid_present_node_bytes_fail_without_calling_converter() {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use adze::{Extract, WithTryLeaf};
     use adze::errors::ParseErrorReason;
+    use adze::{Extract, WithTryLeaf};
 
     // Node spans bytes 1..3, which hold 0xFF bytes that are never valid
     // UTF-8, so there is no decodable leaf text for a present node.
