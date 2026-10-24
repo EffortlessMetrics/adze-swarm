@@ -880,7 +880,8 @@ jobs:
       needs.supported-proof.result != 'cancelled' &&
       (
         needs.detect-rust-paths.outputs.rust_needed == 'false' ||
-        needs.supported-proof.result == 'success'
+        needs.supported-proof.result == 'success' ||
+        (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
       ) &&
       (
         github.event_name == 'workflow_dispatch' ||
