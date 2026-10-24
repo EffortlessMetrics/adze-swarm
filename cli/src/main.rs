@@ -29,7 +29,7 @@ pub(crate) struct Cli {
 pub(crate) enum Commands {
     /// Initialize a new adze grammar project
     Init {
-        /// Name of the grammar
+        /// Name of the grammar (single directory name; existing non-empty directories are refused until #997)
         name: String,
         /// Output directory (defaults to current directory)
         #[arg(short, long)]
@@ -38,7 +38,7 @@ pub(crate) enum Commands {
 
     /// Build grammar parsers
     Build {
-        /// Path to the grammar file or directory
+        /// Path to the grammar file or directory (directory scan matches *grammar*.rs, e.g. src/grammar.rs)
         #[arg(default_value = ".")]
         path: PathBuf,
         /// Watch for changes and rebuild automatically
@@ -52,10 +52,10 @@ pub(crate) enum Commands {
         grammar: PathBuf,
         /// Input file to parse
         input: PathBuf,
-        /// Output format
+        /// Output format (alias --output). One of: tree (default), json, sexp, dot, document-json, tree-json, diagnostics-json, ambiguity-json. Note: json prints the full document envelope.
         #[arg(short, long, visible_alias = "output", default_value = "tree")]
         format: OutputFormat,
-        /// Use dynamic loader to load compiled grammar from shared library (experimental; requires --features dynamic)
+        /// Use dynamic loader to load compiled grammar from shared library (experimental load-check only; parse output not implemented, requires --features dynamic)
         #[arg(long)]
         dynamic: bool,
         /// Optional exported symbol (default: "language")
@@ -65,10 +65,10 @@ pub(crate) enum Commands {
 
     /// Test grammar against test files
     Test {
-        /// Path to grammar directory
+        /// Path to grammar directory (currently informational; run from the project directory for cargo context, see #1073)
         #[arg(default_value = ".")]
         path: PathBuf,
-        /// Update test snapshots
+        /// Update test snapshots (sets INSTA_UPDATE=always for the cargo test run)
         #[arg(short, long)]
         update: bool,
     },
@@ -537,7 +537,10 @@ fn build_grammar(path: &Path) -> Result<()> {
             .collect();
 
         if grammar_files.is_empty() {
-            anyhow::bail!("No grammar files found in {}", path.display());
+            anyhow::bail!(
+                "No grammar files found in {} (expected a *grammar*.rs file, e.g. src/grammar.rs; or pass the file directly)",
+                path.display()
+            );
         }
 
         for entry in grammar_files {
@@ -770,22 +773,25 @@ fn run_static_parse_runner(grammar: &Path, input: &Path, output_format: &str) ->
         parse_runner_main_rs(&grammar, &module),
     )?;
 
-    let output = Command::new("cargo")
-        .arg("run")
-        .arg("--quiet")
-        .arg("--manifest-path")
-        .arg(runner.path().join("Cargo.toml"))
-        .arg("--")
-        .arg(&input)
-        .arg(output_format)
-        .env("ADZE_USE_PURE_RUST", "1")
-        .output()?;
+    let output = {
+        println!("compiling temporary parse runner (first run may take a while)...");
+        Command::new("cargo")
+            .arg("run")
+            .arg("--quiet")
+            .arg("--manifest-path")
+            .arg(runner.path().join("Cargo.toml"))
+            .arg("--")
+            .arg(&input)
+            .arg(output_format)
+            .env("ADZE_USE_PURE_RUST", "1")
+            .output()?
+    };
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
         anyhow::bail!(
-            "static document projection failed for {} with status {}\nstdout:\n{}\nstderr:\n{}",
+            "static document projection failed for {} with status {}\nstdout:\n{}\nstderr:\n{}\nHint: retry with --format diagnostics-json for structured diagnostics.",
             grammar.display(),
             output.status,
             stdout.trim_end(),

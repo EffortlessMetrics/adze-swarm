@@ -1,3 +1,9 @@
+//! Compiled grammar examples for docs and cookbook recipes.
+//!
+//! Support-tier note: these examples demonstrate Stable typed parsing; list and
+//! word-grammar repetition surfaces remain as documented in
+//! `docs/product/GENERATED_GRAMMAR_FEATURE_MATRIX.md` and
+//! `docs/status/SUPPORT_TIERS.md`. Do not broaden claims without a proof row.
 // Ensure only one backend is enabled
 #[cfg(all(feature = "pure-rust", feature = "c-backend"))]
 compile_error!("Enable exactly one backend: 'pure-rust' OR 'c-backend'.");

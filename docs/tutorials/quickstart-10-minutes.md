@@ -69,8 +69,12 @@ pub mod grammar {
 Then parse into those types:
 
 ```rust
-let expr = calc::grammar::parse("1 + 2 * 3")?;
+let expr = calc::grammar::parse("1 + 2 * 3").expect("valid input parses");
 ```
+
+> Shape note: this page uses `i32` + `try_transform` for typed values. For the
+> no-transform `String`-leaf shape, see `getting-started.md`. Use the typed
+> shape when the app wants Rust values.
 
 For the generated starter, that expression parses as:
 
@@ -93,7 +97,7 @@ assert_eq!(first.byte_span(), 4..5);
 For tooling or editor integration, use the document path:
 
 ```rust
-let document = calc::grammar::parse_document("1 +")?;
+let document = calc::grammar::parse_document("1 +").expect("document parses recoverably");
 assert!(document.tree().has_errors());
 assert!(!document.diagnostics().is_empty());
 ```
