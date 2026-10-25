@@ -217,7 +217,8 @@ jobs:
             [[ "${{ needs.pr-canary-plan.result }}" == "success" ]] || exit 1
             exit 0
           fi
-          echo "mode=full-qualification"          detect_result="${{ needs.detect-stable-product-paths.result }}"
+          echo "mode=full-qualification"
+          detect_result="${{ needs.detect-stable-product-paths.result }}"
           run_stable="${{ needs.detect-stable-product-paths.outputs.run_stable }}"
           reason="${{ needs.detect-stable-product-paths.outputs.reason }}"
           stable_result="${{ needs.ci-product-stable.result }}"
