@@ -51,8 +51,8 @@ fn leaf_transforms(attrs: &[Attribute]) -> Result<LeafTransforms> {
     })
 }
 
-fn field_has_try_transform(field: &Field) -> bool {
-    field.attrs.iter().any(|attr| {
+fn attrs_have_try_transform(attrs: &[Attribute]) -> bool {
+    attrs.iter().any(|attr| {
         attr.path() == &syn::parse_quote!(adze::leaf)
             && attr
                 .parse_args_with(Punctuated::<NameValueExpr, Token![,]>::parse_terminated)
@@ -60,13 +60,20 @@ fn field_has_try_transform(field: &Field) -> bool {
     })
 }
 
+fn field_has_try_transform(field: &Field) -> bool {
+    attrs_have_try_transform(&field.attrs)
+}
+
 fn grammar_uses_try_transform(contents: &[Item]) -> bool {
     contents.iter().any(|item| match item {
-        Item::Enum(item_enum) => item_enum
-            .variants
-            .iter()
-            .any(|variant| variant.fields.iter().any(field_has_try_transform)),
-        Item::Struct(item_struct) => item_struct.fields.iter().any(field_has_try_transform),
+        Item::Enum(item_enum) => item_enum.variants.iter().any(|variant| {
+            attrs_have_try_transform(&variant.attrs)
+                || variant.fields.iter().any(field_has_try_transform)
+        }),
+        Item::Struct(item_struct) => {
+            attrs_have_try_transform(&item_struct.attrs)
+                || item_struct.fields.iter().any(field_has_try_transform)
+        }
         _ => false,
     })
 }

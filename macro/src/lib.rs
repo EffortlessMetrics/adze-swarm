@@ -389,6 +389,50 @@ mod tests {
     }
 
     #[test]
+    fn unit_struct_container_try_transform_selects_fallible_mode() -> Result<()> {
+        // Witness for #1085: a unit struct carrying container-level
+        // `#[adze::leaf(try_transform = ...)]` must select Fallible mode.
+        let expanded = expand_grammar(parse_quote! {
+            #[adze::grammar("test")]
+            mod grammar {
+                #[adze::language]
+                #[adze::leaf(pattern = r"\d+", try_transform = |v: &str| v.parse::<u32>())]
+                pub struct BigDigit;
+            }
+        })?
+        .to_token_stream()
+        .to_string();
+        assert!(
+            expanded.contains("try_extract"),
+            "container-level try_transform on a unit struct must select Fallible mode"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn unit_variant_container_try_transform_selects_fallible_mode() -> Result<()> {
+        // Witness for #1085: a unit variant carrying container-level
+        // `#[adze::leaf(try_transform = ...)]` must select Fallible mode.
+        let expanded = expand_grammar(parse_quote! {
+            #[adze::grammar("test")]
+            mod grammar {
+                #[adze::language]
+                pub enum Digit {
+                    #[adze::leaf(text = "9", try_transform = |v: &str| v.parse::<u32>())]
+                    Nine,
+                }
+            }
+        })?
+        .to_token_stream()
+        .to_string();
+        assert!(
+            expanded.contains("try_extract"),
+            "container-level try_transform on a unit variant must select Fallible mode"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn leaf_transform_and_try_transform_conflict_is_error() {
         let error = expand_grammar(parse_quote! {
             #[adze::grammar("test")]
