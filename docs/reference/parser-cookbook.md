@@ -84,7 +84,7 @@ Use `parse_document()` when building tools instead of only typed semantic
 values:
 
 ```rust
-let document = grammar::parse_document("1+2*3")?;
+let document = grammar::parse_document("1+2*3").expect("document parses recoverably");
 let root = grammar::syntax::source_file(&document)?;
 let ast: grammar::Expr = document.ast()?;
 ```
@@ -104,7 +104,7 @@ it must not be treated as a recovered parse.
 ```rust
 use adze::document::ParseOutcome;
 
-let clean = grammar::parse_document("1+2*3")?;
+let clean = grammar::parse_document("1+2*3").expect("document parses recoverably");
 assert_eq!(clean.outcome(), ParseOutcome::Complete);
 assert!(clean.diagnostics().is_empty());
 assert!(!clean.tree().has_errors());
@@ -119,7 +119,7 @@ assert_eq!(
 
 // "1 +" in the fielded grammar retains only a synthetic missing node, so
 // its outcome is Failed, not Recovered:
-let failed = grammar::parse_document("1 +")?;
+let failed = grammar::parse_document("1 +").expect("document parses recoverably");
 assert_eq!(failed.outcome(), ParseOutcome::Failed);
 assert!(!failed.diagnostics().is_empty());
 ```
@@ -135,7 +135,7 @@ Generic field edges and the typed AST describe the same fields, so tools can
 stay on the document instead of re-parsing:
 
 ```rust
-let document = grammar::parse_document("1+2")?;
+let document = grammar::parse_document("1+2").expect("document parses recoverably");
 let add = find_kind(document.tree().root(), "Expr_Add")?;
 let left = add.edge_by_field_name("left")?.child()?;
 assert_eq!(left.utf8_text().ok(), Some("1"));
@@ -163,7 +163,7 @@ Bad input should produce structured parse facts when the parser can still build
 a trustworthy document:
 
 ```rust
-let document = grammar::parse_document("1 +")?;
+let document = grammar::parse_document("1 +").expect("document parses recoverably");
 let diagnostic = &document.diagnostics()[0];
 assert_eq!(diagnostic.byte_span(), 3..3);
 ```
@@ -183,7 +183,7 @@ cargo run -p adze --features "pure-rust,glr,serialization" --example diagnostics
 Use GLR grammars when the language is genuinely ambiguous:
 
 ```rust
-let document = grammar::parse_document("1 + 2 + 3")?;
+let document = grammar::parse_document("1 + 2 + 3").expect("document parses recoverably");
 let ambiguities = document.ambiguities();
 ```
 
