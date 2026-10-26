@@ -180,6 +180,376 @@ fn test_cli_test_passing_target_from_failing_caller_reports_success() {
         .stdout(predicate::str::contains("All tests passed!"));
 }
 
+fn write_context_project(
+    dir: &std::path::Path,
+    package: &str,
+    marker: &str,
+    expected_marker: &str,
+) {
+    std::fs::create_dir_all(dir.join("src")).expect("create context project src");
+    std::fs::create_dir_all(dir.join(".cargo")).expect("create context project cargo config dir");
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"{package}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n"
+        ),
+    )
+    .expect("write context project manifest");
+    std::fs::write(
+        dir.join(".cargo/config.toml"),
+        format!("[env]\nADZE_AUDIT_CARGO_CONTEXT = {{ value = \"{marker}\", force = true }}\n"),
+    )
+    .expect("write context project cargo config");
+    std::fs::write(
+        dir.join("src/lib.rs"),
+        format!(
+            "#[test]\nfn selected_context() {{\n    assert_eq!(std::env::var(\"ADZE_AUDIT_CARGO_CONTEXT\").unwrap(), \"{expected_marker}\");\n}}\n"
+        ),
+    )
+    .expect("write context project lib");
+}
+
+fn write_snapshot_project(dir: &std::path::Path, package: &str) {
+    std::fs::create_dir_all(dir.join("src")).expect("create snapshot project src");
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"{package}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n\n[dev-dependencies]\ninsta = \"=1.48.0\"\n"
+        ),
+    )
+    .expect("write snapshot project manifest");
+    std::fs::write(
+        dir.join("src/lib.rs"),
+        "#[test]\nfn greeting_snapshot() {\n    insta::assert_snapshot!(\"hello adze\");\n}\n",
+    )
+    .expect("write snapshot project lib");
+}
+
+/// Accepted `*.snap` files under a fixture project, excluding build output.
+fn accepted_snapshots(project: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut snaps = Vec::new();
+    let mut stack = vec![project.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let entries = std::fs::read_dir(&dir).expect("read fixture project dir");
+        for entry in entries {
+            let path = entry.expect("read fixture dir entry").path();
+            if path.is_dir() {
+                if path.file_name().is_some_and(|name| name == "target") {
+                    continue;
+                }
+                stack.push(path);
+            } else if path.extension().is_some_and(|ext| ext == "snap") {
+                snaps.push(path);
+            }
+        }
+    }
+    snaps.sort();
+    snaps
+}
+
+#[test]
+fn test_cli_test_uses_target_cargo_config_not_caller() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let caller = temp.path().join("caller");
+    let target = temp.path().join("target");
+    write_context_project(&caller, "audit_caller", "caller", "caller");
+    write_context_project(&target, "audit_target", "target", "target");
+
+    // Control: a direct cargo invocation from each project directory passes
+    // against that directory's own configuration.
+    for dir in [&caller, &target] {
+        let status = Command::new("cargo")
+            .arg("test")
+            .arg("--quiet")
+            .current_dir(dir)
+            .status()
+            .expect("run direct cargo test control");
+        assert!(
+            status.success(),
+            "direct cargo test in {} should pass against its own config",
+            dir.display()
+        );
+    }
+
+    // The CLI must run the target's test under the target's configuration
+    // even when invoked from the caller's directory.
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.current_dir(&caller)
+        .arg("test")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("selected_context"))
+        .stdout(predicate::str::contains("All tests passed!"));
+}
+
+#[test]
+fn test_cli_test_relative_and_manifest_forms_keep_target_context() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let caller = temp.path().join("caller");
+    let target = temp.path().join("target");
+    write_context_project(&caller, "rel_caller", "caller", "caller");
+    write_context_project(&target, "rel_target", "target", "target");
+
+    // Relative inputs must resolve against the caller's working directory
+    // before the child adopts the target directory.
+    for input in ["../target", "../target/Cargo.toml"] {
+        let mut cmd = cargo_bin_cmd!("adze");
+        cmd.current_dir(&caller)
+            .arg("test")
+            .arg(input)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("All tests passed!"));
+    }
+
+    for input in [target.clone(), target.join("Cargo.toml")] {
+        let mut cmd = cargo_bin_cmd!("adze");
+        cmd.current_dir(&caller)
+            .arg("test")
+            .arg(&input)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("All tests passed!"));
+    }
+
+    // Default `.` still tests the project in the current directory.
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.current_dir(&target)
+        .arg("test")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("All tests passed!"));
+}
+
+#[test]
+fn test_cli_test_space_and_unicode_paths_keep_target_context() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let caller = temp.path().join("caller with space");
+    let target = temp.path().join("targét ünïcode");
+    write_context_project(&caller, "space_caller", "caller", "caller");
+    write_context_project(&target, "unicode_target", "target", "target");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.current_dir(&caller)
+        .arg("test")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("All tests passed!"));
+
+    let mut relative = cargo_bin_cmd!("adze");
+    relative
+        .current_dir(&caller)
+        .arg("test")
+        .arg("../targét ünïcode")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("All tests passed!"));
+}
+
+#[test]
+fn test_cli_test_nested_member_matches_direct_invocation() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let elsewhere = temp.path().join("elsewhere-caller");
+    let root = temp.path().join("ws-root");
+    let member = root.join("member-target");
+    let sibling = root.join("member-sibling");
+    for dir in [&elsewhere, &member, &sibling] {
+        std::fs::create_dir_all(dir.join("src")).expect("create workspace fixture src");
+    }
+    std::fs::create_dir_all(elsewhere.join(".cargo")).expect("create caller config dir");
+    std::fs::create_dir_all(root.join(".cargo")).expect("create workspace config dir");
+    std::fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"member-target\", \"member-sibling\"]\nresolver = \"2\"\n",
+    )
+    .expect("write workspace root manifest");
+    std::fs::write(
+        root.join(".cargo/config.toml"),
+        "[env]\nADZE_AUDIT_CARGO_CONTEXT = { value = \"ws-root\", force = true }\n",
+    )
+    .expect("write workspace cargo config");
+    std::fs::write(
+        elsewhere.join("Cargo.toml"),
+        "[package]\nname = \"ws_caller\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
+    )
+    .expect("write caller manifest");
+    std::fs::write(
+        elsewhere.join(".cargo/config.toml"),
+        "[env]\nADZE_AUDIT_CARGO_CONTEXT = { value = \"caller\", force = true }\n",
+    )
+    .expect("write caller cargo config");
+    std::fs::write(
+        elsewhere.join("src/lib.rs"),
+        "#[cfg(test)]\nmod tests {\n    #[test]\n    fn ws_caller_test() { assert_eq!(1 + 1, 2); }\n}\n",
+    )
+    .expect("write caller lib");
+    for (dir, package, test_name, body) in [
+        (
+            &member,
+            "member_target",
+            "member_target_test",
+            "assert_eq!(std::env::var(\"ADZE_AUDIT_CARGO_CONTEXT\").unwrap(), \"ws-root\");",
+        ),
+        (
+            &sibling,
+            "member_sibling",
+            "member_sibling_test",
+            "assert_eq!(1 + 1, 2);",
+        ),
+    ] {
+        std::fs::write(
+            dir.join("Cargo.toml"),
+            format!("[package]\nname = \"{package}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+        )
+        .expect("write member manifest");
+        std::fs::write(
+            dir.join("src/lib.rs"),
+            format!("#[test]\nfn {test_name}() {{ {body} }}\n"),
+        )
+        .expect("write member lib");
+    }
+
+    // Baseline: the direct cargo invocation from the member directory.
+    let direct = Command::new("cargo")
+        .arg("test")
+        .current_dir(&member)
+        .output()
+        .expect("run direct cargo test in member dir");
+    assert!(
+        direct.status.success(),
+        "direct cargo test in member dir should pass\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&direct.stdout),
+        String::from_utf8_lossy(&direct.stderr)
+    );
+    let direct_combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&direct.stdout),
+        String::from_utf8_lossy(&direct.stderr)
+    );
+    assert!(direct_combined.contains("member_target_test"));
+    let sibling_in_direct = direct_combined.contains("member_sibling_test");
+
+    // The CLI must agree with that baseline instead of inventing its own
+    // workspace scope or inheriting the caller's configuration.
+    let mut cmd = cargo_bin_cmd!("adze");
+    let output = cmd
+        .current_dir(&elsewhere)
+        .arg("test")
+        .arg(&member)
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let cli_combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        cli_combined.contains("member_target_test"),
+        "CLI should run the selected member's test: {cli_combined}"
+    );
+    assert_eq!(
+        cli_combined.contains("member_sibling_test"),
+        sibling_in_direct,
+        "CLI workspace scope must match the direct cargo invocation from the member dir"
+    );
+}
+
+#[test]
+fn test_cli_test_update_isolated_to_target_snapshots() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let caller = temp.path().join("caller");
+    let target = temp.path().join("target");
+    write_tiny_project(&caller, "snap_caller", "snap_caller_test", true);
+    write_snapshot_project(&target, "snap_target");
+
+    // Caller files that must remain byte-identical no matter what the target
+    // snapshot update does.
+    let caller_sentinel = caller.join("caller-sentinel.txt");
+    let caller_snapshot = caller.join("snapshots").join("caller__snap.snap");
+    std::fs::create_dir_all(caller_snapshot.parent().expect("snapshot parent"))
+        .expect("create caller snapshot dir");
+    std::fs::write(&caller_sentinel, "caller sentinel bytes\n").expect("write caller sentinel");
+    std::fs::write(&caller_snapshot, "caller snapshot bytes\n").expect("write caller snapshot");
+
+    // Shared target cache keeps the repeated fixture builds cheap; the
+    // offline flag keeps the tiny insta fixture on the local registry cache.
+    let cache = temp.path().join("target-cache");
+    let cli = |update: bool| {
+        let mut cmd = cargo_bin_cmd!("adze");
+        cmd.current_dir(&caller)
+            .env("CARGO_NET_OFFLINE", "true")
+            .env("CARGO_TARGET_DIR", &cache)
+            .arg("test")
+            .arg(&target);
+        if update {
+            cmd.arg("--update");
+        }
+        cmd
+    };
+
+    // A fresh snapshot fixture fails the normal check without accepting anything.
+    cli(false)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("greeting_snapshot"));
+    assert!(
+        accepted_snapshots(&target).is_empty(),
+        "normal check must not accept target snapshots"
+    );
+
+    // An INSTA_UPDATE value inherited from the parent environment must not
+    // turn a normal check into a snapshot update.
+    cli(false)
+        .env("INSTA_UPDATE", "always")
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("greeting_snapshot"));
+    assert!(
+        accepted_snapshots(&target).is_empty(),
+        "normal check must not inherit INSTA_UPDATE=always from an earlier call"
+    );
+
+    // --update accepts the target snapshot and passes.
+    cli(true)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("All tests passed!"));
+    let snaps = accepted_snapshots(&target);
+    assert_eq!(
+        snaps.len(),
+        1,
+        "snapshot update should accept exactly the target snapshot: {snaps:?}"
+    );
+    assert!(
+        std::fs::read_to_string(&snaps[0])
+            .expect("read accepted snapshot")
+            .contains("hello adze"),
+        "accepted snapshot should hold the fixture value"
+    );
+
+    // Only the intended target snapshot changed.
+    assert_eq!(
+        std::fs::read_to_string(&caller_sentinel).expect("read caller sentinel"),
+        "caller sentinel bytes\n",
+        "snapshot update must leave caller files byte-identical"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&caller_snapshot).expect("read caller snapshot"),
+        "caller snapshot bytes\n",
+        "snapshot update must leave caller snapshots byte-identical"
+    );
+
+    // The accepted snapshot is stable under a later normal check.
+    cli(false)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("All tests passed!"));
+}
+
 #[test]
 fn test_cli_test_missing_or_nonproject_path_fails_before_cargo() {
     let temp = tempfile::tempdir().expect("tempdir");

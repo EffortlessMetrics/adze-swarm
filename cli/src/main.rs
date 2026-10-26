@@ -65,7 +65,7 @@ pub(crate) enum Commands {
 
     /// Test grammar against test files
     Test {
-        /// Path to grammar directory (currently informational; run from the project directory for cargo context, see #1073)
+        /// Path to the grammar project directory or its Cargo.toml (defaults to the current directory)
         #[arg(default_value = ".")]
         path: PathBuf,
         /// Update test snapshots (sets INSTA_UPDATE=always for the cargo test run)
@@ -1351,17 +1351,42 @@ fn test_grammar(path: &Path, update: bool) -> Result<()> {
         println!("  {} Updating snapshots", "📸".yellow());
     }
 
+    // Resolve the caller-supplied path against the caller's working directory
+    // BEFORE the child adopts the target directory, so relative inputs keep
+    // referring to the selected project.
+    let requested = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()?.join(path)
+    };
+
     // Resolve and validate the requested project before spawning Cargo so a
     // passing caller directory can never mask the target project's result.
-    let manifest_path = resolve_project_manifest(path)?;
+    let manifest_path = resolve_project_manifest(&requested)?;
+    let project_dir = manifest_path.parent().map(Path::to_path_buf);
+    let Some(project_dir) = project_dir else {
+        anyhow::bail!(
+            "test path {} does not resolve to a project directory",
+            path.display()
+        );
+    };
 
-    // Run cargo test for the requested project only.
+    // Run cargo test for the requested project only, with the child working
+    // directory set to that project so its own .cargo/config.toml,
+    // toolchain, and workspace context apply instead of the caller's. The
+    // manifest argument is absolute, so it stays correct from that cwd.
     let mut cmd = std::process::Command::new("cargo");
     cmd.arg("test");
     cmd.arg("--manifest-path");
     cmd.arg(&manifest_path);
+    cmd.current_dir(&project_dir);
     if update {
+        // Scope the snapshot update to this child invocation only.
         cmd.env("INSTA_UPDATE", "always");
+    } else {
+        // Never let an INSTA_UPDATE value inherited from the parent
+        // environment turn a normal check into a snapshot update.
+        cmd.env_remove("INSTA_UPDATE");
     }
 
     let status = cmd.status()?;
