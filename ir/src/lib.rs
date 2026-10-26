@@ -704,14 +704,20 @@ impl Grammar {
         }
     }
 
-    /// Upper bound on helpers normalization will allocate: one per
-    /// `Optional`/`Repeat`/`RepeatOne`/`Choice` node in the current rules.
+    /// Exact helper-symbol demand normalization will allocate: one per
+    /// `Optional`/`Repeat`/`Choice` node, while a `RepeatOne` node needs
+    /// one helper plus its inner demand twice, because the rewrite copies
+    /// the inner symbol into both the recursive and the base helper rule
+    /// and each copy expands on a later pass (#1059).
     fn count_complex_symbols(symbols: &[Symbol]) -> usize {
         symbols
             .iter()
             .map(|symbol| match symbol {
-                Symbol::Optional(inner) | Symbol::Repeat(inner) | Symbol::RepeatOne(inner) => {
+                Symbol::Optional(inner) | Symbol::Repeat(inner) => {
                     1 + Self::count_complex_symbols(std::slice::from_ref(&**inner))
+                }
+                Symbol::RepeatOne(inner) => {
+                    1 + 2 * Self::count_complex_symbols(std::slice::from_ref(&**inner))
                 }
                 Symbol::Choice(choices) | Symbol::Sequence(choices) => {
                     Self::count_complex_symbols(choices)
@@ -769,6 +775,10 @@ impl Grammar {
     /// grammar when fewer free production slots remain than helper rules
     /// require. A grammar that needs no helper rules succeeds even when
     /// the production maximum is already saturated.
+    ///
+    /// Normalization is atomic: every fallible exit leaves the grammar
+    /// unchanged, including a late allocation failure after nested
+    /// rewrites duplicated demand across helper rules (#1059).
     pub fn try_normalize(&mut self) -> Result<Vec<Rule>, GrammarError> {
         let mut occupied = self.occupied_symbol_ids();
         let helpers_needed: usize = self
@@ -869,6 +879,36 @@ impl Grammar {
             Ok(id)
         };
 
+        // Stage the multi-pass expansion transactionally (#1059): each
+        // pass clears and rebuilds the rule map, so an allocation failure
+        // after the first pass must restore the pre-call rules instead of
+        // leaking partial helpers. The preflight above is exact, so this
+        // restore is unreachable on current demand accounting; it guards
+        // against future accounting drift.
+        let saved_rules = self.rules.clone();
+        if let Err(error) =
+            self.expand_complex_symbols(&mut occupied, &mut next_aux, &mut fresh_production_id)
+        {
+            self.rules = saved_rules;
+            return Err(error);
+        }
+
+        // Return all rules for compatibility (though caller probably doesn't need this)
+        self.refresh_production_ids();
+        Ok(self.rules.values().flatten().cloned().collect())
+    }
+
+    /// Expand complex symbols pass by pass, rebuilding the rule map until
+    /// none remain. Only `rules` is mutated here; maps, fields, aliases
+    /// and start identity are untouched. The caller snapshots `rules` and
+    /// restores them when this returns an error, so a late allocation
+    /// failure stays atomic (#1059).
+    fn expand_complex_symbols(
+        &mut self,
+        occupied: &mut [bool],
+        next_aux: &mut impl FnMut(&mut [bool]) -> Result<SymbolId, GrammarError>,
+        fresh_production_id: &mut impl FnMut() -> Result<ProductionId, GrammarError>,
+    ) -> Result<(), GrammarError> {
         // We need to keep processing until no complex symbols remain
         loop {
             let mut found_complex = false;
@@ -899,7 +939,7 @@ impl Grammar {
                         Symbol::Optional(inner) => {
                             found_complex = true;
                             // Create aux rule: aux -> inner | ε
-                            let aux_id = next_aux(&mut occupied)?;
+                            let aux_id = next_aux(occupied)?;
 
                             // aux -> inner (recursively normalize the inner symbol)
                             let inner_rule = Rule {
@@ -927,7 +967,7 @@ impl Grammar {
                         Symbol::Repeat(inner) => {
                             found_complex = true;
                             // Create aux rule: aux -> aux inner | ε
-                            let aux_id = next_aux(&mut occupied)?;
+                            let aux_id = next_aux(occupied)?;
 
                             // aux -> aux inner (recursively normalize)
                             self.add_rule(Rule {
@@ -954,7 +994,7 @@ impl Grammar {
                         Symbol::RepeatOne(inner) => {
                             found_complex = true;
                             // Create aux rule: aux -> aux inner | inner
-                            let aux_id = next_aux(&mut occupied)?;
+                            let aux_id = next_aux(occupied)?;
 
                             // aux -> aux inner
                             self.add_rule(Rule {
@@ -981,7 +1021,7 @@ impl Grammar {
                         Symbol::Choice(choices) => {
                             found_complex = true;
                             // Create aux rules: aux -> choice1 | choice2 | ...
-                            let aux_id = next_aux(&mut occupied)?;
+                            let aux_id = next_aux(occupied)?;
 
                             for choice in choices {
                                 self.add_rule(Rule {
@@ -1035,10 +1075,7 @@ impl Grammar {
                 break;
             }
         }
-
-        // Return all rules for compatibility (though caller probably doesn't need this)
-        self.refresh_production_ids();
-        Ok(self.rules.values().flatten().cloned().collect())
+        Ok(())
     }
 
     /// Normalize complex symbols by creating auxiliary rules.
