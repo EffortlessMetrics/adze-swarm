@@ -2,7 +2,9 @@
 //! occupied `SymbolId` domain, never colliding with tokens, externals,
 //! metadata references, or the reserved EOF id `SymbolId(0)`.
 
-use adze_ir::{ExternalToken, Grammar, ProductionId, Rule, Symbol, SymbolId, Token, TokenPattern};
+use adze_ir::{
+    ExternalToken, Grammar, GrammarError, ProductionId, Rule, Symbol, SymbolId, Token, TokenPattern,
+};
 
 fn token(name: &str) -> Token {
     Token {
@@ -229,5 +231,39 @@ fn normalize_never_creates_a_collision_for_preexisting_dual_use_grammar() {
     assert!(
         !grammar.tokens.contains_key(&SymbolId(6)) || !helper_ids.contains(&SymbolId(6)),
         "no helper may land on a token ID"
+    );
+}
+
+#[test]
+fn try_normalize_nested_repeat_one_exhaustion_leaves_grammar_unchanged() {
+    // #1059: `S -> RepeatOne(Optional(Terminal(a)))` needs three helpers
+    // (one for the `RepeatOne` plus one `Optional` copy in each of its two
+    // helper rules), while the preflight counts one helper per complex
+    // node and admits the packet with exactly two free IDs. The late
+    // allocation failure must be the typed error and must leave the
+    // pre-call grammar — including the original start rule — unchanged.
+    let mut grammar = Grammar::new("nested_repeat_one_atomic".to_string());
+    for id in 1..=65533u16 {
+        grammar.tokens.insert(SymbolId(id), token("a"));
+    }
+    grammar.start_symbol = Some(SymbolId(1));
+    grammar.add_rule(rule(
+        1,
+        vec![Symbol::RepeatOne(Box::new(Symbol::Optional(Box::new(
+            Symbol::Terminal(SymbolId(2)),
+        ))))],
+    ));
+    let before = grammar.clone();
+
+    let error = grammar
+        .try_normalize()
+        .expect_err("two free IDs cannot supply three nested helpers");
+    assert!(
+        matches!(error, GrammarError::SymbolSpaceExhausted),
+        "unexpected error: {error:?}"
+    );
+    assert_eq!(
+        grammar, before,
+        "a fallible normalization exit must not partially rewrite the grammar"
     );
 }
