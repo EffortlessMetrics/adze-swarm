@@ -616,11 +616,17 @@ impl<L> Extract<L> for WithTryLeaf<L> {
         leaf_fn: Option<&Self::LeafFn>,
     ) -> Result<L, crate::errors::ParseError> {
         let (text, start, end) = match node {
-            Some(node) => (
-                node.utf8_text(source).unwrap_or_default(),
-                node.start_byte(),
-                node.end_byte(),
-            ),
+            Some(node) => {
+                let start = node.start_byte();
+                let end = node.end_byte();
+                // A present node with undecodable leaf text must fail here:
+                // substituting "" would let an empty-accepting converter
+                // report success for bytes that are not valid UTF-8.
+                let text = node.utf8_text(source).map_err(|_| {
+                    conversion_error("leaf token text is not valid UTF-8".to_string(), start, end)
+                })?;
+                (text, start, end)
+            }
             None => ("", last_idx, last_idx),
         };
         match leaf_fn {
@@ -643,11 +649,18 @@ impl<L> Extract<L> for WithTryLeaf<L> {
         let (text, start, end) = match node {
             Some(node) => {
                 let (start, end) = pure_node_leaf_span(node);
-                (
-                    pure_node_leaf_text(node, source).unwrap_or_default(),
-                    start,
-                    end,
-                )
+                // A present node with undecodable leaf text must fail here:
+                // substituting "" would let an empty-accepting converter
+                // report success for bytes that are missing or not valid
+                // UTF-8.
+                let text = pure_node_leaf_text(node, source).ok_or_else(|| {
+                    conversion_error(
+                        "leaf token text is not valid UTF-8 or is out of source range".to_string(),
+                        start,
+                        end,
+                    )
+                })?;
+                (text, start, end)
             }
             None => ("", last_idx, last_idx),
         };
@@ -926,6 +939,83 @@ mod tests {
             &errors[0].reason,
             crate::errors::ParseErrorReason::MissingToken(kind) if kind == "unknown"
         ));
+    }
+
+    #[cfg(feature = "pure-rust")]
+    #[test]
+    fn with_try_leaf_invalid_present_node_text_fails_without_calling_converter() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        use crate::errors::ParseErrorReason;
+
+        // 0xFF is never valid UTF-8, so a present node spanning these
+        // bytes has no decodable leaf text.
+        let source = [0xFF, 0xFF];
+        let node = crate::pure_parser::ParsedNode {
+            symbol: 1,
+            children: vec![],
+            start_byte: 0,
+            end_byte: 2,
+            start_point: crate::pure_parser::Point { row: 0, column: 0 },
+            end_point: crate::pure_parser::Point { row: 0, column: 2 },
+            is_extra: false,
+            is_error: false,
+            is_missing: false,
+            is_named: true,
+            field_id: None,
+            language: None,
+        };
+
+        // 'static counter: WithTryLeaf::LeafFn is `dyn Fn...` ('static).
+        static CALLS: AtomicUsize = AtomicUsize::new(0);
+        CALLS.store(0, Ordering::SeqCst);
+        // Empty-accepting converter: returns success even for "". The old
+        // `.unwrap_or_default()` path masked undecodable bytes as "" and
+        // let this converter report success.
+        let leaf_fn = |_: &str| -> Result<String, String> {
+            CALLS.fetch_add(1, Ordering::SeqCst);
+            Ok(String::new())
+        };
+
+        let error = <WithTryLeaf<String> as Extract<String>>::try_extract(
+            Some(&node),
+            &source,
+            0,
+            Some(&leaf_fn),
+        )
+        .expect_err("invalid present-node text must be a structured failure");
+        assert_eq!(error.byte_span(), 0..2);
+        assert!(
+            matches!(error.reason, ParseErrorReason::ConversionFailed(_)),
+            "invalid leaf text must be ConversionFailed, got: {:?}",
+            error.reason
+        );
+        assert_eq!(
+            CALLS.load(Ordering::SeqCst),
+            0,
+            "converter must not be invoked for undecodable leaf text"
+        );
+    }
+
+    #[cfg(feature = "pure-rust")]
+    #[test]
+    fn with_try_leaf_absent_node_still_reaches_converter() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        // None (absent/epsilon) keeps its legitimate empty-text semantics:
+        // the converter is still invoked with "".
+        static CALLS: AtomicUsize = AtomicUsize::new(0);
+        CALLS.store(0, Ordering::SeqCst);
+        let leaf_fn = |text: &str| -> Result<String, String> {
+            CALLS.fetch_add(1, Ordering::SeqCst);
+            Ok(text.to_string())
+        };
+
+        let value =
+            <WithTryLeaf<String> as Extract<String>>::try_extract(None, b"", 7, Some(&leaf_fn))
+                .expect("absent node must still reach the converter");
+        assert_eq!(value, "");
+        assert_eq!(CALLS.load(Ordering::SeqCst), 1);
     }
 }
 
