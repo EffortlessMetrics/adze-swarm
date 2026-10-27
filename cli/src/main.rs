@@ -29,7 +29,7 @@ pub(crate) struct Cli {
 pub(crate) enum Commands {
     /// Initialize a new adze grammar project
     Init {
-        /// Name of the grammar (single directory name; existing non-empty directories are refused until #997)
+        /// Name of the grammar (single directory name; existing non-empty directories are refused)
         name: String,
         /// Output directory (defaults to current directory)
         #[arg(short, long)]
@@ -212,6 +212,99 @@ fn validate_init_name(name: &str) -> Result<()> {
     Ok(())
 }
 
+/// Preflight state of the init destination, recorded before generation.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum InitPreflight {
+    /// Nothing existed at the destination; the commit must not replace
+    /// anything that appears afterwards.
+    Absent,
+    /// An empty directory existed; only that still-empty directory may be
+    /// exchanged for the generated project.
+    EmptyDir,
+}
+
+/// Candidate staging path for an init generation attempt.
+///
+/// A matching directory name is not ownership: callers must claim the path
+/// exclusively and never delete a colliding preexisting path.
+fn staging_candidate(output_root: &Path, name: &str, pid: u32, attempt: u32) -> PathBuf {
+    if attempt == 0 {
+        output_root.join(format!(".adze-init-{name}-{pid}"))
+    } else {
+        output_root.join(format!(".adze-init-{name}-{pid}-{attempt}"))
+    }
+}
+
+/// Exclusively claim a fresh staging directory under the output root.
+///
+/// Uses `create_dir` (which fails when the path already exists) and advances
+/// to the next candidate on collision. A colliding path keeps its contents;
+/// it is never removed, on the theory that it may belong to a concurrent
+/// init or to unrelated user files.
+fn claim_staging_dir(output_root: &Path, name: &str, pid: u32) -> Result<PathBuf> {
+    for attempt in 0..100 {
+        let candidate = staging_candidate(output_root, name, pid, attempt);
+        match fs::create_dir(&candidate) {
+            Ok(()) => return Ok(candidate),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                anyhow::bail!(
+                    "could not create init staging directory {}: {error}",
+                    candidate.display()
+                );
+            }
+        }
+    }
+    anyhow::bail!("could not claim a fresh init staging directory after 100 attempts");
+}
+
+/// Move a fully generated staging tree into its final destination.
+///
+/// Commit rule: the destination must still be in its recorded preflight
+/// state, otherwise the generation is refused and the destination is left
+/// untouched. Only the owned staging tree is ever removed, and only on
+/// failure paths; the destination is never deleted or overwritten here.
+fn commit_staged_project(
+    staging_dir: &Path,
+    project_dir: &Path,
+    preflight: InitPreflight,
+) -> Result<()> {
+    let refuse = |reason: String| -> anyhow::Error {
+        let _ = fs::remove_dir_all(staging_dir);
+        anyhow::anyhow!(
+            "refusing to initialize into {}: {reason}; the existing files were left untouched",
+            project_dir.display()
+        )
+    };
+
+    match preflight {
+        InitPreflight::Absent => {
+            if project_dir.symlink_metadata().is_ok() {
+                return Err(refuse(
+                    "a conflicting path appeared while generating the new project".to_string(),
+                ));
+            }
+        }
+        InitPreflight::EmptyDir => {
+            // remove_dir only succeeds for an empty directory, so a
+            // destination that filled in during generation turns this into
+            // a refusal instead of a replacement.
+            if let Err(error) = fs::remove_dir(project_dir) {
+                return Err(refuse(format!(
+                    "the destination changed while generating the new project ({error})"
+                )));
+            }
+        }
+    }
+
+    if let Err(error) = fs::rename(staging_dir, project_dir) {
+        return Err(refuse(format!(
+            "could not move the new project into place ({error})"
+        )));
+    }
+    Ok(())
+}
+
 fn init_grammar(name: &str, output: Option<PathBuf>) -> Result<()> {
     // Validate everything before any filesystem effect so a refusal can
     // never truncate or partially rewrite an existing project.
@@ -222,20 +315,30 @@ fn init_grammar(name: &str, output: Option<PathBuf>) -> Result<()> {
     let output_root = dir.canonicalize()?;
     let project_dir = output_root.join(name);
 
-    if let Ok(metadata) = project_dir.symlink_metadata() {
-        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+    let preflight = match project_dir.symlink_metadata() {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => InitPreflight::Absent,
+        Err(error) => {
             anyhow::bail!(
-                "refusing to initialize into {}: path already exists and is not an empty directory",
+                "could not inspect init destination {}: {error}",
                 project_dir.display()
             );
         }
-        if fs::read_dir(&project_dir)?.next().is_some() {
-            anyhow::bail!(
-                "refusing to initialize into {}: directory is not empty; move or remove the existing files first",
-                project_dir.display()
-            );
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                anyhow::bail!(
+                    "refusing to initialize into {}: path already exists and is not an empty directory",
+                    project_dir.display()
+                );
+            }
+            if fs::read_dir(&project_dir)?.next().is_some() {
+                anyhow::bail!(
+                    "refusing to initialize into {}: directory is not empty; move or remove the existing files first",
+                    project_dir.display()
+                );
+            }
+            InitPreflight::EmptyDir
         }
-    }
+    };
 
     println!(
         "{} Creating new grammar project: {}",
@@ -243,25 +346,15 @@ fn init_grammar(name: &str, output: Option<PathBuf>) -> Result<()> {
         name.bright_blue()
     );
 
-    // Generate into a staging sibling and rename into place only on full
-    // success, so a mid-generation failure leaves no mixed project behind.
-    let staging_dir = output_root.join(format!(".adze-init-{name}-{}", std::process::id()));
-    if staging_dir.exists() {
-        fs::remove_dir_all(&staging_dir)?;
-    }
-    let staging_result = generate_project_files(name, &staging_dir);
-    if let Err(error) = staging_result {
+    // Generate into an exclusively claimed staging sibling and commit it
+    // into place only on full success, so a mid-generation failure leaves
+    // no mixed project behind and never touches a colliding path.
+    let staging_dir = claim_staging_dir(&output_root, name, std::process::id())?;
+    if let Err(error) = generate_project_files(name, &staging_dir) {
         let _ = fs::remove_dir_all(&staging_dir);
         return Err(error);
     }
-    if project_dir.exists() {
-        // Verified empty above; remove so the rename can land.
-        fs::remove_dir(&project_dir)?;
-    }
-    if let Err(error) = fs::rename(&staging_dir, &project_dir) {
-        let _ = fs::remove_dir_all(&staging_dir);
-        return Err(error.into());
-    }
+    commit_staged_project(&staging_dir, &project_dir, preflight)?;
 
     println!(
         "{} Project created at {}",
@@ -1483,6 +1576,126 @@ fn print_version() {
 #[cfg(test)]
 mod tests {
     use super::toml_basic_string_literal;
+
+    #[test]
+    fn claim_staging_dir_never_deletes_colliding_paths() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let pid = 424242;
+        // Collide the first two candidates: one directory holding a user
+        // sentinel, one plain file.
+        let first = super::staging_candidate(temp.path(), "calc", pid, 0);
+        std::fs::create_dir_all(&first).expect("pre-create colliding staging dir");
+        std::fs::write(first.join("user-sentinel.txt"), "do not delete")
+            .expect("write staging sentinel");
+        let second = super::staging_candidate(temp.path(), "calc", pid, 1);
+        std::fs::write(&second, "blocker file").expect("write staging blocker");
+
+        let claimed =
+            super::claim_staging_dir(temp.path(), "calc", pid).expect("claim staging dir");
+
+        assert_eq!(
+            claimed,
+            super::staging_candidate(temp.path(), "calc", pid, 2)
+        );
+        assert_eq!(
+            std::fs::read_to_string(first.join("user-sentinel.txt")).expect("read sentinel"),
+            "do not delete",
+            "claiming staging must preserve a colliding directory's contents"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&second).expect("read blocker"),
+            "blocker file",
+            "claiming staging must preserve a colliding file"
+        );
+    }
+
+    #[test]
+    fn commit_moves_staging_into_absent_or_empty_destination() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        for (index, preflight) in [super::InitPreflight::Absent, super::InitPreflight::EmptyDir]
+            .into_iter()
+            .enumerate()
+        {
+            let project = temp.path().join(format!("proj-{index}"));
+            let staging = temp.path().join(format!("staging-{index}"));
+            if preflight == super::InitPreflight::EmptyDir {
+                std::fs::create_dir_all(&project).expect("pre-create empty destination");
+            }
+            std::fs::create_dir_all(&staging).expect("create staging");
+            std::fs::write(staging.join("new.txt"), "generated").expect("write staged file");
+
+            super::commit_staged_project(&staging, &project, preflight)
+                .expect("commit should succeed");
+
+            assert_eq!(
+                std::fs::read_to_string(project.join("new.txt")).expect("read committed file"),
+                "generated"
+            );
+            assert!(
+                !staging.exists(),
+                "commit must move staging away, not copy it"
+            );
+        }
+    }
+
+    #[test]
+    fn commit_refuses_when_absent_target_appears_and_cleans_only_staging() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let project = temp.path().join("calc");
+        let staging = temp.path().join("staging");
+        std::fs::create_dir_all(&staging).expect("create staging");
+        std::fs::write(staging.join("new.txt"), "generated").expect("write staged file");
+        // A conflicting path appears after the Absent preflight.
+        std::fs::create_dir_all(&project).expect("rival creates destination");
+        std::fs::write(project.join("rival.txt"), "rival content").expect("write rival file");
+
+        let error = super::commit_staged_project(&staging, &project, super::InitPreflight::Absent)
+            .expect_err("commit must refuse a destination that appeared mid-generation");
+
+        assert!(
+            error.to_string().contains("left untouched"),
+            "refusal must say the destination was preserved: {error}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(project.join("rival.txt")).expect("read rival file"),
+            "rival content",
+            "refused commit must not touch the appeared destination"
+        );
+        assert!(
+            !staging.exists(),
+            "refused commit must still clean the owned staging tree"
+        );
+    }
+
+    #[test]
+    fn commit_refuses_when_empty_target_fills_and_cleans_only_staging() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let project = temp.path().join("calc");
+        let staging = temp.path().join("staging");
+        std::fs::create_dir_all(&project).expect("pre-create empty destination");
+        std::fs::create_dir_all(&staging).expect("create staging");
+        std::fs::write(staging.join("new.txt"), "generated").expect("write staged file");
+        // The verified-empty destination fills before the commit lands.
+        std::fs::write(project.join("late.txt"), "late content").expect("write late file");
+
+        let error =
+            super::commit_staged_project(&staging, &project, super::InitPreflight::EmptyDir)
+                .expect_err("commit must refuse a destination that filled mid-generation");
+
+        assert!(
+            error.to_string().contains("left untouched"),
+            "refusal must say the destination was preserved: {error}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(project.join("late.txt")).expect("read late file"),
+            "late content",
+            "refused commit must not touch the changed destination"
+        );
+        assert!(
+            !staging.exists(),
+            "refused commit must still clean the owned staging tree"
+        );
+    }
 
     #[test]
     fn toml_basic_string_literal_escapes_windows_paths() {
