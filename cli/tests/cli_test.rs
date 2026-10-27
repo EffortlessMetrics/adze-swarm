@@ -588,8 +588,22 @@ fn test_init_existing_project_refusal_preserves_user_files() {
     let project_dir = temp.path().join("calc");
     let manifest = project_dir.join("Cargo.toml");
     let grammar = project_dir.join("src/grammar.rs");
-    std::fs::write(&manifest, "sentinel manifest").expect("write manifest sentinel");
-    std::fs::write(&grammar, "sentinel grammar").expect("write grammar sentinel");
+    let lib = project_dir.join("src/lib.rs");
+    let build = project_dir.join("build.rs");
+    let tests = project_dir.join("tests/parse.rs");
+    let example = project_dir.join("examples/parse.rs");
+    let readme = project_dir.join("README.md");
+    for (path, marker) in [
+        (&manifest, "sentinel manifest"),
+        (&grammar, "sentinel grammar"),
+        (&lib, "sentinel lib"),
+        (&build, "sentinel build"),
+        (&tests, "sentinel tests"),
+        (&example, "sentinel example"),
+        (&readme, "sentinel readme"),
+    ] {
+        std::fs::write(path, marker).expect("write file sentinel");
+    }
 
     let mut rerun = cargo_bin_cmd!("adze");
     rerun
@@ -601,39 +615,155 @@ fn test_init_existing_project_refusal_preserves_user_files() {
         .failure()
         .stderr(predicate::str::contains("not empty"));
 
-    assert_eq!(
-        std::fs::read_to_string(&manifest).expect("read manifest"),
-        "sentinel manifest",
-        "refused rerun must not truncate the existing manifest"
-    );
-    assert_eq!(
-        std::fs::read_to_string(&grammar).expect("read grammar"),
-        "sentinel grammar",
-        "refused rerun must not truncate the existing grammar"
-    );
+    for (path, marker) in [
+        (&manifest, "sentinel manifest"),
+        (&grammar, "sentinel grammar"),
+        (&lib, "sentinel lib"),
+        (&build, "sentinel build"),
+        (&tests, "sentinel tests"),
+        (&example, "sentinel example"),
+        (&readme, "sentinel readme"),
+    ] {
+        assert_eq!(
+            std::fs::read_to_string(path).expect("read preserved file"),
+            marker,
+            "refused rerun must leave {} byte-identical",
+            path.display()
+        );
+    }
 }
 
 #[test]
 fn test_init_path_like_or_invalid_names_fail_without_effects() {
     let temp = tempfile::tempdir().expect("tempdir");
-    for name in ["../escaped", "a/b", "..", "9bad", "type", "bad name", ""] {
+    // Init through a child output directory so a path escape would land on
+    // a sibling of that child (temp/escaped), not inside it.
+    let output = temp.path().join("output");
+    std::fs::create_dir_all(&output).expect("create output child dir");
+    for name in [
+        "../escaped",
+        "a/b",
+        "a\\b",
+        "..",
+        ".",
+        "9bad",
+        "type",
+        "bad name",
+        "",
+        "/abs-path-probe",
+        "C:\\abs-path-probe",
+    ] {
         let mut cmd = cargo_bin_cmd!("adze");
         cmd.arg("init")
             .arg(name)
             .arg("--output")
-            .arg(temp.path())
+            .arg(&output)
             .assert()
             .failure();
     }
 
     assert!(
         !temp.path().join("escaped").exists(),
-        "escaped init must not create a project outside the output root"
+        "escaped init must not create a project as a sibling of the output root"
     );
-    let entries = std::fs::read_dir(temp.path())
+    assert!(
+        !output.join("escaped").exists(),
+        "escaped init must not create a project inside the output root either"
+    );
+    let entries = std::fs::read_dir(&output)
         .expect("read output root")
         .count();
     assert_eq!(entries, 0, "rejected names must leave no files behind");
+}
+
+#[cfg(unix)]
+#[test]
+fn test_init_symlinked_target_is_refused_without_effects() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let secret = temp.path().join("outside secret");
+    std::fs::create_dir_all(&secret).expect("create secret dir");
+    std::fs::write(secret.join("keep.txt"), "secret content").expect("write secret sentinel");
+    std::os::unix::fs::symlink(&secret, temp.path().join("calc")).expect("link target to secret");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("init")
+        .arg("calc")
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("not an empty directory"));
+
+    assert_eq!(
+        std::fs::read_to_string(secret.join("keep.txt")).expect("read secret sentinel"),
+        "secret content",
+        "refused init must not follow a symlinked target"
+    );
+    assert!(
+        std::fs::symlink_metadata(temp.path().join("calc"))
+            .expect("read target metadata")
+            .file_type()
+            .is_symlink(),
+        "refused init must leave the symlink itself in place"
+    );
+}
+
+#[test]
+fn test_init_unusable_output_root_fails_before_filesystem_effects() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let blocker = temp.path().join("blocker.txt");
+    std::fs::write(&blocker, "blocker").expect("write output blocker");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("init")
+        .arg("calc")
+        .arg("--output")
+        .arg(&blocker)
+        .assert()
+        .failure();
+
+    assert_eq!(
+        std::fs::read_to_string(&blocker).expect("read output blocker"),
+        "blocker",
+        "failed init must not disturb the blocking file"
+    );
+    assert!(
+        !temp.path().join("calc").exists(),
+        "failed init must not create a project directory"
+    );
+}
+
+#[test]
+fn test_init_leaves_no_staging_directories_behind() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    for name in ["calc", "other"] {
+        let mut cmd = cargo_bin_cmd!("adze");
+        cmd.arg("init")
+            .arg(name)
+            .arg("--output")
+            .arg(temp.path())
+            .assert()
+            .success();
+    }
+    // A refused rerun must not leave staging behind either.
+    let mut rerun = cargo_bin_cmd!("adze");
+    rerun
+        .arg("init")
+        .arg("calc")
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .failure();
+
+    let leftovers: Vec<_> = std::fs::read_dir(temp.path())
+        .expect("read output root")
+        .filter_map(|entry| entry.ok().map(|entry| entry.file_name()))
+        .filter(|name| name.to_string_lossy().starts_with(".adze-init-"))
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "init must never leave staging directories behind: {leftovers:?}"
+    );
 }
 
 #[test]
