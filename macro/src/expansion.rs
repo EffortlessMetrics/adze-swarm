@@ -78,16 +78,31 @@ fn grammar_uses_try_transform(contents: &[Item]) -> bool {
     })
 }
 
+/// Whether `path` is the `adze::WithLeaf<...>` wrapper introduced by
+/// `wrap_leaf_type`.
+///
+/// Only this adze-resolved wrapper may be rewritten to `adze::WithTryLeaf`
+/// for fallible extraction. A user type that merely shares the `WithLeaf`
+/// name (bare `WithLeaf`, `my_crate::WithLeaf`, ...) must keep resolving to
+/// the user's own type (issue #1086).
+fn is_adze_with_leaf(path: &syn::Path) -> bool {
+    path.segments.len() == 2
+        && path.segments[0].ident == "adze"
+        && path.segments[1].ident == "WithLeaf"
+}
+
 fn rename_with_leaf_to_try(ty: &mut Type) {
     match ty {
         Type::Path(type_path) => {
             if let Some(qself) = &mut type_path.qself {
                 rename_with_leaf_to_try(&mut qself.ty);
             }
+            if is_adze_with_leaf(&type_path.path)
+                && let Some(last) = type_path.path.segments.last_mut()
+            {
+                last.ident = Ident::new("WithTryLeaf", last.ident.span());
+            }
             for segment in &mut type_path.path.segments {
-                if segment.ident == "WithLeaf" {
-                    segment.ident = Ident::new("WithTryLeaf", segment.ident.span());
-                }
                 match &mut segment.arguments {
                     syn::PathArguments::AngleBracketed(arguments) => {
                         for argument in &mut arguments.args {
@@ -158,9 +173,20 @@ fn fallible_closure_expr(closure: Expr) -> Expr {
         }
         other => other,
     };
-    syn::parse_quote!(Some(&|__adze_text: &str| -> Result<_, String> {
-        let __adze_try_leaf = #closure;
-        __adze_try_leaf(__adze_text).map_err(|__adze_error| __adze_error.to_string())
+    // Bindings introduced by the macro use `mixed_site` spans, so user code
+    // at the call site can neither capture nor shadow them (and vice versa):
+    // user identifiers resolve as if the generated bindings were invisible,
+    // while the generated uses still resolve to the generated bindings,
+    // exactly like `macro_rules!` locals (issue #1086). Interpolating the
+    // `Ident`s preserves their spans; the surrounding tokens keep call-site
+    // spans, which is irrelevant for name resolution.
+    let hygiene = Span::mixed_site();
+    let text_ident = Ident::new("__adze_text", hygiene);
+    let leaf_ident = Ident::new("__adze_try_leaf", hygiene);
+    let error_ident = Ident::new("__adze_error", hygiene);
+    syn::parse_quote!(Some(&|#text_ident: &str| -> Result<_, String> {
+        let #leaf_ident = #closure;
+        #leaf_ident(#text_ident).map_err(|#error_ident| #error_ident.to_string())
     }))
 }
 
@@ -895,4 +921,158 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
         content: Some((brace, transformed)),
         semi: input.semi,
     })
+}
+
+#[cfg(test)]
+mod name_hygiene_1086_tests {
+    use super::*;
+
+    fn parse_ty(source: &str) -> Type {
+        syn::parse_str(source).expect("test type must parse")
+    }
+
+    /// Render through the same `TokenStream` display as the assertions, so
+    /// whitespace differences in the input never matter.
+    fn ty_string(ty: &Type) -> String {
+        ty.to_token_stream().to_string()
+    }
+
+    fn renamed(source: &str) -> String {
+        let mut ty = parse_ty(source);
+        rename_with_leaf_to_try(&mut ty);
+        ty_string(&ty)
+    }
+
+    fn assert_renamed_to(input: &str, expected: &str) {
+        assert_eq!(
+            renamed(input),
+            ty_string(&parse_ty(expected)),
+            "rename of `{input}`"
+        );
+    }
+
+    fn assert_renamed_unchanged(source: &str) {
+        assert_renamed_to(source, source);
+    }
+
+    #[test]
+    fn try_rename_rewrites_adze_resolved_with_leaf() {
+        assert_renamed_to("adze::WithLeaf<String>", "adze::WithTryLeaf<String>");
+        assert_renamed_to(
+            "Vec<adze::WithLeaf<String>>",
+            "Vec<adze::WithTryLeaf<String>>",
+        );
+        assert_renamed_to(
+            "adze::WithLeaf<adze::WithLeaf<String>>",
+            "adze::WithTryLeaf<adze::WithTryLeaf<String>>",
+        );
+        // Leading-colon spelling of the same adze wrapper is still adze's.
+        assert_renamed_to("::adze::WithLeaf<String>", "::adze::WithTryLeaf<String>");
+    }
+
+    #[test]
+    fn try_rename_leaves_user_with_leaf_types_untouched() {
+        // Bare user type sharing the name.
+        assert_renamed_unchanged("WithLeaf<String>");
+        // Qualified user types sharing the name.
+        assert_renamed_unchanged("my_crate::WithLeaf<String>");
+        assert_renamed_unchanged("crate::WithLeaf<String>");
+        // Nested inside other containers and compound types.
+        assert_renamed_unchanged("Option<WithLeaf<String>>");
+        assert_renamed_unchanged("Vec<my::WithLeaf<u32>>");
+        assert_renamed_unchanged("Result<WithLeaf<A>, WithLeaf<B>>");
+        assert_renamed_unchanged("fn(WithLeaf<String>) -> bool");
+        assert_renamed_unchanged("&[WithLeaf<u8>]");
+        // Mixed: only the adze-resolved wrapper is rewritten.
+        assert_renamed_to(
+            "Wrapper<adze::WithLeaf<A>, other::WithLeaf<B>>",
+            "Wrapper<adze::WithTryLeaf<A>, other::WithLeaf<B>>",
+        );
+    }
+
+    fn skip_over_for_fields() -> HashSet<&'static str> {
+        ["Spanned", "Box", "Option", "Vec"].into_iter().collect()
+    }
+
+    #[test]
+    fn wrap_try_leaf_type_scopes_rename_to_adze_wrapper() {
+        let skip_over = skip_over_for_fields();
+        let wrapped = |source: &str| ty_string(&wrap_try_leaf_type(&parse_ty(source), &skip_over));
+        let expected = |source: &str| ty_string(&parse_ty(source));
+
+        assert_eq!(
+            wrapped("my::WithLeaf<String>"),
+            expected("adze::WithTryLeaf<my::WithLeaf<String>>"),
+        );
+        assert_eq!(
+            wrapped("WithLeaf<String>"),
+            expected("adze::WithTryLeaf<WithLeaf<String>>"),
+        );
+        assert_eq!(
+            wrapped("Vec<String>"),
+            expected("Vec<adze::WithTryLeaf<String>>"),
+        );
+        assert_eq!(wrapped("String"), expected("adze::WithTryLeaf<String>"),);
+    }
+
+    #[test]
+    fn grammar_expansion_preserves_colliding_user_with_leaf() {
+        let expanded = expand_grammar(syn::parse_quote! {
+            #[adze::grammar("hygiene_test")]
+            mod grammar {
+                #[adze::language]
+                pub struct Root {
+                    #[adze::leaf(pattern = r"\d+", try_transform = |v: &str| v.parse::<i32>())]
+                    value: my_crate::WithLeaf<i32>,
+                }
+            }
+        })
+        .expect("grammar with user WithLeaf must expand");
+        let text = expanded.to_token_stream().to_string();
+        assert!(
+            text.contains("adze :: WithTryLeaf < my_crate :: WithLeaf"),
+            "fixed expansion wraps the user type instead of rewriting it: {text}"
+        );
+        assert!(
+            !text.contains("my_crate :: WithTryLeaf"),
+            "user path must survive the fallible rewrite: {text}"
+        );
+    }
+
+    #[test]
+    fn fallible_closure_keeps_stable_binding_names() {
+        let closure: Expr = syn::parse_quote!(|v| v.parse::<i32>());
+        let text = fallible_closure_expr(closure).to_token_stream().to_string();
+        for binding in ["__adze_text", "__adze_try_leaf", "__adze_error"] {
+            assert!(
+                text.contains(binding),
+                "generated wrapper must keep the `{binding}` binding name: {text}"
+            );
+        }
+    }
+
+    #[test]
+    fn fallible_closure_preserves_adversarial_user_bindings() {
+        // The user closure itself shadows every generated binding name; the
+        // macro must carry it through verbatim and still emit exactly one
+        // generated wrapper around it.
+        let closure: Expr = syn::parse_quote!(|__adze_text| __adze_text.parse::<i32>());
+        let text = fallible_closure_expr(closure).to_token_stream().to_string();
+        // Generated parameter plus generated call argument, plus the user's
+        // own parameter and body use.
+        let uses = text.matches("__adze_text").count();
+        assert_eq!(
+            uses, 4,
+            "user `__adze_text` must survive alongside the generated one: {text}"
+        );
+        assert_eq!(
+            text.matches("__adze_try_leaf").count(),
+            2,
+            "exactly one generated `let` binding and its use: {text}"
+        );
+        assert!(
+            text.contains("__adze_error"),
+            "generated error mapping must survive adversarial input: {text}"
+        );
+    }
 }
