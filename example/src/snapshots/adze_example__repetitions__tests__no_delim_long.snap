@@ -5,9 +5,45 @@ expression: "grammar2::parse(\"1 2 3 4 5\")"
 Ok(
     NumberList {
         numbers: Spanned {
-            value: [],
+            value: [
+                Spanned {
+                    value: 1,
+                    span: (
+                        0,
+                        1,
+                    ),
+                },
+                Spanned {
+                    value: 2,
+                    span: (
+                        2,
+                        3,
+                    ),
+                },
+                Spanned {
+                    value: 3,
+                    span: (
+                        4,
+                        5,
+                    ),
+                },
+                Spanned {
+                    value: 4,
+                    span: (
+                        6,
+                        7,
+                    ),
+                },
+                Spanned {
+                    value: 5,
+                    span: (
+                        8,
+                        9,
+                    ),
+                },
+            ],
             span: (
-                9,
+                0,
                 9,
             ),
         },

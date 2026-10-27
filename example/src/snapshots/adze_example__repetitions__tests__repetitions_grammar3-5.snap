@@ -6,38 +6,24 @@ Err(
     [
         ParseError {
             reason: UnexpectedToken(
-                "_7",
-            ),
-            start: 0,
-            end: 0,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                ",",
-            ),
-            start: 1,
-            end: 1,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                ",",
+                ",; expected one of: end, number",
             ),
             start: 2,
-            end: 2,
+            end: 3,
+            expected: [
+                "end",
+                "number",
+            ],
         },
         ParseError {
             reason: UnexpectedToken(
-                "_7",
-            ),
-            start: 4,
-            end: 4,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                ",",
+                ",; expected one of: end",
             ),
             start: 5,
-            end: 5,
+            end: 6,
+            expected: [
+                "end",
+            ],
         },
     ],
 )
