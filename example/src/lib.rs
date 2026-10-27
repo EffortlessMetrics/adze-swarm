@@ -22,6 +22,7 @@ pub mod fielded_typed_cst_contract;
 pub mod ini_file;
 pub mod json_like;
 pub mod lambda_calculus;
+pub mod native_failure_facts_1030;
 pub mod object_like_contract;
 pub mod optionals;
 pub mod performance_test;

@@ -930,14 +930,14 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
     {
         let grammar = crate::decoder::decode_grammar(language);
         // The streaming driver recovers or inserts missing tokens, so
-        // diagnostics derived from its trees or hard failures carry
+        // diagnostics derived from its hard failures carry
         // recovery-distorted positions and no multi-error split. For an
         // input this route already rejects, report the deterministic LR
         // diagnostics for the same rejection so typed callers see the
-        // same expected-token contract as the LR backend. Successful GLR
-        // parses never reach this cold path, and inputs the LR parser
-        // accepts keep the GLR diagnostics.
-        let lr_diagnostics = |input: &str| parse_with_pure_parser::<T>(input, || language).err();
+        // same expected-token contract as the LR backend. Selected-tree
+        // typed extraction errors below are returned directly: re-running
+        // extraction through the LR backend would double-invoke user
+        // converters and replace the native failure facts (#1030).
         let parsed = match crate::glr_streaming_runtime::parse_with_streaming_driver(
             input,
             language,
@@ -946,7 +946,7 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
         ) {
             Ok(parsed) => parsed,
             Err(error) => {
-                if let Some(lr_errors) = lr_diagnostics(input) {
+                if let Some(lr_errors) = parse_with_pure_parser::<T>(input, || language).err() {
                     return Err(lr_errors);
                 }
                 return Err(crate::glr_streaming_runtime::glr_error_to_parse_errors(
@@ -957,13 +957,7 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
 
         let source = input.as_bytes();
         let parsed_node = convert_subtree_to_pure(&parsed.root, language, source);
-        let result = finish_typed_extract_from_parsed_node(parsed_node, source);
-        if result.is_err()
-            && let Some(lr_errors) = lr_diagnostics(input)
-        {
-            return Err(lr_errors);
-        }
-        return result;
+        return finish_typed_extract_from_parsed_node(parsed_node, source);
     }
 
     if language.lex_fn.is_some() {
