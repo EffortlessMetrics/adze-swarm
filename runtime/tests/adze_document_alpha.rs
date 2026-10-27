@@ -732,3 +732,77 @@ fn parse_document_exposes_recovery_metadata_and_diagnostics() {
         document.tree().root().has_error()
     );
 }
+
+#[test]
+fn parse_document_flat_traversal_is_direct_and_symmetric() {
+    let lang = fielded_arithmetic_language();
+    let mut parser = CoreParser::new(lang.grammar.clone(), lang.table.clone(), lang.name.clone());
+
+    let source = "1-2";
+    let document = parser
+        .parse_document(source)
+        .expect("document parse should succeed");
+    let tree = document.tree();
+
+    assert_eq!(tree.validate_structure(), Ok(()));
+    for index in 0..tree.node_count() {
+        let node_id = NodeId::new(index);
+        let node = tree
+            .node(node_id)
+            .unwrap_or_else(|| panic!("flat id {index} should resolve without path replay"));
+        assert_eq!(node.node_id(), node_id);
+        assert_eq!(node.child_count(), node.record().edge_range().len());
+    }
+
+    let root = tree.root();
+    let expression = root.child(0).expect("root should expose expression child");
+    assert_eq!(expression.child_count(), 3);
+    let children: Vec<_> = (0..3)
+        .map(|index| {
+            expression
+                .child(index)
+                .unwrap_or_else(|| panic!("child {index} should resolve"))
+        })
+        .collect();
+    for (index, child) in children.iter().enumerate() {
+        assert_eq!(child.child_index(), Some(index));
+        assert_eq!(child.parent_id(), Some(expression.node_id()));
+        assert_eq!(
+            child
+                .parent()
+                .expect("child parent should resolve")
+                .node_id(),
+            expression.node_id()
+        );
+    }
+    assert!(children[0].prev_sibling().is_none());
+    assert_eq!(
+        children[0]
+            .next_sibling()
+            .expect("first child should have a next sibling")
+            .node_id(),
+        children[1].node_id()
+    );
+    assert_eq!(
+        children[1]
+            .prev_sibling()
+            .expect("middle child should have a previous sibling")
+            .node_id(),
+        children[0].node_id()
+    );
+    assert_eq!(
+        children[1]
+            .next_sibling()
+            .expect("middle child should have a next sibling")
+            .node_id(),
+        children[2].node_id()
+    );
+    assert_eq!(
+        children[2]
+            .prev_sibling()
+            .expect("last child should have a previous sibling")
+            .node_id(),
+        children[1].node_id()
+    );
+    assert!(children[2].next_sibling().is_none());
+}

@@ -377,7 +377,7 @@ impl AdzeDocument {
         T: crate::Extract<T>,
     {
         let language = self.typed_ast_language()?;
-        let Some(node) = self.node_by_id(node_id) else {
+        let Some(node) = self.parse_node_by_id(node_id) else {
             return Err(vec![crate::errors::ParseError {
                 reason: crate::errors::ParseErrorReason::UnexpectedToken(format!(
                     "typed AST extraction node {} does not exist in document",
@@ -405,7 +405,14 @@ impl AdzeDocument {
         &self.root
     }
 
-    fn node_by_id(&self, node_id: NodeId) -> Option<&ParseNode> {
+    /// Look up the recursive bridge node for a document-local id.
+    ///
+    /// This replays the recorded root-to-node child path through the retained
+    /// recursive `root` storage. It exists only as a compatibility bridge for
+    /// typed AST extraction until extraction also reads flat records. Native
+    /// traversal ([`AdzeTree::node`], [`AdzeNode`]) resolves ids directly from
+    /// [`SyntaxTree`] records and never calls this helper.
+    fn parse_node_by_id(&self, node_id: NodeId) -> Option<&ParseNode> {
         let index = self.node_index.get(node_id.as_usize())?;
         let mut node = &self.root;
 
@@ -471,10 +478,13 @@ impl AdzeDocument {
     }
 }
 
-/// Stable node identifier within one [`AdzeDocument`].
+/// Document-local node identifier within one [`AdzeDocument`].
 ///
-/// Node IDs are assigned in preorder over the selected parse tree. They are
-/// stable for the lifetime of a document but are not meaningful across parses.
+/// Node IDs are assigned in preorder over the selected parse tree and are
+/// stable for the lifetime of the owning document. They are not cross-parse
+/// identities: reparsing the same source may yield equal ids only by
+/// construction, never by guarantee. Do not persist, compare, or reuse ids
+/// across documents, and do not infer incremental node reuse from id equality.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct NodeId(usize);
 
@@ -529,6 +539,10 @@ impl SyntaxTree {
             parents: node_index.iter().map(|index| index.parent_id).collect(),
         };
         collect_edge_records(root, tree.root_id, node_index, language, &mut tree);
+        debug_assert!(
+            tree.validate().is_ok(),
+            "document SyntaxTree construction must produce symmetric node/edge/parent records"
+        );
         tree
     }
 
@@ -577,6 +591,97 @@ impl SyntaxTree {
         self.edges[parent.edge_range().as_range()]
             .iter()
             .find(|edge| edge.child_id == child_id)
+    }
+
+    /// Return the child node id for a parent id and child index.
+    pub fn child_id(&self, parent_id: NodeId, child_index: usize) -> Option<NodeId> {
+        self.child_edge_record(parent_id, child_index)
+            .map(|edge| edge.child_id)
+    }
+
+    /// Return the next sibling id in source order, if one exists.
+    pub fn next_sibling_id(&self, node_id: NodeId) -> Option<NodeId> {
+        let edge = self.parent_edge_record(node_id)?;
+        self.child_id(edge.parent_id, edge.child_index.checked_add(1)?)
+    }
+
+    /// Return the previous sibling id in source order, if one exists.
+    pub fn prev_sibling_id(&self, node_id: NodeId) -> Option<NodeId> {
+        let edge = self.parent_edge_record(node_id)?;
+        self.child_id(edge.parent_id, edge.child_index.checked_sub(1)?)
+    }
+
+    /// Validate flat node, edge, and parent records for structural symmetry.
+    ///
+    /// This checks that every edge points at a valid node record, every
+    /// parent edge range is contiguous and fully populated in child order,
+    /// every non-root node has a symmetric parent relation, and every node
+    /// except the root appears as a child exactly once. Construction runs
+    /// this in debug and test builds; consumers can call it on checked paths.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.parents.len() != self.nodes.len() {
+            return Err("parent table length must match node record length");
+        }
+        if self.node_record(self.root_id).is_none() {
+            return Err("root id must point at a node record");
+        }
+        if self.parent_id(self.root_id).is_some() {
+            return Err("root node must not have a parent");
+        }
+        let mut child_seen = vec![false; self.nodes.len()];
+        for (node_id, record) in self.nodes.iter().enumerate() {
+            let range = record.edge_range().as_range();
+            if range.end > self.edges.len() {
+                return Err("node edge range must stay within edge records");
+            }
+            for (offset, edge) in self.edges[range].iter().enumerate() {
+                if edge.parent_id.as_usize() != node_id || edge.child_index != offset {
+                    return Err("edge records must be contiguous per parent in child order");
+                }
+                if self.node_record(edge.child_id).is_none() {
+                    return Err("every edge must point at a valid node record");
+                }
+                if self
+                    .parents
+                    .get(edge.child_id.as_usize())
+                    .copied()
+                    .flatten()
+                    != Some(NodeId::new(node_id))
+                {
+                    return Err("every edge must agree with the child parent relation");
+                }
+                if child_seen[edge.child_id.as_usize()] {
+                    return Err("every non-root node must appear as a child exactly once");
+                }
+                child_seen[edge.child_id.as_usize()] = true;
+            }
+        }
+        for (node_id, parent) in self.parents.iter().enumerate() {
+            if node_id == self.root_id.as_usize() {
+                continue;
+            }
+            let Some(parent_id) = parent else {
+                return Err("every non-root node must have a parent");
+            };
+            if self.node_record(*parent_id).is_none() {
+                return Err("every parent id must point at a node record");
+            }
+            if self
+                .parent_edge_record(NodeId::new(node_id))
+                .map(|edge| edge.parent_id)
+                != Some(*parent_id)
+            {
+                return Err("every non-root parent relation must resolve a connecting edge");
+            }
+        }
+        if child_seen
+            .iter()
+            .enumerate()
+            .any(|(index, seen)| index != self.root_id.as_usize() && !seen)
+        {
+            return Err("every non-root node must appear as a child exactly once");
+        }
+        Ok(())
     }
 }
 
@@ -1128,6 +1233,15 @@ impl<'doc> AdzeTree<'doc> {
         self.document.syntax.edge_count()
     }
 
+    /// Validate flat node, edge, and parent records for structural symmetry.
+    ///
+    /// This is the consumer-facing checked path for [`SyntaxTree::validate`]:
+    /// every edge points at a valid node and every non-root parent relation
+    /// is symmetric.
+    pub fn validate_structure(&self) -> Result<(), &'static str> {
+        self.document.syntax.validate()
+    }
+
     /// Return the direct selected-tree record for a node id.
     pub fn node_record(&self, node_id: NodeId) -> Option<&'doc NodeRecord> {
         self.document.syntax.node_record(node_id)
@@ -1139,10 +1253,12 @@ impl<'doc> AdzeTree<'doc> {
     }
 
     /// Return a node by document-local id.
+    ///
+    /// This resolves directly from flat [`SyntaxTree`] records; it never
+    /// replays a root-to-node child path.
     pub fn node(&self, node_id: NodeId) -> Option<AdzeNode<'doc>> {
-        self.document.node_by_id(node_id).map(|node| AdzeNode {
+        self.document.syntax.node_record(node_id).map(|_| AdzeNode {
             document: self.document,
-            node,
             id: node_id,
         })
     }
@@ -1151,7 +1267,6 @@ impl<'doc> AdzeTree<'doc> {
     pub fn root(&self) -> AdzeNode<'doc> {
         AdzeNode {
             document: self.document,
-            node: &self.document.root,
             id: self.root_id(),
         }
     }
@@ -1168,10 +1283,13 @@ impl<'doc> AdzeTree<'doc> {
 }
 
 /// Borrowed generic CST node view.
+///
+/// This is a cheap handle over flat [`SyntaxTree`] records: every accessor
+/// below resolves through the owning document's node and edge tables, never
+/// through recursive tree storage.
 #[derive(Clone, Copy, Debug)]
 pub struct AdzeNode<'doc> {
     document: &'doc AdzeDocument,
-    node: &'doc ParseNode,
     id: NodeId,
 }
 
@@ -1318,8 +1436,11 @@ impl<'doc> AdzeNode<'doc> {
     }
 
     /// Return the number of direct children.
+    ///
+    /// This reads the node's contiguous flat edge range; it never touches
+    /// recursive tree storage.
     pub fn child_count(&self) -> usize {
-        self.node.children.len()
+        self.record().edge_range().len()
     }
 
     /// Return a child by index.
@@ -1328,8 +1449,10 @@ impl<'doc> AdzeNode<'doc> {
     }
 
     /// Return a child edge by index.
+    ///
+    /// This reads the node's contiguous flat edge range; it never touches
+    /// recursive tree storage.
     pub fn child_edge(&self, index: usize) -> Option<AdzeEdge<'doc>> {
-        self.node.children.get(index)?;
         let record = self.document.syntax.child_edge_record(self.id, index)?;
         Some(AdzeEdge {
             document: self.document,
@@ -1339,7 +1462,16 @@ impl<'doc> AdzeNode<'doc> {
 
     /// Return direct child edges in source order.
     pub fn child_edges(&self) -> impl Iterator<Item = AdzeEdge<'doc>> + '_ {
-        (0..self.child_count()).filter_map(|index| self.child_edge(index))
+        let range = self.record().edge_range().as_range();
+        range.filter_map(|edge_index| {
+            self.document
+                .syntax
+                .edge_record(edge_index)
+                .map(|record| AdzeEdge {
+                    document: self.document,
+                    record,
+                })
+        })
     }
 
     /// Return the field name for a child edge by index.
@@ -1368,6 +1500,26 @@ impl<'doc> AdzeNode<'doc> {
         self.child_edges()
             .find(|edge| edge.field_id() == Some(field_id))?
             .child()
+    }
+
+    /// Return this node's child index within its parent, if it is not the root.
+    pub fn child_index(&self) -> Option<usize> {
+        self.document
+            .syntax
+            .parent_edge_record(self.id)
+            .map(|record| record.child_index())
+    }
+
+    /// Return the next sibling in source order, if one exists.
+    pub fn next_sibling(&self) -> Option<AdzeNode<'doc>> {
+        let sibling_id = self.document.syntax.next_sibling_id(self.id)?;
+        self.document.tree().node(sibling_id)
+    }
+
+    /// Return the previous sibling in source order, if one exists.
+    pub fn prev_sibling(&self) -> Option<AdzeNode<'doc>> {
+        let sibling_id = self.document.syntax.prev_sibling_id(self.id)?;
+        self.document.tree().node(sibling_id)
     }
 
     /// Return native structural flags for this node.
@@ -1539,6 +1691,36 @@ pub trait SyntaxNode<'doc>: Copy {
     /// Return a child node by native field name.
     fn child_by_field_name(&self, field_name: &str) -> Option<AdzeNode<'doc>> {
         self.node()?.child_by_field_name(field_name)
+    }
+
+    /// Return the document-local parent id, when the node resolves and is not the root.
+    fn parent_id(&self) -> Option<NodeId> {
+        self.node()?.parent_id()
+    }
+
+    /// Return the parent node, when the node resolves and is not the root.
+    fn parent(&self) -> Option<AdzeNode<'doc>> {
+        self.node()?.parent()
+    }
+
+    /// Return the number of direct children, or zero when the node is stale.
+    fn child_count(&self) -> usize {
+        self.node().map(|node| node.child_count()).unwrap_or(0)
+    }
+
+    /// Return this handle's child index within its parent, when it resolves.
+    fn child_index(&self) -> Option<usize> {
+        self.node()?.child_index()
+    }
+
+    /// Return the next sibling in source order, when it resolves.
+    fn next_sibling(&self) -> Option<AdzeNode<'doc>> {
+        self.node()?.next_sibling()
+    }
+
+    /// Return the previous sibling in source order, when it resolves.
+    fn prev_sibling(&self) -> Option<AdzeNode<'doc>> {
+        self.node()?.prev_sibling()
     }
 
     /// Return whether this handle resolves to a node-local synthetic error.
@@ -1896,5 +2078,223 @@ mod tests {
             .first()
             .expect("error document should carry one diagnostic");
         assert_eq!(diagnostic.found, None);
+    }
+
+    fn wide_document(source: &str) -> AdzeDocument {
+        let (grammar, table) = fielded_language();
+        let source_file = SymbolId(1);
+        let expression = SymbolId(2);
+        let number = SymbolId(3);
+        let operator = SymbolId(4);
+
+        let root = ParseNode {
+            symbol: source_file,
+            symbol_id: source_file,
+            start_byte: 0,
+            end_byte: source.len(),
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![ParseNode {
+                symbol: expression,
+                symbol_id: expression,
+                start_byte: 0,
+                end_byte: source.len(),
+                field_name: None,
+                alias_symbol_id: None,
+                children: vec![
+                    ParseNode {
+                        symbol: number,
+                        symbol_id: number,
+                        start_byte: 0,
+                        end_byte: 1,
+                        field_name: Some("left".to_string()),
+                        alias_symbol_id: None,
+                        children: Vec::new(),
+                    },
+                    ParseNode {
+                        symbol: operator,
+                        symbol_id: operator,
+                        start_byte: 1,
+                        end_byte: 2,
+                        field_name: Some("operator".to_string()),
+                        alias_symbol_id: None,
+                        children: Vec::new(),
+                    },
+                    ParseNode {
+                        symbol: number,
+                        symbol_id: number,
+                        start_byte: 2,
+                        end_byte: 3,
+                        field_name: Some("right".to_string()),
+                        alias_symbol_id: None,
+                        children: Vec::new(),
+                    },
+                ],
+            }],
+        };
+
+        AdzeDocument::from_parse_result(source, root, 0, "fielded", &grammar, &table)
+    }
+
+    #[test]
+    fn flat_records_validate_and_resolve_every_id_directly() {
+        let document = wide_document("1-2");
+        let tree = document.tree();
+
+        assert_eq!(tree.validate_structure(), Ok(()));
+        assert_eq!(tree.node_count(), 5);
+        assert_eq!(tree.edge_count(), 4);
+
+        for index in 0..tree.node_count() {
+            let node_id = NodeId::new(index);
+            let node = tree
+                .node(node_id)
+                .unwrap_or_else(|| panic!("flat id {index} should resolve without path replay"));
+            assert_eq!(node.node_id(), node_id);
+            assert_eq!(
+                node.record(),
+                tree.node_record(node_id).expect("record should exist")
+            );
+            assert_eq!(node.child_count(), node.record().edge_range().len());
+        }
+        assert!(tree.node(NodeId::new(tree.node_count())).is_none());
+
+        assert_eq!(
+            tree.edge_count(),
+            (0..tree.node_count())
+                .filter_map(|index| tree.node(NodeId::new(index)))
+                .map(|node| node.child_count())
+                .sum::<usize>(),
+            "direct edge records should cover every parent-to-child relation"
+        );
+    }
+
+    #[test]
+    fn flat_parent_child_sibling_traversal_is_symmetric() {
+        let document = wide_document("1-2");
+        let tree = document.tree();
+
+        let root = tree.root();
+        assert_eq!(root.parent_id(), None);
+        assert!(root.parent().is_none());
+        assert!(root.parent_edge().is_none());
+        assert_eq!(root.child_index(), None);
+        assert!(root.next_sibling().is_none());
+        assert!(root.prev_sibling().is_none());
+
+        let expression = root.child(0).expect("root should expose expression child");
+        assert_eq!(expression.parent_id(), Some(root.node_id()));
+        assert_eq!(
+            expression
+                .parent()
+                .expect("parent should resolve")
+                .node_id(),
+            root.node_id()
+        );
+        assert_eq!(expression.child_count(), 3);
+
+        let children: Vec<_> = (0..3)
+            .map(|index| {
+                expression
+                    .child(index)
+                    .unwrap_or_else(|| panic!("child {index} should resolve"))
+            })
+            .collect();
+        for (index, child) in children.iter().enumerate() {
+            assert_eq!(child.child_index(), Some(index));
+            assert_eq!(child.parent_id(), Some(expression.node_id()));
+            assert_eq!(
+                child
+                    .parent()
+                    .expect("child parent should resolve")
+                    .node_id(),
+                expression.node_id()
+            );
+            assert_eq!(
+                child
+                    .parent_edge()
+                    .expect("child edge should resolve")
+                    .child_index(),
+                index
+            );
+            assert_eq!(
+                tree.node(child.node_id())
+                    .expect("sibling id should resolve")
+                    .byte_range(),
+                child.byte_range()
+            );
+        }
+
+        assert!(children[0].prev_sibling().is_none());
+        assert_eq!(
+            children[0]
+                .next_sibling()
+                .expect("first child should have a next sibling")
+                .node_id(),
+            children[1].node_id()
+        );
+        assert_eq!(
+            children[1]
+                .prev_sibling()
+                .expect("middle child should have a previous sibling")
+                .node_id(),
+            children[0].node_id()
+        );
+        assert_eq!(
+            children[1]
+                .next_sibling()
+                .expect("middle child should have a next sibling")
+                .node_id(),
+            children[2].node_id()
+        );
+        assert_eq!(
+            children[2]
+                .prev_sibling()
+                .expect("last child should have a previous sibling")
+                .node_id(),
+            children[1].node_id()
+        );
+        assert!(children[2].next_sibling().is_none());
+
+        let syntax_ids: Vec<Option<NodeId>> = (0..3)
+            .map(|index| document.syntax.child_id(expression.node_id(), index))
+            .collect();
+        assert_eq!(
+            syntax_ids,
+            children
+                .iter()
+                .map(|child| Some(child.node_id()))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            document.syntax.next_sibling_id(children[0].node_id()),
+            Some(children[1].node_id())
+        );
+        assert_eq!(
+            document.syntax.prev_sibling_id(children[2].node_id()),
+            Some(children[1].node_id())
+        );
+        assert_eq!(document.syntax.next_sibling_id(children[2].node_id()), None);
+        assert_eq!(document.syntax.prev_sibling_id(children[0].node_id()), None);
+    }
+
+    #[test]
+    fn flat_validation_rejects_truncated_node_records() {
+        let document = wide_document("1-2");
+        assert_eq!(document.tree().validate_structure(), Ok(()));
+
+        let mut truncated = document.syntax.clone();
+        truncated.nodes.pop();
+        assert!(
+            truncated.validate().is_err(),
+            "dropping a node record must break edge/parent symmetry"
+        );
+
+        let mut unparented = document.syntax.clone();
+        unparented.parents[2] = None;
+        assert!(
+            unparented.validate().is_err(),
+            "clearing a non-root parent must fail validation"
+        );
     }
 }
