@@ -75,7 +75,7 @@ pub enum Commands {
         update: bool,
     },
 
-    /// Initialize a new grammar project
+    /// Retired: use the canonical `adze init` command instead
     Init {
         /// Name of the language
         name: String,
@@ -165,101 +165,17 @@ pub fn run_test(path: &Path, filter: &Option<String>, update: bool) -> Result<()
     test::run_tests(Some(path), None, filter.as_deref(), update, true)
 }
 
-pub fn run_init(name: &str, in_place: bool) -> Result<()> {
-    use std::fs;
-
-    println!("Initializing grammar for '{}'", name);
-
-    let dir = if in_place {
-        PathBuf::from(".")
-    } else {
-        PathBuf::from(format!("tree-sitter-{}", name.to_lowercase()))
-    };
-
-    if !in_place {
-        fs::create_dir_all(&dir)?;
-    }
-
-    // Create grammar.js
-    let grammar_content = format!(
-        r#"module.exports = grammar({{
-  name: '{}',
-
-  rules: {{
-    // TODO: add the actual grammar rules
-    source_file: $ => repeat($._definition),
-
-    _definition: $ => choice(
-      // TODO: add choices here
-    ),
-
-    // TODO: add other rules
-  }}
-}});
-"#,
-        name
-    );
-
-    fs::write(dir.join("grammar.js"), grammar_content)?;
-
-    // Create basic Cargo.toml
-    let cargo_content = format!(
-        r#"[package]
-name = "tree-sitter-{}"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-adze = "0.5.0-beta"
-
-[build-dependencies]
-adze-tool = "0.5.0-beta"
-"#,
-        name.to_lowercase()
-    );
-
-    fs::write(dir.join("Cargo.toml"), cargo_content)?;
-
-    // Create build.rs
-    let build_content = r#"fn main() {
-    adze_tool::build_parsers();
-}
-"#;
-
-    fs::write(dir.join("build.rs"), build_content)?;
-
-    // Create src/lib.rs
-    fs::create_dir_all(dir.join("src"))?;
-    let lib_content = format!(
-        r#"use adze::Grammar;
-
-#[adze::grammar("{}")]
-pub struct {};
-
-#[cfg(test)]
-mod tests {{
-    use super::*;
-    
-    #[test]
-    fn test_can_load_grammar() {{
-        let _ = {}::LANGUAGE;
-    }}
-}}
-"#,
-        name.to_lowercase(),
-        name,
-        name
-    );
-
-    fs::write(dir.join("src/lib.rs"), lib_content)?;
-
-    println!("✓ Created grammar project in {:?}", dir);
-    println!("  Next steps:");
-    println!("    1. cd {:?}", dir);
-    println!("    2. Edit grammar.js");
-    println!("    3. cargo build");
-
-    Ok(())
+/// Retired initializer (#1080).
+///
+/// The former implementation unconditionally overwrote `grammar.js`,
+/// `Cargo.toml`, `build.rs`, and `src/lib.rs`, interpolated the name into a
+/// filesystem path, and emitted a stale starter. It is disabled before any
+/// filesystem effect; the canonical initializer is `adze init`.
+pub fn run_init(_name: &str, _in_place: bool) -> Result<()> {
+    anyhow::bail!(
+        "adze-gen init is retired and no files were created or modified; \
+         use the canonical `adze init` command from the adze CLI instead"
+    )
 }
 
 pub fn run_info(path: &PathBuf, node_types: bool, rules: bool) -> Result<()> {
