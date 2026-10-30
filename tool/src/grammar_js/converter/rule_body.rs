@@ -209,3 +209,173 @@ impl GrammarJsConverter {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::*;
+    use crate::grammar_js::{GrammarJs, Rule as JsRule};
+    use adze_ir::Symbol;
+
+    fn delimited_list(repeat1: bool) -> adze_ir::Grammar {
+        let tail = JsRule::Seq {
+            members: vec![
+                JsRule::String {
+                    value: ",".to_string(),
+                },
+                JsRule::Field {
+                    name: "numbers_vec_element".to_string(),
+                    content: Box::new(JsRule::Symbol {
+                        name: "number".to_string(),
+                    }),
+                },
+            ],
+        };
+        let mut grammar_js = GrammarJs::new("delimited".to_string());
+        grammar_js.rules.insert(
+            "source_file".to_string(),
+            JsRule::Seq {
+                members: vec![
+                    JsRule::Field {
+                        name: "numbers_vec_element".to_string(),
+                        content: Box::new(JsRule::Symbol {
+                            name: "number".to_string(),
+                        }),
+                    },
+                    if repeat1 {
+                        JsRule::Repeat1 {
+                            content: Box::new(tail),
+                        }
+                    } else {
+                        JsRule::Repeat {
+                            content: Box::new(tail),
+                        }
+                    },
+                ],
+            },
+        );
+        grammar_js.rules.insert(
+            "number".to_string(),
+            JsRule::Pattern {
+                value: r"\d+".to_string(),
+            },
+        );
+        GrammarJsConverter::new(grammar_js).convert().unwrap()
+    }
+
+    fn aux_id(grammar: &adze_ir::Grammar, prefix: &str) -> adze_ir::SymbolId {
+        grammar
+            .rule_names
+            .iter()
+            .find_map(|(id, name)| name.starts_with(prefix).then_some(*id))
+            .unwrap_or_else(|| panic!("{prefix} aux should exist"))
+    }
+
+    #[test]
+    fn repeat_of_seq_keeps_delimiter_tail_1095() {
+        let grammar = delimited_list(false);
+        let repeat_aux = aux_id(&grammar, "_repeat_aux_");
+        let rules = &grammar.rules[&repeat_aux];
+        assert!(
+            rules.iter().any(|r| r.rhs.is_empty()),
+            "REPEAT tail keeps empty alternative: {rules:?}"
+        );
+        let recursive = rules
+            .iter()
+            .find(|r| r.rhs.len() == 2 && r.rhs[0] == Symbol::NonTerminal(repeat_aux))
+            .unwrap_or_else(|| panic!("REPEAT of SEQ must recurse via tail: {rules:?}"));
+        let Symbol::NonTerminal(seq_aux) = recursive.rhs[1] else {
+            panic!("tail symbol should be seq aux: {recursive:?}");
+        };
+        let seq_rules = &grammar.rules[&seq_aux];
+        assert_eq!(seq_rules.len(), 1);
+        assert_eq!(seq_rules[0].rhs.len(), 2, "seq tail is [comma, element]");
+        assert!(matches!(seq_rules[0].rhs[0], Symbol::Terminal(_)));
+        assert!(matches!(seq_rules[0].rhs[1], Symbol::Terminal(_)));
+        let element_field = grammar
+            .fields
+            .iter()
+            .find_map(|(id, name)| (name == "numbers_vec_element").then_some(*id))
+            .expect("element field");
+        assert_eq!(seq_rules[0].fields, vec![(element_field, 1)]);
+    }
+
+    #[test]
+    fn repeat_of_seq_with_token_member_keeps_element_1095() {
+        // TOKEN(PATTERN(..)) as the repeated element must convert through
+        // its content instead of being omitted from the tail sequence.
+        let tail = JsRule::Seq {
+            members: vec![
+                JsRule::String {
+                    value: ",".to_string(),
+                },
+                JsRule::Field {
+                    name: "numbers_vec_element".to_string(),
+                    content: Box::new(JsRule::Token {
+                        content: Box::new(JsRule::Pattern {
+                            value: r"\d+".to_string(),
+                        }),
+                    }),
+                },
+            ],
+        };
+        let mut grammar_js = GrammarJs::new("delimited_token".to_string());
+        grammar_js.rules.insert(
+            "source_file".to_string(),
+            JsRule::Seq {
+                members: vec![
+                    JsRule::Field {
+                        name: "numbers_vec_element".to_string(),
+                        content: Box::new(JsRule::Token {
+                            content: Box::new(JsRule::Pattern {
+                                value: r"\d+".to_string(),
+                            }),
+                        }),
+                    },
+                    JsRule::Repeat {
+                        content: Box::new(tail),
+                    },
+                ],
+            },
+        );
+        let grammar = GrammarJsConverter::new(grammar_js).convert().unwrap();
+        let repeat_aux = aux_id(&grammar, "_repeat_aux_");
+        let rules = &grammar.rules[&repeat_aux];
+        let recursive = rules
+            .iter()
+            .find(|r| r.rhs.len() == 2 && r.rhs[0] == Symbol::NonTerminal(repeat_aux))
+            .unwrap_or_else(|| panic!("REPEAT of SEQ must recurse via tail: {rules:?}"));
+        let Symbol::NonTerminal(seq_aux) = recursive.rhs[1] else {
+            panic!("tail symbol should be seq aux: {recursive:?}");
+        };
+        let seq_rules = &grammar.rules[&seq_aux];
+        assert_eq!(seq_rules.len(), 1);
+        assert_eq!(
+            seq_rules[0].rhs.len(),
+            2,
+            "seq tail keeps [comma, token element]: {seq_rules:?}"
+        );
+        assert!(matches!(seq_rules[0].rhs[0], Symbol::Terminal(_)));
+        assert!(matches!(seq_rules[0].rhs[1], Symbol::Terminal(_)));
+    }
+
+    #[test]
+    fn repeat1_of_seq_keeps_delimiter_tail_1095() {
+        let grammar = delimited_list(true);
+        let repeat_aux = aux_id(&grammar, "_repeat_aux_");
+        let rules = &grammar.rules[&repeat_aux];
+        assert!(
+            rules.iter().any(|r| {
+                r.rhs.len() == 2
+                    && matches!(r.rhs[0], Symbol::Terminal(_))
+                    && matches!(r.rhs[1], Symbol::Terminal(_))
+            }),
+            "REPEAT1 tail has a first delimiter+element production: {rules:?}"
+        );
+        assert!(
+            rules
+                .iter()
+                .any(|r| { r.rhs.len() == 2 && r.rhs[0] == Symbol::NonTerminal(repeat_aux) }),
+            "REPEAT1 of SEQ must recurse beyond one tail element: {rules:?}"
+        );
+    }
+}

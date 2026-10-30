@@ -242,6 +242,11 @@ fn gen_field(
             "content": field_json
         });
 
+        // The first element of a delimited list must be present: an
+        // `Option` element *value* is not an optional first occurrence,
+        // otherwise a leading delimiter would be accepted as a blank
+        // first element. Later elements keep the optional wrapping.
+        let first_field_rule = field_rule_non_optional.clone();
         let field_rule = if field_optional {
             json!({
                 "type": "CHOICE",
@@ -274,7 +279,7 @@ fn gen_field(
             json!({
                 "type": "SEQ",
                 "members": [
-                    field_rule,
+                    first_field_rule,
                     {
                         "type": if field_optional {
                             "REPEAT1"

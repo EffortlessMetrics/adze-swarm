@@ -181,6 +181,10 @@ impl GrammarJsConverter {
             eprintln!("  SymbolId({}) -> '{}'", symbol_id.0, name);
         }
 
+        // Rule conversion inserts auxiliary rules into existing LHS groups,
+        // so the derived production map no longer matches insertion order.
+        grammar.refresh_production_ids();
+
         // Check what the start symbol will be
         if let Some(start_symbol) = grammar.start_symbol() {
             eprintln!(
@@ -559,6 +563,26 @@ impl GrammarJsConverter {
                 grammar
                     .rule_names
                     .insert(aux_id, format!("_repeat_aux_{}", aux_id.0));
+                let _ = self.convert_rule_body(grammar, rule, aux_id);
+                Some(Symbol::NonTerminal(aux_id))
+            }
+            JsRule::Token { content } | JsRule::ImmediateToken { content } => {
+                // TOKEN(PATTERN(..)) as a sequence member converts through
+                // its content; omitting it would emit a partial sequence.
+                self.rule_to_symbol(grammar, content)
+            }
+            JsRule::Seq { members } => {
+                // A SEQ used as a single symbol (e.g. the SEQ(delimiter,
+                // element) content of a REPEAT in a delimited list) needs an
+                // auxiliary non-terminal; dropping it loses the whole tail.
+                if members.is_empty() {
+                    return None;
+                }
+                let aux_id = SymbolId(self.next_symbol_id.try_into().unwrap());
+                self.next_symbol_id += 1;
+                grammar
+                    .rule_names
+                    .insert(aux_id, format!("_seq_aux_{}", aux_id.0));
                 let _ = self.convert_rule_body(grammar, rule, aux_id);
                 Some(Symbol::NonTerminal(aux_id))
             }

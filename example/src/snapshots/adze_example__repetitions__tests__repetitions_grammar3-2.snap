@@ -9,6 +9,7 @@ Err(
             start: 2,
             end: 2,
             expected: [
+                ",",
                 "end",
                 "number",
             ],
