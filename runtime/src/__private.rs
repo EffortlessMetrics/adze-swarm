@@ -821,9 +821,12 @@ fn parse_document_from_glr_errors(
 /// Map one deterministic LR parser error to the public diagnostic shape.
 ///
 /// A trailing list delimiter at end of input is reported at the delimiter
-/// itself: the construct before it was already complete, so the delimiter
+/// itself when the parser was only awaiting a new element after it: the
+/// construct before the delimiter was already complete, so the delimiter
 /// is the unexpected token and only end-of-input was expected after the
-/// complete construct (#1097).
+/// complete construct (#1097). When the error already expects the
+/// delimiter or end-of-input among other tokens, the parser state is
+/// reported unchanged.
 fn map_lr_parse_error(
     input: &str,
     lang: &crate::pure_parser::TSLanguage,
@@ -840,7 +843,13 @@ fn map_lr_parse_error(
         while sep_end > 0 && bytes[sep_end - 1].is_ascii_whitespace() {
             sep_end -= 1;
         }
-        if sep_end > 0 && (bytes[sep_end - 1] == b',' || bytes[sep_end - 1] == b';') {
+        if sep_end > 0
+            && (bytes[sep_end - 1] == b',' || bytes[sep_end - 1] == b';')
+            && !expected.iter().any(|name| name == "end")
+            && !expected
+                .iter()
+                .any(|name| name == &(bytes[sep_end - 1] as char).to_string())
+        {
             start = sep_end - 1;
             end = sep_end;
             found_name = (bytes[sep_end - 1] as char).to_string();
