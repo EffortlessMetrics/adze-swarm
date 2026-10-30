@@ -39,6 +39,13 @@ mod parse_tables;
 mod productions;
 mod symbols;
 
+/// Maximum RHS length representable in the generated ABI.
+///
+/// `TSRule.rhs_len` and `TSParseAction.child_count` are `u8` in the
+/// Tree-sitter-compatible ABI, so productions longer than this cannot be
+/// emitted faithfully and must be rejected at generation time (#1077).
+pub const MAX_ABI_RHS_LENGTH: usize = u8::MAX as usize;
+
 /// Builder for generating ABI-compatible language structures
 pub struct AbiLanguageBuilder<'a> {
     grammar: &'a Grammar,
@@ -73,14 +80,33 @@ impl<'a> AbiLanguageBuilder<'a> {
         }
     }
 
-    /// Generate the complete language module.
+    /// The single checked RHS-length fact shared by all ABI child-count
+    /// consumers (`TS_RULES.rhs_len`, `PARSE_ACTIONS.child_count`).
+    pub(super) fn checked_rhs_len(&self, rule: &adze_ir::Rule) -> crate::Result<u8> {
+        let observed = rule.rhs.len();
+        u8::try_from(observed).map_err(|_| crate::TableGenError::RhsLengthExceedsAbiLimit {
+            grammar: self.grammar.name.clone(),
+            rule: self
+                .grammar
+                .rule_names
+                .get(&rule.lhs)
+                .cloned()
+                .unwrap_or_else(|| format!("symbol_{}", rule.lhs.0)),
+            production_id: rule.production_id.0,
+            observed,
+            limit: MAX_ABI_RHS_LENGTH,
+        })
+    }
+
+    /// Generate the complete language module, rejecting productions whose
+    /// RHS length exceeds [`MAX_ABI_RHS_LENGTH`] before any code is emitted.
     ///
     /// Orchestrates the SRP-decomposed helpers: diagnostic logging
     /// (`log_generation_start`, etc.), per-field static-array generators
     /// (`generate_*` methods), conditional fragment builders
     /// (`build_external_scanner_pieces`, etc.), and the final
     /// `TSLanguage` assembly below.
-    pub fn generate(&self) -> TokenStream {
+    pub fn try_generate(&self) -> crate::Result<TokenStream> {
         let language_name = &self.grammar.name;
         let language_fn_ident = quote::format_ident!("tree_sitter_{}", language_name);
 
@@ -92,14 +118,14 @@ impl<'a> AbiLanguageBuilder<'a> {
         let (field_names, field_name_ptrs) = self.generate_field_names();
         let symbol_metadata = self.generate_symbol_metadata();
         let (parse_table_data, small_parse_table_map) = self.generate_parse_tables();
-        let parse_actions = self.generate_parse_actions();
+        let parse_actions = self.generate_parse_actions()?;
         let lex_modes = self.generate_lex_modes();
         let (field_map_slices, field_map_entries) = self.generate_field_maps();
         let public_symbol_map = self.generate_public_symbol_map();
         let primary_state_ids = self.generate_primary_state_ids();
         let production_id_map = self.generate_production_id_map();
         let production_lhs_index = self.generate_production_lhs_index();
-        let ts_rules = self.generate_ts_rules();
+        let ts_rules = self.generate_ts_rules()?;
         let variant_symbol_map = self.generate_variant_symbol_map();
         let (alias_map, alias_sequences) = self.generate_alias_tables();
 
@@ -137,7 +163,7 @@ impl<'a> AbiLanguageBuilder<'a> {
             &self.parse_table.symbol_to_index,
         );
 
-        quote! {
+        Ok(quote! {
             use adze::pure_parser::{TSLanguage, TSParseAction, TSRule, SyncPtr, TREE_SITTER_LANGUAGE_VERSION, ExternalScanner, TSLexState};
 
             // Lexer implementation
@@ -256,7 +282,17 @@ impl<'a> AbiLanguageBuilder<'a> {
             pub unsafe extern "C" fn #language_fn_ident() -> *const TSLanguage {
                 &LANGUAGE as *const TSLanguage
             }
-        }
+        })
+    }
+
+    /// Infallible compatibility wrapper around [`Self::try_generate`].
+    ///
+    /// # Panics
+    /// Panics with the checked generation error (for example an RHS length
+    /// above [`MAX_ABI_RHS_LENGTH`]) instead of silently emitting truncated
+    /// ABI child counts. Fallible callers should use `try_generate`.
+    pub fn generate(&self) -> TokenStream {
+        self.try_generate().expect("ABI language generation failed")
     }
 }
 

@@ -77,10 +77,10 @@ impl<'a> AbiLanguageBuilder<'a> {
 
         lhs_indices
     }
-    pub(super) fn generate_ts_rules(&self) -> Vec<TokenStream> {
+    pub(super) fn generate_ts_rules(&self) -> crate::Result<Vec<TokenStream>> {
         let production_id_count = self.calculate_counts().production_id_count as usize;
         if self.grammar.all_rules().next().is_none() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
 
         // Generate TSRule structs indexed by production ID.
@@ -121,7 +121,7 @@ impl<'a> AbiLanguageBuilder<'a> {
                     );
                     symbol_id.0 as usize
                 }) as u16;
-            let rhs_len = rule.rhs.len() as u8;
+            let rhs_len = self.checked_rhs_len(rule)?;
             if production_index < ts_rules.len() {
                 ts_rules[production_index] = quote! {
                     TSRule {
@@ -133,7 +133,7 @@ impl<'a> AbiLanguageBuilder<'a> {
             }
         }
 
-        ts_rules
+        Ok(ts_rules)
     }
     pub(super) fn generate_alias_tables(&self) -> (Vec<TokenStream>, Vec<TokenStream>) {
         let (_, max_alias_sequence_length) = self.calculate_alias_metrics();

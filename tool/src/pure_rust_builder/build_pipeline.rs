@@ -150,9 +150,9 @@ impl BuildPipeline {
 
             Ok(AbiLanguageBuilder::new(&self.grammar, parse_table)
                 .with_compressed_tables(&compressed_tables)
-                .generate())
+                .try_generate()?)
         } else {
-            Ok(AbiLanguageBuilder::new(&self.grammar, parse_table).generate())
+            Ok(AbiLanguageBuilder::new(&self.grammar, parse_table).try_generate()?)
         }
     }
 

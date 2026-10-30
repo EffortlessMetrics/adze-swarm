@@ -155,7 +155,7 @@ impl<'a> AbiLanguageBuilder<'a> {
     }
 
     /// Generate parse actions
-    pub(super) fn generate_parse_actions(&self) -> Vec<TokenStream> {
+    pub(super) fn generate_parse_actions(&self) -> crate::Result<Vec<TokenStream>> {
         // Generate production information for reduce actions
         // The array must be indexed by production ID, not sequential
 
@@ -189,7 +189,7 @@ impl<'a> AbiLanguageBuilder<'a> {
 
         for rule in rules {
             let index = rule.production_id.0 as usize;
-            let child_count = rule.rhs.len() as u8;
+            let child_count = self.checked_rhs_len(rule)?;
 
             // Store the production ID because PARSE_ACTIONS is production-indexed.
             let symbol = rule.production_id.0;
@@ -207,7 +207,7 @@ impl<'a> AbiLanguageBuilder<'a> {
             }
         }
 
-        actions
+        Ok(actions)
     }
     /// Generate lex modes
     pub(super) fn generate_lex_modes(&self) -> Vec<TokenStream> {
