@@ -2,49 +2,8 @@
 source: src/boolean_expr.rs
 expression: "grammar::parse(\"false\")"
 ---
-Err(
-    [
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 0,
-            end: 0,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 1,
-            end: 1,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 2,
-            end: 2,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 3,
-            end: 3,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 4,
-            end: 4,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 5,
-            end: 5,
-        },
-    ],
+Ok(
+    LiteralFalse(
+        false,
+    ),
 )

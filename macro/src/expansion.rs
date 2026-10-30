@@ -51,6 +51,27 @@ fn leaf_transforms(attrs: &[Attribute]) -> Result<LeafTransforms> {
     })
 }
 
+/// The `text = "..."` literal of an `#[adze::leaf]` attribute, if present.
+fn leaf_text(attrs: &[Attribute]) -> Option<String> {
+    let leaf_attr = attrs
+        .iter()
+        .find(|attr| attr.path() == &syn::parse_quote!(adze::leaf))?;
+    let params = leaf_attr
+        .parse_args_with(Punctuated::<NameValueExpr, Token![,]>::parse_terminated)
+        .ok()?;
+    params.iter().find_map(|param| {
+        if param.path == "text" {
+            if let Expr::Lit(ExprLit {
+                lit: Lit::Str(s), ..
+            }) = &param.expr
+            {
+                return Some(s.value());
+            }
+        }
+        None
+    })
+}
+
 fn attrs_have_try_transform(attrs: &[Attribute]) -> bool {
     attrs.iter().any(|attr| {
         attr.path() == &syn::parse_quote!(adze::leaf)
@@ -267,15 +288,25 @@ fn gen_struct_or_variant(
         && unnamed_fields.unnamed.len() == 1
     {
         let field = &unnamed_fields.unnamed[0];
-        // Check if this field has a leaf attribute
-        let is_leaf = field
+        // The leaf attribute may be on the field or on the variant itself
+        // (e.g. `#[adze::leaf(text = "true")] Literal(bool)`); both declare
+        // the variant's single token, mirroring adze-tool's grammar expansion.
+        let field_is_leaf = field
             .attrs
+            .iter()
+            .any(|attr| attr.path() == &syn::parse_quote!(adze::leaf));
+        let leaf_attr_source = if field_is_leaf {
+            &field.attrs
+        } else {
+            &container_attrs
+        };
+        let is_leaf = leaf_attr_source
             .iter()
             .any(|attr| attr.path() == &syn::parse_quote!(adze::leaf));
         if is_leaf {
             // For leaf variants, extract directly from the node without navigating to children
             let leaf_type = &field.ty;
-            let transforms = leaf_transforms(&field.attrs)?;
+            let transforms = leaf_transforms(leaf_attr_source)?;
 
             let mut non_leaf = HashSet::new();
             non_leaf.insert("Spanned");
@@ -528,10 +559,13 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                             == 1;
 
                         let is_leaf_variant = if let Fields::Unnamed(ref unnamed) = v.fields {
-                            unnamed.unnamed.len() == 1 && unnamed.unnamed[0]
+                            unnamed.unnamed.len() == 1 && (unnamed.unnamed[0]
                                 .attrs
                                 .iter()
                                 .any(|attr| attr.path() == &syn::parse_quote!(adze::leaf))
+                                || v.attrs
+                                    .iter()
+                                    .any(|attr| attr.path() == &syn::parse_quote!(adze::leaf)))
                         } else {
                             false
                         };
@@ -557,29 +591,51 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                     }).collect::<Vec<_>>();
 
                     let leaf_variant_detection = e.variants.iter().filter_map(|v| {
-                        let is_leaf_variant = if let Fields::Unnamed(ref unnamed) = v.fields {
-                            unnamed.unnamed.len() == 1 && unnamed.unnamed[0]
+                        let leaf_attr_source = if let Fields::Unnamed(ref unnamed) = v.fields {
+                            if unnamed.unnamed.len() == 1 && unnamed.unnamed[0]
                                 .attrs
                                 .iter()
                                 .any(|attr| attr.path() == &syn::parse_quote!(adze::leaf))
-                        } else {
-                            false
-                        };
-
-                        if is_leaf_variant {
-                            let extract_expr = gen_struct_or_variant(
-                                v.fields.clone(),
-                                Some(v.ident.clone()),
-                                e.ident.clone(),
-                                v.attrs.clone(),
-                                extraction_mode,
-                            ).ok()?;
-
-                            Some(quote! {
-                                return #extract_expr;
-                            })
+                            {
+                                Some(&unnamed.unnamed[0].attrs)
+                            } else if unnamed.unnamed.len() == 1 {
+                                Some(&v.attrs)
+                            } else {
+                                None
+                            }
                         } else {
                             None
+                        };
+
+                        let leaf_attr_source = leaf_attr_source.filter(|attrs| {
+                            attrs
+                                .iter()
+                                .any(|attr| attr.path() == &syn::parse_quote!(adze::leaf))
+                        })?;
+
+                        let extract_expr = gen_struct_or_variant(
+                            v.fields.clone(),
+                            Some(v.ident.clone()),
+                            e.ident.clone(),
+                            v.attrs.clone(),
+                            extraction_mode,
+                        ).ok()?;
+
+                        // A `text = "..."` leaf names its token kind (`"true"`),
+                        // which discriminates sibling leaf variants; a pattern
+                        // leaf keeps the historical unconditional fallback.
+                        match leaf_text(leaf_attr_source) {
+                            Some(text) => {
+                                let expected_kind = format!("\"{text}\"");
+                                Some(quote! {
+                                    if unwrapped_node.kind() == #expected_kind {
+                                        return #extract_expr;
+                                    }
+                                })
+                            }
+                            None => Some(quote! {
+                                return #extract_expr;
+                            }),
                         }
                     }).collect::<Vec<_>>();
 
@@ -612,6 +668,20 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
 
                         Ok(detection_expr)
                     }).collect::<Result<Vec<_>>>()?;
+
+                    // The tree-sitter route only gains a leaf-token block when
+                    // the enum actually has single-token leaf variants.
+                    let leaf_variant_detection_std =
+                        if leaf_variant_detection.is_empty() {
+                            quote! {}
+                        } else {
+                            quote! {
+                                if non_extra_children.is_empty() {
+                                    let node = unwrapped_node;
+                                    #(#leaf_variant_detection)*
+                                }
+                            }
+                        };
 
                     let fallible = extraction_mode == ExtractMode::Fallible;
                     let enum_body: proc_macro2::TokenStream = if cfg!(feature = "pure-rust") {
@@ -719,6 +789,8 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
 
                             let child_node = unwrapped_node;
                             #(#variant_detection_logic_std)*
+
+                            #leaf_variant_detection_std
 
                             #tail
                         }

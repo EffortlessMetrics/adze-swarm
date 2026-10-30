@@ -1,0 +1,111 @@
+---
+source: macro/src/lib.rs
+expression: "rustfmt_code(&expand_grammar(parse_quote!\n{\n    #[adze::grammar(\"test\")] mod grammar\n    {\n        #[adze::language] pub enum BoolExpr\n        {\n            #[adze::leaf(text = \"true\", transform = |_| true)] Literal(bool),\n            #[adze::leaf(text = \"false\", transform = |_| false)]\n            LiteralFalse(bool),\n        }\n    }\n})? .to_token_stream().to_string())"
+---
+mod grammar {
+    pub enum BoolExpr {
+        Literal(bool),
+        LiteralFalse(bool),
+    }
+    impl ::adze::Extract<BoolExpr> for BoolExpr {
+        type LeafFn = ();
+        const GRAMMAR_NAME: &'static str = "test";
+        fn extract(
+            node: Option<&::adze::pure_parser::ParsedNode>,
+            source: &[u8],
+            _last_idx: usize,
+            _leaf_fn: Option<&Self::LeafFn>,
+        ) -> Self {
+            let node = node.expect("Extract called with None node for enum");
+            fn unwrap_hidden_rules<'a>(
+                node: &'a ::adze::pure_parser::ParsedNode,
+            ) -> &'a ::adze::pure_parser::ParsedNode {
+                let non_extra_children: Vec<_> =
+                    node.children.iter().filter(|c| !c.is_extra).collect();
+                if (node.kind() == "source_file" || node.kind().starts_with('_'))
+                    && !non_extra_children.is_empty()
+                {
+                    return unwrap_hidden_rules(non_extra_children[0]);
+                }
+                node
+            }
+            let unwrapped_node = unwrap_hidden_rules(node);
+            let non_extra_children: Vec<_> = unwrapped_node
+                .children
+                .iter()
+                .filter(|c| !c.is_extra)
+                .collect();
+            if unwrapped_node.kind() == stringify!(BoolExpr) && non_extra_children.len() == 1 {
+                let child_node = non_extra_children[0];
+                return Self::extract(Some(child_node), source, _last_idx, _leaf_fn);
+            }
+            let node = unwrapped_node;
+            if node.kind() == "BoolExpr_Literal" {
+                return {
+                    let value = <adze::WithLeaf<bool> as ::adze::Extract<_>>::extract(
+                        Some(node),
+                        source,
+                        0,
+                        Some(&|_| true),
+                    );
+                    BoolExpr::Literal(value)
+                };
+            }
+            if node.kind() == "BoolExpr_LiteralFalse" {
+                return {
+                    let value = <adze::WithLeaf<bool> as ::adze::Extract<_>>::extract(
+                        Some(node),
+                        source,
+                        0,
+                        Some(&|_| false),
+                    );
+                    BoolExpr::LiteralFalse(value)
+                };
+            }
+            if non_extra_children.is_empty() {
+                let node = unwrapped_node;
+                if unwrapped_node.kind() == "\"true\"" {
+                    return {
+                        let value = <adze::WithLeaf<bool> as ::adze::Extract<_>>::extract(
+                            Some(node),
+                            source,
+                            0,
+                            Some(&|_| true),
+                        );
+                        BoolExpr::Literal(value)
+                    };
+                }
+                if unwrapped_node.kind() == "\"false\"" {
+                    return {
+                        let value = <adze::WithLeaf<bool> as ::adze::Extract<_>>::extract(
+                            Some(node),
+                            source,
+                            0,
+                            Some(&|_| false),
+                        );
+                        BoolExpr::LiteralFalse(value)
+                    };
+                }
+            }
+            panic ! ("Could not determine enum variant from tree structure: node kind='{}', symbol={}, child_count={}" , unwrapped_node . kind () , unwrapped_node . symbol , unwrapped_node . children . len ())
+        }
+    }
+    include!(concat!(
+        env!("OUT_DIR"),
+        "/grammar_",
+        "test",
+        "/parser_",
+        "test",
+        ".rs"
+    ));
+    pub fn language() -> &'static ::adze::pure_parser::TSLanguage {
+        &LANGUAGE
+    }
+    pub const LANGUAGE_REF: &'static ::adze::pure_parser::TSLanguage = &LANGUAGE;
+    #[doc = r" Parse an input string according to the grammar. Returns either any parsing errors that happened, or a"]
+    #[doc = "[`BoolExpr`]"]
+    #[doc = r" instance containing the parsed structured data."]
+    pub fn parse(input: &str) -> core::result::Result<BoolExpr, Vec<::adze::errors::ParseError>> {
+        ::adze::__private::parse::<BoolExpr>(input, || language())
+    }
+}
