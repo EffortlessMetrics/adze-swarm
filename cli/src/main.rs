@@ -1,5 +1,5 @@
-use adze_tool::{build_parsers, pure_rust_builder::BuildResult};
-use anyhow::Result;
+use adze_tool::pure_rust_builder::{BuildOptions, BuildResult, build_parser_for_crate};
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::fs;
@@ -38,9 +38,14 @@ pub(crate) enum Commands {
 
     /// Build grammar parsers
     Build {
-        /// Path to the grammar file or directory (directory scan matches *grammar*.rs, e.g. src/grammar.rs)
+        /// Path to the grammar file or project directory (a directory uses
+        /// src/lib.rs, src/main.rs, or src/grammar.rs as its entrypoint)
         #[arg(default_value = ".")]
         path: PathBuf,
+        /// Output directory for generated parser artifacts (defaults to
+        /// <project>/target/adze-build)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
         /// Watch for changes and rebuild automatically
         #[arg(short, long)]
         watch: bool,
@@ -146,11 +151,15 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Init { name, output } => init_grammar(&name, output)?,
-        Commands::Build { path, watch } => {
+        Commands::Build {
+            path,
+            watch,
+            output,
+        } => {
             if watch {
-                watch_and_build(&path)?;
+                watch_and_build(&path, output)?;
             } else {
-                build_grammar(&path)?;
+                build_grammar(&path, output.as_deref())?;
             }
         }
         Commands::Parse {
@@ -612,42 +621,128 @@ MIT
     Ok(())
 }
 
-fn build_grammar(path: &Path) -> Result<()> {
-    println!("{} Building grammar...", "🔨".blue());
-
-    if path.is_file() {
-        build_parsers(path);
-        println!("{} Grammar built successfully!", "✅".green());
-    } else {
-        // Find all grammar files in directory
-        let grammar_files: Vec<_> = WalkDir::new(path)
-            .into_iter()
-            .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.path().extension().is_some_and(|ext| ext == "rs")
-                    && e.path().to_str().is_some_and(|s| s.contains("grammar"))
-            })
-            .collect();
-
-        if grammar_files.is_empty() {
+/// Resolve a build target to its grammar entrypoint file(s) and the
+/// project directory that owns the default output location.
+///
+/// A directory uses its supported crate entrypoint (`src/lib.rs`, then
+/// `src/main.rs`, then `src/grammar.rs`) so a multi-module project is built
+/// once from its root, including grammars in external module files. Only a
+/// directory without such an entrypoint falls back to files whose *file
+/// name* contains `grammar`; matching the full path would sweep in
+/// unrelated files whenever an ancestor directory contains that word.
+fn resolve_build_roots(path: &Path) -> Result<(Vec<PathBuf>, PathBuf)> {
+    let target = absolute_path(path)?;
+    if target.is_file() {
+        if target.extension().is_none_or(|ext| ext != "rs") {
             anyhow::bail!(
-                "No grammar files found in {} (expected a *grammar*.rs file, e.g. src/grammar.rs; or pass the file directly)",
-                path.display()
+                "Build target must be a Rust grammar file or project directory: {}",
+                target.display()
             );
         }
-
-        for entry in grammar_files {
-            println!("  {} {}", "Building".bright_black(), entry.path().display());
-            build_parsers(entry.path());
+        let parent = target.parent().unwrap_or_else(|| Path::new("."));
+        let base = if parent.file_name().is_some_and(|name| name == "src") {
+            parent.parent().unwrap_or(parent).to_path_buf()
+        } else {
+            parent.to_path_buf()
+        };
+        return Ok((vec![target], base));
+    }
+    if !target.is_dir() {
+        anyhow::bail!("Build target does not exist: {}", target.display());
+    }
+    for entrypoint in ["src/lib.rs", "src/main.rs", "src/grammar.rs"] {
+        let candidate = target.join(entrypoint);
+        if candidate.is_file() {
+            return Ok((vec![candidate], target));
         }
+    }
+    let mut candidates: Vec<PathBuf> = WalkDir::new(&target)
+        .into_iter()
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.into_path())
+        .filter(|candidate| {
+            candidate.is_file()
+                && candidate.extension().is_some_and(|ext| ext == "rs")
+                && candidate
+                    .file_name()
+                    .is_some_and(|name| name.to_string_lossy().to_lowercase().contains("grammar"))
+                && !candidate
+                    .components()
+                    .any(|part| part.as_os_str() == "target")
+        })
+        .collect();
+    candidates.sort();
+    if candidates.is_empty() {
+        anyhow::bail!(
+            "No grammar files found in {} (expected src/lib.rs, src/main.rs, or a *grammar*.rs file, e.g. src/grammar.rs; or pass the file directly)",
+            target.display()
+        );
+    }
+    Ok((candidates, target))
+}
 
-        println!("{} All grammars built successfully!", "✅".green());
+/// Build one grammar entrypoint into `output_dir` through the fallible
+/// pure-Rust builder. This is the ordinary-CLI boundary: it never consults
+/// Cargo build-script variables such as `OUT_DIR`, and internal generation
+/// panics are converted to contextual errors.
+fn build_one_grammar(root_file: &Path, output_dir: &Path) -> Result<Vec<BuildResult>> {
+    if !root_file.is_file() {
+        anyhow::bail!("Grammar file does not exist: {}", root_file.display());
+    }
+    let content = fs::read_to_string(root_file)
+        .with_context(|| format!("Could not read grammar file: {}", root_file.display()))?;
+    syn::parse_file(&content)
+        .with_context(|| format!("Grammar syntax is invalid: {}", root_file.display()))?;
+
+    let options = BuildOptions {
+        out_dir: output_dir.to_string_lossy().into_owned(),
+        emit_artifacts: false,
+        compress_tables: true,
+    };
+    let root = root_file.to_path_buf();
+    let built = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+        build_parser_for_crate(&root, options)
+    }))
+    .map_err(|_| anyhow::anyhow!("Grammar generation panicked for {}", root_file.display()))?;
+    built.with_context(|| format!("Failed to build grammar from {}", root_file.display()))
+}
+
+fn build_grammar(path: &Path, output: Option<&Path>) -> Result<()> {
+    let (roots, project_dir) = resolve_build_roots(path)?;
+    let output_dir = match output {
+        Some(output) => absolute_path(output)?,
+        None => project_dir.join("target").join("adze-build"),
+    };
+    if output_dir.exists() && !output_dir.is_dir() {
+        anyhow::bail!(
+            "Build output path is not a directory: {}",
+            output_dir.display()
+        );
     }
 
+    println!("{} Building grammar...", "🔨".blue());
+    println!("  {} {}", "Output".bright_black(), output_dir.display());
+    let mut built = 0;
+    for root in &roots {
+        println!("  {} {}", "Building".bright_black(), root.display());
+        for result in build_one_grammar(root, &output_dir)? {
+            println!(
+                "  {} {} -> {}",
+                "Built".bright_black(),
+                result.grammar_name,
+                result.parser_path
+            );
+            built += 1;
+        }
+    }
+    if built == 0 {
+        anyhow::bail!("No adze grammar definitions found in {}", path.display());
+    }
+    println!("{} Grammar built successfully!", "✅".green());
     Ok(())
 }
 
-fn watch_and_build(path: &Path) -> Result<()> {
+fn watch_and_build(path: &Path, output: Option<PathBuf>) -> Result<()> {
     use notify::{Event, RecursiveMode, Watcher};
     use std::sync::mpsc::channel;
     use std::time::Duration;
@@ -664,7 +759,7 @@ fn watch_and_build(path: &Path) -> Result<()> {
     watcher.watch(path, RecursiveMode::Recursive)?;
 
     // Initial build
-    build_grammar(path)?;
+    build_grammar(path, output.as_deref())?;
 
     loop {
         match rx.recv_timeout(Duration::from_millis(100)) {
@@ -675,7 +770,7 @@ fn watch_and_build(path: &Path) -> Result<()> {
                     .any(|p| p.extension().is_some_and(|ext| ext == "rs"))
                 {
                     println!("{} Change detected, rebuilding...", "🔄".yellow());
-                    if let Err(e) = build_grammar(path) {
+                    if let Err(e) = build_grammar(path, output.as_deref()) {
                         eprintln!("{} Build failed: {}", "❌".red(), e);
                     }
                 }

@@ -1586,6 +1586,121 @@ fn test_parse_dynamic_with_feature_reports_missing_grammar_before_output_boundar
         .stderr(predicate::str::contains("currently unimplemented").not());
 }
 
+#[test]
+fn test_cli_build_without_out_dir_dir_and_file_forms() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let caller = temp.path().join("caller");
+    std::fs::create_dir_all(&caller).expect("create caller dir");
+    // An ancestor component contains "grammar"; discovery must use the
+    // project entrypoint, not every path whose full name contains it.
+    let ancestor = temp.path().join("grammar-ancestor");
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg("buildlang")
+        .arg("--output")
+        .arg(&ancestor)
+        .assert()
+        .success();
+    let project = ancestor.join("buildlang");
+    let grammar = project.join("src/grammar.rs");
+    let grammar_before = std::fs::read(&grammar).expect("read grammar");
+    std::fs::write(project.join("src/grammar_notes.rs"), "not rust !!!\n")
+        .expect("write unrelated decoy");
+
+    let mut dir_build = cargo_bin_cmd!("adze");
+    dir_build
+        .current_dir(&caller)
+        .env_remove("OUT_DIR")
+        .env_remove("CARGO_FEATURE_PURE_RUST")
+        .env_remove("ADZE_USE_PURE_RUST")
+        .arg("build")
+        .arg(&project)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Grammar built successfully"));
+    let artifact = project.join("target/adze-build/grammar_buildlang/parser_buildlang.rs");
+    let code = std::fs::read_to_string(&artifact).expect("read dir-form artifact");
+    assert!(code.contains("GRAMMAR_NAME"), "artifact: {artifact:?}");
+    assert!(!code.is_empty());
+
+    let custom = temp.path().join("custom-out");
+    let mut file_build = cargo_bin_cmd!("adze");
+    file_build
+        .current_dir(&caller)
+        .env_remove("OUT_DIR")
+        .env_remove("CARGO_FEATURE_PURE_RUST")
+        .env_remove("ADZE_USE_PURE_RUST")
+        .arg("build")
+        .arg(&grammar)
+        .arg("--output")
+        .arg(&custom)
+        .assert()
+        .success();
+    assert!(
+        custom
+            .join("grammar_buildlang/parser_buildlang.rs")
+            .is_file(),
+        "file form must emit into the declared --output directory"
+    );
+
+    // Relative directory target resolves against the caller, outputs stay
+    // under the selected project.
+    let mut rel_build = cargo_bin_cmd!("adze");
+    rel_build
+        .current_dir(temp.path())
+        .env_remove("OUT_DIR")
+        .arg("build")
+        .arg("grammar-ancestor/buildlang")
+        .assert()
+        .success();
+    assert_eq!(
+        std::fs::read(&grammar).expect("read grammar after builds"),
+        grammar_before,
+        "build must preserve user grammar source"
+    );
+}
+
+#[test]
+fn test_cli_build_without_out_dir_errors_without_panic() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let empty = temp.path().join("empty");
+    std::fs::create_dir_all(&empty).expect("create empty dir");
+    let broken = temp.path().join("broken.rs");
+    std::fs::write(&broken, "fn broken( {\n").expect("write broken fixture");
+    let plain = temp.path().join("plain.rs");
+    std::fs::write(&plain, "pub struct Plain;\n").expect("write plain fixture");
+    let blocker = temp.path().join("blocker.txt");
+    std::fs::write(&blocker, "blocker").expect("write blocker");
+
+    for (args, extra) in [
+        (vec![temp.path().join("missing")], None),
+        (vec![empty.clone()], None),
+        (vec![broken.clone()], None),
+        (vec![plain.clone()], None),
+        (vec![plain.clone()], Some(blocker.clone())),
+    ] {
+        let mut cmd = cargo_bin_cmd!("adze");
+        cmd.current_dir(temp.path())
+            .env_remove("OUT_DIR")
+            .env_remove("CARGO_FEATURE_PURE_RUST")
+            .env_remove("ADZE_USE_PURE_RUST")
+            .arg("build")
+            .args(&args);
+        if let Some(output) = &extra {
+            cmd.arg("--output").arg(output);
+        }
+        cmd.assert()
+            .failure()
+            .stderr(predicate::str::contains("panicked").not())
+            .stdout(predicate::str::contains("built successfully").not());
+    }
+    assert_eq!(
+        std::fs::read_to_string(&blocker).expect("read blocker"),
+        "blocker",
+        "unwritable-output failure must leave the blocking file untouched"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Unit tests for CLI argument parsing (no binary execution)
 // ---------------------------------------------------------------------------
