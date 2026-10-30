@@ -571,13 +571,17 @@ fn pure_node_leaf_span(node: &crate::pure_parser::ParsedNode) -> (usize, usize) 
 /// range would let whitespace corrupt token spans even though the converted
 /// leaf text is clean, so tokens (nodes without non-extra children) report
 /// the trimmed leaf span. Containers keep their full range, matching the
-/// tree-sitter route.
+/// tree-sitter route: a node with no non-extra bytes of its own (a container
+/// holding only extras) keeps its full range instead of collapsing to empty.
 #[cfg(feature = "pure-rust")]
 fn pure_node_span(node: &crate::pure_parser::ParsedNode) -> (usize, usize) {
     if node.children.iter().any(|child| !child.is_extra) {
         return (node.start_byte, node.end_byte);
     }
     let (start, end) = pure_node_leaf_span(node);
+    if end == start && node.end_byte > start {
+        return (node.start_byte, node.end_byte);
+    }
     (start, end.max(start))
 }
 

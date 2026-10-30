@@ -9,7 +9,7 @@
 //! transform.
 
 use adze::pure_parser::{ParsedNode, Point};
-use adze::{Extract, WithLeaf};
+use adze::{Extract, Spanned, WithLeaf};
 use std::mem::MaybeUninit;
 
 fn pt(row: u32, col: u32) -> Point {
@@ -246,4 +246,21 @@ fn vec_extract_delimited_tail_with_whitespace_delimiter() {
     let node = make_node_full(4, vec![elem1, tail], 0, 4, true, false, Some(2));
     let val = <Vec<String> as Extract<Vec<String>>>::extract(Some(&node), source, 0, None);
     assert_eq!(val, vec!["1".to_string(), "2".to_string()]);
+}
+
+#[test]
+fn spanned_container_with_only_extra_child_keeps_full_span() {
+    // A container whose only child is an extra spans that extra. Trimming
+    // it like a token would collapse the reported span to empty.
+    let source = b" ";
+    let ws = make_node_full(12, vec![], 0, 1, true, true, None);
+    let node = contents(4, vec![ws], 0, 1);
+    let val = <Spanned<Vec<String>> as Extract<Spanned<Vec<String>>>>::extract(
+        Some(&node),
+        source,
+        0,
+        None,
+    );
+    assert!(val.value.is_empty());
+    assert_eq!(val.span, (0, 1));
 }
