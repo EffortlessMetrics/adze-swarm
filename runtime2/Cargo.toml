@@ -16,9 +16,9 @@ publish = false
 thiserror = "1.0"
 smallvec.workspace = true
 rustc-hash.workspace = true
-adze-parsetable-metadata = { version = "0.1.0", path = "../crates/parsetable-metadata" }
-adze-bdd-governance-core = { version = "0.1.0", path = "../crates/bdd-governance-core" }
-adze-linecol-core = { version = "0.1.0", path = "../crates/linecol-core" }
+adze-parsetable-metadata = { version = "0.10.0", path = "../crates/parsetable-metadata" }
+adze-bdd-governance-core = { version = "0.10.0", path = "../crates/bdd-governance-core" }
+adze-linecol-core = { version = "0.10.0", path = "../crates/linecol-core" }
 
 # GLR core (optional, enabled by default)
 adze-glr-core = { path = "../glr-core", optional = true }

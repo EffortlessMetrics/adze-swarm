@@ -1,6 +1,6 @@
 [package]
 name = "adze-tool"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2024"
 rust-version = "1.95.0"
 authors = ["Steven Zimmerman, CPA"]
@@ -36,10 +36,10 @@ syn = { workspace = true }
 syn-inline-mod = "0.6"
 serde = { workspace = true }
 serde_json = { workspace = true }
-adze-common = { version = "0.9.0", path = "../common" }
-adze-ir = { version = "0.9.0", path = "../ir" }
-adze-glr-core = { version = "0.9.0", path = "../glr-core" }
-adze-tablegen = { version = "0.9.0", path = "../tablegen" }
+adze-common = { version = "0.10.0", path = "../common" }
+adze-ir = { version = "0.10.0", path = "../ir" }
+adze-glr-core = { version = "0.10.0", path = "../glr-core" }
+adze-tablegen = { version = "0.10.0", path = "../tablegen" }
 regex = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
