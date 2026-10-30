@@ -60,13 +60,12 @@ fn leaf_text(attrs: &[Attribute]) -> Option<String> {
         .parse_args_with(Punctuated::<NameValueExpr, Token![,]>::parse_terminated)
         .ok()?;
     params.iter().find_map(|param| {
-        if param.path == "text" {
-            if let Expr::Lit(ExprLit {
+        if param.path == "text"
+            && let Expr::Lit(ExprLit {
                 lit: Lit::Str(s), ..
             }) = &param.expr
-            {
-                return Some(s.value());
-            }
+        {
+            return Some(s.value());
         }
         None
     })
