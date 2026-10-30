@@ -69,7 +69,7 @@ pub use helpers::{collect_token_indices, eof_accepts_or_reduces};
 
 // Re-export key types
 /// ABI-compatible language struct builder.
-pub use abi_builder::AbiLanguageBuilder;
+pub use abi_builder::{AbiLanguageBuilder, MAX_ABI_RHS_LENGTH};
 /// Compressed table types and compressor.
 pub use compress::{
     ActionEntry, CompressedActionEntry, CompressedActionTable, CompressedGotoEntry,

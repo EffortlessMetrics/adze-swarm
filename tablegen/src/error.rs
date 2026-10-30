@@ -55,6 +55,23 @@ pub enum TableGenError {
     /// Error bubbled from the IR layer.
     #[error(transparent)]
     Ir(#[from] adze_ir::IrError),
+
+    /// A production RHS exceeds the generated ABI child-count capacity.
+    #[error(
+        "grammar '{grammar}' rule '{rule}' (production {production_id}) has RHS length {observed}, which exceeds the generated ABI limit of {limit}"
+    )]
+    RhsLengthExceedsAbiLimit {
+        /// Grammar name.
+        grammar: String,
+        /// Rule (LHS) name.
+        rule: String,
+        /// Production ID of the offending rule.
+        production_id: u16,
+        /// Observed RHS length.
+        observed: usize,
+        /// Maximum representable RHS length.
+        limit: usize,
+    },
 }
 
 /// Convenience type alias for TableGen results.
