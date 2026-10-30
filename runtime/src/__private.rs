@@ -578,6 +578,7 @@ pub fn adze_document_from_streaming_parse(
 fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
     parsed_node: crate::pure_parser::ParsedNode,
     source: &[u8],
+    language: &'static crate::pure_parser::TSLanguage,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
     let non_extra_root_children: Vec<_> = parsed_node
         .children
@@ -592,6 +593,43 @@ fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
     };
 
     if extract_node.has_error() {
+        // GLR recovery trees carry error nodes without expected-token or
+        // multi-error facts. Report the deterministic LR diagnostics for
+        // the same rejection instead, matching the LR contract (#1097).
+        if let Ok(input) = std::str::from_utf8(source) {
+            let mut lr_parser = crate::pure_parser::Parser::new();
+            if lr_parser.set_language(language).is_ok() {
+                let lr_errors = lr_parser.parse_string(input).errors;
+                if !lr_errors.is_empty() {
+                    return Err(lr_errors
+                        .into_iter()
+                        .map(|e| {
+                            let symbol_name = diagnostic_found_name_for_error(
+                                input, language, e.found, e.position,
+                            );
+                            let expected =
+                                expected_symbol_names_for_diagnostic(language, &e.expected);
+                            let reason = if symbol_name == "end of input" {
+                                crate::errors::ParseErrorReason::UnexpectedEof
+                            } else {
+                                crate::errors::ParseErrorReason::UnexpectedToken(
+                                    crate::diagnostic_format::unexpected_token_message(
+                                        symbol_name,
+                                        expected.clone(),
+                                    ),
+                                )
+                            };
+                            crate::errors::ParseError {
+                                reason,
+                                start: e.position,
+                                end: diagnostic_end_for_byte(input.as_bytes(), e.position),
+                                expected,
+                            }
+                        })
+                        .collect());
+                }
+            }
+        }
         let mut errors = vec![];
         crate::errors::collect_parsing_errors(extract_node, source, &mut errors);
         if !errors.is_empty() {
@@ -957,7 +995,7 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
 
         let source = input.as_bytes();
         let parsed_node = convert_subtree_to_pure(&parsed.root, language, source);
-        return finish_typed_extract_from_parsed_node(parsed_node, source);
+        return finish_typed_extract_from_parsed_node(parsed_node, source, language);
     }
 
     if language.lex_fn.is_some() {
@@ -1009,7 +1047,7 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
     };
 
     let parsed_node = convert_subtree_to_pure(&root_node, language, source);
-    finish_typed_extract_from_parsed_node(parsed_node, source)
+    finish_typed_extract_from_parsed_node(parsed_node, source, language)
 }
 
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
