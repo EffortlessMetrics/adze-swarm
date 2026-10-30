@@ -50,6 +50,7 @@ jobs:
           fi
 
   golden-tests:
+    timeout-minutes: 25
     name: Golden Tests - ${{ matrix.language }}
     needs: paths
     if: |

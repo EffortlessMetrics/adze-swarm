@@ -4,8 +4,13 @@ on:
   schedule:
     - cron: '30 3 * * 1' # weekly
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   benchmark:
+    timeout-minutes: 20
     runs-on: self-hosted
     continue-on-error: true # Non-blocking job
     permissions:

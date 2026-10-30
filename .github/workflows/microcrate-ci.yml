@@ -111,6 +111,7 @@ jobs:
 
   # ── Formatting & doc checks (path-routed receipts) ──────────────────
   fmt-check:
+    timeout-minutes: 10
     name: Formatting
     needs: changes
     if: needs.changes.outputs.fmt == 'true'
@@ -124,6 +125,7 @@ jobs:
         run: cargo fmt --all -- --check
 
   doc-check:
+    timeout-minutes: 15
     name: Docs Build
     needs: changes
     if: needs.changes.outputs.docs == 'true'
@@ -141,6 +143,7 @@ jobs:
 
   # ── WASM build check ────────────────────────────────────────────────
   wasm-check:
+    timeout-minutes: 15
     name: WASM Build (core crates)
     needs: changes
     if: needs.changes.outputs.wasm == 'true'
@@ -166,6 +169,7 @@ jobs:
 
   # ── Feature matrix: strict_api / strict_docs ────────────────────────
   strict-features:
+    timeout-minutes: 20
     name: Strict Features (${{ matrix.features }})
     needs: changes
     if: needs.changes.outputs.strict == 'true'
@@ -227,6 +231,7 @@ jobs:
 
   # ── Crate-group parallel test jobs ──────────────────────────────────
   test-concurrency:
+    timeout-minutes: 20
     name: Test Concurrency Crates
     needs: changes
     if: needs.changes.outputs.concurrency == 'true'
@@ -242,6 +247,7 @@ jobs:
           echo "No standalone concurrency microcrates remain; runtime owner modules are covered by ci-supported and runtime tests."
 
   test-governance:
+    timeout-minutes: 20
     name: Test Governance Crates
     needs: changes
     if: needs.changes.outputs.governance == 'true'
@@ -259,6 +265,7 @@ jobs:
             -- --test-threads=$RUST_TEST_THREADS
 
   test-bdd:
+    timeout-minutes: 20
     name: Test BDD Crates
     needs: changes
     if: needs.changes.outputs.bdd == 'true'
@@ -277,6 +284,7 @@ jobs:
             -- --test-threads=$RUST_TEST_THREADS
 
   test-parser:
+    timeout-minutes: 25
     name: Test Parser Crates
     needs: changes
     if: needs.changes.outputs.parser == 'true'
@@ -295,6 +303,7 @@ jobs:
             -- --test-threads=$RUST_TEST_THREADS
 
   test-core:
+    timeout-minutes: 25
     name: Test Core Crates (ir, glr-core, tablegen)
     needs: changes
     if: needs.changes.outputs.core == 'true'
@@ -315,6 +324,7 @@ jobs:
         run: cargo test -p adze-common -- --test-threads=$RUST_TEST_THREADS
 
   test-runtime:
+    timeout-minutes: 30
     name: Test Runtime Crates
     needs: changes
     if: needs.changes.outputs.runtime == 'true'

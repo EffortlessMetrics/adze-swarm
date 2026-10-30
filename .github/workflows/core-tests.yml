@@ -10,6 +10,7 @@ concurrency:
 
 jobs:
   core:
+    timeout-minutes: 30
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.2

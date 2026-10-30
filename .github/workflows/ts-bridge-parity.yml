@@ -10,6 +10,7 @@ concurrency:
 
 jobs:
   parity:
+    timeout-minutes: 20
     runs-on: self-hosted
     continue-on-error: true # Non-blocking advisory job
     permissions:
