@@ -589,9 +589,8 @@ fn unknown_rule_type_errors() {
             "source": { "type": "FOOBAR", "value": "x" }
         }),
     ));
-    // Unknown rules are skipped by from_tree_sitter_json, so the grammar parses but has no rules
-    assert!(result.is_ok());
-    assert!(result.unwrap().rules.is_empty());
+    // #1076: unknown rule types are rejected, not silently skipped.
+    assert!(result.is_err());
 }
 
 #[test]
@@ -602,8 +601,8 @@ fn missing_type_field_errors() {
             "source": { "value": "x" }
         }),
     ));
-    // Missing type → parse_rule fails, rule skipped
-    assert!(result.unwrap().rules.is_empty());
+    // #1076: a missing type field is rejected, not silently skipped.
+    assert!(result.is_err());
 }
 
 #[test]

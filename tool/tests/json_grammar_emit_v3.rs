@@ -950,8 +950,13 @@ fn grammar_with_alias_builds() {
             }
         }
     });
-    let r = build_json_ok(&g);
-    assert!(!r.parser_code.is_empty());
+    // #1076: ALIAS semantics are not admitted yet; reject loudly instead of
+    // building a parser that dropped the aliased content.
+    let result = build_parser_from_json(g.to_string(), test_opts());
+    assert!(
+        result.is_err(),
+        "unsupported ALIAS must fail, got {result:?}"
+    );
 }
 
 #[test]

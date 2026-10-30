@@ -487,17 +487,14 @@ fn json_error_build_from_empty_json_object() {
 
 #[test]
 fn json_error_unknown_rule_type_skipped() {
-    // Unknown rule types are silently skipped during parsing, so the rule
-    // won't appear in the resulting grammar.
-    let g = from_tree_sitter_json(&json!({
+    // #1076: unknown rule types are rejected, not silently skipped.
+    let result = from_tree_sitter_json(&json!({
         "name": "bad_type",
         "rules": {
             "root": { "type": "NONEXISTENT_TYPE", "value": "x" }
         }
-    }))
-    .unwrap();
-    // The rule with an unknown type is not inserted
-    assert!(!g.rules.contains_key("root"));
+    }));
+    assert!(result.is_err());
 }
 
 // ===========================================================================

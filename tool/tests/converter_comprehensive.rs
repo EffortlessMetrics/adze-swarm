@@ -456,11 +456,12 @@ fn json_unknown_rule_type_is_error() {
             "r": { "type": "FOOBAR", "value": "?" }
         }
     });
-    // The rule will fail to parse, but the top-level result may still succeed
-    // because json_converter silently skips failed rules via `if let Ok(...)`.
-    let g = from_tree_sitter_json(&v).unwrap();
-    // The bad rule should simply be absent.
-    assert!(!g.rules.contains_key("r"));
+    // #1076: unknown rule types are rejected, not silently skipped.
+    let err = from_tree_sitter_json(&v).expect_err("unknown rule type must fail");
+    assert!(
+        format!("{err:#}").contains("FOOBAR"),
+        "error should name the unknown type: {err:#}"
+    );
 }
 
 #[test]

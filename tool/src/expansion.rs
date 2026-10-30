@@ -621,10 +621,18 @@ fn gen_struct_or_variant(
         && fields_unnamed.unnamed.len() == 1
     {
         let field = &fields_unnamed.unnamed[0];
+        // The leaf attribute may be on the field or on the variant itself
+        // (e.g. `#[adze::leaf(text = "true")] Literal(bool)`); both declare
+        // the variant's single token.
         if let Some(leaf_attrs) = field
             .attrs
             .iter()
             .find(|attr| attr.path() == &syn::parse_quote!(adze::leaf))
+            .or_else(|| {
+                attrs
+                    .iter()
+                    .find(|attr| attr.path() == &syn::parse_quote!(adze::leaf))
+            })
         {
             // This is a single-leaf variant - return the token directly
             let params = leaf_attrs

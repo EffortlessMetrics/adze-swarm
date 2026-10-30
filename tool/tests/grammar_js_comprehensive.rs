@@ -317,7 +317,7 @@ fn json_parse_error_missing_name() {
 
 #[test]
 fn json_parse_unknown_rule_type_skipped() {
-    // Unknown rule types are silently skipped (parse_rule returns Err, caught by `if let Ok`)
+    // #1076: unknown rule types are rejected, not silently skipped.
     let v = json!({
         "name": "g",
         "rules": {
@@ -325,10 +325,11 @@ fn json_parse_unknown_rule_type_skipped() {
             "bad":  { "type": "TOTALLY_INVENTED" }
         }
     });
-    let g = from_json(&v).unwrap();
-    assert!(g.rules.contains_key("good"));
-    // The unknown rule type is skipped, so "bad" should not be present
-    assert!(!g.rules.contains_key("bad"));
+    let err = from_json(&v).expect_err("unknown rule type must fail");
+    assert!(
+        format!("{err:#}").contains("bad"),
+        "error should name the malformed rule: {err:#}"
+    );
 }
 
 #[test]

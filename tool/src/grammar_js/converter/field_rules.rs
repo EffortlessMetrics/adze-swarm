@@ -19,9 +19,9 @@ impl GrammarJsConverter {
         );
 
         if let JsRule::Choice { members } = content {
-            self.convert_field_choice(grammar, lhs, name, field_id, members);
-        } else if let Some(symbol) = self.rule_to_symbol(grammar, content) {
-            eprintln!("Debug: FIELD resolved to symbol: {:?}", symbol);
+            self.convert_field_choice(grammar, lhs, name, field_id, members)?;
+        } else {
+            let symbol = self.rule_to_symbol(grammar, content)?;
             self.add_rule_with_fields(grammar, lhs, vec![symbol], None, None, vec![(field_id, 0)]);
         }
         Ok(())
@@ -49,21 +49,12 @@ impl GrammarJsConverter {
         name: &str,
         field_id: FieldId,
         members: &[JsRule],
-    ) {
-        eprintln!("Debug: FIELD contains CHOICE, converting each member with field");
-        for (index, member) in members.iter().enumerate() {
-            eprintln!(
-                "Debug: Converting choice member {} for field {}",
-                index, name
-            );
+    ) -> Result<()> {
+        for member in members {
             if matches!(member, JsRule::Blank) {
-                eprintln!("Debug: Adding empty rule for BLANK with field {}", name);
                 self.add_rule(grammar, lhs, vec![], None, None);
-            } else if let Some(symbol) = self.rule_to_symbol(grammar, member) {
-                eprintln!(
-                    "Debug: Adding rule with symbol {:?} and field {}",
-                    symbol, name
-                );
+            } else {
+                let symbol = self.rule_to_symbol(grammar, member)?;
                 self.add_rule_with_fields(
                     grammar,
                     lhs,
@@ -74,6 +65,7 @@ impl GrammarJsConverter {
                 );
             }
         }
+        Ok(())
     }
 }
 

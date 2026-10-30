@@ -574,9 +574,8 @@ fn build_error_rules_with_unknown_type() {
             "source_file": {"type": "NONEXISTENT_TYPE", "value": "x"}
         }),
     );
-    // The rule will fail to parse, resulting in an empty grammar
-    let gjs = grammar_from_json(&val);
-    assert!(gjs.rules.is_empty());
+    // #1076: unknown rule types are rejected, not silently skipped.
+    assert!(from_json(&val).is_err());
 }
 
 #[test]
@@ -587,9 +586,8 @@ fn build_error_rule_missing_type_field() {
             "source_file": {"value": "hello"}
         }),
     );
-    // Rule without "type" should fail to parse, producing empty rules
-    let gjs = grammar_from_json(&val);
-    assert!(gjs.rules.is_empty());
+    // #1076: a rule without "type" is rejected, not silently skipped.
+    assert!(from_json(&val).is_err());
 }
 
 #[test]
@@ -600,9 +598,8 @@ fn build_error_rule_type_as_number() {
             "source_file": {"type": 123, "value": "x"}
         }),
     );
-    let gjs = grammar_from_json(&val);
-    // type must be a string, so the rule is skipped
-    assert!(gjs.rules.is_empty());
+    // #1076: a non-string rule type is rejected, not silently skipped.
+    assert!(from_json(&val).is_err());
 }
 
 // ===========================================================================
