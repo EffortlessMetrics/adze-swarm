@@ -897,6 +897,86 @@ mod tests {
     }
 
     #[test]
+    fn test_public_matcher_not_eq_invalid_range_fails_closed() {
+        let grammar = create_test_grammar();
+        let query = compile_query(
+            r#"(identifier) @name (#not-eq? @name "different")"#,
+            &grammar,
+        )
+        .unwrap();
+        let metadata = test_symbol_metadata();
+
+        // Out-of-bounds range 0..2 on source "a" must not become a match.
+        let root = make_node(1, 0, 2);
+        let matcher = QueryMatcher::new(&query, "a", &metadata);
+        assert!(matcher.matches(&root).is_empty());
+
+        // The same predicate on a valid range is a positive match.
+        let root = make_node(1, 0, 2);
+        let matcher = QueryMatcher::new(&query, "ab", &metadata);
+        let matches = matcher.matches(&root);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 0);
+        assert_eq!(matches[0].captures[0].node.end_byte, 2);
+
+        // Full-string regex through the public matcher: `a|ab` on "ab".
+        let query =
+            compile_query(r#"(identifier) @name (#match? @name "a|ab")"#, &grammar).unwrap();
+        let matcher = QueryMatcher::new(&query, "ab", &metadata);
+        assert_eq!(matcher.matches(&make_node(1, 0, 2)).len(), 1);
+    }
+
+    #[test]
+    fn test_public_matcher_invalid_ranges_and_regex_fail_closed() {
+        let grammar = create_test_grammar();
+        let metadata = test_symbol_metadata();
+        let not_eq = compile_query(
+            r#"(identifier) @name (#not-eq? @name "different")"#,
+            &grammar,
+        )
+        .unwrap();
+
+        // Reversed range 2..1 on "ab" must not become a match.
+        let matcher = QueryMatcher::new(&not_eq, "ab", &metadata);
+        assert!(matcher.matches(&make_node(1, 2, 1)).is_empty());
+
+        // Non-UTF-8-boundary range 0..1 on "λ" (2 bytes) must not match.
+        let matcher = QueryMatcher::new(&not_eq, "λ", &metadata);
+        assert!(matcher.matches(&make_node(1, 0, 1)).is_empty());
+
+        // #not-match? on an invalid range also fails closed.
+        let not_match =
+            compile_query(r#"(identifier) @name (#not-match? @name "z+")"#, &grammar).unwrap();
+        let matcher = QueryMatcher::new(&not_match, "ab", &metadata);
+        assert!(matcher.matches(&make_node(1, 0, 3)).is_empty());
+        // ...while a valid non-matching range still matches.
+        let matcher = QueryMatcher::new(&not_match, "ab", &metadata);
+        assert_eq!(matcher.matches(&make_node(1, 0, 2)).len(), 1);
+
+        // Manually constructed invalid regex cannot produce a match.
+        let root = PatternNode::new(SymbolId(1), true).with_capture(0);
+        let mut capture_names = HashMap::new();
+        capture_names.insert("name".to_string(), 0);
+        let query = Query {
+            source: String::new(),
+            patterns: vec![Pattern {
+                root,
+                predicates: vec![Predicate::Match {
+                    capture: 0,
+                    regex: "[".to_string(),
+                }],
+                start_byte: 0,
+            }],
+            capture_names,
+            property_settings: Vec::new(),
+            property_predicates: Vec::new(),
+        };
+        let matcher = QueryMatcher::new(&query, "ab", &metadata);
+        assert!(matcher.matches(&make_node(1, 0, 2)).is_empty());
+    }
+
+    #[test]
     fn test_field_constraint_matches_named_field_child() {
         let mut pattern = PatternNode::new(SymbolId(0), true);
         pattern.add_field(

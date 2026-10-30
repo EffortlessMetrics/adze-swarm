@@ -2,6 +2,7 @@
 // Parses Tree-sitter's S-expression query syntax
 
 use super::ast::*;
+use super::predicate_eval::compile_full_string_regex;
 use adze_ir::{Grammar, SymbolId};
 use std::collections::HashMap;
 
@@ -395,7 +396,9 @@ impl<'a> QueryParser<'a> {
         self.skip_whitespace();
         let capture = self.parse_capture_ref()?;
         self.skip_whitespace();
+        let regex_position = self.position;
         let regex = self.parse_string()?;
+        self.validate_predicate_regex(&regex, regex_position)?;
         Ok(Predicate::Match { capture, regex })
     }
 
@@ -403,8 +406,20 @@ impl<'a> QueryParser<'a> {
         self.skip_whitespace();
         let capture = self.parse_capture_ref()?;
         self.skip_whitespace();
+        let regex_position = self.position;
         let regex = self.parse_string()?;
+        self.validate_predicate_regex(&regex, regex_position)?;
         Ok(Predicate::NotMatch { capture, regex })
+    }
+
+    fn validate_predicate_regex(&self, regex: &str, position: usize) -> Result<(), QueryError> {
+        compile_full_string_regex(regex)
+            .map(|_| ())
+            .map_err(|error| QueryError::RegexError {
+                position,
+                pattern: regex.to_string(),
+                message: error.to_string(),
+            })
     }
 
     fn parse_set_directive(&mut self) -> Result<Predicate, QueryError> {

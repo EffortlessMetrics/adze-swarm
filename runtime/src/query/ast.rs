@@ -151,8 +151,12 @@ pub enum QueryError {
     #[error("Invalid predicate: {0}")]
     InvalidPredicate(String),
 
-    #[error("Regex error: {0}")]
-    RegexError(String),
+    #[error("Invalid regex at position {position}: {message} (pattern: {pattern:?})")]
+    RegexError {
+        position: usize,
+        pattern: String,
+        message: String,
+    },
 
     #[error("Capture index out of bounds: {0}")]
     CaptureIndexOutOfBounds(u32),

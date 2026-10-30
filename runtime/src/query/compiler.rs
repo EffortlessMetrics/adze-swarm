@@ -205,6 +205,35 @@ mod tests {
     }
 
     #[test]
+    fn test_invalid_match_regex_is_structured_compile_error() {
+        let grammar = create_test_grammar();
+        for predicate in ["#match?", "#not-match?"] {
+            let query_str = format!(r#"(identifier) @name ({predicate} @name "[")"#);
+            let expected_position = query_str.find("\"[\"").unwrap();
+            match compile_query(&query_str, &grammar) {
+                Err(QueryError::RegexError {
+                    position,
+                    pattern,
+                    message,
+                }) => {
+                    assert_eq!(position, expected_position);
+                    assert_eq!(pattern, "[");
+                    assert!(!message.is_empty());
+                }
+                other => panic!("expected structured RegexError, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_valid_match_regex_compiles() {
+        let grammar = create_test_grammar();
+        let query = compile_query(r#"(identifier) @name (#match? @name "a|ab")"#, &grammar)
+            .expect("valid full-string regex must compile");
+        assert_eq!(query.patterns[0].predicates.len(), 1);
+    }
+
+    #[test]
     fn test_query_with_anchors() {
         let grammar = create_test_grammar();
         let query = compile_query(r#"(statement . (expression) .)"#, &grammar).unwrap();
