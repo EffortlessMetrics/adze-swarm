@@ -300,12 +300,75 @@ mod tests {
     }
 
     #[test]
+    fn repeat_of_seq_with_token_member_keeps_element_1095() {
+        // TOKEN(PATTERN(..)) as the repeated element must convert through
+        // its content instead of being omitted from the tail sequence.
+        let tail = JsRule::Seq {
+            members: vec![
+                JsRule::String {
+                    value: ",".to_string(),
+                },
+                JsRule::Field {
+                    name: "numbers_vec_element".to_string(),
+                    content: Box::new(JsRule::Token {
+                        content: Box::new(JsRule::Pattern {
+                            value: r"\d+".to_string(),
+                        }),
+                    }),
+                },
+            ],
+        };
+        let mut grammar_js = GrammarJs::new("delimited_token".to_string());
+        grammar_js.rules.insert(
+            "source_file".to_string(),
+            JsRule::Seq {
+                members: vec![
+                    JsRule::Field {
+                        name: "numbers_vec_element".to_string(),
+                        content: Box::new(JsRule::Token {
+                            content: Box::new(JsRule::Pattern {
+                                value: r"\d+".to_string(),
+                            }),
+                        }),
+                    },
+                    JsRule::Repeat {
+                        content: Box::new(tail),
+                    },
+                ],
+            },
+        );
+        let grammar = GrammarJsConverter::new(grammar_js).convert().unwrap();
+        let repeat_aux = aux_id(&grammar, "_repeat_aux_");
+        let rules = &grammar.rules[&repeat_aux];
+        let recursive = rules
+            .iter()
+            .find(|r| r.rhs.len() == 2 && r.rhs[0] == Symbol::NonTerminal(repeat_aux))
+            .unwrap_or_else(|| panic!("REPEAT of SEQ must recurse via tail: {rules:?}"));
+        let Symbol::NonTerminal(seq_aux) = recursive.rhs[1] else {
+            panic!("tail symbol should be seq aux: {recursive:?}");
+        };
+        let seq_rules = &grammar.rules[&seq_aux];
+        assert_eq!(seq_rules.len(), 1);
+        assert_eq!(
+            seq_rules[0].rhs.len(),
+            2,
+            "seq tail keeps [comma, token element]: {seq_rules:?}"
+        );
+        assert!(matches!(seq_rules[0].rhs[0], Symbol::Terminal(_)));
+        assert!(matches!(seq_rules[0].rhs[1], Symbol::Terminal(_)));
+    }
+
+    #[test]
     fn repeat1_of_seq_keeps_delimiter_tail_1095() {
         let grammar = delimited_list(true);
         let repeat_aux = aux_id(&grammar, "_repeat_aux_");
         let rules = &grammar.rules[&repeat_aux];
         assert!(
-            rules.iter().any(|r| r.rhs.len() == 2),
+            rules.iter().any(|r| {
+                r.rhs.len() == 2
+                    && matches!(r.rhs[0], Symbol::Terminal(_))
+                    && matches!(r.rhs[1], Symbol::Terminal(_))
+            }),
             "REPEAT1 tail has a first delimiter+element production: {rules:?}"
         );
         assert!(
