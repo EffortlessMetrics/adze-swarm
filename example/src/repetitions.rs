@@ -12,7 +12,7 @@ pub mod grammar {
             ()
         )]
         #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
-        numbers: Spanned<Vec<Spanned<i32>>>,
+        pub numbers: Spanned<Vec<Spanned<i32>>>,
     }
 
     #[adze::extra]
@@ -31,7 +31,7 @@ pub mod grammar2 {
     #[allow(dead_code)]
     pub struct NumberList {
         #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
-        numbers: Spanned<Vec<Spanned<i32>>>,
+        pub numbers: Spanned<Vec<Spanned<i32>>>,
     }
 
     #[adze::extra]
@@ -54,9 +54,9 @@ pub mod grammar3 {
             ()
         )]
         #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
-        numbers: Spanned<Vec<Spanned<Option<i32>>>>,
+        pub numbers: Spanned<Vec<Spanned<Option<i32>>>>,
         #[adze::skip(123)]
-        metadata: u32,
+        pub metadata: u32,
     }
 
     #[adze::extra]
@@ -94,23 +94,60 @@ mod tests {
     }
 
     #[test]
-    fn repetitions_long_list() {
-        // grammar with delimiter: long list and single element
-        // These currently return errors due to parser limitations
-        let r1 = grammar::parse("1, 2, 3, 4, 5");
-        assert!(r1.is_ok() || r1.is_err());
-        let r2 = grammar::parse("42");
-        assert!(r2.is_ok() || r2.is_err());
+    fn repetitions_singleton_exact_1062() {
+        // #1062: valid singletons return exact numeric values without panic,
+        // dropped items, or default values. This is the terminal regression
+        // for the reported `snapshot_repetitions_single` panic class (the
+        // repeat-aux sentinel's empty text reached the leaf transform).
+        for (input, value, span) in [("1", 1, (0, 1)), ("42", 42, (0, 2))] {
+            let parsed = grammar::parse(input)
+                .unwrap_or_else(|errors| panic!("{input:?} parses: {errors:?}"));
+            let items: Vec<(i32, (usize, usize))> = parsed
+                .numbers
+                .value
+                .iter()
+                .map(|item| (item.value, item.span))
+                .collect();
+            assert_eq!(items, vec![(value, span)], "exact singleton for {input:?}");
+            assert_eq!(parsed.numbers.span, span, "container span for {input:?}");
+        }
     }
 
     #[test]
-    fn repetitions_whitespace_variants() {
-        // No spaces around delimiter
-        let r1 = grammar::parse("1,2,3");
-        assert!(r1.is_ok() || r1.is_err());
-        // Extra spaces
-        let r2 = grammar::parse("1 , 2 , 3");
-        assert!(r2.is_ok() || r2.is_err());
+    fn repetitions_singleton_matches_document_ast_1062() {
+        // #1062: `parse()` and `parse_document().ast()` agree on covered rows.
+        let doc = grammar::parse_document("42").expect("document parses");
+        let via_doc: grammar::NumberList = doc.ast().expect("typed ast extracts");
+        let items: Vec<(i32, (usize, usize))> = via_doc
+            .numbers
+            .value
+            .iter()
+            .map(|item| (item.value, item.span))
+            .collect();
+        assert_eq!(items, vec![(42, (0, 2))]);
+        assert_eq!(via_doc.numbers.span, (0, 2));
+    }
+
+    #[test]
+    fn repetitions_empty_rejected_nonempty_1062() {
+        // #1062: empty input obeys the explicit nonempty contract.
+        let errors = grammar::parse("").expect_err("non_empty rejects empty input");
+        assert!(!errors.is_empty(), "rejection carries bounded diagnostics");
+    }
+
+    #[test]
+    fn repetitions_multi_delimited_table_rejection_1062() {
+        // KNOWN #1062 remaining: the generated delimited table accepts one
+        // element and rejects the first comma (`expected end`), so valid
+        // multi-element input is rejected below the extraction layer. Owned
+        // by the grammar-construction lane (macro/common/tablegen). Pinned
+        // here so a silent behavior change fails loudly instead of passing
+        // vacuously; revisit when the table accepts delimited repeats.
+        for input in ["1,2,3", "1 , 2 , 3", "1, 2, 3, 4, 5"] {
+            let errors =
+                grammar::parse(input).expect_err("multi-element delimited is table-rejected");
+            assert!(!errors.is_empty(), "bounded diagnostics for {input:?}");
+        }
     }
 
     #[test]
@@ -132,25 +169,152 @@ mod tests {
     }
 
     #[test]
-    fn repetitions_grammar2_errors() {
-        // Comma in non-delimited grammar
-        let r1 = grammar2::parse("1, 2");
-        assert!(r1.is_ok() || r1.is_err()); // may succeed ignoring comma
-        // Letters - grammar2 may accept empty list from non-matching input
-        let r2 = grammar2::parse("abc");
-        assert!(r2.is_ok() || r2.is_err());
+    fn repetitions_undelimited_exact_1062() {
+        // #1062: the zero-or-more undelimited grammar returns exact values,
+        // order, and spans. Token spans slice exactly their digits even when
+        // trailing whitespace attaches inside the token node.
+        let cases: &[(&str, Vec<(i32, (usize, usize))>, (usize, usize))] = &[
+            ("", vec![], (0, 0)),
+            ("1", vec![(1, (0, 1))], (0, 1)),
+            ("42", vec![(42, (0, 2))], (0, 2)),
+            ("1 2", vec![(1, (0, 1)), (2, (2, 3))], (0, 3)),
+            (
+                "1 2 3 4 5",
+                vec![
+                    (1, (0, 1)),
+                    (2, (2, 3)),
+                    (3, (4, 5)),
+                    (4, (6, 7)),
+                    (5, (8, 9)),
+                ],
+                (0, 9),
+            ),
+            // Non-numeric input matches zero elements under zero-or-more.
+            // Flagged, not blessed: trailing-vs-leading garbage acceptance
+            // belongs to the diagnostics lane; pinned so it cannot drift
+            // silently.
+            ("abc", vec![], (0, 0)),
+        ];
+        for (input, expected, container) in cases {
+            let parsed = grammar2::parse(input)
+                .unwrap_or_else(|errors| panic!("{input:?} parses: {errors:?}"));
+            let items: Vec<(i32, (usize, usize))> = parsed
+                .numbers
+                .value
+                .iter()
+                .map(|item| (item.value, item.span))
+                .collect();
+            assert_eq!(&items, expected, "exact values for {input:?}");
+            assert_eq!(
+                parsed.numbers.span, *container,
+                "container span for {input:?}"
+            );
+            for (value, span) in &items {
+                assert_eq!(
+                    &input[span.0..span.1],
+                    &value.to_string(),
+                    "span slices exactly its digits for {input:?}"
+                );
+            }
+        }
     }
 
     #[test]
-    fn repetitions_grammar3_optional_gaps() {
-        // Multiple commas with no values
-        let r1 = grammar3::parse(",,,");
-        assert!(r1.is_ok() || r1.is_err());
-        // Just two commas
-        let r2 = grammar3::parse(",,");
-        assert!(r2.is_ok() || r2.is_err());
-        // Comma before values
-        let r3 = grammar3::parse(",1,2");
-        assert!(r3.is_ok() || r3.is_err());
+    fn repetitions_undelimited_matches_document_ast_1062() {
+        // #1062: `parse()` and `parse_document().ast()` agree on covered rows.
+        let doc = grammar2::parse_document("1 2").expect("document parses");
+        let via_doc: grammar2::NumberList = doc.ast().expect("typed ast extracts");
+        let items: Vec<(i32, (usize, usize))> = via_doc
+            .numbers
+            .value
+            .iter()
+            .map(|item| (item.value, item.span))
+            .collect();
+        assert_eq!(items, vec![(1, (0, 1)), (2, (2, 3))]);
+        assert_eq!(via_doc.numbers.span, (0, 3));
+    }
+
+    #[test]
+    fn repetitions_undelimited_comma_prefix_is_explicit_1062() {
+        // Flagged, not blessed: the undelimited grammar stops at `,` with no
+        // diagnostic and returns the numeric prefix, silently dropping
+        // `, 2`. True rejection of trailing garbage belongs to the
+        // diagnostics lane. Pinned so the behavior cannot drift silently.
+        let parsed = grammar2::parse("1, 2").expect("current contract: prefix accepted");
+        let items: Vec<(i32, (usize, usize))> = parsed
+            .numbers
+            .value
+            .iter()
+            .map(|item| (item.value, item.span))
+            .collect();
+        assert_eq!(items, vec![(1, (0, 1))]);
+        assert_eq!(parsed.numbers.span, (0, 1));
+    }
+
+    #[test]
+    fn repetitions_optional_pair_exact_1062() {
+        // #1062: the nested `Spanned<Vec<Spanned<Option<i32>>>>` fixture
+        // preserves values, order, ranges, and the declared skipped metadata
+        // for ordinary input. Previously this panicked (`InvalidDigit`: the
+        // delimiter reached the leaf transform).
+        let parsed =
+            grammar3::parse("1, 2").unwrap_or_else(|errors| panic!("pair parses: {errors:?}"));
+        let items: Vec<(Option<i32>, (usize, usize))> = parsed
+            .numbers
+            .value
+            .iter()
+            .map(|item| (item.value, item.span))
+            .collect();
+        assert_eq!(items, vec![(Some(1), (0, 1)), (Some(2), (3, 4))]);
+        assert_eq!(parsed.numbers.span, (0, 4));
+        assert_eq!(parsed.metadata, 123, "declared skipped metadata preserved");
+
+        let doc = grammar3::parse_document("1, 2").expect("document parses");
+        let via_doc: grammar3::NumberList = doc.ast().expect("typed ast extracts");
+        let doc_items: Vec<(Option<i32>, (usize, usize))> = via_doc
+            .numbers
+            .value
+            .iter()
+            .map(|item| (item.value, item.span))
+            .collect();
+        assert_eq!(
+            doc_items, items,
+            "parse() agrees with parse_document().ast()"
+        );
+    }
+
+    #[test]
+    fn repetitions_optional_empty_contract_1062() {
+        // #1062: zero-or-more accepts empty input with the declared default.
+        let parsed =
+            grammar3::parse("").unwrap_or_else(|errors| panic!("empty parses: {errors:?}"));
+        assert!(parsed.numbers.value.is_empty());
+        assert_eq!(parsed.numbers.span, (0, 0));
+        assert_eq!(parsed.metadata, 123);
+    }
+
+    #[test]
+    fn repetitions_optional_singleton_rejected_is_explicit_1062() {
+        // Flagged, not blessed: the generated table demands a delimiter even
+        // for one element (`"1"` and `"1,"` are rejected), which does not
+        // follow from the zero-or-more delimited annotation. Owned by the
+        // grammar-construction lane. Pinned so the contract cannot drift
+        // silently.
+        for input in ["1", "1,"] {
+            let errors = grammar3::parse(input).expect_err("singleton rejected by current table");
+            assert!(!errors.is_empty(), "bounded diagnostics for {input:?}");
+        }
+    }
+
+    #[test]
+    fn repetitions_optional_malformed_delimiters_rejected_1062() {
+        // #1062: malformed leading/repeated/trailing delimiters are rejected
+        // with bounded diagnostics. Empty-gap acceptance semantics are
+        // undecided at the table level, so these rows pin rejection rather
+        // than any gap value.
+        for input in ["1,, 2", "1,, 2,", ",,,", ",,", ",1,2"] {
+            let errors = grammar3::parse(input).expect_err("malformed delimiters rejected");
+            assert!(!errors.is_empty(), "bounded diagnostics for {input:?}");
+        }
     }
 }

@@ -563,6 +563,28 @@ fn pure_node_leaf_span(node: &crate::pure_parser::ParsedNode) -> (usize, usize) 
     (node.start_byte, end)
 }
 
+/// Byte span reported for a [`Spanned`] wrapper on the pure-Rust route
+/// (#1062).
+///
+/// Token nodes absorb trailing extras into their byte range (e.g. the `1` in
+/// `"1 2"` spans `0..2` with the space attached inside). Reporting that raw
+/// range would let whitespace corrupt token spans even though the converted
+/// leaf text is clean, so tokens (nodes without non-extra children) report
+/// the trimmed leaf span. Containers keep their full range, matching the
+/// tree-sitter route: a node with no non-extra bytes of its own (a container
+/// holding only extras) keeps its full range instead of collapsing to empty.
+#[cfg(feature = "pure-rust")]
+fn pure_node_span(node: &crate::pure_parser::ParsedNode) -> (usize, usize) {
+    if node.children.iter().any(|child| !child.is_extra) {
+        return (node.start_byte, node.end_byte);
+    }
+    let (start, end) = pure_node_leaf_span(node);
+    if end == start && node.end_byte > start {
+        return (node.start_byte, node.end_byte);
+    }
+    (start, end.max(start))
+}
+
 /// Helper struct for fallible leaf extraction logic.
 ///
 /// Use `WithTryLeaf<L>` when a leaf token needs a user-supplied fallible
@@ -1151,6 +1173,68 @@ impl<T: Extract<U>, U> Extract<Box<U>> for Box<T> {
     }
 }
 
+/// Selection of a direct child of a repeat-contents node during pure-Rust
+/// [`Vec`] flattening (#1062).
+#[cfg(feature = "pure-rust")]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RepeatChild {
+    /// A repeat element: extract it.
+    Element,
+    /// An extra, empty sentinel, or other non-element: skip it.
+    Skip,
+    /// An anonymous container (delimited `_repeat_aux_*` tail): descend into
+    /// it with strict selection.
+    Descend,
+}
+
+/// Classify a direct child of a repeat-contents node (#1062).
+///
+/// The tree-sitter route keeps `field_name().is_some() || n.is_named()`. The
+/// pure tables tag the first element slot but leave later repeat slots and
+/// delimited tail containers untagged, so selection is positional on top of
+/// the field filter. Extras are never elements (whitespace tokens are named,
+/// so the extra check comes first). Anonymous tokens in element position are
+/// elements; anonymous containers holding non-extra children (delimited tails)
+/// descend with strict selection so delimiters never reach the element
+/// transform, while element tokens that merely carry trailing extras extract
+/// whole (leaf text already trims extras).
+#[cfg(feature = "pure-rust")]
+fn repeat_child_select(node: &crate::pure_parser::ParsedNode) -> RepeatChild {
+    if node.is_extra {
+        return RepeatChild::Skip;
+    }
+    if node.field_id.is_some() || node.is_named {
+        return RepeatChild::Element;
+    }
+    if node.start_byte == node.end_byte {
+        return RepeatChild::Skip;
+    }
+    if node.children.iter().any(|child| !child.is_extra) {
+        return RepeatChild::Descend;
+    }
+    RepeatChild::Element
+}
+
+/// Strict selection inside a delimited tail container (#1062): only fielded
+/// or named non-extra children are elements; delimiters, extras and empty
+/// sentinels are skipped; nested tails descend further.
+#[cfg(feature = "pure-rust")]
+fn repeat_tail_child_select(node: &crate::pure_parser::ParsedNode) -> RepeatChild {
+    if node.is_extra {
+        return RepeatChild::Skip;
+    }
+    if node.field_id.is_some() || node.is_named {
+        return RepeatChild::Element;
+    }
+    if node.start_byte == node.end_byte {
+        return RepeatChild::Skip;
+    }
+    if node.children.iter().any(|child| !child.is_extra) {
+        return RepeatChild::Descend;
+    }
+    RepeatChild::Skip
+}
+
 impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
     type LeafFn = T::LeafFn;
 
@@ -1203,7 +1287,46 @@ impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
             // For pure-rust parser, REPEAT1 creates a right-recursive structure:
             // For "12 23", the structure is:
             // - Vec_contents has [Vec_contents("12"), TestStatement("23")]
-            // We need to flatten this recursively
+            // We need to flatten this recursively.
+            //
+            // Child selection (#1062): the tree-sitter route keeps
+            // `field_name().is_some() || n.is_named()`. The pure tables tag the
+            // first element slot but leave later repeat slots and delimited
+            // tail containers untagged, so selection is positional on top of
+            // the field filter:
+            // - fielded or named children are elements;
+            // - extras and empty anonymous sentinels (`_repeat_aux_*` tails
+            //   that matched nothing, missing placeholders) are skipped;
+            // - anonymous tokens in element position are elements (the repeat
+            //   field maps do not tag every element slot);
+            // - anonymous containers (delimited `_repeat_aux_*` tails holding
+            //   delimiters plus later elements) are descended into with strict
+            //   selection, so delimiters never reach the element transform.
+            fn flatten_repeat_tail<T: Extract<U>, U>(
+                node: &crate::pure_parser::ParsedNode,
+                source: &[u8],
+                mut last_idx: usize,
+                leaf_fn: Option<&T::LeafFn>,
+                out: &mut Vec<U>,
+            ) {
+                // Strict selection inside a delimited tail: only fielded or
+                // named non-extra children are elements. Delimiters, extras
+                // and empty sentinels are skipped; nested tails descend
+                // further.
+                for child in &node.children {
+                    match crate::repeat_tail_child_select(child) {
+                        crate::RepeatChild::Element => {
+                            out.push(T::extract(Some(child), source, last_idx, leaf_fn));
+                            last_idx = child.end_byte;
+                        }
+                        crate::RepeatChild::Descend => {
+                            flatten_repeat_tail::<T, U>(child, source, last_idx, leaf_fn, out);
+                            last_idx = child.end_byte;
+                        }
+                        crate::RepeatChild::Skip => {}
+                    }
+                }
+            }
             fn flatten_repeat1<T: Extract<U>, U>(
                 node: &crate::pure_parser::ParsedNode,
                 source: &[u8],
@@ -1212,6 +1335,25 @@ impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
                 out: &mut Vec<U>,
             ) {
                 // eprintln!("  flatten_repeat1: node.symbol={}, children={}", node.symbol, node.children.len());
+
+                fn push_top_level<T: Extract<U>, U>(
+                    child: &crate::pure_parser::ParsedNode,
+                    source: &[u8],
+                    last_idx: usize,
+                    leaf_fn: Option<&T::LeafFn>,
+                    out: &mut Vec<U>,
+                ) -> usize {
+                    match crate::repeat_child_select(child) {
+                        crate::RepeatChild::Element => {
+                            out.push(T::extract(Some(child), source, last_idx, leaf_fn));
+                        }
+                        crate::RepeatChild::Descend => {
+                            flatten_repeat_tail::<T, U>(child, source, last_idx, leaf_fn, out);
+                        }
+                        crate::RepeatChild::Skip => {}
+                    }
+                    child.end_byte
+                }
 
                 // Check if this node has exactly 2 children and the first is the same symbol
                 // This indicates a REPEAT1 recursive structure
@@ -1223,27 +1365,22 @@ impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
                     flatten_repeat1::<T, U>(&node.children[0], source, last_idx, leaf_fn, out);
                     // Then extract the second child (the last element)
                     // eprintln!("  Extracting element from symbol={}", node.children[1].symbol);
-                    out.push(T::extract(
-                        Some(&node.children[1]),
+                    push_top_level::<T, U>(
+                        &node.children[1],
                         source,
                         node.children[0].end_byte,
                         leaf_fn,
-                    ));
+                        out,
+                    );
                 } else if node.children.len() == 1 {
                     // Base case: single element
                     // eprintln!("  Base case: extracting single element from symbol={}", node.children[0].symbol);
-                    out.push(T::extract(
-                        Some(&node.children[0]),
-                        source,
-                        last_idx,
-                        leaf_fn,
-                    ));
+                    push_top_level::<T, U>(&node.children[0], source, last_idx, leaf_fn, out);
                 } else {
-                    // Fallback: extract all children
+                    // Fallback: extract all selected children
                     for child in &node.children {
                         // eprintln!("  Fallback: extracting child symbol={}", child.symbol);
-                        out.push(T::extract(Some(child), source, last_idx, leaf_fn));
-                        last_idx = child.end_byte;
+                        last_idx = push_top_level::<T, U>(child, source, last_idx, leaf_fn, out);
                     }
                 }
             }
@@ -1296,29 +1433,69 @@ impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
             leaf_fn: Option<&T::LeafFn>,
             out: &mut Vec<U>,
         ) -> Result<(), crate::errors::ParseError> {
+            // Same child selection as `flatten_repeat1` above: fielded or
+            // named children are elements; extras and empty anonymous
+            // sentinels are skipped; anonymous tokens in element position are
+            // elements; anonymous containers (delimited tails) descend with
+            // strict selection (#1062).
+            fn flatten_repeat_tail_try<T: Extract<U>, U>(
+                node: &crate::pure_parser::ParsedNode,
+                source: &[u8],
+                mut last_idx: usize,
+                leaf_fn: Option<&T::LeafFn>,
+                out: &mut Vec<U>,
+            ) -> Result<(), crate::errors::ParseError> {
+                for child in &node.children {
+                    match crate::repeat_tail_child_select(child) {
+                        crate::RepeatChild::Element => {
+                            out.push(T::try_extract(Some(child), source, last_idx, leaf_fn)?);
+                            last_idx = child.end_byte;
+                        }
+                        crate::RepeatChild::Descend => {
+                            flatten_repeat_tail_try::<T, U>(child, source, last_idx, leaf_fn, out)?;
+                            last_idx = child.end_byte;
+                        }
+                        crate::RepeatChild::Skip => {}
+                    }
+                }
+                Ok(())
+            }
+            fn push_top_level_try<T: Extract<U>, U>(
+                child: &crate::pure_parser::ParsedNode,
+                source: &[u8],
+                last_idx: usize,
+                leaf_fn: Option<&T::LeafFn>,
+                out: &mut Vec<U>,
+            ) -> Result<usize, crate::errors::ParseError> {
+                match crate::repeat_child_select(child) {
+                    crate::RepeatChild::Element => {
+                        out.push(T::try_extract(Some(child), source, last_idx, leaf_fn)?);
+                    }
+                    crate::RepeatChild::Descend => {
+                        flatten_repeat_tail_try::<T, U>(child, source, last_idx, leaf_fn, out)?;
+                    }
+                    crate::RepeatChild::Skip => {}
+                }
+                Ok(child.end_byte)
+            }
             if node.children.len() == 2
                 && !node.children.is_empty()
                 && node.children[0].symbol == node.symbol
             {
                 flatten_repeat1_try::<T, U>(&node.children[0], source, last_idx, leaf_fn, out)?;
-                out.push(T::try_extract(
-                    Some(&node.children[1]),
+                push_top_level_try::<T, U>(
+                    &node.children[1],
                     source,
                     node.children[0].end_byte,
                     leaf_fn,
-                )?);
+                    out,
+                )?;
             } else if node.children.len() == 1 {
-                out.push(T::try_extract(
-                    Some(&node.children[0]),
-                    source,
-                    last_idx,
-                    leaf_fn,
-                )?);
+                push_top_level_try::<T, U>(&node.children[0], source, last_idx, leaf_fn, out)?;
             } else {
                 let mut last_idx = last_idx;
                 for child in &node.children {
-                    out.push(T::try_extract(Some(child), source, last_idx, leaf_fn)?);
-                    last_idx = child.end_byte;
+                    last_idx = push_top_level_try::<T, U>(child, source, last_idx, leaf_fn, out)?;
                 }
             }
             Ok(())
@@ -1394,9 +1571,7 @@ impl<T: Extract<U>, U> Extract<Spanned<U>> for Spanned<T> {
     ) -> Spanned<U> {
         Spanned {
             value: T::extract(node, source, last_idx, leaf_fn),
-            span: node
-                .map(|n| (n.start_byte, n.end_byte))
-                .unwrap_or((last_idx, last_idx)),
+            span: node.map(pure_node_span).unwrap_or((last_idx, last_idx)),
         }
     }
 
@@ -1424,9 +1599,7 @@ impl<T: Extract<U>, U> Extract<Spanned<U>> for Spanned<T> {
     ) -> Result<Spanned<U>, crate::errors::ParseError> {
         Ok(Spanned {
             value: T::try_extract(node, source, last_idx, leaf_fn)?,
-            span: node
-                .map(|n| (n.start_byte, n.end_byte))
-                .unwrap_or((last_idx, last_idx)),
+            span: node.map(pure_node_span).unwrap_or((last_idx, last_idx)),
         })
     }
 }
