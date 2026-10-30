@@ -603,29 +603,7 @@ fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
                 if !lr_errors.is_empty() {
                     return Err(lr_errors
                         .into_iter()
-                        .map(|e| {
-                            let symbol_name = diagnostic_found_name_for_error(
-                                input, language, e.found, e.position,
-                            );
-                            let expected =
-                                expected_symbol_names_for_diagnostic(language, &e.expected);
-                            let reason = if symbol_name == "end of input" {
-                                crate::errors::ParseErrorReason::UnexpectedEof
-                            } else {
-                                crate::errors::ParseErrorReason::UnexpectedToken(
-                                    crate::diagnostic_format::unexpected_token_message(
-                                        symbol_name,
-                                        expected.clone(),
-                                    ),
-                                )
-                            };
-                            crate::errors::ParseError {
-                                reason,
-                                start: e.position,
-                                end: diagnostic_end_for_byte(input.as_bytes(), e.position),
-                                expected,
-                            }
-                        })
+                        .map(|e| map_lr_parse_error(input, language, e))
                         .collect());
                 }
             }
@@ -840,6 +818,50 @@ fn parse_document_from_glr_errors(
 
 /// Parse using the simple LR parser (pure_parser)
 #[cfg(feature = "pure-rust")]
+/// Map one deterministic LR parser error to the public diagnostic shape.
+///
+/// A trailing list delimiter at end of input is reported at the delimiter
+/// itself: the construct before it was already complete, so the delimiter
+/// is the unexpected token and only end-of-input was expected after the
+/// complete construct (#1097).
+fn map_lr_parse_error(
+    input: &str,
+    lang: &crate::pure_parser::TSLanguage,
+    e: crate::pure_parser::ParseError,
+) -> crate::errors::ParseError {
+    let symbol_name = diagnostic_found_name_for_error(input, lang, e.found, e.position);
+    let mut expected = expected_symbol_names_for_diagnostic(lang, &e.expected);
+    let mut start = e.position;
+    let mut end = diagnostic_end_for_byte(input.as_bytes(), e.position);
+    let mut found_name = symbol_name.clone();
+    if symbol_name == "end of input" {
+        let bytes = input.as_bytes();
+        let mut sep_end = e.position.min(bytes.len());
+        while sep_end > 0 && bytes[sep_end - 1].is_ascii_whitespace() {
+            sep_end -= 1;
+        }
+        if sep_end > 0 && (bytes[sep_end - 1] == b',' || bytes[sep_end - 1] == b';') {
+            start = sep_end - 1;
+            end = sep_end;
+            found_name = (bytes[sep_end - 1] as char).to_string();
+            expected = vec![symbol_name_for_diagnostic(lang, lang.eof_symbol)];
+        }
+    }
+    let reason = if found_name == "end of input" {
+        crate::errors::ParseErrorReason::UnexpectedEof
+    } else {
+        crate::errors::ParseErrorReason::UnexpectedToken(
+            crate::diagnostic_format::unexpected_token_message(found_name, expected.clone()),
+        )
+    };
+    crate::errors::ParseError {
+        reason,
+        start,
+        end,
+        expected,
+    }
+}
+
 fn parse_with_pure_parser<T: Extract<T>>(
     input: &str,
     language: impl Fn() -> &'static crate::pure_parser::TSLanguage,
@@ -865,26 +887,7 @@ fn parse_with_pure_parser<T: Extract<T>>(
     if !parser_errors.is_empty() {
         let errors = parser_errors
             .into_iter()
-            .map(|e| {
-                let symbol_name = diagnostic_found_name_for_error(input, lang, e.found, e.position);
-                let expected = expected_symbol_names_for_diagnostic(lang, &e.expected);
-                let reason = if symbol_name == "end of input" {
-                    crate::errors::ParseErrorReason::UnexpectedEof
-                } else {
-                    crate::errors::ParseErrorReason::UnexpectedToken(
-                        crate::diagnostic_format::unexpected_token_message(
-                            symbol_name,
-                            expected.clone(),
-                        ),
-                    )
-                };
-                crate::errors::ParseError {
-                    reason,
-                    start: e.position,
-                    end: diagnostic_end_for_byte(input.as_bytes(), e.position),
-                    expected,
-                }
-            })
+            .map(|e| map_lr_parse_error(input, lang, e))
             .collect();
         return Err(errors);
     }
