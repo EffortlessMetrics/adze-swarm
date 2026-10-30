@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 **Focus**: True-GLR streaming runtime, fallible extraction, document outcomes and diagnostics, CLI safety, and the ledger-selected release graph.
 
-**Summary**: Draft candidate cut from `e09ee745` on `main` (EffortlessMetrics/adze-swarm). All 12 release-graph crates (`adze`, `adze-cli`, `adze-common`, `adze-glr-core`, `adze-ir`, `adze-macro`, `adze-tablegen`, `adze-tool`, `adze-bdd-governance-core`, `adze-common-type-ops-core`, `adze-linecol-core`, `adze-parsetable-metadata`) report 0.10.0. This entry is a candidate only: no tag, signing, or publication is implied, and no crates.io installation is claimed; publication stays under #325/#881.
+**Summary**: Draft candidate cut from `2798d169` on `main` (EffortlessMetrics/adze-swarm). All 12 release-graph crates (`adze`, `adze-cli`, `adze-common`, `adze-glr-core`, `adze-ir`, `adze-macro`, `adze-tablegen`, `adze-tool`, `adze-bdd-governance-core`, `adze-common-type-ops-core`, `adze-linecol-core`, `adze-parsetable-metadata`) report 0.10.0. This entry is a candidate only: no tag, signing, or publication is implied, and no crates.io installation is claimed; publication stays under #325/#881.
 
 ### Added
 - **Streaming true-GLR runtime**: generated internal lexers and external scanners adapted to the streaming driver, conflicted parses routed through it, and the fixed pretokenization bridge removed from the supported path (#889–#892, #921, #922, #932, #954–#962)
@@ -28,9 +28,17 @@ All notable changes to this project will be documented in this file.
 - **Ambiguity retention**: reduce/reduce and shift/reduce ambiguity retained in the streaming driver with deterministic document-JSON summaries (#954, #955, #959, #1021, #1037)
 - **Repetition traversal**: exact aux-tail selection and atomic `try_normalize` accounting for nested `RepeatOne` (#1059, #1062, #1089, #1093)
 - **Macro hygiene**: scoped `WithLeaf` rewrite and hygienic fallible bindings (#1086, #1091)
+- **Delimited repetitions**: multi-element separator lists (for example `alpha, beta, gamma`) generate tables and extract exact items instead of being rejected at the first delimiter (#1095)
+- **Nested grammar semantics**: nested grammar.js constructs keep their admitted semantics in conversion, and unsupported constructs such as `ALIAS` are rejected explicitly instead of being silently dropped (#1076)
+- **ABI safety**: generated ABI construction rejects right-hand sides longer than the child-count limit instead of silently truncating them (#1077)
+- **Bool leaf variants**: variant-level `#[adze::leaf(text = "true")]` variants extract by token kind instead of panicking during enum-variant determination (#1107)
+- **Parse-error diagnostics**: GLR CSV parse errors report expected tokens and distinct multi-error diagnostics, and a trailing list delimiter is reported at the delimiter itself (#1097)
+- **CLI build/init**: `adze build` works outside a Cargo build script (no undocumented `OUT_DIR` requirement), `adze-gen init` no longer overwrites user files, and `adze parse` failures surface the runner's root cause instead of an opaque exit code (#1079, #1080, #1099)
+- **Release tooling**: the xtask release-install dry run no longer overflows the Windows main-thread stack (#1098), and the QUICK_START guide's examples compile and are compile-tested (#1100)
 
 ### Known limitations
-- Delimited (separator) repeats are not yet supported on every generated-table path; grammars relying on them may still fail table generation or extraction.
+- Nested grammar support is bounded: `ALIAS` is rejected rather than implemented, and dynamic precedence (`PREC_DYNAMIC`) is approximated (#1076).
+- Unit leaf variants (for example a keyword-only enum variant) still have no token-root extraction; variant-level leaves with fields are supported (#1107).
 - Package-first release receipts are pending: the local-registry receipt lane exists, but a qualified 0.10.0 package-first receipt has not been recorded yet.
 - This candidate makes no crates.io-install claim; end-user installation from crates.io is not available until the separate publication decision (#325) lands.
 
