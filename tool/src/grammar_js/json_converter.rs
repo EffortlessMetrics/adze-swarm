@@ -57,14 +57,14 @@ pub fn from_tree_sitter_json(value: &Value) -> Result<GrammarJs> {
         }
     }
 
-    // Parse extras
+    // Parse extras: malformed extras must fail, not be dropped (#1076).
     if let Some(extras) = obj.get("extras")
         && let Some(extras_arr) = extras.as_array()
     {
-        for extra in extras_arr {
-            if let Ok(rule) = parse_rule(extra) {
-                grammar_js.extras.push(rule);
-            }
+        for (index, extra) in extras_arr.iter().enumerate() {
+            let rule = parse_rule(extra)
+                .with_context(|| format!("failed to parse extra at index {index}"))?;
+            grammar_js.extras.push(rule);
         }
     }
 
@@ -100,14 +100,14 @@ pub fn from_tree_sitter_json(value: &Value) -> Result<GrammarJs> {
         }
     }
 
-    // Parse rules
+    // Parse rules: unknown/malformed rule types must fail, not be omitted (#1076).
     if let Some(rules) = obj.get("rules")
         && let Some(rules_obj) = rules.as_object()
     {
         for (rule_name, rule_value) in rules_obj {
-            if let Ok(rule) = parse_rule(rule_value) {
-                grammar_js.rules.insert(rule_name.clone(), rule);
-            }
+            let rule = parse_rule(rule_value)
+                .with_context(|| format!("failed to parse rule '{rule_name}'"))?;
+            grammar_js.rules.insert(rule_name.clone(), rule);
         }
     }
 
@@ -190,7 +190,7 @@ fn parse_rule(value: &Value) -> Result<Rule> {
 
         "BLANK" => Ok(Rule::Blank),
 
-        "SEQ" => {
+        "SEQ" | "SEQUENCE" => {
             let members_arr = obj
                 .get("members")
                 .and_then(|v| v.as_array())

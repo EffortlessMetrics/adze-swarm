@@ -60,6 +60,11 @@ impl GrammarJsConverter {
 
     /// Convert Grammar.js to Adze Grammar IR
     pub fn convert(mut self) -> Result<Grammar> {
+        // Source validation is part of the ordinary build path (#1076):
+        // missing symbols must fail here, not be dropped during conversion.
+        self.grammar_js
+            .validate()
+            .context("grammar.js source validation failed")?;
         eprintln!(
             "DEBUG converter.convert: Starting conversion for grammar '{}'",
             self.grammar_js.name
@@ -155,13 +160,47 @@ impl GrammarJsConverter {
             "DEBUG converter: Processing extras, count = {}",
             self.grammar_js.extras.len()
         );
-        for extra in &self.grammar_js.extras {
+        let extras = self.grammar_js.extras.clone();
+        for extra in &extras {
             eprintln!("  Processing extra: {:?}", extra);
             if let Some(symbol_id) = self.find_extra_symbol(extra, &grammar) {
-                eprintln!("    Found symbol_id: {:?}", symbol_id);
                 grammar.extras.push(symbol_id);
-            } else {
-                eprintln!("    WARNING: Could not find symbol for extra");
+                continue;
+            }
+            // Preserve literal/pattern extras (including each member of a
+            // CHOICE of extras, e.g. line/block comments) as tokens instead
+            // of dropping them (#1076).
+            match extra {
+                JsRule::String { value } => {
+                    let symbol_id = self.get_or_create_string_token(&mut grammar, value);
+                    grammar.extras.push(symbol_id);
+                }
+                JsRule::Pattern { value } => {
+                    let symbol_id = self.get_or_create_pattern_token(&mut grammar, value);
+                    grammar.extras.push(symbol_id);
+                }
+                JsRule::Choice { members } => {
+                    for member in members {
+                        match member {
+                            JsRule::String { value } => {
+                                let symbol_id =
+                                    self.get_or_create_string_token(&mut grammar, value);
+                                grammar.extras.push(symbol_id);
+                            }
+                            JsRule::Pattern { value } => {
+                                let symbol_id =
+                                    self.get_or_create_pattern_token(&mut grammar, value);
+                                grammar.extras.push(symbol_id);
+                            }
+                            _ => {
+                                anyhow::bail!(
+                                    "unsupported extra CHOICE member {member:?}: only literal/pattern extras are admitted"
+                                )
+                            }
+                        }
+                    }
+                }
+                _ => anyhow::bail!("could not resolve extra {extra:?} to a symbol"),
             }
         }
 
@@ -476,64 +515,45 @@ impl GrammarJsConverter {
         }
     }
 
-    fn rule_to_symbol(&mut self, grammar: &mut Grammar, rule: &JsRule) -> Option<Symbol> {
+    fn aux_symbol(&mut self, grammar: &mut Grammar, kind: &str) -> SymbolId {
+        let aux_id = SymbolId(self.next_symbol_id.try_into().unwrap());
+        self.next_symbol_id += 1;
+        grammar
+            .rule_names
+            .insert(aux_id, format!("_{kind}_aux_{}", aux_id.0));
+        aux_id
+    }
+
+    pub(super) fn rule_to_symbol(
+        &mut self,
+        grammar: &mut Grammar,
+        rule: &JsRule,
+    ) -> Result<Symbol> {
         match rule {
             JsRule::Symbol { name } => {
-                eprintln!("Debug: rule_to_symbol for Symbol '{}'", name);
-                if let Some(&id) = self.symbol_names.get(name) {
-                    eprintln!("Debug:   Found symbol ID {}", id.0);
-                    // Check if this symbol is actually a token-backed wrapper.
-                    if let Some(token_id) = self.token_for_wrapped_rule(grammar, id, name) {
-                        eprintln!(
-                            "Debug:   Symbol {} is token-backed, returning Terminal({})",
-                            id.0, token_id.0
-                        );
-                        Some(Symbol::Terminal(token_id))
-                    } else {
-                        eprintln!(
-                            "Debug:   Symbol {} is not a pattern, returning NonTerminal",
-                            id.0
-                        );
-                        Some(Symbol::NonTerminal(id))
-                    }
+                let &id = self.symbol_names.get(name).with_context(|| {
+                    format!("Symbol '{name}' referenced but not found in grammar rules")
+                })?;
+                if let Some(token_id) = self.token_for_wrapped_rule(grammar, id, name) {
+                    Ok(Symbol::Terminal(token_id))
                 } else {
-                    eprintln!("Debug:   Symbol '{}' not found in symbol_names", name);
-                    None
+                    Ok(Symbol::NonTerminal(id))
                 }
             }
-            JsRule::String { value } => {
-                // Create inline token
-                Some(Symbol::Terminal(
-                    self.get_or_create_string_token(grammar, value),
-                ))
-            }
-            JsRule::Pattern { value } => {
-                // Create pattern token
-                Some(Symbol::Terminal(
-                    self.get_or_create_pattern_token(grammar, value),
-                ))
-            }
-            JsRule::Field { content, .. } => {
-                // For fields, return the symbol of the content
-                self.rule_to_symbol(grammar, content)
-            }
+            JsRule::String { value } => Ok(Symbol::Terminal(
+                self.get_or_create_string_token(grammar, value),
+            )),
+            JsRule::Pattern { value } => Ok(Symbol::Terminal(
+                self.get_or_create_pattern_token(grammar, value),
+            )),
+            JsRule::Field { content, .. } => self.rule_to_symbol(grammar, content),
             JsRule::Prec { content, .. }
             | JsRule::PrecLeft { content, .. }
-            | JsRule::PrecRight { content, .. } => {
-                // For precedence rules, return the symbol of the content
-                self.rule_to_symbol(grammar, content)
-            }
+            | JsRule::PrecRight { content, .. }
+            | JsRule::Token { content }
+            | JsRule::ImmediateToken { content } => self.rule_to_symbol(grammar, content),
             JsRule::Choice { members } => {
-                // Create an auxiliary non-terminal for the choice so it can be
-                // used as a single symbol in a SEQ. This is necessary because
-                // a CHOICE inside a FIELD (e.g. Vec<Declaration> expands to
-                // FIELD("declarations", CHOICE([BLANK, SYMBOL(vec_contents)])))
-                // needs to be representable as one symbol on the RHS.
-                let aux_id = SymbolId(self.next_symbol_id.try_into().unwrap());
-                self.next_symbol_id += 1;
-                grammar
-                    .rule_names
-                    .insert(aux_id, format!("_choice_aux_{}", aux_id.0));
+                let aux_id = self.aux_symbol(grammar, "choice");
                 for member in members {
                     match member {
                         JsRule::Blank => {
@@ -549,80 +569,72 @@ impl GrammarJsConverter {
                                 production_id: pid,
                             });
                         }
-                        _ => {
-                            let _ = self.convert_rule_body(grammar, member, aux_id);
-                        }
+                        _ => self
+                            .convert_rule_body(grammar, member, aux_id)
+                            .context("failed to convert nested CHOICE member")?,
                     }
                 }
-                Some(Symbol::NonTerminal(aux_id))
+                Ok(Symbol::NonTerminal(aux_id))
             }
-            JsRule::Blank => Some(Symbol::Epsilon),
+            JsRule::Blank => Ok(Symbol::Epsilon),
             JsRule::Repeat { .. } | JsRule::Repeat1 { .. } => {
-                let aux_id = SymbolId(self.next_symbol_id.try_into().unwrap());
-                self.next_symbol_id += 1;
-                grammar
-                    .rule_names
-                    .insert(aux_id, format!("_repeat_aux_{}", aux_id.0));
-                let _ = self.convert_rule_body(grammar, rule, aux_id);
-                Some(Symbol::NonTerminal(aux_id))
+                let aux_id = self.aux_symbol(grammar, "repeat");
+                self.convert_rule_body(grammar, rule, aux_id)
+                    .context("failed to convert nested REPEAT")?;
+                Ok(Symbol::NonTerminal(aux_id))
             }
-            JsRule::Token { content } | JsRule::ImmediateToken { content } => {
-                // TOKEN(PATTERN(..)) as a sequence member converts through
-                // its content; omitting it would emit a partial sequence.
-                self.rule_to_symbol(grammar, content)
+            JsRule::Seq { .. } => {
+                let aux_id = self.aux_symbol(grammar, "seq");
+                self.convert_rule_body(grammar, rule, aux_id)
+                    .context("failed to convert nested SEQ")?;
+                Ok(Symbol::NonTerminal(aux_id))
             }
-            JsRule::Seq { members } => {
-                // A SEQ used as a single symbol (e.g. the SEQ(delimiter,
-                // element) content of a REPEAT in a delimited list) needs an
-                // auxiliary non-terminal; dropping it loses the whole tail.
-                if members.is_empty() {
-                    return None;
-                }
-                let aux_id = SymbolId(self.next_symbol_id.try_into().unwrap());
-                self.next_symbol_id += 1;
-                grammar
-                    .rule_names
-                    .insert(aux_id, format!("_seq_aux_{}", aux_id.0));
-                let _ = self.convert_rule_body(grammar, rule, aux_id);
-                Some(Symbol::NonTerminal(aux_id))
+            JsRule::Optional { .. } => {
+                let aux_id = self.aux_symbol(grammar, "optional");
+                self.convert_rule_body(grammar, rule, aux_id)
+                    .context("failed to convert nested OPTIONAL")?;
+                Ok(Symbol::NonTerminal(aux_id))
             }
-            _ => None, // Other types not yet handled
+            JsRule::Alias { value, .. } => {
+                anyhow::bail!(
+                    "unsupported ALIAS to '{value}': alias semantics are not admitted by this converter (#1076)"
+                )
+            }
+            JsRule::PrecDynamic { content, .. } => self.rule_to_symbol(grammar, content),
         }
     }
 
-    fn seq_to_rhs_and_fields(
+    pub(super) fn seq_to_rhs_and_fields(
         &mut self,
         grammar: &mut Grammar,
         members: &[JsRule],
-    ) -> (Vec<Symbol>, Vec<(FieldId, usize)>) {
+    ) -> Result<(Vec<Symbol>, Vec<(FieldId, usize)>)> {
         let mut rhs = Vec::new();
         let mut fields = Vec::new();
 
-        for member in members {
+        for (index, member) in members.iter().enumerate() {
             match member {
                 JsRule::Field { name, content } => {
                     let field_id = self.get_or_create_field(name);
-                    if let Some(symbol) = self.rule_to_symbol(grammar, content) {
-                        let position = rhs.len();
-                        rhs.push(symbol);
-                        if !is_generated_tuple_field_name(name) {
-                            fields.push((field_id, position));
-                        }
-                    } else {
-                        eprintln!("Debug: Failed to convert FIELD member {name}");
+                    let symbol = self.rule_to_symbol(grammar, content).with_context(|| {
+                        format!("failed to convert SEQ member {index} (FIELD '{name}')")
+                    })?;
+                    let position = rhs.len();
+                    rhs.push(symbol);
+                    if !is_generated_tuple_field_name(name) {
+                        fields.push((field_id, position));
                     }
                 }
                 _ => {
-                    if let Some(symbol) = self.rule_to_symbol(grammar, member) {
-                        rhs.push(symbol);
-                    } else {
-                        eprintln!("Debug: Failed to convert SEQ member");
-                    }
+                    let symbol = self
+                        .rule_to_symbol(grammar, member)
+                        .with_context(|| format!("failed to convert SEQ member {index}"))?;
+                    rhs.push(symbol);
                 }
             }
         }
 
-        (rhs, fields)
+        Ok((rhs, fields))
     }
 
     fn token_for_wrapped_rule(

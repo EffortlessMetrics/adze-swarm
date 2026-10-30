@@ -58,11 +58,22 @@ impl GrammarJsConverter {
                 }
                 Ok(())
             }
-            _ => {
-                // For other rule types, add a simple rule.
+            JsRule::Blank => {
                 self.add_rule(grammar, lhs, vec![], None, None);
                 Ok(())
             }
+            JsRule::Alias { value, .. } => {
+                anyhow::bail!(
+                    "unsupported ALIAS to '{value}' in rule conversion: alias semantics are not admitted by this converter (#1076)"
+                )
+            }
+            JsRule::PrecDynamic { value, content } => self.convert_precedence_rule(
+                grammar,
+                lhs,
+                content,
+                Some(PrecedenceKind::Static(*value as i16)),
+                None,
+            ),
         }
     }
 
@@ -121,22 +132,16 @@ impl GrammarJsConverter {
             .unwrap_or("?");
         eprintln!("Debug: Converting SYMBOL rule: {} -> {}", lhs_name, name);
 
-        if let Some(&symbol_id) = self.symbol_names.get(name) {
-            eprintln!("Debug: Found symbol {} with ID {}", name, symbol_id.0);
-            eprintln!(
-                "Debug: Creating rule SymbolId({}) -> [NonTerminal(SymbolId({}))]",
-                lhs.0, symbol_id.0
-            );
-            self.add_rule(
-                grammar,
-                lhs,
-                vec![Symbol::NonTerminal(symbol_id)],
-                None,
-                None,
-            );
-        } else {
-            eprintln!("Debug: Symbol {} not found in symbol_names!", name);
-        }
+        let &symbol_id = self.symbol_names.get(name).ok_or_else(|| {
+            anyhow::anyhow!("Symbol '{name}' referenced but not found in grammar rules")
+        })?;
+        self.add_rule(
+            grammar,
+            lhs,
+            vec![Symbol::NonTerminal(symbol_id)],
+            None,
+            None,
+        );
         Ok(())
     }
 
@@ -146,7 +151,7 @@ impl GrammarJsConverter {
         lhs: SymbolId,
         members: &[JsRule],
     ) -> Result<()> {
-        let (rhs, fields) = self.seq_to_rhs_and_fields(grammar, members);
+        let (rhs, fields) = self.seq_to_rhs_and_fields(grammar, members)?;
         self.add_rule_with_fields(grammar, lhs, rhs, None, None, fields);
         Ok(())
     }
@@ -175,15 +180,14 @@ impl GrammarJsConverter {
             self.convert_rule_body(grammar, content, lhs)?;
         }
 
-        if let Some(symbol) = self.rule_to_symbol(grammar, content) {
-            self.add_rule(
-                grammar,
-                lhs,
-                vec![Symbol::NonTerminal(lhs), symbol],
-                None,
-                None,
-            );
-        }
+        let symbol = self.rule_to_symbol(grammar, content)?;
+        self.add_rule(
+            grammar,
+            lhs,
+            vec![Symbol::NonTerminal(lhs), symbol],
+            None,
+            None,
+        );
         Ok(())
     }
 
@@ -197,13 +201,12 @@ impl GrammarJsConverter {
     ) -> Result<()> {
         match content {
             JsRule::Seq { members } => {
-                let (rhs, fields) = self.seq_to_rhs_and_fields(grammar, members);
+                let (rhs, fields) = self.seq_to_rhs_and_fields(grammar, members)?;
                 self.add_rule_with_fields(grammar, lhs, rhs, precedence, associativity, fields);
             }
             _ => {
-                if let Some(symbol) = self.rule_to_symbol(grammar, content) {
-                    self.add_rule(grammar, lhs, vec![symbol], precedence, associativity);
-                }
+                let symbol = self.rule_to_symbol(grammar, content)?;
+                self.add_rule(grammar, lhs, vec![symbol], precedence, associativity);
             }
         }
         Ok(())

@@ -1,6 +1,6 @@
 use super::{GrammarJsConverter, JsRule};
 use adze_ir::{Associativity, Grammar, PrecedenceKind, SymbolId};
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 impl GrammarJsConverter {
     pub(super) fn convert_choice_rule(
@@ -55,32 +55,19 @@ impl GrammarJsConverter {
                 "right precedence",
             ),
             JsRule::Seq { members } => {
-                eprintln!(
-                    "Debug: CHOICE member {} is SEQ with {} members for {}",
-                    index,
-                    members.len(),
-                    lhs.0
-                );
-                let (rhs, fields) = self.seq_to_rhs_and_fields(grammar, members);
+                let (rhs, fields) = self.seq_to_rhs_and_fields(grammar, members).map_err(|e| {
+                    e.context(format!("failed to convert CHOICE member {index} (SEQ)"))
+                })?;
                 if !rhs.is_empty() {
-                    eprintln!(
-                        "Debug: Adding rule {} -> {:?} (from inlined SEQ)",
-                        lhs.0, rhs
-                    );
                     self.add_rule_with_fields(grammar, lhs, rhs, None, None, fields);
                 }
                 Ok(())
             }
             _ => {
-                if let Some(symbol) = self.rule_to_symbol(grammar, member) {
-                    eprintln!("Debug: Adding rule {} -> {:?}", lhs.0, symbol);
-                    self.add_rule(grammar, lhs, vec![symbol], None, None);
-                } else {
-                    eprintln!(
-                        "Debug: Failed to convert choice member {} for {}",
-                        index, lhs.0
-                    );
-                }
+                let symbol = self
+                    .rule_to_symbol(grammar, member)
+                    .map_err(|e| e.context(format!("failed to convert CHOICE member {index}")))?;
+                self.add_rule(grammar, lhs, vec![symbol], None, None);
                 Ok(())
             }
         }
@@ -97,24 +84,18 @@ impl GrammarJsConverter {
     ) -> Result<()> {
         let precedence = Some(PrecedenceKind::Static(value as i16));
         if let JsRule::Seq { members } = content {
-            let (rhs, fields) = self.seq_to_rhs_and_fields(grammar, members);
+            if members.is_empty() {
+                return Ok(());
+            }
+            let (rhs, fields) = self.seq_to_rhs_and_fields(grammar, members)?;
             if !rhs.is_empty() {
-                eprintln!(
-                    "Debug: Adding rule {} -> {:?} with {} {}",
-                    lhs.0, rhs, label, value
-                );
                 self.add_rule_with_fields(grammar, lhs, rhs, precedence, associativity, fields);
                 return Ok(());
             }
         }
 
-        if let Some(symbol) = self.rule_to_symbol(grammar, content) {
-            eprintln!(
-                "Debug: Adding rule {} -> {:?} with {} {}",
-                lhs.0, symbol, label, value
-            );
-            self.add_rule(grammar, lhs, vec![symbol], precedence, associativity);
-        }
+        let symbol = self.rule_to_symbol(grammar, content)?;
+        self.add_rule(grammar, lhs, vec![symbol], precedence, associativity);
         Ok(())
     }
 }
