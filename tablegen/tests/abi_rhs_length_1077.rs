@@ -10,9 +10,9 @@ fn table() -> ParseTable {
     let symbol_count = 4usize;
     let mut symbol_to_index = BTreeMap::new();
     let mut index_to_symbol = vec![SymbolId(0); symbol_count];
-    for i in 0..symbol_count {
+    for (i, slot) in index_to_symbol.iter_mut().enumerate() {
         symbol_to_index.insert(SymbolId(i as u16), i);
-        index_to_symbol[i] = SymbolId(i as u16);
+        *slot = SymbolId(i as u16);
     }
     let mut nonterminal_to_index = BTreeMap::new();
     nonterminal_to_index.insert(SymbolId(3), 3);
