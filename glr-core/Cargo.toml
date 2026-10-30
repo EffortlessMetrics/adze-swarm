@@ -1,6 +1,6 @@
 [package]
 name = "adze-glr-core"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2024"
 rust-version = "1.95.0"
 description = "GLR parser generation algorithms for pure-Rust Tree-sitter"
@@ -16,7 +16,7 @@ include = ["Cargo.toml", "LICENSE*", "README*", "src/**"]
 all-features = true
 
 [dependencies]
-adze-ir = { version = "0.9.0", path = "../ir" }
+adze-ir = { version = "0.10.0", path = "../ir" }
 indexmap = { workspace = true, features = ["serde"] }
 fixedbitset = { version = "0.5", default-features = false }
 serde = { workspace = true }
@@ -58,8 +58,8 @@ serde_json = { workspace = true }
 proptest = { workspace = true }
 glr-test-support = { path = "../glr-test-support" }
 trybuild = "1"
-adze-bdd-governance-core = { version = "0.1.0", path = "../crates/bdd-governance-core" }
-adze-tablegen = { version = "0.9.0", path = "../tablegen" }
+adze-bdd-governance-core = { version = "0.10.0", path = "../crates/bdd-governance-core" }
+adze-tablegen = { version = "0.10.0", path = "../tablegen" }
 indexmap = { workspace = true, features = ["serde"] }
 
 [[bench]]

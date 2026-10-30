@@ -1,6 +1,6 @@
 [package]
 name = "adze-common"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2024"
 rust-version = "1.95.0"
 authors = ["Steven Zimmerman, CPA"]
@@ -25,7 +25,7 @@ path = "src/lib.rs"
 strict_docs = [] # Enable strict documentation requirements
 
 [dependencies]
-adze-common-type-ops-core = { version = "0.1.0", path = "../crates/common-type-ops-core" }
+adze-common-type-ops-core = { version = "0.10.0", path = "../crates/common-type-ops-core" }
 syn = { workspace = true }
 quote = { workspace = true }
 

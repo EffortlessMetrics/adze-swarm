@@ -1,6 +1,6 @@
 [package]
 name = "adze-ir"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2024"
 rust-version = "1.95.0"
 description = "Grammar Intermediate Representation for pure-Rust Tree-sitter"
@@ -31,5 +31,5 @@ insta = { workspace = true }
 proptest = { workspace = true }
 serde_json = { workspace = true }
 postcard = { workspace = true }
-adze-glr-core = { version = "0.9.0", path = "../glr-core" }
+adze-glr-core = { version = "0.10.0", path = "../glr-core" }
 indexmap = { workspace = true, features = ["serde"] }

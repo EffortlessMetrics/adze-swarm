@@ -2,7 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] — 0.9.0
+## [Unreleased]
+
+## [0.10.0] - Unreleased candidate
+
+**Focus**: True-GLR streaming runtime, fallible extraction, document outcomes and diagnostics, CLI safety, and the ledger-selected release graph.
+
+**Summary**: Draft candidate cut from `2798d169` on `main` (EffortlessMetrics/adze-swarm). All 12 release-graph crates (`adze`, `adze-cli`, `adze-common`, `adze-glr-core`, `adze-ir`, `adze-macro`, `adze-tablegen`, `adze-tool`, `adze-bdd-governance-core`, `adze-common-type-ops-core`, `adze-linecol-core`, `adze-parsetable-metadata`) report 0.10.0. This entry is a candidate only: no tag, signing, or publication is implied, and no crates.io installation is claimed; publication stays under #325/#881.
+
+### Added
+- **Streaming true-GLR runtime**: generated internal lexers and external scanners adapted to the streaming driver, conflicted parses routed through it, and the fixed pretokenization bridge removed from the supported path (#889–#892, #921, #922, #932, #954–#962)
+- **Explicit document outcome**: generated `parse_document` reports Complete/Recovered/Failed, with direct flat-record traversal, sibling access, and construction validation (#1036, #1094)
+- **Fallible leaf transforms**: `try_transform` extraction with structured conversion diagnostics and invalid-leaf failures that never call the converter (#864, #1045, #1082, #1085)
+- **Release graph authority**: explicit Cargo publish metadata, a package-policy checker, and the generated ledger-selected release crate graph consumed by release tooling (#855, #904–#908)
+- **Local-registry receipts**: publish/install/`adze init` scaffold proof against an isolated local registry with machine-readable receipts (#856, #909–#912)
+- **Conformance profile**: nullable/FIRST/FOLLOW spec, corpus, independent Python reference, and denominator-complete Rust/Python agreement receipt (#974–#977)
+- **Friendly ABI aliases** for TS-prefixed runtime types and node-types field cardinality derived from grammar structure (#871, #1055, #1032)
+
+### Changed
+- **Diagnostics**: true EOF named as end of input, GLR cannot-lex errors point at the offending byte, and expected tokens use friendly names (#1007–#1021)
+- **IR normalization**: total `RuleId`-to-`ProductionId` map, full-symbol-domain helper allocation, and field origins preserved when sequences flatten (#978–#981, #1044–#1054)
+- **CLI safety**: `adze init` cannot overwrite existing projects or escape its output root, staging uses no-replace commit, and `adze test` honors the requested project path (#997, #1023, #1024, #1073, #1092)
+
+### Fixed
+- **Ambiguity retention**: reduce/reduce and shift/reduce ambiguity retained in the streaming driver with deterministic document-JSON summaries (#954, #955, #959, #1021, #1037)
+- **Repetition traversal**: exact aux-tail selection and atomic `try_normalize` accounting for nested `RepeatOne` (#1059, #1062, #1089, #1093)
+- **Macro hygiene**: scoped `WithLeaf` rewrite and hygienic fallible bindings (#1086, #1091)
+- **Delimited repetitions**: multi-element separator lists (for example `alpha, beta, gamma`) generate tables and extract exact items instead of being rejected at the first delimiter (#1095)
+- **Nested grammar semantics**: nested grammar.js constructs keep their admitted semantics in conversion, and unsupported constructs such as `ALIAS` are rejected explicitly instead of being silently dropped (#1076)
+- **ABI safety**: generated ABI construction rejects right-hand sides longer than the child-count limit instead of silently truncating them (#1077)
+- **Bool leaf variants**: variant-level `#[adze::leaf(text = "true")]` variants extract by token kind instead of panicking during enum-variant determination (#1107)
+- **Parse-error diagnostics**: GLR CSV parse errors report expected tokens and distinct multi-error diagnostics, and a trailing list delimiter is reported at the delimiter itself (#1097)
+- **CLI build/init**: `adze build` works outside a Cargo build script (no undocumented `OUT_DIR` requirement), `adze-gen init` no longer overwrites user files, and `adze parse` failures surface the runner's root cause instead of an opaque exit code (#1079, #1080, #1099)
+- **Release tooling**: the xtask release-install dry run no longer overflows the Windows main-thread stack (#1098), and the QUICK_START guide's examples compile and are compile-tested (#1100)
+
+### Known limitations
+- Nested grammar support is bounded: `ALIAS` is rejected rather than implemented, and dynamic precedence (`PREC_DYNAMIC`) is approximated (#1076).
+- Unit leaf variants (for example a keyword-only enum variant) still have no token-root extraction; variant-level leaves with fields are supported (#1107).
+- Package-first release receipts are pending: the local-registry receipt lane exists, but a qualified 0.10.0 package-first receipt has not been recorded yet.
+- This candidate makes no crates.io-install claim; end-user installation from crates.io is not available until the separate publication decision (#325) lands.
+
+---
+
+## [0.9.0]
 
 **Focus**: Test infrastructure, quality hardening, documentation, security audit, and RC readiness.
 

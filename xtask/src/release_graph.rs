@@ -34,6 +34,8 @@ struct CargoMetadata {
 struct CargoPackage {
     name: String,
     #[serde(default)]
+    version: String,
+    #[serde(default)]
     dependencies: Vec<CargoDependency>,
 }
 
@@ -362,10 +364,12 @@ mod tests {
             packages: vec![
                 CargoPackage {
                     name: "published-a".to_string(),
+                    version: "0.10.0".to_string(),
                     dependencies: vec![],
                 },
                 CargoPackage {
                     name: "published-b".to_string(),
+                    version: "0.10.0".to_string(),
                     dependencies: vec![CargoDependency {
                         name: "published-a".to_string(),
                         kind: Some(DependencyKind::Single("normal".to_string())),
@@ -374,6 +378,7 @@ mod tests {
                 },
                 CargoPackage {
                     name: "published-c".to_string(),
+                    version: "0.10.0".to_string(),
                     dependencies: vec![CargoDependency {
                         name: "dev-only".to_string(),
                         kind: Some(DependencyKind::Single("dev".to_string())),
@@ -454,6 +459,27 @@ mod tests {
             .collect();
 
         assert_eq!(listed, graph.ordered_crates);
+    }
+
+    #[test]
+    fn workspace_release_graph_crates_report_0_10_0() {
+        let root = policy::workspace_root().expect("workspace root");
+        let graph = compute_release_graph(&root).expect("release graph");
+        let metadata = load_cargo_metadata(&root).expect("metadata");
+        let versions: BTreeMap<&str, &str> = metadata
+            .packages
+            .iter()
+            .map(|package| (package.name.as_str(), package.version.as_str()))
+            .collect();
+
+        assert_eq!(graph.ordered_crates.len(), 12);
+        for crate_name in &graph.ordered_crates {
+            assert_eq!(
+                versions.get(crate_name.as_str()).copied(),
+                Some("0.10.0"),
+                "release-graph crate {crate_name} must report 0.10.0 for #1096"
+            );
+        }
     }
 
     #[test]

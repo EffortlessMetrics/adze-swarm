@@ -1,6 +1,6 @@
 [package]
 name = "adze"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2024"
 rust-version = "1.95.0"
 authors = ["Steven Zimmerman, CPA"]
@@ -50,10 +50,10 @@ with-grammars = ["dep:tree_sitter_json", "dep:tree-sitter-runtime-standard"] # E
 [dependencies]
 tree-sitter-runtime-c2rust = { package = "tree-sitter-c2rust", version = "0.25.2", optional = true }
 tree-sitter-runtime-standard = { package = "tree-sitter", version = "0.25.8", optional = true }
-adze-macro = { version = "0.9.0", path = "../macro" }
-adze-ir = { version = "0.9.0", path = "../ir" }
-adze-glr-core = { version = "0.9.0", path = "../glr-core" }
-adze-tablegen = { version = "0.9.0", path = "../tablegen" }
+adze-macro = { version = "0.10.0", path = "../macro" }
+adze-ir = { version = "0.10.0", path = "../ir" }
+adze-glr-core = { version = "0.10.0", path = "../glr-core" }
+adze-tablegen = { version = "0.10.0", path = "../tablegen" }
 regex = { workspace = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
@@ -66,9 +66,9 @@ ahash = { version = "0.8.12", default-features = false, features = ["std"] }
 log = "0.4.27"
 smallvec.workspace = true
 wasm-bindgen = { version = "0.2.100", optional = true }
-adze-linecol-core = { version = "0.1.0", path = "../crates/linecol-core" }
+adze-linecol-core = { version = "0.10.0", path = "../crates/linecol-core" }
 tree_sitter_json = { package = "tree-sitter-json", version = "0.24", optional = true }
-adze-bdd-governance-core = { version = "0.1.0", path = "../crates/bdd-governance-core" }
+adze-bdd-governance-core = { version = "0.10.0", path = "../crates/bdd-governance-core" }
 
 [dev-dependencies]
 insta = { workspace = true }

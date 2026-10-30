@@ -1,6 +1,6 @@
 [package]
 name = "adze-tablegen"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2024"
 rust-version = "1.95.0"
 description = "Table generation and compression for pure-Rust Tree-sitter"
@@ -18,10 +18,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 features = ["strict_docs"]
 
 [dependencies]
-adze-ir = { version = "0.9.0", path = "../ir" }
-adze-glr-core = { version = "0.9.0", path = "../glr-core" }
-adze-bdd-governance-core = { version = "0.1.0", path = "../crates/bdd-governance-core" }
-adze-parsetable-metadata = { version = "0.1.0", path = "../crates/parsetable-metadata" }
+adze-ir = { version = "0.10.0", path = "../ir" }
+adze-glr-core = { version = "0.10.0", path = "../glr-core" }
+adze-bdd-governance-core = { version = "0.10.0", path = "../crates/bdd-governance-core" }
+adze-parsetable-metadata = { version = "0.10.0", path = "../crates/parsetable-metadata" }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 serde = { workspace = true }
@@ -43,9 +43,9 @@ insta = { workspace = true }
 rustc-hash = { workspace = true }
 criterion.workspace = true
 syn = { workspace = true }
-adze-bdd-governance-core = { version = "0.1.0", path = "../crates/bdd-governance-core" }
-adze-glr-core = { version = "0.9.0", path = "../glr-core" }
-adze-ir = { version = "0.9.0", path = "../ir" }
+adze-bdd-governance-core = { version = "0.10.0", path = "../crates/bdd-governance-core" }
+adze-glr-core = { version = "0.10.0", path = "../glr-core" }
+adze-ir = { version = "0.10.0", path = "../ir" }
 
 [[bench]]
 name = "compression"
