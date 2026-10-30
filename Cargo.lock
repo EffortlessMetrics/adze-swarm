@@ -19,7 +19,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "adze"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-bdd-governance-core",
  "adze-example",
@@ -56,7 +56,7 @@ dependencies = [
 
 [[package]]
 name = "adze-bdd-governance-core"
-version = "0.1.0"
+version = "0.10.0"
 dependencies = [
  "criterion",
  "proptest",
@@ -80,7 +80,7 @@ dependencies = [
 
 [[package]]
 name = "adze-cli"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-tool",
  "anyhow",
@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "adze-common"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-common-type-ops-core",
  "insta",
@@ -114,7 +114,7 @@ dependencies = [
 
 [[package]]
 name = "adze-common-type-ops-core"
-version = "0.1.0"
+version = "0.10.0"
 dependencies = [
  "proptest",
  "quote",
@@ -123,7 +123,7 @@ dependencies = [
 
 [[package]]
 name = "adze-example"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze",
  "adze-tool",
@@ -134,7 +134,7 @@ dependencies = [
 
 [[package]]
 name = "adze-glr-core"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-bdd-governance-core",
  "adze-ir",
@@ -182,7 +182,7 @@ dependencies = [
 
 [[package]]
 name = "adze-ir"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-glr-core",
  "indexmap",
@@ -205,7 +205,7 @@ dependencies = [
 
 [[package]]
 name = "adze-linecol-core"
-version = "0.1.0"
+version = "0.10.0"
 dependencies = [
  "criterion",
  "proptest",
@@ -226,7 +226,7 @@ dependencies = [
 
 [[package]]
 name = "adze-macro"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-common",
  "insta",
@@ -240,7 +240,7 @@ dependencies = [
 
 [[package]]
 name = "adze-parsetable-metadata"
-version = "0.1.0"
+version = "0.10.0"
 dependencies = [
  "adze-bdd-governance-core",
  "criterion",
@@ -312,7 +312,7 @@ dependencies = [
 
 [[package]]
 name = "adze-tablegen"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-bdd-governance-core",
  "adze-glr-core",
@@ -338,7 +338,7 @@ dependencies = [
 
 [[package]]
 name = "adze-tool"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-common",
  "adze-glr-core",
