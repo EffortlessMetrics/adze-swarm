@@ -29,7 +29,21 @@ Other useful commands:
 adze check src/grammar.rs
 adze stats src/grammar.rs
 adze build .
+adze build src/grammar.rs
+adze build . --output path/to/artifacts
 ```
+
+`adze build` works outside a Cargo build script and does not need
+`OUT_DIR`. A directory target builds from its `src/lib.rs` entrypoint
+(`src/main.rs`, then `src/grammar.rs`, are fallbacks); a file target builds
+that file. Generated pure-Rust parser modules are written as
+`grammar_<name>/parser_<name>.rs` under `<project>/target/adze-build` by
+default, or under the directory given with `--output`/`-o`. A relative
+target resolves against the caller's working directory, while the default
+output always belongs to the selected project. Missing or invalid input,
+a project with no grammar, and an unwritable output are reported as
+errors rather than panics. `adze build --watch` uses the same initial
+build and keeps watching after a later rebuild error.
 
 Static `adze parse` output is still advisory. The default `tree`, `json`,
 `sexp`, `dot`, and document projection modes compile a temporary
