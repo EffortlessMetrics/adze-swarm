@@ -9,6 +9,9 @@ and generates Tree-sitter JSON grammars and parser code. Typically invoked via
 This crate is part of the [Adze](https://github.com/effortlessmetrics/adze)
 workspace -- an AST-first grammar toolchain for Rust.
 
+`adze-gen init` is retired and creates or modifies no files. Use the
+canonical `adze init` command from the `adze` CLI to create a grammar project.
+
 ## License
 
 Licensed under either of
