@@ -33,6 +33,15 @@ mod tests {
 
     #[test]
     fn boolean_literals() {
+        // `ParseError` is not `PartialEq`, so compare the `Ok` values.
+        assert_eq!(
+            grammar::parse("true").ok(),
+            Some(grammar::BoolExpr::Literal(true))
+        );
+        assert_eq!(
+            grammar::parse("false").ok(),
+            Some(grammar::BoolExpr::LiteralFalse(false))
+        );
         insta::assert_debug_snapshot!("true_literal", grammar::parse("true"));
         insta::assert_debug_snapshot!("false_literal", grammar::parse("false"));
     }

@@ -2,119 +2,20 @@
 source: src/boolean_expr.rs
 expression: "grammar::parse(\"true && false && true\")"
 ---
-Err(
-    [
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
+Ok(
+    And(
+        And(
+            Literal(
+                true,
             ),
-            start: 0,
-            end: 0,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
+            (),
+            LiteralFalse(
+                false,
             ),
-            start: 1,
-            end: 1,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 2,
-            end: 2,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 3,
-            end: 3,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "\"&&\"",
-            ),
-            start: 5,
-            end: 5,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 8,
-            end: 8,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 9,
-            end: 9,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 10,
-            end: 10,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 11,
-            end: 11,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 12,
-            end: 12,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "\"&&\"",
-            ),
-            start: 14,
-            end: 14,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 17,
-            end: 17,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 18,
-            end: 18,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 19,
-            end: 19,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 20,
-            end: 20,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 21,
-            end: 21,
-        },
-    ],
+        ),
+        (),
+        Literal(
+            true,
+        ),
+    ),
 )

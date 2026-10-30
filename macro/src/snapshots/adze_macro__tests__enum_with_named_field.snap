@@ -1,6 +1,5 @@
 ---
 source: macro/src/lib.rs
-assertion_line: 594
 expression: "rustfmt_code(&expand_grammar(parse_quote!\n{\n    #[adze::grammar(\"test\")] mod grammar\n    {\n        #[adze::language] pub enum Expr\n        {\n            Number(#[adze::leaf(pattern = r\"\\d+\", transform = |v|\n            v.parse().unwrap())] u32), Neg\n            { #[adze::leaf(text = \"!\")] _bang: (), value: Box<Expr>, }\n        }\n    }\n})? .to_token_stream().to_string())"
 ---
 mod grammar {
@@ -71,6 +70,18 @@ mod grammar {
                         },
                     },
                 );
+            }
+            if non_extra_children.is_empty() {
+                let node = unwrapped_node;
+                return {
+                    let value = <adze::WithLeaf<u32> as ::adze::Extract<_>>::extract(
+                        Some(node),
+                        source,
+                        0,
+                        Some(&|v| v.parse().unwrap()),
+                    );
+                    Expr::Number(value)
+                };
             }
             panic ! ("Could not determine enum variant from tree structure: node kind='{}', child_count={}" , unwrapped_node . kind () , unwrapped_node . child_count ())
         }

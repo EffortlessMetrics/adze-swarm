@@ -1066,6 +1066,33 @@ mod tests {
     }
 
     #[test]
+    fn enum_variant_level_leaf_text() -> Result<()> {
+        // Variant-level `#[adze::leaf(text = ...)]` on a single-field variant
+        // must generate token-kind discrimination between sibling variants
+        // (issue #1107), not an unreachable `BoolExpr_Literal` rule check.
+        assert_feature_snapshot!(
+            "enum_variant_level_leaf_text",
+            rustfmt_code(
+                &expand_grammar(parse_quote! {
+                    #[adze::grammar("test")]
+                    mod grammar {
+                        #[adze::language]
+                        pub enum BoolExpr {
+                            #[adze::leaf(text = "true", transform = |_| true)]
+                            Literal(bool),
+                            #[adze::leaf(text = "false", transform = |_| false)]
+                            LiteralFalse(bool),
+                        }
+                    }
+                })?
+                .to_token_stream()
+                .to_string()
+            )
+        );
+        Ok(())
+    }
+
+    #[test]
     fn multiple_extra_types() -> Result<()> {
         assert_feature_snapshot!(
             "multiple_extra_types",

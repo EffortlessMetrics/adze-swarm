@@ -2,84 +2,14 @@
 source: src/boolean_expr.rs
 expression: "grammar::parse(\"true || false\")"
 ---
-Err(
-    [
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 0,
-            end: 0,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 1,
-            end: 1,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 2,
-            end: 2,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 3,
-            end: 3,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "\"||\"",
-            ),
-            start: 5,
-            end: 5,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 8,
-            end: 8,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 9,
-            end: 9,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 10,
-            end: 10,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 11,
-            end: 11,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 12,
-            end: 12,
-        },
-        ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
-            start: 13,
-            end: 13,
-        },
-    ],
+Ok(
+    Or(
+        Literal(
+            true,
+        ),
+        (),
+        LiteralFalse(
+            false,
+        ),
+    ),
 )
