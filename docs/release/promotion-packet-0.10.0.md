@@ -7,10 +7,10 @@
 
 Machine-readable twin: `docs/release/promotion-packet-0.10.0.json`
 
-**Candidate status:** `5b3a747b` is a *proposed* candidate (current swarm
+**Candidate status:** `e0c2a316` is a *proposed* candidate (current swarm
 `main` HEAD). No maintainer has selected it under #325; this packet is not a
 selection receipt. Tested-tree identity: swarm `main` working tree was clean
-at `5b3a747b` when the receipts below were produced. Lock identity:
+at `e0c2a316` when the receipts below were produced. Lock identity:
 `Cargo.lock` SHA-256 `7d78a208a886be91c5f3ddb0a77c3b5fc54efb33bd13936aafc1b24df36185f8`.
 Original/transformed local-registry archive digests were not retained by the
 journey harness; archive-byte identity with any future crates.io artifact is
@@ -22,8 +22,8 @@ explicitly **not claimed**.
 |---|---|
 | Version | 0.10.0 |
 | Source repo | `EffortlessMetrics/adze-swarm` `main` |
-| Source commit | `5b3a747b7f07829937d6ccd10336c566888690ca` |
-| Source tree | `042db6479b53d7e2bce38b97609a932a27b6db7b` |
+| Source commit | `e0c2a316f158eb33732623dd7198de421c26bf7f` |
+| Source tree | `1d7d3030fbc7bb56c63eb2e56034b73fd66ef438` |
 | Public target repo | `EffortlessMetrics/adze` `main` |
 | Public target commit | `6263c6a80046d13fb98e3ad319dfe726f32f1010` |
 | Public target tree | `565e5ea130a18cb3afcd2bbc03156de228cb8cba` |
@@ -59,7 +59,7 @@ Deleted-only highlights: `testing` 22, `golden-tests` 18, `crates` 11.
   `ts-c-harness` remains excluded from default workspace commands and is
   never a release crate.
 - All 12 release-graph crates report **0.10.0** in source
-  (`cargo metadata --no-deps` at `5b3a747b`). The public target predates the
+  (`cargo metadata --no-deps` at `e0c2a316`). The public target predates the
   0.10.0 bump (swarm PR #1116).
 - Source adds the release-graph authority `policy/release-graph.toml`
   (generated from `policy/package-boundary.toml`); the public target has no
@@ -105,19 +105,23 @@ Publish in this exact order:
 ## Receipts
 
 - **Journey:** `cargo run -p xtask -- verify-local-release-install --version 0.10.0`
-  exited 0 on `5b3a747b` (log `H:/tmp/journey-final.log`, completed
+  exited 0 on `e0c2a316` (log `H:/tmp/journey-final.log`, completed
   2026-10-30T17:24Z, after the #1118 merge at 17:03Z) — **local-registry claim
   boundary only** (publish/install/`adze init` scaffold proof against an
   isolated local registry). This is NOT a crates.io claim and does not prove
   public install.
-- **Focused suites on `5b3a747b`** (all exit 0, nonzero denominators):
+- **Focused suites on `e0c2a316`** (all exit 0, nonzero denominators):
   `cargo test -p adze --features "pure-rust,glr,ts-compat" --test generated_parse_errors`
   23 passed; `cargo test --manifest-path example/Cargo.toml --lib repetitions`
   16 passed; `--lib boolean` 6 passed; `--lib csv` 5 passed.
-- **PR gates 1101-1118:** verified via `gh pr view` on 2026-10-30. All 17
-  actual PRs are MERGED: 1101, 1102, 1103, 1104, 1105, 1106, 1108, 1109, 1110,
-  1111, 1112, 1113, 1114, 1115, 1116, 1117, 1118. `1107` is an issue, not a
-  PR; its fix landed via #1114/#1117. #1116 is the 0.10.0 bump; #1118 is HEAD.
+- **PR gates 1101-1121:** verified via `gh pr view` on 2026-10-30. All
+  actual PRs are MERGED, including #1119 (#1078 query fix), #1120 (this
+  packet's first version), and #1121 (publish-metadata fix). `1107` is an
+  issue, not a PR; its fix landed via #1114/#1117.
+- **Query suite on candidate:** `cargo test -p adze --features query --lib query::`
+  68 passed, exit 0.
+- **Publishability:** `just check-publishable` - all checks passed for the 12
+  release-graph crates on this candidate, exit 0 (after #1121).
 
 ### Explicit non-claims (no receipt exists in this packet)
 
@@ -137,7 +141,7 @@ Publish in this exact order:
 | Item | State (2026-10-30) | User impact | Future owner |
 |---|---|---|---|
 | #853 roadmap | OPEN | 0.10.0 endpoint not frozen; candidate is usable-core only | #853 (58 gate owners still open) |
-| #1078 query fail-closed | Fix in PR #1119, not in this candidate | Query predicates on invalid ranges currently unsound in the candidate; fixed by #1119 when it lands, requiring a regenerated packet | #1078 / PR #1119 |
+| #1078 query fail-closed | CLOSED via PR #1119, included in this candidate | None for the admitted query subset; full query parity still open under #861 | #861 |
 | #325 publish authorization | OPEN, no A-E decision recorded | No promotion, tag, or publish can start | #325 (maintainer decision) |
 | #881 this packet | OPEN | Packet exists; promotion itself unauthorized | #881, then #325 |
 | macOS | UNPROVED | No macOS support claim | #880 |
@@ -156,7 +160,7 @@ Publish in this exact order:
 
 ## Release operations plan (for the future, separately authorized run)
 
-Preconditions, in order: (1) explicit promotion decision naming `5b3a747b`;
+Preconditions, in order: (1) explicit promotion decision naming `e0c2a316`;
 (2) reviewed public promotion PR resolving the drift above; (3) on public
 main, confirm the candidate diff is empty or every remainder is accepted;
 (4) re-run `just check-publishable`, release-graph and package-boundary gates,

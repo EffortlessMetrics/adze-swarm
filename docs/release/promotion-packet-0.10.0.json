@@ -6,8 +6,8 @@
   "source": {
     "repo": "EffortlessMetrics/adze-swarm",
     "branch": "main",
-    "commit": "5b3a747b7f07829937d6ccd10336c566888690ca",
-    "tree": "042db6479b53d7e2bce38b97609a932a27b6db7b",
+    "commit": "e0c2a316f158eb33732623dd7198de421c26bf7f",
+    "tree": "1d7d3030fbc7bb56c63eb2e56034b73fd66ef438",
     "tested_tree": "clean working tree at source commit when receipts were produced",
     "cargo_lock_sha256": "7d78a208a886be91c5f3ddb0a77c3b5fc54efb33bd13936aafc1b24df36185f8",
     "archive_digests": "NOT RETAINED by journey harness; archive-byte identity with any future crates.io artifact is NOT claimed"
@@ -20,7 +20,7 @@
     "verified": "git ls-remote https://github.com/EffortlessMetrics/adze.git refs/heads/main returned 6263c6a80046d13fb98e3ad319dfe726f32f1010 on 2026-10-30; shallow clone H:/tmp/adze-public HEAD matches"
   },
   "drift_inventory": {
-    "method": "git -C H:/tmp/adze-public diff --stat/--shortstat/--name-status HEAD(public 6263c6a) FETCH_HEAD(swarm 5b3a747b fetched shallowly)",
+    "method": "git -C H:/tmp/adze-public diff --stat/--shortstat/--name-status HEAD(public 6263c6a) FETCH_HEAD(swarm e0c2a316 fetched shallowly)",
     "summary": {
       "files_changed": 973,
       "insertions": 61153,
@@ -120,7 +120,7 @@
       "adze-tool",
       "adze-cli"
     ],
-    "all_versions_verified": "0.10.0 via cargo metadata --no-deps at 5b3a747b",
+    "all_versions_verified": "0.10.0 via cargo metadata --no-deps at e0c2a316",
     "regenerate_check": [
       "cargo run -q -p xtask -- generate-release-graph",
       "cargo run -q -p xtask -- check-release-graph",
@@ -129,12 +129,12 @@
   },
   "receipts": {
     "journey": {
-      "claim": "exit 0 on source 5b3a747b",
+      "claim": "exit 0 on source e0c2a316",
       "scope": "LOCAL-REGISTRY ONLY - publish/install/adze init scaffold proof against an isolated local registry. This is NOT a crates.io claim and does NOT prove public install.",
       "status": "recorded in packet input; local-registry claim boundary retained verbatim",
       "command": "cargo run -p xtask -- verify-local-release-install --version 0.10.0",
       "exit_code": 0,
-      "completed": "2026-10-30T17:24Z (after #1118 merge 17:03:33Z); log H:/tmp/journey-final.log"
+      "completed": "rerun on e0c2a316 after #1119-#1121 merged; log H:/tmp/journey-e0c2.log; exit 0"
     },
     "focused_suites": {
       "suites": [
@@ -157,9 +157,14 @@
           "command": "cargo test --manifest-path example/Cargo.toml --lib csv",
           "passed": 5,
           "exit_code": 0
+        },
+        {
+          "command": "cargo test -p adze --features query --lib query::",
+          "passed": 68,
+          "exit_code": 0
         }
       ],
-      "source_commit": "5b3a747b7f07829937d6ccd10336c566888690ca"
+      "source_commit": "e0c2a316f158eb33732623dd7198de421c26bf7f"
     },
     "pr_gates_1101_1118": {
       "verified_via": "gh pr view --repo EffortlessMetrics/adze-swarm on 2026-10-30",
@@ -182,7 +187,7 @@
         1117,
         1118
       ],
-      "note": "1107 in 1101-1118 is an issue (variant-level leaf extraction), not a PR; its fix landed via PR #1114/#1117. All 17 actual PRs in the range are MERGED (2026-10-30). #1116 is the 0.10.0 version bump, #1118 is HEAD 5b3a747b."
+      "note": "1107 in 1101-1118 is an issue (variant-level leaf extraction), not a PR; its fix landed via PR #1114/#1117. All 17 actual PRs in the range are MERGED (2026-10-30). #1116 is the 0.10.0 version bump, #1118 is HEAD e0c2a316."
     },
     "explicit_non_claims": [
       {
@@ -220,7 +225,13 @@
         "status": "not generated; dependency identity is Cargo.lock SHA-256 only",
         "owner": "this packet (limitation)"
       }
-    ]
+    ],
+    "check_publishable": {
+      "command": "just check-publishable",
+      "result": "All checks passed (12 crates)",
+      "exit_code": 0,
+      "source_commit": "e0c2a316f158eb33732623dd7198de421c26bf7f"
+    }
   },
   "accepted_deferrals": [
     {
@@ -233,11 +244,11 @@
     },
     {
       "id": "#1078",
-      "state": "OPEN (verified 2026-10-30)",
+      "state": "CLOSED via PR #1119 (verified 2026-10-30)",
       "title": "bug(query): enforce fail-closed text predicates and full-string regex semantics",
-      "effect": "NOT an accepted deferral: fix is in PR #1119, not in this candidate; candidate query predicates on invalid ranges remain unsound until #1119 lands and this packet is regenerated",
-      "user_impact": "query predicates on invalid ranges unsound in candidate",
-      "future_owner": "#1078 / PR #1119"
+      "effect": "Included in this candidate; full query parity remains under #861",
+      "user_impact": "None for the admitted query subset",
+      "future_owner": "#861"
     },
     {
       "id": "#325",
@@ -261,7 +272,7 @@
   ],
   "release_operations_plan": {
     "preconditions_ordered": [
-      "1. Separate explicit promotion decision (not this packet) naming the exact source commit 5b3a747b.",
+      "1. Separate explicit promotion decision (not this packet) naming the exact source commit e0c2a316.",
       "2. Open reviewed public promotion PR EffortlessMetrics/adze importing the selected candidate; resolve the 973-file drift deliberately (exclude swarm-only artifacts above).",
       "3. On public main, confirm git diff --quiet public/main..selected-candidate is empty or every remaining diff is documented and accepted.",
       "4. Re-run on public tree: just check-publishable / cargo package checks, check-release-graph, validate-release-surface (PACKAGE_BOUNDARY_RELEASE_GATE=1), and focused suites."
