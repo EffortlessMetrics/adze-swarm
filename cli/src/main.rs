@@ -1035,10 +1035,12 @@ fn runner_root_cause(output: &str) -> Option<String> {
             || trimmed.starts_with("error:")
             || (trimmed.starts_with("error[") && trimmed.contains("]:"));
         if is_error {
-            let location = lines[index + 1..]
-                .iter()
+            // Only the immediately following line can be this diagnostic's
+            // location; scanning further would borrow a later error's span.
+            let location = lines
+                .get(index + 1)
                 .map(|next| next.trim())
-                .find(|next| next.starts_with("-->"));
+                .filter(|next| next.starts_with("-->"));
             return Some(match location {
                 Some(location) => format!("{trimmed} ({location})"),
                 None => trimmed.to_string(),
@@ -1856,6 +1858,17 @@ mod tests {
         assert_eq!(
             super::runner_root_cause(output).as_deref(),
             Some("error[E0425]: cannot find type `Nope` in this scope (--> src/grammar.rs:3:16)")
+        );
+    }
+
+    #[test]
+    fn runner_root_cause_does_not_borrow_a_later_diagnostics_location() {
+        // The first error has no location line of its own; the `-->`
+        // belongs to the second diagnostic and must not be attached.
+        let output = "error: first failure without location\nerror[E0308]: second failure\n  --> src/other.rs:9:3\n";
+        assert_eq!(
+            super::runner_root_cause(output).as_deref(),
+            Some("error: first failure without location")
         );
     }
 
