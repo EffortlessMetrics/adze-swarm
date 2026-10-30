@@ -136,18 +136,67 @@ mod tests {
     }
 
     #[test]
-    fn repetitions_multi_delimited_table_rejection_1062() {
-        // KNOWN #1062 remaining: the generated delimited table accepts one
-        // element and rejects the first comma (`expected end`), so valid
-        // multi-element input is rejected below the extraction layer. Owned
-        // by the grammar-construction lane (macro/common/tablegen). Pinned
-        // here so a silent behavior change fails loudly instead of passing
-        // vacuously; revisit when the table accepts delimited repeats.
-        for input in ["1,2,3", "1 , 2 , 3", "1, 2, 3, 4, 5"] {
-            let errors =
-                grammar::parse(input).expect_err("multi-element delimited is table-rejected");
-            assert!(!errors.is_empty(), "bounded diagnostics for {input:?}");
+    fn repetitions_multi_delimited_exact_1095() {
+        // #1095: multi-element delimited repetitions parse and extract exact
+        // values, order, and spans (previously the generated table rejected
+        // the first comma with `expected end`).
+        let cases: &[(&str, Vec<(i32, (usize, usize))>, (usize, usize))] = &[
+            ("1,2,3", vec![(1, (0, 1)), (2, (2, 3)), (3, (4, 5))], (0, 5)),
+            (
+                "1, 2, 3",
+                vec![(1, (0, 1)), (2, (3, 4)), (3, (6, 7))],
+                (0, 7),
+            ),
+            (
+                "1 , 2 , 3",
+                vec![(1, (0, 1)), (2, (4, 5)), (3, (8, 9))],
+                (0, 9),
+            ),
+            (
+                "1, 2, 3, 4, 5",
+                vec![
+                    (1, (0, 1)),
+                    (2, (3, 4)),
+                    (3, (6, 7)),
+                    (4, (9, 10)),
+                    (5, (12, 13)),
+                ],
+                (0, 13),
+            ),
+        ];
+        for (input, expected, container) in cases {
+            let parsed = grammar::parse(input)
+                .unwrap_or_else(|errors| panic!("{input:?} parses: {errors:?}"));
+            let items: Vec<(i32, (usize, usize))> = parsed
+                .numbers
+                .value
+                .iter()
+                .map(|item| (item.value, item.span))
+                .collect();
+            assert_eq!(&items, expected, "exact values for {input:?}");
+            assert_eq!(
+                parsed.numbers.span, *container,
+                "container span for {input:?}"
+            );
+            for (value, span) in &items {
+                assert_eq!(
+                    &input[span.0..span.1],
+                    &value.to_string(),
+                    "span slices exactly its digits for {input:?}"
+                );
+            }
         }
+
+        let doc = grammar::parse_document("1,2,3").expect("document parses");
+        let via_doc: grammar::NumberList = doc.ast().expect("typed ast extracts");
+        let doc_items: Vec<(i32, (usize, usize))> = via_doc
+            .numbers
+            .value
+            .iter()
+            .map(|item| (item.value, item.span))
+            .collect();
+        assert_eq!(doc_items, vec![(1, (0, 1)), (2, (2, 3)), (3, (4, 5))]);
+        assert_eq!(via_doc.numbers.span, (0, 5));
     }
 
     #[test]

@@ -562,6 +562,21 @@ impl GrammarJsConverter {
                 let _ = self.convert_rule_body(grammar, rule, aux_id);
                 Some(Symbol::NonTerminal(aux_id))
             }
+            JsRule::Seq { members } => {
+                // A SEQ used as a single symbol (e.g. the SEQ(delimiter,
+                // element) content of a REPEAT in a delimited list) needs an
+                // auxiliary non-terminal; dropping it loses the whole tail.
+                if members.is_empty() {
+                    return None;
+                }
+                let aux_id = SymbolId(self.next_symbol_id.try_into().unwrap());
+                self.next_symbol_id += 1;
+                grammar
+                    .rule_names
+                    .insert(aux_id, format!("_seq_aux_{}", aux_id.0));
+                let _ = self.convert_rule_body(grammar, rule, aux_id);
+                Some(Symbol::NonTerminal(aux_id))
+            }
             _ => None, // Other types not yet handled
         }
     }

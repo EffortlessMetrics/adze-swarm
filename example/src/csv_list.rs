@@ -48,30 +48,50 @@ mod tests {
         assert_eq!(via_doc.items.value[0].value, "alpha");
     }
 
+    fn exact_items(input: &str) -> Vec<(String, (usize, usize))> {
+        let parsed =
+            grammar::parse(input).unwrap_or_else(|errors| panic!("{input:?} parses: {errors:?}"));
+        parsed
+            .items
+            .value
+            .iter()
+            .map(|item| (item.value.clone(), item.span))
+            .collect()
+    }
+
     #[test]
     fn csv_two_items() {
-        // KNOWN #1062 remaining: same single-iteration delimited-table cap as
-        // the numeric fixture; multi-element input is rejected at the table.
-        // Owned by the grammar-construction lane; pinned, not vacuous.
-        let errors =
-            grammar::parse("alpha, beta").expect_err("multi-element delimited is table-rejected");
-        assert!(!errors.is_empty());
+        // #1095: multi-element delimited repetitions parse with exact
+        // values, order, and spans.
+        assert_eq!(
+            exact_items("alpha, beta"),
+            vec![("alpha".to_string(), (0, 5)), ("beta".to_string(), (7, 11))]
+        );
     }
 
     #[test]
     fn csv_multiple_items() {
-        // KNOWN #1062 remaining: see `csv_two_items`.
-        let errors =
-            grammar::parse("a, b, c, d").expect_err("multi-element delimited is table-rejected");
-        assert!(!errors.is_empty());
+        assert_eq!(
+            exact_items("a, b, c, d"),
+            vec![
+                ("a".to_string(), (0, 1)),
+                ("b".to_string(), (3, 4)),
+                ("c".to_string(), (6, 7)),
+                ("d".to_string(), (9, 10)),
+            ]
+        );
     }
 
     #[test]
     fn csv_no_spaces() {
-        // KNOWN #1062 remaining: see `csv_two_items`.
-        let errors =
-            grammar::parse("x,y,z").expect_err("multi-element delimited is table-rejected");
-        assert!(!errors.is_empty());
+        assert_eq!(
+            exact_items("x,y,z"),
+            vec![
+                ("x".to_string(), (0, 1)),
+                ("y".to_string(), (2, 3)),
+                ("z".to_string(), (4, 5)),
+            ]
+        );
     }
 
     #[test]

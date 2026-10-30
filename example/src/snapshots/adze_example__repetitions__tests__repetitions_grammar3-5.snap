@@ -6,23 +6,42 @@ Err(
     [
         ParseError {
             reason: UnexpectedToken(
-                ",; expected one of: end, number",
+                ",; expected one of: ,, end, number",
             ),
             start: 2,
             end: 3,
             expected: [
+                ",",
                 "end",
                 "number",
             ],
         },
         ParseError {
             reason: UnexpectedToken(
-                ",; expected one of: end",
+                "2; expected one of: ,",
             ),
-            start: 5,
+            start: 4,
+            end: 5,
+            expected: [
+                ",",
+            ],
+        },
+        ParseError {
+            reason: UnexpectedEof,
+            start: 6,
             end: 6,
             expected: [
+                ",",
                 "end",
+                "number",
+            ],
+        },
+        ParseError {
+            reason: UnexpectedEof,
+            start: 6,
+            end: 6,
+            expected: [
+                ",",
             ],
         },
     ],
