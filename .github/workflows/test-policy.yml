@@ -19,12 +19,15 @@ env:
   TEST_POLICY_RUNTIME_TIMEOUT_SECONDS: 60
 
 concurrency:
-  group: ${{ github.workflow }-$${{ github.event.pull_request.number || github.ref }
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   test-policy:
-    timeout-minutes: 10
+    # Hang guard only: the step loop compiles 7 crates sequentially, each
+    # already bounded by TEST_POLICY_COMPILE_TIMEOUT_SECONDS (600s), so a
+    # 10-minute job cap could cancel valid manual runs.
+    timeout-minutes: 60
     name: Enforce Test Policy
     runs-on: self-hosted
 
