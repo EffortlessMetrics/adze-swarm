@@ -976,18 +976,76 @@ fn run_static_parse_runner(grammar: &Path, input: &Path, output_format: &str) ->
     };
 
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        anyhow::bail!(
-            "static document projection failed for {} with status {}\nstdout:\n{}\nstderr:\n{}\nHint: retry with --format diagnostics-json for structured diagnostics.",
-            grammar.display(),
+        return Err(static_parse_runner_error(
+            &grammar,
             output.status,
-            stdout.trim_end(),
-            stderr.trim_end()
-        );
+            &output.stdout,
+            &output.stderr,
+        ));
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Build the top-level error for a failed temporary parse runner.
+///
+/// The runner's full output interleaves dependency warnings and Cargo
+/// bookkeeping with the actual failure, so only the decisive error line
+/// (plus its source location, when present) is surfaced. The exit status
+/// is retained as context, never as the sole explanation.
+fn static_parse_runner_error(
+    grammar: &Path,
+    status: std::process::ExitStatus,
+    stdout: &[u8],
+    stderr: &[u8],
+) -> anyhow::Error {
+    let stderr = String::from_utf8_lossy(stderr);
+    let stdout = String::from_utf8_lossy(stdout);
+    let root_cause = runner_root_cause(&stderr)
+        .or_else(|| runner_root_cause(&stdout))
+        .unwrap_or_else(|| "the runner produced no error output".to_string());
+    anyhow::anyhow!(
+        "static parse failed for {}: {} (runner exited with {})",
+        grammar.display(),
+        root_cause,
+        status
+    )
+}
+
+/// Extract the decisive failure line from parse-runner output.
+///
+/// Recognizes Cargo/rustc `error` lines, the runner binary's own `Error:`
+/// line, and panics. Warning and note lines are skipped, so unrelated
+/// runtime warnings never masquerade as (or bury) the root cause.
+fn runner_root_cause(output: &str) -> Option<String> {
+    let lines: Vec<&str> = output.lines().collect();
+    for (index, line) in lines.iter().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.contains("panicked at") {
+            let detail = lines[index + 1..]
+                .iter()
+                .map(|next| next.trim())
+                .find(|next| !next.is_empty());
+            return Some(match detail {
+                Some(detail) => format!("{trimmed} {detail}"),
+                None => trimmed.to_string(),
+            });
+        }
+        let is_error = trimmed.starts_with("Error:")
+            || trimmed.starts_with("error:")
+            || (trimmed.starts_with("error[") && trimmed.contains("]:"));
+        if is_error {
+            let location = lines[index + 1..]
+                .iter()
+                .map(|next| next.trim())
+                .find(|next| next.starts_with("-->"));
+            return Some(match location {
+                Some(location) => format!("{trimmed} ({location})"),
+                None => trimmed.to_string(),
+            });
+        }
+    }
+    None
 }
 
 fn render_selected_tree(
@@ -1790,6 +1848,29 @@ mod tests {
             !staging.exists(),
             "refused commit must still clean the owned staging tree"
         );
+    }
+
+    #[test]
+    fn runner_root_cause_skips_warnings_and_keeps_location() {
+        let output = "warning: unused variable\n warning: dead code\nerror[E0425]: cannot find type `Nope` in this scope\n  --> src/grammar.rs:3:16\n";
+        assert_eq!(
+            super::runner_root_cause(output).as_deref(),
+            Some("error[E0425]: cannot find type `Nope` in this scope (--> src/grammar.rs:3:16)")
+        );
+    }
+
+    #[test]
+    fn runner_root_cause_surfaces_runner_and_panic_errors() {
+        assert_eq!(
+            super::runner_root_cause("Error: \"parse_document failed: boom\"\n").as_deref(),
+            Some("Error: \"parse_document failed: boom\"")
+        );
+        assert_eq!(
+            super::runner_root_cause("thread 'main' panicked at src/main.rs:2:1:\nboom\n")
+                .as_deref(),
+            Some("thread 'main' panicked at src/main.rs:2:1: boom")
+        );
+        assert_eq!(super::runner_root_cause("warning: only noise\n"), None);
     }
 
     #[test]

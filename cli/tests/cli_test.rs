@@ -954,6 +954,65 @@ fn test_parse_static_tree_mode_emits_document_backed_tree() {
 }
 
 #[test]
+fn test_parse_init_starter_grammar_addition_succeeds() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let project_name = "parsestarter";
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg(project_name)
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    let project_dir = temp.path().join(project_name);
+    let grammar = project_dir.join("src/grammar.rs");
+    let input = temp.path().join("input.txt");
+    std::fs::write(&input, "1 + 2").expect("write input");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("parse")
+        .arg(&grammar)
+        .arg(&input)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("source_file"))
+        .stdout(predicate::str::contains("Expr_Add"))
+        .stdout(predicate::str::contains("[0..5]"));
+}
+
+#[test]
+fn test_parse_runner_failure_surfaces_root_cause_without_warning_noise() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let project_name = "parsebroken";
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg(project_name)
+        .arg("--output")
+        .arg(temp.path())
+        .assert()
+        .success();
+
+    let project_dir = temp.path().join(project_name);
+    let grammar = project_dir.join("src/grammar.rs");
+    let mut grammar_source = std::fs::read_to_string(&grammar).expect("read starter grammar");
+    grammar_source.push_str("\nfn broken() -> UndefinedType1099 { todo!() }\n");
+    std::fs::write(&grammar, grammar_source).expect("write broken grammar");
+    let input = temp.path().join("input.txt");
+    std::fs::write(&input, "1 + 2").expect("write input");
+
+    let mut cmd = cargo_bin_cmd!("adze");
+    cmd.arg("parse")
+        .arg(&grammar)
+        .arg(&input)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("UndefinedType1099"))
+        .stderr(predicate::str::contains("warning").not())
+        .stderr(predicate::str::contains("static document projection failed").not());
+}
+
+#[test]
 fn test_parse_static_json_mode_emits_document_json() {
     let temp = tempfile::tempdir().expect("tempdir");
     let project_name = "parsejsonstatic";
