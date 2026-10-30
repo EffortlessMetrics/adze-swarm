@@ -363,6 +363,107 @@ fn book_bad_input_reports_useful_diagnostic() {
 }
 
 #[test]
+fn quick_start_md_builds_runs_and_reports_errors() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let project_dir = temp.path().join("calc");
+    fs::create_dir_all(project_dir.join("src")).expect("create src");
+    fs::create_dir_all(project_dir.join("examples")).expect("create examples");
+
+    let repo_root = repo_root();
+    let runtime_path = toml_path(repo_root.join("runtime"));
+    let tool_path = toml_path(repo_root.join("tool"));
+    let quick_start = include_str!("../../QUICK_START.md");
+
+    assert!(
+        !quick_start.contains("being refreshed"),
+        "QUICK_START.md must not carry the stale being-refreshed banner"
+    );
+    assert!(
+        !quick_start.contains("Err(e) =>"),
+        "QUICK_START.md error arms must bind the Vec<ParseError>, not a single error"
+    );
+    assert!(
+        quick_start.contains("cargo run -p adze-cli -- init calc"),
+        "QUICK_START.md must follow the canonical adze-init first-hour path"
+    );
+
+    let build_rs = fenced_block_starting_with(quick_start, "rust", "use std::path::PathBuf;")
+        .expect("QUICK_START should include the generated build.rs block");
+    let lib_rs = fenced_block_starting_with(quick_start, "rust", "#[path = \"grammar.rs\"]")
+        .expect("QUICK_START should include the generated src/lib.rs block");
+    let grammar_rs = fenced_block_starting_with(quick_start, "rust", "//! calc grammar definition")
+        .expect("QUICK_START should include the generated src/grammar.rs block");
+    let example_rs = fenced_block_starting_with(quick_start, "rust", "use calc::grammar;")
+        .expect("QUICK_START should include the generated examples/parse.rs block");
+    assert!(
+        example_rs.contains("Err(errors)")
+            && example_rs.contains("error.display_with_source(&source)"),
+        "QUICK_START parse example must render each ParseError in the Vec with its source"
+    );
+
+    fs::write(
+        project_dir.join("Cargo.toml"),
+        format!(
+            r#"[package]
+name = "calc"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+adze = {{ path = "{runtime_path}", default-features = false }}
+
+[build-dependencies]
+adze-tool = {{ path = "{tool_path}" }}
+
+[features]
+default = ["pure-rust"]
+pure-rust = ["adze/pure-rust"]
+
+[workspace]
+"#
+        ),
+    )
+    .expect("write Cargo.toml");
+    fs::write(project_dir.join("build.rs"), build_rs).expect("write build.rs");
+    fs::write(project_dir.join("src/lib.rs"), lib_rs).expect("write lib.rs");
+    fs::write(project_dir.join("src/grammar.rs"), grammar_rs).expect("write grammar.rs");
+    fs::write(project_dir.join("examples/parse.rs"), example_rs).expect("write parse example");
+
+    let ok_output = Command::new("cargo")
+        .args(["run", "--quiet", "--example", "parse", "--", "1 + 2 * 3"])
+        .current_dir(&project_dir)
+        .output()
+        .expect("run QUICK_START parse example on valid input");
+    assert!(
+        ok_output.status.success(),
+        "QUICK_START parse example should run on valid input\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&ok_output.stdout),
+        String::from_utf8_lossy(&ok_output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&ok_output.stdout)
+            .contains("Add(Number(1), (), Mul(Number(2), (), Number(3)))"),
+        "QUICK_START parse example should print the typed AST, got: {}",
+        String::from_utf8_lossy(&ok_output.stdout)
+    );
+
+    let err_output = Command::new("cargo")
+        .args(["run", "--quiet", "--example", "parse", "--", "1 + @"])
+        .current_dir(&project_dir)
+        .output()
+        .expect("run QUICK_START parse example on invalid input");
+    assert!(
+        !err_output.status.success(),
+        "QUICK_START parse example should exit nonzero on invalid input"
+    );
+    let stderr = String::from_utf8_lossy(&err_output.stderr);
+    assert!(
+        stderr.contains("bytes 4..5") && stderr.contains("expected one of:"),
+        "QUICK_START error arm should render the Vec<ParseError> with source context, got: {stderr}"
+    );
+}
+
+#[test]
 fn readme_stable_claims_are_in_stable_product_lane() {
     let readme = include_str!("../../README.md");
     let support_tiers = include_str!("../../docs/status/SUPPORT_TIERS.md");
