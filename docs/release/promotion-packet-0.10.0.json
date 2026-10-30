@@ -1,0 +1,317 @@
+{
+  "packet": "promotion-packet-0.10.0",
+  "issue": 881,
+  "version": "0.10.0",
+  "authorization": "THIS PACKET DOES NOT AUTHORIZE PROMOTION OR PUBLICATION. It is evidence assembly only. Promotion to EffortlessMetrics/adze and any crates.io publication require separate explicit decisions under #325/#881.",
+  "source": {
+    "repo": "EffortlessMetrics/adze-swarm",
+    "branch": "main",
+    "commit": "5b3a747b7f07829937d6ccd10336c566888690ca",
+    "tree": "042db6479b53d7e2bce38b97609a932a27b6db7b",
+    "tested_tree": "clean working tree at source commit when receipts were produced",
+    "cargo_lock_sha256": "7d78a208a886be91c5f3ddb0a77c3b5fc54efb33bd13936aafc1b24df36185f8",
+    "archive_digests": "NOT RETAINED by journey harness; archive-byte identity with any future crates.io artifact is NOT claimed"
+  },
+  "public_target": {
+    "repo": "EffortlessMetrics/adze",
+    "branch": "main",
+    "commit": "6263c6a80046d13fb98e3ad319dfe726f32f1010",
+    "tree": "565e5ea130a18cb3afcd2bbc03156de228cb8cba",
+    "verified": "git ls-remote https://github.com/EffortlessMetrics/adze.git refs/heads/main returned 6263c6a80046d13fb98e3ad319dfe726f32f1010 on 2026-10-30; shallow clone H:/tmp/adze-public HEAD matches"
+  },
+  "drift_inventory": {
+    "method": "git -C H:/tmp/adze-public diff --stat/--shortstat/--name-status HEAD(public 6263c6a) FETCH_HEAD(swarm 5b3a747b fetched shallowly)",
+    "summary": {
+      "files_changed": 973,
+      "insertions": 61153,
+      "deletions": 26289,
+      "modified": 653,
+      "added": 249,
+      "deleted": 69,
+      "renamed": 2
+    },
+    "top_level_files_changed": {
+      "runtime": 199,
+      "docs": 103,
+      "ir": 71,
+      "tablegen": 57,
+      "tool": 56,
+      "macro": 54,
+      "glr-core": 48,
+      "plans": 40,
+      "book": 38,
+      ".adze": 37,
+      "example": 30,
+      "crates": 28,
+      ".github": 26,
+      "golden-tests": 23,
+      "testing": 22,
+      "scripts": 18,
+      "xtask": 18,
+      "grammars": 17,
+      "reference": 11,
+      "conformance": 9,
+      "policy": 8,
+      "tools": 6,
+      "common": 6,
+      "playground": 5,
+      "cli": 5,
+      "runtime2": 4,
+      "wasm-demo": 4,
+      "test-mini": 4,
+      "lsp-generator": 3,
+      "benchmarks": 3
+    },
+    "added_only_top_level_counts": {
+      "runtime": 48,
+      "plans": 36,
+      ".adze": 36,
+      "docs": 32,
+      "glr-core": 15,
+      "reference": 11,
+      "ir": 11,
+      "conformance": 9,
+      "crates": 9,
+      "tool": 8,
+      "scripts": 7,
+      "tablegen": 7,
+      "xtask": 7
+    },
+    "deleted_only_top_level_counts": {
+      "testing": 22,
+      "golden-tests": 18,
+      "crates": 11,
+      "grammars": 6,
+      "runtime": 5,
+      "test-mini": 4,
+      "scripts": 2,
+      "glr-core": 1
+    },
+    "package_workspace_changes": [
+      "Source Cargo.toml workspace members no longer list testing and test-mini (present as members in public target); source retains tests/governance and the 12-crate release surface.",
+      "Source Cargo.toml exclude no longer lists crates/ts-c-harness (excluded in public target); source exclude = runtime/fuzz, tools/ts-bridge, example. ts-c-harness remains an excluded-from-default-workspace support crate per AGENTS.md and must not be promoted as a release crate.",
+      "All 12 release-graph crates report version 0.10.0 in source cargo metadata (verified via cargo metadata --no-deps). Public target predates the 0.10.0 bump (PR #1116).",
+      "Release-graph authority added/changed in source: policy/release-graph.toml (generated, ledger-published) + policy/package-boundary.toml; public target has no equivalent 0.10.0 graph."
+    ],
+    "swarm_only_excluded_artifacts": [
+      ".adze/goals/** (36 added files) - swarm goal/migration artifacts, not public product source; exclude from promotion or promote only by explicit public decision",
+      "plans/** (36 added files) - swarm planning artifacts; exclude by default",
+      "conformance/**, reference/python/** - swarm conformance/reference proof assets; promote only if public proof surface explicitly wants them",
+      "policy/** release-governance ledgers, xtask queue/policy governance, .github/workflows swarm routing/CI (cx33/cx43/cx53/cpx42) - swarm CI/governance, not public CI",
+      "crates/ts-c-harness, runtime/fuzz, tools/ts-bridge, example - workspace-excluded crates; never in the 12-crate release graph",
+      "docs/status, docs/proposals, docs/ci swarm operating docs - review individually; do not bulk-promote as public user docs"
+    ],
+    "caution": "973-file drift is NOT a clean cherry-pick. Promotion must be a reviewed public promotion PR (per docs/reference/PUBLISH_CHECKLIST.md), not a tree copy. A non-empty public/main..swarm/main diff is a blocker for publishing from swarm."
+  },
+  "release_graph_0_10_0": {
+    "source_of_truth": "policy/release-graph.toml (generated from policy/package-boundary.toml, ledger-published, dependency order normal+build)",
+    "count": 12,
+    "order": [
+      "adze-bdd-governance-core",
+      "adze-common-type-ops-core",
+      "adze-common",
+      "adze-ir",
+      "adze-glr-core",
+      "adze-linecol-core",
+      "adze-macro",
+      "adze-parsetable-metadata",
+      "adze-tablegen",
+      "adze",
+      "adze-tool",
+      "adze-cli"
+    ],
+    "all_versions_verified": "0.10.0 via cargo metadata --no-deps at 5b3a747b",
+    "regenerate_check": [
+      "cargo run -q -p xtask -- generate-release-graph",
+      "cargo run -q -p xtask -- check-release-graph",
+      "cargo run -q -p xtask -- print-release-graph"
+    ]
+  },
+  "receipts": {
+    "journey": {
+      "claim": "exit 0 on source 5b3a747b",
+      "scope": "LOCAL-REGISTRY ONLY - publish/install/adze init scaffold proof against an isolated local registry. This is NOT a crates.io claim and does NOT prove public install.",
+      "status": "recorded in packet input; local-registry claim boundary retained verbatim",
+      "command": "cargo run -p xtask -- verify-local-release-install --version 0.10.0",
+      "exit_code": 0,
+      "completed": "2026-10-30T17:24Z (after #1118 merge 17:03:33Z); log H:/tmp/journey-final.log"
+    },
+    "focused_suites": {
+      "suites": [
+        {
+          "command": "cargo test -p adze --features \"pure-rust,glr,ts-compat\" --test generated_parse_errors",
+          "passed": 23,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test --manifest-path example/Cargo.toml --lib repetitions",
+          "passed": 16,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test --manifest-path example/Cargo.toml --lib boolean",
+          "passed": 6,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test --manifest-path example/Cargo.toml --lib csv",
+          "passed": 5,
+          "exit_code": 0
+        }
+      ],
+      "source_commit": "5b3a747b7f07829937d6ccd10336c566888690ca"
+    },
+    "pr_gates_1101_1118": {
+      "verified_via": "gh pr view --repo EffortlessMetrics/adze-swarm on 2026-10-30",
+      "merged": [
+        1101,
+        1102,
+        1103,
+        1104,
+        1105,
+        1106,
+        1108,
+        1109,
+        1110,
+        1111,
+        1112,
+        1113,
+        1114,
+        1115,
+        1116,
+        1117,
+        1118
+      ],
+      "note": "1107 in 1101-1118 is an issue (variant-level leaf extraction), not a PR; its fix landed via PR #1114/#1117. All 17 actual PRs in the range are MERGED (2026-10-30). #1116 is the 0.10.0 version bump, #1118 is HEAD 5b3a747b."
+    },
+    "explicit_non_claims": [
+      {
+        "claim": "just ci-supported aggregate on candidate",
+        "status": "not run locally; exact-head CI gates are integration evidence",
+        "owner": "#1028"
+      },
+      {
+        "claim": "corrected all-canaries Stable Product Proof",
+        "status": "no current executed receipt",
+        "owner": "#854"
+      },
+      {
+        "claim": "Linux/Windows portability receipts",
+        "status": "Windows journey only; no separate Linux receipt",
+        "owner": "#880"
+      },
+      {
+        "claim": "parser/GLR/document/projection matrix receipts",
+        "status": "not assembled",
+        "owner": "#853"
+      },
+      {
+        "claim": "no-panic and API-surface receipts",
+        "status": "not assembled",
+        "owner": "#867/#1072"
+      },
+      {
+        "claim": "fixed-runner performance baseline",
+        "status": "not assembled; no performance claim",
+        "owner": "#869"
+      },
+      {
+        "claim": "public API surface diff / detailed dependency diff",
+        "status": "not generated; dependency identity is Cargo.lock SHA-256 only",
+        "owner": "this packet (limitation)"
+      }
+    ]
+  },
+  "accepted_deferrals": [
+    {
+      "id": "#853",
+      "state": "OPEN (verified 2026-10-30)",
+      "title": "roadmap: 0.10.0 architecture and product hardening freeze",
+      "effect": "0.10.0 product endpoint roadmap remains open; packet does not claim #853 closure",
+      "user_impact": "0.10.0 endpoint not frozen; usable-core candidate only",
+      "future_owner": "#853 (58 gate owners open)"
+    },
+    {
+      "id": "#1078",
+      "state": "OPEN (verified 2026-10-30)",
+      "title": "bug(query): enforce fail-closed text predicates and full-string regex semantics",
+      "effect": "NOT an accepted deferral: fix is in PR #1119, not in this candidate; candidate query predicates on invalid ranges remain unsound until #1119 lands and this packet is regenerated",
+      "user_impact": "query predicates on invalid ranges unsound in candidate",
+      "future_owner": "#1078 / PR #1119"
+    },
+    {
+      "id": "#325",
+      "state": "OPEN (verified 2026-10-30)",
+      "title": "release: authorize publish workflow and capture crates.io install receipt",
+      "effect": "publication authorization + crates.io receipt remain owned here; ABSENT from this packet",
+      "user_impact": "no promotion/tag/publish can start",
+      "future_owner": "#325 maintainer decision"
+    },
+    {
+      "id": "#881",
+      "state": "OPEN (verified 2026-10-30)",
+      "title": "release: assemble the 0.10.0 swarm-to-public promotion packet",
+      "effect": "this packet is the #881 artifact; assembling it does not authorize promotion"
+    },
+    {
+      "id": "macOS",
+      "state": "UNPROVED",
+      "effect": "no macOS build/test receipt in this packet; do not claim macOS support beyond existing public claims"
+    }
+  ],
+  "release_operations_plan": {
+    "preconditions_ordered": [
+      "1. Separate explicit promotion decision (not this packet) naming the exact source commit 5b3a747b.",
+      "2. Open reviewed public promotion PR EffortlessMetrics/adze importing the selected candidate; resolve the 973-file drift deliberately (exclude swarm-only artifacts above).",
+      "3. On public main, confirm git diff --quiet public/main..selected-candidate is empty or every remaining diff is documented and accepted.",
+      "4. Re-run on public tree: just check-publishable / cargo package checks, check-release-graph, validate-release-surface (PACKAGE_BOUNDARY_RELEASE_GATE=1), and focused suites."
+    ],
+    "package_order": [
+      "adze-bdd-governance-core",
+      "adze-common-type-ops-core",
+      "adze-common",
+      "adze-ir",
+      "adze-glr-core",
+      "adze-linecol-core",
+      "adze-macro",
+      "adze-parsetable-metadata",
+      "adze-tablegen",
+      "adze",
+      "adze-tool",
+      "adze-cli"
+    ],
+    "package_rule": "Publish strictly in release-graph order; wait for each crate to appear on crates.io before publishing dependents (docs/reference/PUBLISH_CHECKLIST.md). Use ./scripts/release.sh or cargo publish -p <crate> in graph order.",
+    "tag_changelog_plan": [
+      "Finalize CHANGELOG.md [0.10.0] candidate (currently 'Unreleased candidate', cut from 2798d169, updated through #1118) with release date on public main only.",
+      "Tag v0.10.0 on the public main commit that contains the promoted candidate (git tag v0.10.0; git push origin main --tags) only after publish decision under #325.",
+      "No tag exists or is created by this packet."
+    ],
+    "signing_token_owners": {
+      "status": "VISIBLY ABSENT",
+      "signing_owner": null,
+      "crates_io_token_owner": null,
+      "note": "No signing identity, crates.io token owner, or publish credential is named or present in this packet. Publication must not proceed until #325 names them through the approved secret channel (never in this repo/packet)."
+    },
+    "post_publish_verify_command": "cargo run -q -p xtask -- verify-crates-io-install adze-cli --bin adze --version 0.10.0 --locked",
+    "post_publish_verify_note": "Run only after adze-cli 0.10.0 is visible on crates.io. Dry-run (--dry-run) proves command shape only, not registry availability.",
+    "abort_criteria_ordered": [
+      "1. Public promotion PR diff includes swarm-only artifacts (.adze/, plans/, swarm CI) without explicit acceptance -> abort promotion, do not publish.",
+      "2. Any release-graph check, package-boundary release gate, or cargo package --list check fails on public tree -> abort before any cargo publish.",
+      "3. Version mismatch: any of the 12 crates or inter-crate path dep != 0.10.0 -> abort.",
+      "4. crates.io dependency not yet visible when its dependent is reached -> stop mid-sequence; do not skip order.",
+      "5. verify-crates-io-install fails after publish -> do not announce install claim; file receipt gap under #325."
+    ],
+    "rollback_criteria_ordered": [
+      "1. Before any publish: close/withdraw the public promotion PR; no rollback needed (no tag/publish by this packet).",
+      "2. After partial publish, crates.io versions cannot be unpublished/deleted: yank affected 0.10.0 crates in reverse graph order (adze-cli first) via the token owner under #325, then publish a corrected patch release; do not reuse 0.10.0.",
+      "3. After tag: if publish is aborted post-tag, delete/move the v0.10.0 tag only by explicit release-owner decision and record it in #325; never silently retag a different tree as v0.10.0.",
+      "4. Yank/rollback decision owner: ABSENT (same as signing/token owner) - must be named under #325 before publishing."
+    ],
+    "incident_communication_plan": [
+      "Same-day #325 comment on any post-publish abort naming published crates/versions and the abort criterion that fired.",
+      "Defective visible crate: yank decision and reverse-order yank list posted to #325 before yanking; public release notes corrected to withdraw install claim.",
+      "Public status updates owned by the release owner named under #325; unnamed until then, so publication stays blocked."
+    ]
+  },
+  "candidate_status": "PROPOSED candidate (current swarm main HEAD); NOT maintainer-selected under #325; this packet is not a selection receipt."
+}
