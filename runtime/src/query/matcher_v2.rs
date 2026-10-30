@@ -946,11 +946,8 @@ mod tests {
         assert!(matcher.matches(&make_node(1, 0, 1)).is_empty());
 
         // #not-match? on an invalid range also fails closed.
-        let not_match = compile_query(
-            r#"(identifier) @name (#not-match? @name "z+")"#,
-            &grammar,
-        )
-        .unwrap();
+        let not_match =
+            compile_query(r#"(identifier) @name (#not-match? @name "z+")"#, &grammar).unwrap();
         let matcher = QueryMatcher::new(&not_match, "ab", &metadata);
         assert!(matcher.matches(&make_node(1, 0, 3)).is_empty());
         // ...while a valid non-matching range still matches.
