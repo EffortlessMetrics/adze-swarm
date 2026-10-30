@@ -200,6 +200,14 @@ mod tests {
     }
 
     #[test]
+    fn dry_run_entry_point_prints_plan_and_returns_ok() {
+        // Regression guard for #1098: the dry-run must reach print_plan
+        // and exit successfully without touching any registry.
+        run("0.10.0", DEFAULT_CLI_CRATE, DEFAULT_CLI_BIN, true, None)
+            .expect("dry-run should succeed");
+    }
+
+    #[test]
     fn missing_version_is_rejected() {
         let err = run("", DEFAULT_CLI_CRATE, DEFAULT_CLI_BIN, true, None).expect_err("version");
         assert!(err.to_string().contains("--version is required"));

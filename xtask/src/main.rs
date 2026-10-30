@@ -584,7 +584,32 @@ impl From<ReviewVerdictArg> for queue_admission::ReviewVerdict {
     }
 }
 
+/// Stack for the worker thread that runs the CLI (#1098).
+///
+/// Windows reserves only 1 MiB for the main thread. The clap-derived
+/// `Commands` dispatch uses a large fraction of that in debug builds, so
+/// `verify-local-release-install --dry-run` could overflow the main stack
+/// before printing its plan. Running the real entry point on a spawned
+/// thread with an explicit large stack removes that ceiling regardless of
+/// the PE stack reserve.
+const CLI_WORKER_STACK_SIZE: usize = 8 * 1024 * 1024;
+
 fn main() -> Result<()> {
+    match std::thread::Builder::new()
+        .name("xtask-cli".to_string())
+        .stack_size(CLI_WORKER_STACK_SIZE)
+        .spawn(run_cli)
+    {
+        Ok(handle) => match handle.join() {
+            Ok(result) => result,
+            Err(payload) => std::panic::resume_unwind(payload),
+        },
+        // Fall back to running inline if the worker cannot be spawned.
+        Err(_) => run_cli(),
+    }
+}
+
+fn run_cli() -> Result<()> {
     let cli = Cli::parse();
     let sh = Shell::new()?;
 
@@ -863,4 +888,27 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CLI_WORKER_STACK_SIZE;
+
+    #[test]
+    fn cli_worker_stack_is_well_above_windows_main_thread_default() {
+        // Windows reserves 1 MiB for the main thread (#1098). The worker
+        // stack must stay a large multiple of that so clap dispatch and
+        // the release-install dry-run cannot overflow it.
+        const { assert!(CLI_WORKER_STACK_SIZE >= 8 * 1024 * 1024) }
+    }
+
+    #[test]
+    fn cli_worker_thread_runs_with_configured_stack() {
+        let handle = std::thread::Builder::new()
+            .name("xtask-cli-test".to_string())
+            .stack_size(CLI_WORKER_STACK_SIZE)
+            .spawn(|| 42)
+            .expect("spawn cli worker");
+        assert_eq!(handle.join().expect("join cli worker"), 42);
+    }
 }
