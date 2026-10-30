@@ -1257,3 +1257,37 @@ fn word_rule_set_on_struct_level() {
     assert!(word.is_some(), "word should be set at struct level");
     assert_eq!(word.unwrap(), "Identifier");
 }
+
+#[test]
+fn variant_level_leaf_text_is_the_single_leaf_token() {
+    // `#[adze::leaf(text = "true")] Literal(bool)` declares the variant's
+    // token on the variant, not the field. Generation must emit the STRING
+    // token, not a SYMBOL reference to the undefined rule `bool`.
+    let g = grammar_from(
+        r#"
+        #[adze::grammar("variant_leaf")]
+        mod grammar {
+            #[adze::language]
+            pub enum BoolExpr {
+                #[adze::leaf(text = "true", transform = |_| true)]
+                Literal(bool),
+                #[adze::leaf(text = "false", transform = |_| false)]
+                LiteralFalse(bool),
+            }
+        }
+        "#,
+    );
+    let serialized = serde_json::to_string(&g["rules"]).unwrap();
+    assert!(
+        !serialized.contains("\"name\":\"bool\""),
+        "no SYMBOL reference to undefined `bool` rule: {serialized}"
+    );
+    assert!(
+        serialized.contains("\"value\":\"true\""),
+        "variant leaf text emitted as token: {serialized}"
+    );
+    assert!(
+        serialized.contains("\"value\":\"false\""),
+        "second variant leaf text emitted as token: {serialized}"
+    );
+}
