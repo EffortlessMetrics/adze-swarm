@@ -34,6 +34,9 @@ macro_rules! eprintln {
     };
 }
 
+/// RHS symbols plus `(field, position)` pairs produced from a SEQ body.
+type RhsAndFields = (Vec<Symbol>, Vec<(FieldId, usize)>);
+
 /// Converts a Grammar.js structure to Adze IR
 pub struct GrammarJsConverter {
     grammar_js: GrammarJs,
@@ -608,7 +611,7 @@ impl GrammarJsConverter {
         &mut self,
         grammar: &mut Grammar,
         members: &[JsRule],
-    ) -> Result<(Vec<Symbol>, Vec<(FieldId, usize)>)> {
+    ) -> Result<RhsAndFields> {
         let mut rhs = Vec::new();
         let mut fields = Vec::new();
 
