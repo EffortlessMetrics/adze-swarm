@@ -19,7 +19,7 @@ impl GrammarJsConverter {
         );
 
         if let JsRule::Choice { members } = content {
-            self.convert_field_choice(grammar, lhs, name, field_id, members)?;
+            self.convert_field_choice(grammar, lhs, field_id, members)?;
         } else {
             let symbol = self.rule_to_symbol(grammar, content)?;
             self.add_rule_with_fields(grammar, lhs, vec![symbol], None, None, vec![(field_id, 0)]);
@@ -46,7 +46,6 @@ impl GrammarJsConverter {
         &mut self,
         grammar: &mut Grammar,
         lhs: SymbolId,
-        name: &str,
         field_id: FieldId,
         members: &[JsRule],
     ) -> Result<()> {

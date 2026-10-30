@@ -1,6 +1,6 @@
 use super::{GrammarJsConverter, JsRule};
 use adze_ir::{Associativity, Grammar, PrecedenceKind, SymbolId};
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 impl GrammarJsConverter {
     pub(super) fn convert_choice_rule(
@@ -87,14 +87,18 @@ impl GrammarJsConverter {
             if members.is_empty() {
                 return Ok(());
             }
-            let (rhs, fields) = self.seq_to_rhs_and_fields(grammar, members)?;
+            let (rhs, fields) = self
+                .seq_to_rhs_and_fields(grammar, members)
+                .map_err(|e| e.context(format!("failed to convert CHOICE member ({label})")))?;
             if !rhs.is_empty() {
                 self.add_rule_with_fields(grammar, lhs, rhs, precedence, associativity, fields);
                 return Ok(());
             }
         }
 
-        let symbol = self.rule_to_symbol(grammar, content)?;
+        let symbol = self
+            .rule_to_symbol(grammar, content)
+            .map_err(|e| e.context(format!("failed to convert CHOICE member ({label})")))?;
         self.add_rule(grammar, lhs, vec![symbol], precedence, associativity);
         Ok(())
     }
