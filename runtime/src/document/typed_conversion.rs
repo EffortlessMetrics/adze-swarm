@@ -26,7 +26,9 @@ pub(super) fn document_node_to_parsed_node(
         start_point: byte_to_point(source, node.start_byte),
         end_point: byte_to_point(source, node.end_byte),
         is_extra,
-        is_error: symbol_name(language, symbol) == Some("ERROR") || is_empty_error_node,
+        is_error: symbol_name(language, symbol) == Some("ERROR")
+            || is_empty_error_node
+            || node.symbol_id.0 == 0,
         is_missing: is_empty_error_node,
         is_named,
         field_id: node

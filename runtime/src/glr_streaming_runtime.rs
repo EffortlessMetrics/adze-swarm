@@ -645,9 +645,10 @@ pub(crate) fn glr_error_to_parse_errors(
     }
 
     let (start, message) = match error {
-        GlrError::Lex(message) | GlrError::Parse(message) | GlrError::Other(message) => {
-            (extract_byte_offset(&message).unwrap_or(0), message)
-        }
+        GlrError::Lex(message) | GlrError::Parse(message) | GlrError::Other(message) => (
+            extract_byte_offset(&message).unwrap_or(0).min(source_len),
+            message,
+        ),
         GlrError::UnexpectedToken(_) => unreachable!("handled above"),
     };
     let end = if start < source_len {
