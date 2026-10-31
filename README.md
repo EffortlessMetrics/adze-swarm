@@ -148,7 +148,7 @@ Support tiers, proof commands, and CI lanes are tracked in [`docs/status/SUPPORT
 | Query compatibility subset | **Stabilizing** | `cargo run -p adze --features query --example query_highlighting`; `cargo test -p adze --features query --lib query -- --nocapture`; `cargo test -p adze --features "pure-rust,ts-compat,query" --test query_differential -- --nocapture` |
 | runtime2 | **Advisory** | `cargo test --manifest-path runtime2/Cargo.toml --features test-utils --test basic language_smoke_exposes_metadata_queries -- --exact --nocapture` |
 | Grammars | **Advisory** | `cargo test -p adze-python test_python_language_exists -- --exact` |
-| Golden tests | **Advisory** | `cargo test -p adze-golden-tests javascript_canary_expression_golden --features javascript-grammar -- --exact --nocapture` |
+| Golden tests | **Advisory** | `cargo test -p adze-golden-tests javascript_canary_expression_golden --features javascript-grammar -- --nocapture` |
 | Benchmarks | **Advisory** | `cargo run -q -p xtask -- perf-receipt --profile product-smoke`; `cargo test -p adze-benchmarks --test verify_fixture_parsing verify_parse_bench_uses_real_parser_workload -- --exact --nocapture` |
 
 Rule for documentation and CI promotion: no Stable feature claim without a named proof command in [`docs/status/SUPPORT_TIERS.md`](./docs/status/SUPPORT_TIERS.md).
