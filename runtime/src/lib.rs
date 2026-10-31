@@ -132,8 +132,10 @@ pub mod lexer;
 pub mod scanner_registry;
 /// Built-in scanner implementations.
 pub mod scanners;
-// Use parser_v4 (GLR) as the main parser implementation
-/// Main parser module.
+/// Compatibility alias for the `parser_v4` document-tree substrate.
+/// It is not the generated engine dispatch: `__private::parse` /
+/// `parse_document` select the deterministic LR or streaming GLR
+/// engine from the decoded table (#895/#896).
 #[cfg(feature = "pure-rust")]
 pub mod parser {
     pub use super::parser_v4::*;
@@ -153,7 +155,9 @@ pub mod glr_forest;
 pub mod glr_incremental;
 /// Lexer specialized for GLR parsing.
 pub mod glr_lexer;
-/// GLR parser implementation.
+/// Legacy GLR parser for lex-fn-less languages (the explicitly
+/// dispatched `LegacyGlrWithoutLexFn` route, #895); not the canonical
+/// streaming GLR engine.
 pub mod glr_parser;
 /// Query support for GLR parse forests.
 pub mod glr_query;
@@ -198,7 +202,8 @@ pub mod arena_allocator;
 pub mod node;
 /// Parser backend selection logic.
 pub mod parser_selection;
-/// Version 4 parser implementation (GLR).
+/// Version 4 parser: document/`ParseNode` substrate and adapter, not
+/// the canonical GLR engine (that is `adze_glr_core::Driver`, #895).
 #[cfg(feature = "pure-rust")]
 pub mod parser_v4;
 /// Action ranking helpers for the version 4 parser.

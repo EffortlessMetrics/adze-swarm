@@ -306,10 +306,18 @@ impl<'t> Driver<'t> {
 
                 // Choose best candidate using the documented global lexical commitment policy (#928)
                 if candidates.is_empty() {
-                    return Err(GlrError::Parse(format!(
-                        "cannot lex at byte {}: no valid tokens",
-                        pos
-                    )));
+                    // No token can be lexed at this position in any
+                    // surviving stack's lex mode: this is an
+                    // unexpected-token failure at `pos`, and the stack
+                    // tops' ACTION rows name the expected terminals.
+                    let tops = Self::stack_tops(&state.stacks);
+                    return Err(GlrError::UnexpectedToken(Box::new(GlrUnexpectedToken {
+                        byte_start: pos,
+                        byte_end: pos,
+                        found: None,
+                        found_is_eof: pos >= input.len(),
+                        expected: self.expected_terminals_for_tops(&tops),
+                    })));
                 }
 
                 let stack_tops: Vec<StateId> = state
