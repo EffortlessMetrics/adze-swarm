@@ -40,7 +40,7 @@ pub mod grammar {
     #[derive(Debug, PartialEq)]
     pub enum Expr {
         Number(
-            #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+            #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<i32>())]
             i32,
         ),
 
@@ -62,6 +62,11 @@ pub mod grammar {
 let expr = grammar::parse("1 + 2 * 3")?;
 // expr = Add(Number(1), (), Mul(Number(2), (), Number(3)))
 ```
+
+Use `try_transform` when converting user input can fail. A digit token such as
+`2147483648` matches the grammar but does not fit in `i32`; it should return a
+structured conversion error at that token, not panic or silently become zero.
+Reserve infallible `transform` closures for conversions that really cannot fail.
 
 ## Install
 
