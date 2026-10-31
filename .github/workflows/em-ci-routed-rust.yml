@@ -867,94 +867,38 @@ jobs:
       - rust-small-cx53
       - rust-small-github
       - supported-proof
+    # Always evaluate (#995): a skipped required check satisfies branch
+    # protection, so cancelled/failed/skipped prerequisites must reach
+    # the evaluator and fail there instead of skipping this job.
     if: >-
       always() &&
-      (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
-      needs.route-rust-small.result != 'cancelled' &&
-      needs.pr-admission.result != 'cancelled' &&
-      needs.rust-small-cpx42.result != 'cancelled' &&
-      needs.rust-small-cx43.result != 'cancelled' &&
-      needs.rust-small-cx33.result != 'cancelled' &&
-      needs.rust-small-cx53.result != 'cancelled' &&
-      needs.rust-small-github.result != 'cancelled' &&
-      needs.supported-proof.result != 'cancelled' &&
-      (
-        needs.detect-rust-paths.outputs.rust_needed == 'false' ||
-        needs.supported-proof.result == 'success' ||
-        (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
-      ) &&
-      (
-        github.event_name == 'workflow_dispatch' ||
-        github.event_name == 'merge_group' ||
-        (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
-      )
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
-
     steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 1
+      # Two-tier meaning: on pull_request this is the cheap admission
+      # signal (formatting clean); on merge_group/workflow_dispatch it
+      # verifies the selected lane plus supported proof. The evaluator
+      # enforces the #995 truth table; only an explicit validated
+      # no-work decision may pass without selected proof.
       - name: Check selected lane
-        run: |
-          set -euo pipefail
-
-          # Two-tier meaning, stated explicitly: on pull_request this
-          # check is the cheap admission signal (formatting clean), and
-          # full qualification happens once per merge-queue entry. On
-          # merge_group and workflow_dispatch it verifies the selected
-          # lane plus the supported proof.
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "mode=pull-request-admission"
-            test "${{ needs.pr-admission.result }}" = "success"
-            exit 0
-          fi
-          echo "mode=full-qualification"
-
-          target="${{ needs.route-rust-small.outputs.target }}"
-          cpx42="${{ needs.rust-small-cpx42.result }}"
-          cx43="${{ needs.rust-small-cx43.result }}"
-          cx33="${{ needs.rust-small-cx33.result }}"
-          cx53="${{ needs.rust-small-cx53.result }}"
-          gh="${{ needs.rust-small-github.result }}"
-          fallback_allowed="${{ needs.route-rust-small.outputs.fallback_allowed }}"
-          target_reason="${{ needs.route-rust-small.outputs.target_reason }}"
-
-          if [ "${{ needs.detect-rust-paths.outputs.rust_needed }}" = "false" ]; then
-            echo "Docs/status/policy-only change: Rust lanes skipped by path detection."
-            echo "reason=${{ needs.detect-rust-paths.outputs.reason }}"
-            exit 0
-          fi
-
-          echo "target=${target}"
-          echo "target_reason=${target_reason}"
-          echo "fallback_allowed=${fallback_allowed}"
-          echo "cpx42=${cpx42}"
-          echo "cx43=${cx43}"
-          echo "cx33=${cx33}"
-          echo "cx53=${cx53}"
-          echo "github=${gh}"
-
-          case "$target" in
-            cpx42)
-              test "$cpx42" = "success"
-              ;;
-            cx43)
-              test "$cx43" = "success"
-              ;;
-            cx33)
-              test "$cx33" = "success"
-              ;;
-            cx53)
-              test "$cx53" = "success"
-              ;;
-            github)
-              if [ "$fallback_allowed" = "true" ]; then
-                test "$gh" = "success"
-              else
-                echo "::error::No trusted Rust Small runner was idle and GitHub-hosted fallback was not allowed. The required gate cannot verify this PR."
-                echo "::notice::target_reason=${target_reason}"
-                exit 1
-              fi
-              ;;
-            *)
-              echo "unknown target: $target"
-              exit 1
-              ;;
-          esac
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DETECT_RESULT: ${{ needs.detect-rust-paths.result }}
+          RUST_NEEDED: ${{ needs.detect-rust-paths.outputs.rust_needed }}
+          DETECT_REASON: ${{ needs.detect-rust-paths.outputs.reason }}
+          ROUTE_RESULT: ${{ needs.route-rust-small.result }}
+          TARGET: ${{ needs.route-rust-small.outputs.target }}
+          TARGET_REASON: ${{ needs.route-rust-small.outputs.target_reason }}
+          FALLBACK_ALLOWED: ${{ needs.route-rust-small.outputs.fallback_allowed }}
+          SUPPORTED_RESULT: ${{ needs.supported-proof.result }}
+          CPX42_RESULT: ${{ needs.rust-small-cpx42.result }}
+          CX43_RESULT: ${{ needs.rust-small-cx43.result }}
+          CX33_RESULT: ${{ needs.rust-small-cx33.result }}
+          CX53_RESULT: ${{ needs.rust-small-cx53.result }}
+          GITHUB_RESULT: ${{ needs.rust-small-github.result }}
+          PR_ADMISSION_RESULT: ${{ needs.pr-admission.result }}
+        run: python3 scripts/evaluate-required-result.py rust
