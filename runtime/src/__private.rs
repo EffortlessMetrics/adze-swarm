@@ -542,6 +542,56 @@ fn parse_document_with_streaming_true_glr_runtime(
     ))
 }
 
+/// Diagnostics from outermost error (symbol-0) nodes in a converted
+/// document tree. Ranges are clamped to the source; expected tokens are
+/// deliberately empty where the selected tree carries no such metadata.
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn recovery_diagnostics_for_document_root(
+    root: &crate::parser_v4::ParseNode,
+    source: &str,
+) -> Vec<crate::document::ParseDiagnostic> {
+    fn collect(
+        node: &crate::parser_v4::ParseNode,
+        source: &str,
+        out: &mut Vec<crate::document::ParseDiagnostic>,
+    ) {
+        if node.symbol.0 == 0 {
+            let start_byte = node.start_byte.min(source.len());
+            let end_byte = node.end_byte.min(source.len()).max(start_byte);
+            let (found, message) = if start_byte == end_byte && start_byte == source.len() {
+                (
+                    Some("end of input".to_string()),
+                    "unexpected end of input".to_string(),
+                )
+            } else if start_byte < end_byte {
+                let text = source.get(start_byte..end_byte).unwrap_or("").to_string();
+                (Some(text.clone()), format!("unexpected token {text:?}"))
+            } else {
+                (None, "missing token".to_string())
+            };
+            out.push(crate::document::ParseDiagnostic {
+                start_byte,
+                end_byte,
+                point_range: crate::document::PointRange::from_byte_range(
+                    source,
+                    start_byte..end_byte,
+                ),
+                found,
+                expected: Vec::new(),
+                related_nodes: Vec::new(),
+                message,
+            });
+            return;
+        }
+        for child in &node.children {
+            collect(child, source, out);
+        }
+    }
+    let mut diagnostics = Vec::new();
+    collect(root, source, &mut diagnostics);
+    diagnostics
+}
+
 /// Build an [`crate::document::AdzeDocument`] from a materialized streaming parse (#930).
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
 pub fn adze_document_from_streaming_parse(
@@ -558,18 +608,20 @@ pub fn adze_document_from_streaming_parse(
         source.len(),
     );
     let ambiguities = parsed.ambiguities.into_iter().collect::<Vec<_>>();
+    let diagnostics = recovery_diagnostics_for_document_root(&root, source);
+    let error_count = diagnostics.len();
 
     crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
         source,
         root,
-        0,
+        error_count,
         crate::document::DocumentRuntime {
             language_name: grammar_name,
             grammar,
             parse_table,
             pure_language: Some(language),
         },
-        Vec::new(),
+        diagnostics,
         ambiguities,
     )
 }
@@ -578,7 +630,7 @@ pub fn adze_document_from_streaming_parse(
 fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
     parsed_node: crate::pure_parser::ParsedNode,
     source: &[u8],
-    language: &'static crate::pure_parser::TSLanguage,
+    _language: &'static crate::pure_parser::TSLanguage,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
     let non_extra_root_children: Vec<_> = parsed_node
         .children
@@ -593,26 +645,37 @@ fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
     };
 
     if extract_node.has_error() {
-        // GLR recovery trees carry error nodes without expected-token or
-        // multi-error facts. Report the deterministic LR diagnostics for
-        // the same rejection instead, matching the LR contract (#1097).
+        // Error syntax rejects before extraction (#898/#1030): no typed
+        // extraction or converter runs on this path. The LR pass below is
+        // a diagnostic-only observer (`parse_string` builds a tree; it
+        // never calls `Extract`/leaf transforms) retained for the #1097
+        // expected-token contract; it is not native GLR evidence and must
+        // not be used for conversion or selected-tree facts.
         if let Ok(input) = std::str::from_utf8(source) {
             let mut lr_parser = crate::pure_parser::Parser::new();
-            if lr_parser.set_language(language).is_ok() {
+            if lr_parser.set_language(_language).is_ok() {
                 let lr_errors = lr_parser.parse_string(input).errors;
                 if !lr_errors.is_empty() {
                     return Err(lr_errors
                         .into_iter()
-                        .map(|e| map_lr_parse_error(input, language, e))
+                        .map(|e| map_lr_parse_error(input, _language, e))
                         .collect());
                 }
             }
         }
         let mut errors = vec![];
         crate::errors::collect_parsing_errors(extract_node, source, &mut errors);
-        if !errors.is_empty() {
-            return Err(errors);
+        if errors.is_empty() {
+            errors.push(crate::errors::ParseError {
+                reason: crate::errors::ParseErrorReason::UnexpectedToken(
+                    "selected tree contains error syntax".to_string(),
+                ),
+                start: extract_node.start_byte().min(source.len()),
+                end: extract_node.end_byte().min(source.len()),
+                expected: vec![],
+            });
         }
+        return Err(errors);
     }
 
     <T as crate::Extract<_>>::try_extract(Some(extract_node), source, 0, None)
@@ -742,18 +805,20 @@ fn parse_document_with_true_glr_runtime(
         source.len(),
     );
 
+    let diagnostics = recovery_diagnostics_for_document_root(&root, input);
+    let error_count = diagnostics.len();
     Ok(
         crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
             input,
             root,
-            0,
+            error_count,
             crate::document::DocumentRuntime {
                 language_name: grammar_name,
                 grammar: &grammar,
                 parse_table: &parse_table,
                 pure_language: Some(language),
             },
-            Vec::new(),
+            diagnostics,
             ambiguities,
         ),
     )
@@ -786,6 +851,14 @@ fn parse_document_from_glr_errors(
                 ),
                 found: Some(match &error.reason {
                     crate::errors::ParseErrorReason::UnexpectedEof => "end of input".to_string(),
+                    // Token identity, not rendered prose (#1030): the
+                    // structured reason carries the found name before any
+                    // "; expected ..." suffix.
+                    crate::errors::ParseErrorReason::UnexpectedToken(inner) => inner
+                        .split("; expected")
+                        .next()
+                        .unwrap_or(inner)
+                        .to_string(),
                     _ => error.reason.to_string(),
                 }),
                 expected: error.expected.clone(),
@@ -979,15 +1052,14 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
         )
     {
         let grammar = crate::decoder::decode_grammar(language);
-        // The streaming driver recovers or inserts missing tokens, so
-        // diagnostics derived from its hard failures carry
-        // recovery-distorted positions and no multi-error split. For an
-        // input this route already rejects, report the deterministic LR
-        // diagnostics for the same rejection so typed callers see the
-        // same expected-token contract as the LR backend. Selected-tree
-        // typed extraction errors below are returned directly: re-running
-        // extraction through the LR backend would double-invoke user
-        // converters and replace the native failure facts (#1030).
+        // Native failure facts (#1030): a streaming failure must never
+        // invoke another engine's *typed* parse/extraction (which would
+        // run user converters on a GLR-rejected/LR-accepted input).
+        // Selected-tree extraction errors below are likewise returned
+        // directly, exactly once. The LR pass in the error branch is a
+        // diagnostic-only observer (`parse_string` never calls
+        // `Extract`/leaf transforms) retained for the #1097
+        // expected-token contract; it is not native GLR evidence.
         let parsed = match crate::glr_streaming_runtime::parse_with_streaming_driver(
             input,
             language,
@@ -996,8 +1068,15 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
         ) {
             Ok(parsed) => parsed,
             Err(error) => {
-                if let Some(lr_errors) = parse_with_pure_parser::<T>(input, || language).err() {
-                    return Err(lr_errors);
+                let mut lr_parser = crate::pure_parser::Parser::new();
+                if lr_parser.set_language(language).is_ok() {
+                    let lr_errors = lr_parser.parse_string(input).errors;
+                    if !lr_errors.is_empty() {
+                        return Err(lr_errors
+                            .into_iter()
+                            .map(|e| map_lr_parse_error(input, language, e))
+                            .collect());
+                    }
                 }
                 return Err(crate::glr_streaming_runtime::glr_error_to_parse_errors(
                     input, error, language,
@@ -1571,7 +1650,14 @@ fn convert_parsed_node_to_document_node(
         .map(|child| convert_parsed_node_to_document_node(child, lang))
         .collect();
 
-    let symbol_id = public_symbol_id_for_index(lang, node.symbol);
+    // Preserve error/missing facts (#875): encode them as symbol-0 nodes,
+    // the document layer's error-node identity, instead of keeping only
+    // the recognised grammar symbol and dropping the flag.
+    let symbol_id = if node.is_error || node.is_missing {
+        adze_ir::SymbolId(0)
+    } else {
+        public_symbol_id_for_index(lang, node.symbol)
+    };
     crate::parser_v4::ParseNode {
         symbol: symbol_id,
         symbol_id,

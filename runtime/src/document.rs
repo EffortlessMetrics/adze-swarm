@@ -186,8 +186,16 @@ impl AdzeDocument {
     /// parse. Missing-token nodes still count as trustworthy content, so
     /// unexpected-EOF documents with a real grammar root are `Recovered`.
     pub fn outcome(&self) -> ParseOutcome {
+        // Error/missing node facts force a non-Complete outcome even if a
+        // producer failed to record diagnostics/counts (#898).
+        let has_syntax_error = self
+            .syntax
+            .nodes
+            .iter()
+            .any(|record| record.flags().is_error() || record.flags().is_missing());
         if self.diagnostics.is_empty()
             && self.metadata.error_count == 0
+            && !has_syntax_error
             && !self.tree().has_errors()
         {
             return ParseOutcome::Complete;
@@ -462,6 +470,56 @@ impl AdzeDocument {
                 .iter()
                 .map(ParseDiagnostic::to_parse_error)
                 .collect());
+        }
+
+        // Guard on tree facts too (#898): recovered/failed syntax must
+        // reject extraction before any user Extract/converter runs, even
+        // when a producer recorded no diagnostics.
+        let outcome = self.outcome();
+        if outcome != ParseOutcome::Complete {
+            let mut errors: Vec<_> = self
+                .syntax
+                .nodes
+                .iter()
+                .filter(|record| record.flags().is_error() || record.flags().is_missing())
+                .map(|record| {
+                    let range = record.byte_range();
+                    crate::errors::ParseError {
+                        reason: if record.flags().is_missing() {
+                            crate::errors::ParseErrorReason::MissingToken(
+                                "missing token".to_string(),
+                            )
+                        } else {
+                            crate::errors::ParseErrorReason::UnexpectedToken(
+                                "error syntax in recovered document".to_string(),
+                            )
+                        },
+                        start: range.start.min(self.source.len()),
+                        end: range.end.min(self.source.len()),
+                        expected: Vec::new(),
+                    }
+                })
+                .collect();
+            if errors.is_empty() {
+                // Fail closed when the outcome is non-Complete solely from
+                // recorded error facts (e.g. metadata.error_count > 0) with
+                // no diagnostics and no error/missing nodes: synthesize an
+                // error from the error count instead of falling through to
+                // Extract/converter invocation.
+                errors.push(crate::errors::ParseError {
+                    reason: crate::errors::ParseErrorReason::UnexpectedToken(format!(
+                        "typed AST extraction requires a complete parse: outcome is {} \
+                         with {} recorded parse error(s) but no diagnostics or \
+                         error/missing syntax nodes",
+                        outcome.as_str(),
+                        self.metadata.error_count
+                    )),
+                    start: 0,
+                    end: 0,
+                    expected: Vec::new(),
+                });
+            }
+            return Err(errors);
         }
 
         self.pure_language.ok_or_else(|| {
@@ -1274,6 +1332,12 @@ impl<'doc> AdzeTree<'doc> {
     /// Return whether this tree has parser errors.
     pub fn has_errors(&self) -> bool {
         self.document.metadata.error_count > 0
+            || self
+                .document
+                .syntax
+                .nodes
+                .iter()
+                .any(|record| record.flags().is_error() || record.flags().is_missing())
     }
 
     /// Return the number of parser recovery/error events.
@@ -1878,6 +1942,85 @@ mod tests {
             Some(&IncrementalFallbackReason::FullReparseOnly)
         );
         assert!(document.metadata().full_reparse_fallback());
+    }
+
+    #[test]
+    fn test_typed_ast_language_when_error_count_without_diagnostics_or_error_nodes_rejects() {
+        let (grammar, table) = fielded_language();
+        let source_file = SymbolId(1);
+        let expression = SymbolId(2);
+        let number = SymbolId(3);
+        let source = "1";
+
+        let root = ParseNode {
+            symbol: source_file,
+            symbol_id: source_file,
+            start_byte: 0,
+            end_byte: source.len(),
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![ParseNode {
+                symbol: expression,
+                symbol_id: expression,
+                start_byte: 0,
+                end_byte: source.len(),
+                field_name: None,
+                alias_symbol_id: None,
+                children: vec![ParseNode {
+                    symbol: number,
+                    symbol_id: number,
+                    start_byte: 0,
+                    end_byte: source.len(),
+                    field_name: Some("left".to_string()),
+                    alias_symbol_id: None,
+                    children: Vec::new(),
+                }],
+            }],
+        };
+        // Latent state: error_count > 0 alone makes the outcome
+        // non-Complete, with empty diagnostics and no error/missing nodes.
+        let document = AdzeDocument::from_parse_result_with_diagnostics(
+            source,
+            root,
+            2,
+            DocumentRuntime {
+                language_name: "fielded",
+                grammar: &grammar,
+                parse_table: &table,
+                pure_language: None,
+            },
+            Vec::new(),
+        );
+
+        assert!(document.diagnostics().is_empty());
+        assert_eq!(document.metadata().error_count, 2);
+        assert_eq!(document.outcome(), ParseOutcome::Recovered);
+        assert!(
+            document
+                .syntax
+                .nodes
+                .iter()
+                .all(|record| !record.flags().is_error() && !record.flags().is_missing())
+        );
+
+        let errors = document
+            .typed_ast_language()
+            .expect_err("non-Complete outcome must reject typed extraction");
+        assert_eq!(errors.len(), 1);
+        let crate::errors::ParseErrorReason::UnexpectedToken(message) = &errors[0].reason else {
+            panic!(
+                "expected synthesized UnexpectedToken, got {:?}",
+                errors[0].reason
+            );
+        };
+        assert!(
+            message.contains("recovered") && message.contains('2'),
+            "synthesized error should name outcome and error_count, got: {message}"
+        );
+        assert!(
+            !message.contains("pure-Rust language metadata"),
+            "guard must fire before the pure-language fallthrough, got: {message}"
+        );
     }
 
     #[test]

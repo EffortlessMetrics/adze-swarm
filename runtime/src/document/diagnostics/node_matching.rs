@@ -60,7 +60,9 @@ fn collect_smallest_covering_node(
 }
 
 pub(in crate::document) fn is_error_parse_node(node: &ParseNode) -> bool {
-    node.symbol.0 == 0 && node.children.is_empty()
+    // Symbol 0 is the document error identity, for leaves and for error
+    // nodes that still carry recovered children (#875/#898).
+    node.symbol.0 == 0
 }
 
 fn node_range_touches_diagnostic(node: &ParseNode, diagnostic: &ParseDiagnostic) -> bool {
