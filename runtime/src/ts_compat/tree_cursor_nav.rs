@@ -1,17 +1,19 @@
-use crate::parser_v4::ParseNode;
+use crate::document::NodeId;
 
-use super::CursorFrame;
+use super::{CursorFrame, Tree};
 
-pub(super) fn goto_next_sibling<'a>(
-    parents: &mut [CursorFrame<'a>],
-    current: &mut &'a ParseNode,
+pub(super) fn goto_next_sibling(
+    tree: &Tree,
+    parents: &mut [CursorFrame],
+    current: &mut NodeId,
 ) -> bool {
     let Some(parent) = parents.last_mut() else {
         return false;
     };
 
+    let syntax = tree.core.document.syntax();
     let next_index = parent.child_index + 1;
-    let Some(next) = parent.node.children.get(next_index) else {
+    let Some(next) = syntax.child_id(parent.node, next_index) else {
         return false;
     };
 
@@ -20,9 +22,10 @@ pub(super) fn goto_next_sibling<'a>(
     true
 }
 
-pub(super) fn goto_previous_sibling<'a>(
-    parents: &mut [CursorFrame<'a>],
-    current: &mut &'a ParseNode,
+pub(super) fn goto_previous_sibling(
+    tree: &Tree,
+    parents: &mut [CursorFrame],
+    current: &mut NodeId,
 ) -> bool {
     let Some(parent) = parents.last_mut() else {
         return false;
@@ -30,7 +33,8 @@ pub(super) fn goto_previous_sibling<'a>(
     let Some(previous_index) = parent.child_index.checked_sub(1) else {
         return false;
     };
-    let Some(previous) = parent.node.children.get(previous_index) else {
+    let syntax = tree.core.document.syntax();
+    let Some(previous) = syntax.child_id(parent.node, previous_index) else {
         return false;
     };
 

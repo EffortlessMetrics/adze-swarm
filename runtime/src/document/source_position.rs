@@ -62,7 +62,11 @@ impl PointRange {
 /// byte positions immediately after LF; the first row starts implicitly at 0.
 /// Construction scans the source once. Queries do not retain or read source
 /// bytes and take logarithmic work in the number of line breaks.
-pub(super) struct SourceLineIndex {
+///
+/// Shared by document construction and document-backed compatibility
+/// projections so each tree scans positions once.
+#[derive(Clone, Debug)]
+pub(crate) struct SourceLineIndex {
     source_len: usize,
     line_starts: Vec<usize>,
 }
@@ -82,7 +86,7 @@ pub(super) fn index_build_stats() -> (usize, usize) {
 }
 
 impl SourceLineIndex {
-    pub(super) fn new(source: &str) -> Self {
+    pub(crate) fn new(source: &str) -> Self {
         #[cfg(test)]
         INDEX_BUILDS.with(|n| n.set(n.get().saturating_add(1)));
 
@@ -101,7 +105,7 @@ impl SourceLineIndex {
         }
     }
 
-    pub(super) fn point(&self, byte: usize) -> DocumentPoint {
+    pub(crate) fn point(&self, byte: usize) -> DocumentPoint {
         let end = byte.min(self.source_len);
         let row = self.line_starts.partition_point(|&start| start <= end);
         let line_start = row

@@ -6,8 +6,8 @@
 //! This module provides a compatibility layer that mimics the Tree-sitter API,
 //! allowing existing Tree-sitter code to work with adze with minimal changes.
 
-use crate::document::AdzeDocument;
-use crate::parser_v4::{ParseNode, Parser as CoreParser};
+use crate::document::{AdzeDocument, NodeId, SourceLineIndex};
+use crate::parser_v4::Parser as CoreParser;
 use crate::pure_incremental::Edit as CoreEdit;
 use crate::pure_parser;
 use adze_glr_core::ParseTable;
@@ -17,27 +17,34 @@ use std::sync::Arc;
 
 mod tree_cursor_nav;
 
-/// An owned tree representation for ts_compat layer.
-/// This provides the interface expected by ts_compat::Tree without lifetime constraints.
+/// Document-backed tree state for the ts_compat layer.
+///
+/// The selected tree is the owning [`AdzeDocument`]'s canonical flat records
+/// (no cloned recursive tree, no root-pointer searches); `positions` is the
+/// single line index for point lookups. `Tree::from_document` clones the
+/// source document once per parse, replacing the old recursive-root and
+/// source-byte clones.
 #[derive(Clone, Debug)]
 pub(crate) struct OwnedCoreTree {
-    /// The root parse node
-    pub root: ParseNode,
-    /// Source text that was parsed
-    pub source: Vec<u8>,
-    /// Number of parse errors
-    pub error_count: usize,
+    /// Owning parse document with canonical flat node/edge records.
+    pub document: AdzeDocument,
+    /// Line index built once per tree for point lookups.
+    pub positions: SourceLineIndex,
 }
 
 impl OwnedCoreTree {
-    /// Get the root symbol ID
+    /// Get the root symbol ID (grammar identity, ignoring aliases).
     pub(crate) fn root_kind(&self) -> u16 {
-        self.root.symbol.0
+        self.document
+            .syntax()
+            .node_record(self.document.syntax().root_id())
+            .map(|record| record.grammar_id().0)
+            .unwrap_or(0)
     }
 
     /// Get the error count
     pub(crate) fn error_count(&self) -> usize {
-        self.error_count
+        self.document.metadata().error_count
     }
 }
 
@@ -316,12 +323,17 @@ pub struct Tree {
 
 impl Tree {
     /// Build a Tree-sitter-compatible tree from a native parse document.
+    ///
+    /// Clones the source document once (replacing the old recursive-root and
+    /// source-byte clones) and builds one line index shared by every node in
+    /// this tree. Keeping `&AdzeDocument` (instead of taking ownership or an
+    /// `Arc`) preserves the public signature; revisit under #871 if facade
+    /// ownership changes.
     pub fn from_document(language: Arc<Language>, document: &AdzeDocument) -> Self {
         Self {
             core: OwnedCoreTree {
-                root: document.root_parse_node().clone(),
-                source: document.source_bytes().to_vec(),
-                error_count: document.metadata().error_count,
+                positions: SourceLineIndex::new(document.source_text()),
+                document: document.clone(),
             },
             last_edit: None,
             language,
@@ -343,7 +355,7 @@ impl Tree {
 
     /// Get the root node of this tree.
     pub fn root_node(&self) -> Node<'_> {
-        Node::new(self, &self.core.root)
+        Node::new(self, self.core.document.syntax().root_id())
     }
 
     /// Get the root kind as a string.
@@ -377,8 +389,8 @@ impl Tree {
         "unknown"
     }
 
-    fn visible_symbol_for_node(&self, node: &ParseNode) -> u16 {
-        node.alias_symbol_id.unwrap_or(node.symbol).0
+    fn visible_symbol_for_id(&self, alias: Option<adze_ir::SymbolId>, symbol: u16) -> u16 {
+        alias.unwrap_or(adze_ir::SymbolId(symbol)).0
     }
 
     /// Get the number of errors in this tree.
@@ -393,35 +405,55 @@ impl Tree {
 }
 
 /// A node in a syntax tree.
-#[derive(Debug, Clone)]
+///
+/// Nodes are lightweight `(tree, id)` handles over the owning document's
+/// canonical flat records: no cloned subtrees, no pointer-identity searches.
+#[derive(Debug, Clone, Copy)]
 pub struct Node<'a> {
     tree: &'a Tree,
-    node: &'a ParseNode,
+    id: NodeId,
 }
 
 impl<'a> Node<'a> {
-    fn new(tree: &'a Tree, node: &'a ParseNode) -> Self {
-        Self { tree, node }
+    fn new(tree: &'a Tree, id: NodeId) -> Self {
+        Self { tree, id }
     }
 
-    /// Convert byte position to Point (row, column)
-    fn byte_to_point(source: &[u8], byte_pos: usize) -> Point {
-        let mut row = 0;
-        let mut column = 0;
+    fn record(&self) -> Option<&'a crate::document::NodeRecord> {
+        self.tree.core.document.syntax().node_record(self.id)
+    }
 
-        for (i, &byte) in source.iter().enumerate() {
-            if i >= byte_pos {
-                break;
-            }
-            if byte == b'\n' {
-                row += 1;
-                column = 0;
-            } else {
-                column += 1;
-            }
+    fn point_for(&self, byte: usize) -> Point {
+        let point = self.tree.core.positions.point(byte);
+        Point {
+            row: point.row,
+            column: point.column,
         }
+    }
 
-        Point { row, column }
+    fn child_id(&self, index: usize) -> Option<NodeId> {
+        self.tree.core.document.syntax().child_id(self.id, index)
+    }
+
+    fn parent_id(&self) -> Option<NodeId> {
+        self.tree.core.document.syntax().parent_id(self.id)
+    }
+
+    fn edge_child_index(&self) -> Option<usize> {
+        self.tree
+            .core
+            .document
+            .syntax()
+            .parent_edge_record(self.id)
+            .map(|edge| edge.child_index())
+    }
+
+    fn field_name_for_id(&self, field_id: crate::document::FieldId) -> Option<&'a str> {
+        self.tree
+            .core
+            .document
+            .language()
+            .field_name_for_id(field_id.get())
     }
 
     fn point_le(left: Point, right: Point) -> bool {
@@ -435,13 +467,19 @@ impl<'a> Node<'a> {
 
     /// Get the kind of this node as a string.
     pub fn kind(&self) -> &str {
+        let (alias, visible) = self
+            .record()
+            .map(|record| (record.alias_symbol_id(), record.visible_id().0))
+            .unwrap_or((None, 0));
         self.tree
-            .kind_for_symbol(self.tree.visible_symbol_for_node(self.node))
+            .kind_for_symbol(self.tree.visible_symbol_for_id(alias, visible))
     }
 
     /// Get this node's kind as a numerical symbol id.
     pub fn kind_id(&self) -> u16 {
-        self.tree.visible_symbol_for_node(self.node)
+        self.record()
+            .map(|record| record.visible_id().0)
+            .unwrap_or(0)
     }
 
     /// Get this node's grammar symbol id, ignoring aliases.
@@ -449,7 +487,9 @@ impl<'a> Node<'a> {
     /// Alias-visible `kind_id()` may differ from this value when production
     /// alias metadata applies.
     pub fn grammar_id(&self) -> u16 {
-        self.node.symbol.0
+        self.record()
+            .map(|record| record.grammar_id().0)
+            .unwrap_or(0)
     }
 
     /// Get this node's grammar symbol name, ignoring aliases.
@@ -457,27 +497,31 @@ impl<'a> Node<'a> {
     /// Alias-visible `kind()` may differ from this value when production alias
     /// metadata applies.
     pub fn grammar_name(&self) -> &str {
-        self.tree.kind_for_symbol(self.node.symbol.0)
+        self.tree.kind_for_symbol(self.grammar_id())
     }
 
     /// Get the start byte of this node.
     pub fn start_byte(&self) -> usize {
-        self.node.start_byte
+        self.record()
+            .map(|record| record.byte_range().start)
+            .unwrap_or(0)
     }
 
     /// Get the end byte of this node.
     pub fn end_byte(&self) -> usize {
-        self.node.end_byte
+        self.record()
+            .map(|record| record.byte_range().end)
+            .unwrap_or(0)
     }
 
     /// Get the start position of this node.
     pub fn start_position(&self) -> Point {
-        Self::byte_to_point(&self.tree.core.source, self.node.start_byte)
+        self.point_for(self.start_byte())
     }
 
     /// Get the end position of this node.
     pub fn end_position(&self) -> Point {
-        Self::byte_to_point(&self.tree.core.source, self.node.end_byte)
+        self.point_for(self.end_byte())
     }
 
     /// Get the full byte and point range of this node.
@@ -492,95 +536,78 @@ impl<'a> Node<'a> {
 
     /// Get the number of children.
     pub fn child_count(&self) -> usize {
-        self.node.children.len()
+        self.record()
+            .map(|record| record.edge_range().len())
+            .unwrap_or(0)
     }
 
     /// Get this node's descendant count, including the node itself.
     pub fn descendant_count(&self) -> usize {
-        1 + self
-            .node
-            .children
-            .iter()
-            .map(|child| Node::new(self.tree, child).descendant_count())
-            .sum::<usize>()
+        let syntax = self.tree.core.document.syntax();
+        let mut count = 0;
+        let mut stack = vec![self.id];
+        while let Some(node_id) = stack.pop() {
+            let Some(record) = syntax.node_record(node_id) else {
+                continue;
+            };
+            count += 1;
+            for offset in (0..record.edge_range().len()).rev() {
+                if let Some(child_id) = syntax.child_id(node_id, offset) {
+                    stack.push(child_id);
+                }
+            }
+        }
+        count
     }
 
     /// Get a child by index.
     pub fn child(&self, index: usize) -> Option<Node<'a>> {
-        self.node
-            .children
-            .get(index)
-            .map(|child| Node::new(self.tree, child))
+        self.child_id(index).map(|id| Node::new(self.tree, id))
     }
 
     /// Get this node's first child that contains or starts after the given byte.
     pub fn first_child_for_byte(&self, byte: usize) -> Option<Node<'a>> {
-        self.node
-            .children
-            .iter()
-            .find(|child| child.end_byte > byte)
-            .map(|child| Node::new(self.tree, child))
+        let syntax = self.tree.core.document.syntax();
+        (0..self.child_count()).find_map(|index| {
+            let child_id = syntax.child_id(self.id, index)?;
+            let record = syntax.node_record(child_id)?;
+            (record.byte_range().end > byte).then(|| Node::new(self.tree, child_id))
+        })
     }
 
     /// Get this node's first named child that contains or starts after the given byte.
     pub fn first_named_child_for_byte(&self, byte: usize) -> Option<Node<'a>> {
-        self.node
-            .children
-            .iter()
-            .map(|child| Node::new(self.tree, child))
-            .find(|child| child.end_byte() > byte && child.is_named())
+        let syntax = self.tree.core.document.syntax();
+        (0..self.child_count()).find_map(|index| {
+            let child_id = syntax.child_id(self.id, index)?;
+            let child = Node::new(self.tree, child_id);
+            let record = syntax.node_record(child_id)?;
+            (record.byte_range().end > byte && child.is_named()).then_some(child)
+        })
     }
 
     /// Get this node's parent, if it is not the root node.
     pub fn parent(&self) -> Option<Node<'a>> {
-        Self::find_parent(&self.tree.core.root, self.node)
-            .map(|parent| Node::new(self.tree, parent))
-    }
-
-    fn find_parent(current: &'a ParseNode, target: *const ParseNode) -> Option<&'a ParseNode> {
-        for child in &current.children {
-            if std::ptr::eq(child, target) {
-                return Some(current);
-            }
-            if let Some(parent) = Self::find_parent(child, target) {
-                return Some(parent);
-            }
-        }
-        None
-    }
-
-    fn sibling_index(parent: &'a ParseNode, target: *const ParseNode) -> Option<usize> {
-        parent
-            .children
-            .iter()
-            .position(|child| std::ptr::eq(child, target))
+        self.parent_id().map(|id| Node::new(self.tree, id))
     }
 
     /// Get this node's next sibling, if any.
     pub fn next_sibling(&self) -> Option<Node<'a>> {
         let parent = self.parent()?;
-        let next_index = Self::sibling_index(parent.node, self.node)? + 1;
-        parent
-            .node
-            .children
-            .get(next_index)
-            .map(|child| Node::new(self.tree, child))
+        let next_index = self.edge_child_index()? + 1;
+        parent.child(next_index)
     }
 
     /// Get this node's previous sibling, if any.
     pub fn prev_sibling(&self) -> Option<Node<'a>> {
         let parent = self.parent()?;
-        let prev_index = Self::sibling_index(parent.node, self.node)?.checked_sub(1)?;
-        parent
-            .node
-            .children
-            .get(prev_index)
-            .map(|child| Node::new(self.tree, child))
+        let prev_index = self.edge_child_index()?.checked_sub(1)?;
+        parent.child(prev_index)
     }
 
     /// Check if this node is named after applying alias-visible identity.
     pub fn is_named(&self) -> bool {
-        let visible_symbol = self.tree.visible_symbol_for_node(self.node);
+        let visible_symbol = self.kind_id();
         self.tree
             .language
             .table
@@ -599,7 +626,7 @@ impl<'a> Node<'a> {
 
     /// Check if this node is extra after applying alias-visible identity.
     pub fn is_extra(&self) -> bool {
-        let visible_symbol = self.tree.visible_symbol_for_node(self.node);
+        let visible_symbol = self.kind_id();
         self.tree
             .language
             .table
@@ -617,27 +644,22 @@ impl<'a> Node<'a> {
 
     /// Get the number of named children.
     pub fn named_child_count(&self) -> usize {
-        self.node
-            .children
-            .iter()
-            .filter(|child| Node::new(self.tree, child).is_named())
+        (0..self.child_count())
+            .filter_map(|index| self.child(index))
+            .filter(|child| child.is_named())
             .count()
     }
 
     /// Get a named child by named-child index.
     pub fn named_child(&self, index: usize) -> Option<Node<'a>> {
-        self.node
-            .children
-            .iter()
-            .filter(|child| Node::new(self.tree, child).is_named())
+        (0..self.child_count())
+            .filter_map(|child_index| self.child(child_index))
+            .filter(|child| child.is_named())
             .nth(index)
-            .map(|child| Node::new(self.tree, child))
     }
 
     fn contains_byte_range(&self, start_byte: usize, end_byte: usize) -> bool {
-        start_byte <= end_byte
-            && self.node.start_byte <= start_byte
-            && end_byte <= self.node.end_byte
+        start_byte <= end_byte && self.start_byte() <= start_byte && end_byte <= self.end_byte()
     }
 
     /// Get the smallest descendant that contains the given byte range.
@@ -650,14 +672,23 @@ impl<'a> Node<'a> {
             return None;
         }
 
-        for child in &self.node.children {
-            let child_node = Node::new(self.tree, child);
-            if child_node.contains_byte_range(start_byte, end_byte) {
-                return child_node.descendant_for_byte_range(start_byte, end_byte);
+        let mut current = *self;
+        loop {
+            let mut descended = false;
+            for index in 0..current.child_count() {
+                let Some(child) = current.child(index) else {
+                    continue;
+                };
+                if child.contains_byte_range(start_byte, end_byte) {
+                    current = child;
+                    descended = true;
+                    break;
+                }
+            }
+            if !descended {
+                return Some(current);
             }
         }
-
-        Some(self.clone())
     }
 
     /// Get the smallest named descendant that contains the given byte range.
@@ -670,19 +701,28 @@ impl<'a> Node<'a> {
             return None;
         }
 
-        for child in &self.node.children {
-            let child_node = Node::new(self.tree, child);
-            if child_node.contains_byte_range(start_byte, end_byte) {
-                if let Some(named_child) =
-                    child_node.named_descendant_for_byte_range(start_byte, end_byte)
+        // Deepest named node on the first-containing-child chain; a level
+        // with no containing child stops the descent.
+        let mut best = None;
+        let mut current = *self;
+        loop {
+            if current.is_named() {
+                best = Some(current);
+            }
+            let mut next = None;
+            for index in 0..current.child_count() {
+                if let Some(child) = current.child(index)
+                    && child.contains_byte_range(start_byte, end_byte)
                 {
-                    return Some(named_child);
+                    next = Some(child);
+                    break;
                 }
-                break;
+            }
+            match next {
+                Some(child) => current = child,
+                None => return best,
             }
         }
-
-        self.is_named().then(|| self.clone())
     }
 
     fn contains_point_range(&self, start_point: Point, end_point: Point) -> bool {
@@ -701,14 +741,23 @@ impl<'a> Node<'a> {
             return None;
         }
 
-        for child in &self.node.children {
-            let child_node = Node::new(self.tree, child);
-            if child_node.contains_point_range(start_point, end_point) {
-                return child_node.descendant_for_point_range(start_point, end_point);
+        let mut current = *self;
+        loop {
+            let mut descended = false;
+            for index in 0..current.child_count() {
+                let Some(child) = current.child(index) else {
+                    continue;
+                };
+                if child.contains_point_range(start_point, end_point) {
+                    current = child;
+                    descended = true;
+                    break;
+                }
+            }
+            if !descended {
+                return Some(current);
             }
         }
-
-        Some(self.clone())
     }
 
     /// Get the smallest named descendant that contains the given point range.
@@ -721,46 +770,47 @@ impl<'a> Node<'a> {
             return None;
         }
 
-        for child in &self.node.children {
-            let child_node = Node::new(self.tree, child);
-            if child_node.contains_point_range(start_point, end_point) {
-                if let Some(named_child) =
-                    child_node.named_descendant_for_point_range(start_point, end_point)
+        // Deepest named node on the first-containing-child chain.
+        let mut best = None;
+        let mut current = *self;
+        loop {
+            if current.is_named() {
+                best = Some(current);
+            }
+            let mut next = None;
+            for index in 0..current.child_count() {
+                if let Some(child) = current.child(index)
+                    && child.contains_point_range(start_point, end_point)
                 {
-                    return Some(named_child);
+                    next = Some(child);
+                    break;
                 }
-                break;
+            }
+            match next {
+                Some(child) => current = child,
+                None => return best,
             }
         }
-
-        self.is_named().then(|| self.clone())
     }
 
     /// Get this node's next named sibling, skipping anonymous siblings.
     pub fn next_named_sibling(&self) -> Option<Node<'a>> {
         let parent = self.parent()?;
-        let next_index = Self::sibling_index(parent.node, self.node)? + 1;
-        parent
-            .node
-            .children
-            .iter()
-            .skip(next_index)
-            .map(|child| Node::new(self.tree, child))
-            .find(|child| child.is_named())
+        let next_index = self.edge_child_index()? + 1;
+        (next_index..parent.child_count()).find_map(|index| {
+            let child = parent.child(index)?;
+            child.is_named().then_some(child)
+        })
     }
 
     /// Get this node's previous named sibling, skipping anonymous siblings.
     pub fn prev_named_sibling(&self) -> Option<Node<'a>> {
         let parent = self.parent()?;
-        let prev_index = Self::sibling_index(parent.node, self.node)?;
-        parent
-            .node
-            .children
-            .iter()
-            .take(prev_index)
-            .rev()
-            .map(|child| Node::new(self.tree, child))
-            .find(|child| child.is_named())
+        let prev_index = self.edge_child_index()?;
+        (0..prev_index).rev().find_map(|index| {
+            let child = parent.child(index)?;
+            child.is_named().then_some(child)
+        })
     }
 
     /// Convert this node and its named descendants to a Tree-sitter-style S-expression.
@@ -780,14 +830,22 @@ impl<'a> Node<'a> {
             result.push_str(self.kind());
         }
 
-        for child in &self.node.children {
-            let child_node = Node::new(self.tree, child);
+        let syntax = self.tree.core.document.syntax();
+        for index in 0..self.child_count() {
+            let Some(child_id) = syntax.child_id(self.id, index) else {
+                continue;
+            };
+            let child_node = Node::new(self.tree, child_id);
             if !child_node.is_named() && !child_node.is_error() {
                 continue;
             }
 
             result.push(' ');
-            if let Some(field_name) = child.field_name.as_deref() {
+            if let Some(field_name) = syntax
+                .parent_edge_record(child_id)
+                .and_then(|edge| edge.field_id())
+                .and_then(|field_id| self.field_name_for_id(field_id))
+            {
                 result.push_str(field_name);
                 result.push_str(": ");
             }
@@ -799,20 +857,30 @@ impl<'a> Node<'a> {
 
     /// Create a cursor rooted at this node.
     pub fn walk(&self) -> TreeCursor<'a> {
-        TreeCursor::new(self.tree, self.node)
+        TreeCursor::new(self.tree, self.id)
     }
 
     /// Get the field name attached to this node's edge from its parent.
     pub fn field_name(&self) -> Option<&str> {
-        self.node.field_name.as_deref()
+        self.tree
+            .core
+            .document
+            .syntax()
+            .parent_edge_record(self.id)
+            .and_then(|edge| edge.field_id())
+            .and_then(|field_id| self.field_name_for_id(field_id))
     }
 
     /// Get the field name for a child edge by child index.
     pub fn field_name_for_child(&self, index: usize) -> Option<&str> {
-        self.node
-            .children
-            .get(index)
-            .and_then(|child| child.field_name.as_deref())
+        let child_id = self.child_id(index)?;
+        self.tree
+            .core
+            .document
+            .syntax()
+            .parent_edge_record(child_id)
+            .and_then(|edge| edge.field_id())
+            .and_then(|field_id| self.field_name_for_id(field_id))
     }
 
     /// Get the nonzero Tree-sitter-style field id for a child edge by child index.
@@ -823,11 +891,14 @@ impl<'a> Node<'a> {
 
     /// Get the first child attached through the given field name.
     pub fn child_by_field_name(&self, field_name: &str) -> Option<Node<'a>> {
-        self.node
-            .children
-            .iter()
-            .find(|child| child.field_name.as_deref() == Some(field_name))
-            .map(|child| Node::new(self.tree, child))
+        let syntax = self.tree.core.document.syntax();
+        (0..self.child_count()).find_map(|index| {
+            let child_id = syntax.child_id(self.id, index)?;
+            let edge = syntax.parent_edge_record(child_id)?;
+            let edge_field = edge.field_id()?;
+            (self.field_name_for_id(edge_field) == Some(field_name))
+                .then(|| Node::new(self.tree, child_id))
+        })
     }
 
     /// Get the first child attached through the given Tree-sitter-style field id.
@@ -838,28 +909,35 @@ impl<'a> Node<'a> {
 
     /// Check if this node is an error node.
     pub fn is_error(&self) -> bool {
-        self.node.symbol.0 == 0 && self.node.children.is_empty()
+        self.record()
+            .map(|record| record.grammar_id().0 == 0 && record.edge_range().is_empty())
+            .unwrap_or(false)
     }
 
     /// Check if this node is missing (was expected but not found).
     pub fn is_missing(&self) -> bool {
-        self.node.start_byte == self.node.end_byte && self.is_error()
+        self.record()
+            .map(|record| {
+                let range = record.byte_range();
+                range.start == range.end && self.is_error()
+            })
+            .unwrap_or(false)
     }
 
     /// Check if this node or any descendant is an error node.
     pub fn has_error(&self) -> bool {
-        self.is_error()
-            || (std::ptr::eq(self.node, &self.tree.core.root) && self.tree.error_count() > 0)
-            || self
-                .node
-                .children
-                .iter()
-                .any(|child| Node::new(self.tree, child).has_error())
+        // Flat error flags already fold in descendant errors (and the ambient
+        // error count at the document root), matching the recursive walk.
+        self.record()
+            .map(|record| record.flags().has_error())
+            .unwrap_or(false)
     }
 
     /// Get the byte range of this node.
     pub fn byte_range(&self) -> std::ops::Range<usize> {
-        self.node.start_byte..self.node.end_byte
+        self.record()
+            .map(|record| record.byte_range())
+            .unwrap_or(0..0)
     }
 
     /// Get the text content of this node.
@@ -875,9 +953,9 @@ impl<'a> Node<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
-struct CursorFrame<'a> {
-    pub(super) node: &'a ParseNode,
+#[derive(Debug, Clone, Copy)]
+struct CursorFrame {
+    pub(super) node: NodeId,
     pub(super) child_index: usize,
 }
 
@@ -885,17 +963,21 @@ struct CursorFrame<'a> {
 #[derive(Debug, Clone)]
 pub struct TreeCursor<'a> {
     tree: &'a Tree,
-    current: &'a ParseNode,
-    parents: Vec<CursorFrame<'a>>,
+    current: NodeId,
+    parents: Vec<CursorFrame>,
 }
 
 impl<'a> TreeCursor<'a> {
-    fn new(tree: &'a Tree, current: &'a ParseNode) -> Self {
+    fn new(tree: &'a Tree, current: NodeId) -> Self {
         Self {
             tree,
             current,
             parents: Vec::new(),
         }
+    }
+
+    fn syntax(&self) -> &'a crate::document::SyntaxTree {
+        self.tree.core.document.syntax()
     }
 
     /// Get the cursor's current node.
@@ -908,86 +990,57 @@ impl<'a> TreeCursor<'a> {
         self.parents.len()
     }
 
-    fn cursor_root(&self) -> &'a ParseNode {
+    fn cursor_root(&self) -> NodeId {
         self.parents
             .first()
             .map(|frame| frame.node)
             .unwrap_or(self.current)
     }
 
-    fn descendant_index_for(
-        node: &'a ParseNode,
-        target: *const ParseNode,
-        next_index: &mut usize,
-    ) -> Option<usize> {
-        if std::ptr::eq(node, target) {
-            return Some(*next_index);
-        }
-
-        for child in &node.children {
-            *next_index += 1;
-            if let Some(index) = Self::descendant_index_for(child, target, next_index) {
-                return Some(index);
-            }
-        }
-
-        None
-    }
-
-    fn path_for_descendant_index(
-        node: &'a ParseNode,
-        target_index: usize,
-        next_index: &mut usize,
-        path: &mut Vec<usize>,
-    ) -> bool {
-        if *next_index == target_index {
-            return true;
-        }
-
-        for (child_index, child) in node.children.iter().enumerate() {
-            *next_index += 1;
-            path.push(child_index);
-            if Self::path_for_descendant_index(child, target_index, next_index, path) {
-                return true;
-            }
-            path.pop();
-        }
-
-        false
-    }
-
     /// Get the current node's preorder descendant index relative to the cursor root.
+    ///
+    /// Preorder flat ids are dense, so the index is the id offset from the
+    /// cursor root.
     pub fn descendant_index(&self) -> usize {
-        let mut next_index = 0;
-        Self::descendant_index_for(
-            self.cursor_root(),
-            self.current as *const ParseNode,
-            &mut next_index,
-        )
-        .unwrap_or(0)
+        self.current
+            .as_usize()
+            .saturating_sub(self.cursor_root().as_usize())
     }
 
     /// Move to the node at the given preorder descendant index, if it exists.
     pub fn goto_descendant(&mut self, descendant_index: usize) {
         let root = self.cursor_root();
-        let mut next_index = 0;
-        let mut path = Vec::new();
-
-        if !Self::path_for_descendant_index(root, descendant_index, &mut next_index, &mut path) {
+        let syntax = self.syntax();
+        // Preorder flat ids are dense: the index is an offset from the root.
+        let target = NodeId::new(root.as_usize().saturating_add(descendant_index));
+        if syntax.node_record(target).is_none() {
             return;
         }
-
-        let mut current = root;
-        let mut parents = Vec::with_capacity(path.len());
-        for child_index in path {
-            let Some(child) = current.children.get(child_index) else {
+        // Confirm the target descends from the cursor root by walking up.
+        let mut chain = vec![target];
+        let mut probe = target;
+        while probe != root {
+            let Some(parent) = syntax.parent_id(probe) else {
                 return;
             };
+            probe = parent;
+            chain.push(probe);
+        }
+        chain.pop();
+        let mut parents = Vec::with_capacity(chain.len());
+        let mut current = root;
+        for descendant in chain.iter().rev() {
+            let Some(edge) = syntax.parent_edge_record(*descendant) else {
+                return;
+            };
+            if edge.parent_id() != current {
+                return;
+            }
             parents.push(CursorFrame {
                 node: current,
-                child_index,
+                child_index: edge.child_index(),
             });
-            current = child;
+            current = *descendant;
         }
 
         self.current = current;
@@ -996,7 +1049,7 @@ impl<'a> TreeCursor<'a> {
 
     /// Move to the first child of the current node.
     pub fn goto_first_child(&mut self) -> bool {
-        let Some(child) = self.current.children.first() else {
+        let Some(child) = self.syntax().child_id(self.current, 0) else {
             return false;
         };
 
@@ -1010,10 +1063,14 @@ impl<'a> TreeCursor<'a> {
 
     /// Move to the last child of the current node.
     pub fn goto_last_child(&mut self) -> bool {
-        let Some(child_index) = self.current.children.len().checked_sub(1) else {
+        let syntax = self.syntax();
+        let Some(record) = syntax.node_record(self.current) else {
             return false;
         };
-        let Some(child) = self.current.children.get(child_index) else {
+        let Some(child_index) = record.edge_range().len().checked_sub(1) else {
+            return false;
+        };
+        let Some(child) = syntax.child_id(self.current, child_index) else {
             return false;
         };
 
@@ -1027,12 +1084,15 @@ impl<'a> TreeCursor<'a> {
 
     /// Move to the first child that contains or starts after the given byte.
     pub fn goto_first_child_for_byte(&mut self, byte: usize) -> Option<usize> {
-        let child_index = self
-            .current
-            .children
-            .iter()
-            .position(|child| child.end_byte > byte)?;
-        let child = self.current.children.get(child_index)?;
+        let syntax = self.syntax();
+        let record = syntax.node_record(self.current)?;
+        let child_index = (0..record.edge_range().len()).find(|index| {
+            syntax
+                .child_id(self.current, *index)
+                .and_then(|child| syntax.node_record(child))
+                .is_some_and(|child| child.byte_range().end > byte)
+        })?;
+        let child = syntax.child_id(self.current, child_index)?;
 
         self.parents.push(CursorFrame {
             node: self.current,
@@ -1048,14 +1108,30 @@ impl<'a> TreeCursor<'a> {
 
     /// Move to the first child that contains or starts after the given point.
     pub fn goto_first_child_for_point(&mut self, point: Point) -> Option<usize> {
-        let child_index = self.current.children.iter().position(|child| {
-            let child_node = Node::new(self.tree, child);
-            Self::point_gt(child_node.end_position(), point)
+        let syntax = self.syntax();
+        let current = self.current;
+        let record = syntax.node_record(current)?;
+        let child_index = (0..record.edge_range().len()).find(|index| {
+            syntax.child_id(current, *index).is_some_and(|child| {
+                let end = self.tree.core.positions.point(
+                    syntax
+                        .node_record(child)
+                        .map(|record| record.byte_range().end)
+                        .unwrap_or(0),
+                );
+                Self::point_gt(
+                    Point {
+                        row: end.row,
+                        column: end.column,
+                    },
+                    point,
+                )
+            })
         })?;
-        let child = self.current.children.get(child_index)?;
+        let child = syntax.child_id(current, child_index)?;
 
         self.parents.push(CursorFrame {
-            node: self.current,
+            node: current,
             child_index,
         });
         self.current = child;
@@ -1064,12 +1140,12 @@ impl<'a> TreeCursor<'a> {
 
     /// Move to the next sibling of the current node.
     pub fn goto_next_sibling(&mut self) -> bool {
-        tree_cursor_nav::goto_next_sibling(&mut self.parents, &mut self.current)
+        tree_cursor_nav::goto_next_sibling(self.tree, &mut self.parents, &mut self.current)
     }
 
     /// Move to the previous sibling of the current node.
     pub fn goto_previous_sibling(&mut self) -> bool {
-        tree_cursor_nav::goto_previous_sibling(&mut self.parents, &mut self.current)
+        tree_cursor_nav::goto_previous_sibling(self.tree, &mut self.parents, &mut self.current)
     }
 
     /// Move to the parent of the current node.
@@ -1088,7 +1164,12 @@ impl<'a> TreeCursor<'a> {
             return None;
         }
 
-        self.current.field_name.as_deref()
+        let document = &self.tree.core.document;
+        document
+            .syntax()
+            .parent_edge_record(self.current)
+            .and_then(|edge| edge.field_id())
+            .and_then(|field_id| document.language().field_name_for_id(field_id.get()))
     }
 
     /// Get the nonzero Tree-sitter-style field id for the current parent edge.
@@ -1100,7 +1181,7 @@ impl<'a> TreeCursor<'a> {
     /// Reset this cursor to the given node and clear parent traversal state.
     pub fn reset(&mut self, node: Node<'a>) {
         self.tree = node.tree;
-        self.current = node.node;
+        self.current = node.id;
         self.parents.clear();
     }
 
@@ -1115,6 +1196,7 @@ impl<'a> TreeCursor<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser_v4::ParseNode;
     use adze_glr_core::Action;
     use adze_ir::SymbolId;
     use std::collections::BTreeMap;
@@ -1153,6 +1235,19 @@ mod tests {
         }
     }
 
+    fn compat_tree(root: ParseNode, source: &str, error_count: usize) -> Tree {
+        let language = empty_parse_table_language();
+        let document = AdzeDocument::from_parse_result(
+            source,
+            root,
+            error_count,
+            &language.name,
+            &language.grammar,
+            &language.table,
+        );
+        Tree::from_document(Arc::clone(&language), &document)
+    }
+
     #[test]
     fn parse_ignores_old_tree_source() {
         let mut parser = Parser::new();
@@ -1162,8 +1257,11 @@ mod tests {
         let new_source = "incrementally updated";
 
         let reparsed = parser.parse(new_source, Some(&old_tree)).unwrap();
-        assert_eq!(reparsed.core.source, new_source.as_bytes().to_vec());
-        assert_ne!(reparsed.core.source, old_tree.core.source);
+        assert_eq!(reparsed.core.document.source_bytes(), new_source.as_bytes());
+        assert_ne!(
+            reparsed.core.document.source_bytes(),
+            old_tree.core.document.source_bytes()
+        );
     }
 
     #[test]
@@ -1188,15 +1286,7 @@ mod tests {
             alias_symbol_id: None,
             children: vec![error_child],
         };
-        let tree = Tree {
-            core: OwnedCoreTree {
-                root,
-                source: b"x".to_vec(),
-                error_count: 0,
-            },
-            last_edit: None,
-            language: empty_parse_table_language(),
-        };
+        let tree = compat_tree(root, "x", 0);
 
         let root = tree.root_node();
         let child = root.child(0).expect("root should expose error child");
@@ -1222,15 +1312,7 @@ mod tests {
             alias_symbol_id: None,
             children: vec![zero_width_error, spanning_error, zero_width_non_error],
         };
-        let tree = Tree {
-            core: OwnedCoreTree {
-                root,
-                source: b"abc".to_vec(),
-                error_count: 0,
-            },
-            last_edit: None,
-            language: empty_parse_table_language(),
-        };
+        let tree = compat_tree(root, "abc", 0);
 
         let root = tree.root_node();
         let missing = root.child(0).expect("missing child should exist");
@@ -1260,15 +1342,7 @@ mod tests {
             alias_symbol_id: None,
             children: vec![missing_child, spanning_error_child],
         };
-        let tree = Tree {
-            core: OwnedCoreTree {
-                root,
-                source: b"abc".to_vec(),
-                error_count: 0,
-            },
-            last_edit: None,
-            language: empty_parse_table_language(),
-        };
+        let tree = compat_tree(root, "abc", 0);
 
         assert_eq!(tree.root_node().to_sexp(), "(unknown (MISSING) (ERROR))");
     }
