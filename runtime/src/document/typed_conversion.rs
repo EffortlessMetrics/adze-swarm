@@ -1,42 +1,98 @@
 //! Conversion helpers from document nodes back into generated pure-parser nodes.
 
+use super::source_position::SourceLineIndex;
 use super::*;
 use std::ffi::CStr;
 
-pub(super) fn document_node_to_parsed_node(
-    node: &ParseNode,
-    language: &'static crate::pure_parser::TSLanguage,
-    source: &[u8],
-) -> crate::pure_parser::ParsedNode {
-    let symbol = table_symbol_for_public_id(language, node.symbol_id);
-    let children = node
-        .children
-        .iter()
-        .map(|child| document_node_to_parsed_node(child, language, source))
-        .collect();
-    let (is_named, is_extra) = symbol_flags(language, symbol);
-    let is_empty_error_node =
-        node.symbol_id.0 == 0 && node.children.is_empty() && node.start_byte == node.end_byte;
+/// Materialize one flat-record subtree as generated pure-parser nodes.
+///
+/// This is the flat-record counterpart of the retired recursive
+/// `document_node_to_parsed_node`: same symbol mapping, flags, field
+/// resolution, and byte/point contracts, but resolved from canonical
+/// [`SyntaxTree`] records with one shared line index instead of recursive
+/// walks and per-node prefix rescans. Only the target subtree is
+/// materialized; ancestors and siblings are never converted. Returns `None`
+/// when `root_id` has no record.
+pub(super) fn flat_subtree_to_parsed_node(
+    tree: &SyntaxTree,
+    language: &LanguageMetadata,
+    parsed_language: &crate::pure_parser::TSLanguage,
+    source: &str,
+    root_id: NodeId,
+) -> Option<crate::pure_parser::ParsedNode> {
+    let positions = SourceLineIndex::new(source);
 
-    crate::pure_parser::ParsedNode {
-        symbol,
-        children,
-        start_byte: node.start_byte,
-        end_byte: node.end_byte,
-        start_point: byte_to_point(source, node.start_byte),
-        end_point: byte_to_point(source, node.end_byte),
-        is_extra,
-        is_error: symbol_name(language, symbol) == Some("ERROR")
-            || is_empty_error_node
-            || node.symbol_id.0 == 0,
-        is_missing: is_empty_error_node,
-        is_named,
-        field_id: node
-            .field_name
-            .as_deref()
-            .and_then(|field_name| field_id_for_name(language, field_name)),
-        language: Some(language as *const _),
+    // Preorder ids of the target subtree on an explicit heap stack.
+    // Preorder numbering makes every subtree contiguous, so a built node's
+    // slot is its id minus the subtree root id.
+    let mut order: Vec<NodeId> = Vec::new();
+    {
+        let mut stack = vec![root_id];
+        while let Some(node_id) = stack.pop() {
+            let record = tree.node_record(node_id)?;
+            order.push(node_id);
+            for child_index in (0..record.edge_range().len()).rev() {
+                stack.push(tree.child_id(node_id, child_index)?);
+            }
+        }
     }
+
+    let base = root_id.as_usize();
+    let mut slots: Vec<Option<crate::pure_parser::ParsedNode>> =
+        (0..order.len()).map(|_| None).collect();
+    for node_id in order.iter().rev() {
+        let record = tree
+            .node_record(*node_id)
+            .expect("visited ids have records");
+        let range = record.byte_range();
+        let mut children = Vec::with_capacity(record.edge_range().len());
+        for child_index in 0..record.edge_range().len() {
+            let child_id = tree
+                .child_id(*node_id, child_index)
+                .expect("visited edges resolve");
+            children.push(
+                slots[child_id.as_usize() - base]
+                    .take()
+                    .expect("reverse preorder builds children first"),
+            );
+        }
+        let symbol = table_symbol_for_public_id(parsed_language, record.grammar_id());
+        let (is_named, is_extra) = symbol_flags(parsed_language, symbol);
+        let is_empty_error_node =
+            record.grammar_id().0 == 0 && children.is_empty() && range.start == range.end;
+        let start_point = positions.point(range.start);
+        let end_point = positions.point(range.end);
+        slots[node_id.as_usize() - base] = Some(crate::pure_parser::ParsedNode {
+            symbol,
+            children,
+            start_byte: range.start,
+            end_byte: range.end,
+            start_point: crate::pure_parser::Point {
+                row: start_point.row,
+                column: start_point.column,
+            },
+            end_point: crate::pure_parser::Point {
+                row: end_point.row,
+                column: end_point.column,
+            },
+            is_extra,
+            is_error: symbol_name(parsed_language, symbol) == Some("ERROR")
+                || is_empty_error_node
+                || record.grammar_id().0 == 0,
+            is_missing: is_empty_error_node,
+            is_named,
+            field_id: tree
+                .parent_edge_record(*node_id)
+                .and_then(|edge| edge.field_id())
+                .and_then(|document_field| {
+                    language
+                        .field_name_for_id(document_field.get())
+                        .and_then(|name| field_id_for_name(parsed_language, name))
+                }),
+            language: Some(parsed_language as *const _),
+        });
+    }
+    slots.into_iter().next().flatten()
 }
 
 fn table_symbol_for_public_id(
@@ -119,10 +175,105 @@ fn c_str_to_str(ptr: *const u8) -> Option<&'static str> {
     unsafe { CStr::from_ptr(ptr.cast()).to_str().ok() }
 }
 
-fn byte_to_point(source: &[u8], byte: usize) -> crate::pure_parser::Point {
-    let point = DocumentPoint::from_byte_offset(std::str::from_utf8(source).unwrap_or(""), byte);
-    crate::pure_parser::Point {
-        row: point.row,
-        column: point.column,
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::tree_builder::build_flat_tree;
+
+    fn conversion_language() -> LanguageMetadata {
+        LanguageMetadata {
+            name: "conversion-test".to_string(),
+            symbols: Vec::new(),
+            fields: vec!["left".to_string(), "right".to_string()],
+        }
+    }
+
+    fn leaf(symbol: u16, start: usize, end: usize) -> ParseNode {
+        ParseNode {
+            symbol: SymbolId(symbol),
+            symbol_id: SymbolId(symbol),
+            start_byte: start,
+            end_byte: end,
+            field_name: None,
+            alias_symbol_id: None,
+            children: Vec::new(),
+        }
+    }
+
+    // A `TSLanguage` is only read through guarded raw pointers here; the
+    // converter never dereferences a null table. A zeroed table exercises
+    // the no-metadata fallback paths exactly.
+    fn null_language() -> crate::pure_parser::TSLanguage {
+        unsafe { std::mem::zeroed() }
+    }
+
+    #[test]
+    fn test_flat_subtree_materializes_only_the_target() {
+        // root(0..8) > [left-field leaf(0..3), mid(3..8) > leaf(3..8)];
+        // converting `mid` must not include the left sibling.
+        let mut left = leaf(1, 0, 3);
+        left.field_name = Some("left".to_string());
+        let root = ParseNode {
+            symbol: SymbolId(1),
+            symbol_id: SymbolId(1),
+            start_byte: 0,
+            end_byte: 8,
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![
+                left,
+                ParseNode {
+                    symbol: SymbolId(1),
+                    symbol_id: SymbolId(1),
+                    start_byte: 3,
+                    end_byte: 8,
+                    field_name: None,
+                    alias_symbol_id: None,
+                    children: vec![leaf(1, 3, 8)],
+                },
+            ],
+        };
+        let source = "12345678";
+        let language = conversion_language();
+        let built = build_flat_tree(&root, source, &language, 0);
+        let tree = SyntaxTree {
+            root_id: NodeId::new(0),
+            nodes: built.nodes,
+            edges: built.edges,
+            parents: built.parents,
+        };
+
+        let converted = {
+            let tables = null_language();
+            flat_subtree_to_parsed_node(&tree, &language, &tables, source, NodeId::new(2))
+                .expect("target record exists")
+        };
+        assert_eq!(converted.start_byte, 3);
+        assert_eq!(converted.end_byte, 8);
+        assert_eq!(converted.children.len(), 1);
+        assert_eq!(converted.children[0].start_byte, 3);
+        assert_eq!(converted.children[0].end_byte, 8);
+        // Points come from the shared line index, not per-node rescans.
+        assert_eq!(converted.start_point.row, 0);
+        assert_eq!(converted.start_point.column, 3);
+        // No metadata tables: symbol falls back to the public id.
+        assert_eq!(converted.symbol, 1);
+    }
+
+    #[test]
+    fn test_flat_subtree_missing_id_returns_none() {
+        let root = leaf(1, 0, 1);
+        let language = conversion_language();
+        let built = build_flat_tree(&root, "x", &language, 0);
+        let tree = SyntaxTree {
+            root_id: NodeId::new(0),
+            nodes: built.nodes,
+            edges: built.edges,
+            parents: built.parents,
+        };
+        let tables = null_language();
+        assert!(
+            flat_subtree_to_parsed_node(&tree, &language, &tables, "x", NodeId::new(7)).is_none()
+        );
     }
 }

@@ -101,7 +101,7 @@ impl SourceLineIndex {
         }
     }
 
-    fn point(&self, byte: usize) -> DocumentPoint {
+    pub(super) fn point(&self, byte: usize) -> DocumentPoint {
         let end = byte.min(self.source_len);
         let row = self.line_starts.partition_point(|&start| start <= end);
         let line_start = row
