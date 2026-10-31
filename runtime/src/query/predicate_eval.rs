@@ -41,17 +41,30 @@ impl<'a> PredicateContext<'a> {
         self.source.get(node.start_byte..node.end_byte)
     }
 
-    /// Text for a capture, or `None` when the operand is invalid or
-    /// unavailable: missing capture, out-of-bounds or reversed range, or a
-    /// range that does not fall on UTF-8 boundaries.
-    fn capture_text(&self, capture: u32, captures: &HashMap<u32, ParseNode>) -> Option<&str> {
-        self.node_text(captures.get(&capture)?)
+    /// All occurrence texts for a capture slot.
+    ///
+    /// Returns `None` when the slot has no occurrences or any occurrence
+    /// text is unavailable (missing capture, out-of-bounds or reversed
+    /// range, or a range that does not fall on UTF-8 boundaries).
+    /// Predicates evaluate every occurrence under universal semantics: a
+    /// constraint holds only when it holds for all of them, so a failing
+    /// nonfinal occurrence can never be hidden by a passing final one.
+    fn capture_texts(
+        &self,
+        capture: u32,
+        captures: &HashMap<u32, Vec<ParseNode>>,
+    ) -> Option<Vec<&str>> {
+        let nodes = captures.get(&capture).filter(|nodes| !nodes.is_empty())?;
+        nodes.iter().map(|node| self.node_text(node)).collect()
     }
 
     /// Evaluate a predicate. Invalid or unavailable operands fail closed:
     /// they are distinct from a valid `false` comparison, and negation
     /// (`NotEq`/`NotMatch`) never turns them into `true`.
-    pub fn evaluate(&self, predicate: &Predicate, captures: &HashMap<u32, ParseNode>) -> bool {
+    ///
+    /// Multi-occurrence captures evaluate universally: every occurrence
+    /// must satisfy the constraint.
+    pub fn evaluate(&self, predicate: &Predicate, captures: &HashMap<u32, Vec<ParseNode>>) -> bool {
         match predicate {
             Predicate::Eq {
                 capture1,
@@ -96,20 +109,24 @@ impl<'a> PredicateContext<'a> {
 
     /// Evaluate an equality comparison as `Some(equal)` only when every
     /// operand is available and valid; `None` is invalid/unavailable and
-    /// must fail closed for both `Eq` and `NotEq`.
+    /// must fail closed for both `Eq` and `NotEq`. With repeated captures,
+    /// every occurrence text must agree.
     fn evaluate_eq_result(
         &self,
         capture1: u32,
         capture2: Option<&u32>,
         value: Option<&String>,
-        captures: &HashMap<u32, ParseNode>,
+        captures: &HashMap<u32, Vec<ParseNode>>,
     ) -> Option<bool> {
-        let text1 = self.capture_text(capture1, captures)?;
+        let texts1 = self.capture_texts(capture1, captures)?;
         if let Some(capture2) = capture2 {
-            let text2 = self.capture_text(*capture2, captures)?;
-            Some(text1 == text2)
+            let texts2 = self.capture_texts(*capture2, captures)?;
+            let mut all = texts1;
+            all.extend(texts2);
+            Some(all.windows(2).all(|pair| pair[0] == pair[1]))
         } else {
-            value.map(|value| text1 == value)
+            let value = value?;
+            Some(texts1.iter().all(|text| *text == value))
         }
     }
 
@@ -118,7 +135,7 @@ impl<'a> PredicateContext<'a> {
         &self,
         capture: u32,
         regex_str: &str,
-        captures: &HashMap<u32, ParseNode>,
+        captures: &HashMap<u32, Vec<ParseNode>>,
     ) -> bool {
         self.evaluate_match_result(capture, regex_str, captures)
             .unwrap_or(false)
@@ -128,9 +145,9 @@ impl<'a> PredicateContext<'a> {
         &self,
         capture: u32,
         regex_str: &str,
-        captures: &HashMap<u32, ParseNode>,
+        captures: &HashMap<u32, Vec<ParseNode>>,
     ) -> Option<bool> {
-        let text = self.capture_text(capture, captures)?;
+        let texts = self.capture_texts(capture, captures)?;
         let mut cache = self.regex_cache.borrow_mut();
         let regex = if let Some(regex) = cache.get(regex_str) {
             regex.clone()
@@ -141,18 +158,20 @@ impl<'a> PredicateContext<'a> {
             cache.insert(regex_str.to_string(), regex.clone());
             regex
         };
-        Some(regex.is_match(text))
+        Some(texts.iter().all(|text| regex.is_match(text)))
     }
 
-    /// Evaluate #any-of? predicate
+    /// Evaluate #any-of? predicate: every occurrence must name a listed value.
     fn evaluate_any_of(
         &self,
         capture: u32,
         values: &[String],
-        captures: &HashMap<u32, ParseNode>,
+        captures: &HashMap<u32, Vec<ParseNode>>,
     ) -> bool {
-        match self.capture_text(capture, captures) {
-            Some(text) => values.iter().any(|v| text == v),
+        match self.capture_texts(capture, captures) {
+            Some(texts) => texts
+                .iter()
+                .all(|text| values.iter().any(|value| value == text)),
             None => false,
         }
     }
@@ -182,9 +201,9 @@ mod tests {
         let ctx = PredicateContext::new(source);
 
         let mut captures = HashMap::new();
-        captures.insert(0, make_node(0, 5)); // "hello"
-        captures.insert(1, make_node(12, 17)); // "hello"
-        captures.insert(2, make_node(6, 11)); // "world"
+        captures.insert(0, vec![make_node(0, 5)]); // "hello"
+        captures.insert(1, vec![make_node(12, 17)]); // "hello"
+        captures.insert(2, vec![make_node(6, 11)]); // "world"
 
         // Test equal captures
         let pred = Predicate::Eq {
@@ -209,7 +228,7 @@ mod tests {
         let ctx = PredicateContext::new(source);
 
         let mut captures = HashMap::new();
-        captures.insert(0, make_node(0, 5)); // "hello"
+        captures.insert(0, vec![make_node(0, 5)]); // "hello"
 
         // Test equal to value
         let pred = Predicate::Eq {
@@ -234,8 +253,8 @@ mod tests {
         let ctx = PredicateContext::new(source);
 
         let mut captures = HashMap::new();
-        captures.insert(0, make_node(0, 5)); // "hello"
-        captures.insert(1, make_node(6, 11)); // "world"
+        captures.insert(0, vec![make_node(0, 5)]); // "hello"
+        captures.insert(1, vec![make_node(6, 11)]); // "world"
 
         let pred = Predicate::NotEq {
             capture1: 0,
@@ -265,7 +284,7 @@ mod tests {
         let ctx = PredicateContext::new(source);
 
         let mut captures = HashMap::new();
-        captures.insert(0, make_node(0, 12)); // "variable_123"
+        captures.insert(0, vec![make_node(0, 12)]); // "variable_123"
 
         // Test matching regex
         let pred = Predicate::Match {
@@ -288,7 +307,7 @@ mod tests {
         let ctx = PredicateContext::new(source);
 
         let mut captures = HashMap::new();
-        captures.insert(0, make_node(0, 12)); // "variable_123"
+        captures.insert(0, vec![make_node(0, 12)]); // "variable_123"
 
         let pred = Predicate::NotMatch {
             capture: 0,
@@ -309,7 +328,7 @@ mod tests {
         let ctx = PredicateContext::new(source);
 
         let mut captures = HashMap::new();
-        captures.insert(0, make_node(0, 6)); // "public"
+        captures.insert(0, vec![make_node(0, 6)]); // "public"
 
         // Test matching any-of
         let pred = Predicate::AnyOf {
@@ -369,7 +388,7 @@ mod tests {
     fn test_invalid_regex_fails_closed() {
         let ctx = PredicateContext::new("hello");
         let mut captures = HashMap::new();
-        captures.insert(0, make_node(0, 5));
+        captures.insert(0, vec![make_node(0, 5)]);
 
         let pred = Predicate::Match {
             capture: 0,
@@ -390,7 +409,7 @@ mod tests {
         for (source, start, end) in [("a", 0, 2), ("ab", 2, 1), ("λ", 0, 1)] {
             let ctx = PredicateContext::new(source);
             let mut captures = HashMap::new();
-            captures.insert(0, make_node(start, end));
+            captures.insert(0, vec![make_node(start, end)]);
             for predicate in [
                 Predicate::Eq {
                     capture1: 0,
@@ -428,8 +447,8 @@ mod tests {
         let ctx = PredicateContext::new("ab");
         // Second operand out of bounds.
         let mut captures = HashMap::new();
-        captures.insert(0, make_node(0, 1));
-        captures.insert(1, make_node(0, 3));
+        captures.insert(0, vec![make_node(0, 1)]);
+        captures.insert(1, vec![make_node(0, 3)]);
         for predicate in [
             Predicate::Eq {
                 capture1: 0,
@@ -446,7 +465,7 @@ mod tests {
         }
         // First operand missing, second valid.
         let mut captures = HashMap::new();
-        captures.insert(1, make_node(0, 1));
+        captures.insert(1, vec![make_node(0, 1)]);
         for predicate in [
             Predicate::Eq {
                 capture1: 0,
@@ -463,7 +482,7 @@ mod tests {
         }
         // Eq with no second operand at all is unavailable, not true for NotEq.
         let mut captures = HashMap::new();
-        captures.insert(0, make_node(0, 1));
+        captures.insert(0, vec![make_node(0, 1)]);
         assert!(!ctx.evaluate(
             &Predicate::NotEq {
                 capture1: 0,
@@ -478,9 +497,9 @@ mod tests {
     fn test_eq_and_not_eq_are_inverses_on_valid_strings() {
         let ctx = PredicateContext::new("aa ab");
         let mut captures = HashMap::new();
-        captures.insert(0, make_node(0, 1)); // "a"
-        captures.insert(1, make_node(1, 2)); // "a" (equal text, other range)
-        captures.insert(2, make_node(3, 5)); // "ab"
+        captures.insert(0, vec![make_node(0, 1)]); // "a"
+        captures.insert(1, vec![make_node(1, 2)]); // "a" (equal text, other range)
+        captures.insert(2, vec![make_node(3, 5)]); // "ab"
         for (capture2, expected_eq) in [(1, true), (2, false)] {
             let eq = Predicate::Eq {
                 capture1: 0,
@@ -528,7 +547,7 @@ mod tests {
         for (text, pattern, expected) in cases {
             let ctx = PredicateContext::new(text);
             let mut captures = HashMap::new();
-            captures.insert(0, make_node(0, text.len()));
+            captures.insert(0, vec![make_node(0, text.len())]);
             let matched = Predicate::Match {
                 capture: 0,
                 regex: pattern.to_string(),
@@ -554,7 +573,7 @@ mod tests {
     fn test_invalid_node_range_fails_closed() {
         let ctx = PredicateContext::new("hello");
         let mut captures = HashMap::new();
-        captures.insert(0, make_node(0, 50));
+        captures.insert(0, vec![make_node(0, 50)]);
 
         let predicates = [
             Predicate::Eq {
@@ -598,7 +617,7 @@ mod tests {
         let source = "a";
         let ctx = PredicateContext::new(source);
         let mut captures = HashMap::new();
-        captures.insert(0, make_node(0, 1));
+        captures.insert(0, vec![make_node(0, 1)]);
 
         // Manually constructed predicate: an invalid pattern is unavailable,
         // never a match, and negation never turns it into a match.
@@ -612,5 +631,103 @@ mod tests {
             regex: "a)|(b".to_string(),
         };
         assert!(!ctx.evaluate(&not_matched, &captures));
+    }
+
+    #[test]
+    fn test_repeated_captures_evaluate_universally() {
+        // "ab ab": occurrences at [0..2] and [3..5].
+        let source = "ab ab";
+        let ctx = PredicateContext::new(source);
+        let mut captures = HashMap::new();
+        captures.insert(0, vec![make_node(0, 2), make_node(3, 5)]);
+
+        // Both occurrences satisfy the pattern.
+        let matched = Predicate::Match {
+            capture: 0,
+            regex: "ab".to_string(),
+        };
+        assert!(ctx.evaluate(&matched, &captures));
+        let not_matched = Predicate::NotMatch {
+            capture: 0,
+            regex: "ab".to_string(),
+        };
+        assert!(!ctx.evaluate(&not_matched, &captures));
+
+        // Equality across occurrences: both are "ab".
+        let eq = Predicate::Eq {
+            capture1: 0,
+            capture2: None,
+            value: Some("ab".to_string()),
+        };
+        assert!(ctx.evaluate(&eq, &captures));
+    }
+
+    #[test]
+    fn test_failing_nonfinal_occurrence_is_not_hidden() {
+        // "ab cd": first occurrence matches, second does not. The failing
+        // nonfinal... (here final) occurrence must fail the predicate even
+        // though an earlier occurrence passes.
+        let source = "ab cd";
+        let ctx = PredicateContext::new(source);
+        let mut captures = HashMap::new();
+        captures.insert(0, vec![make_node(0, 2), make_node(3, 5)]);
+
+        let matched = Predicate::Match {
+            capture: 0,
+            regex: "ab".to_string(),
+        };
+        assert!(
+            !ctx.evaluate(&matched, &captures),
+            "a failing occurrence must fail the predicate even when another passes"
+        );
+        // Negation of a non-universally-satisfied constraint holds.
+        let not_matched = Predicate::NotMatch {
+            capture: 0,
+            regex: "ab".to_string(),
+        };
+        assert!(ctx.evaluate(&not_matched, &captures));
+
+        // And the reverse: failing FIRST occurrence is not hidden by a
+        // passing final occurrence.
+        let mut reversed = HashMap::new();
+        reversed.insert(0, vec![make_node(3, 5), make_node(0, 2)]);
+        assert!(!ctx.evaluate(&matched, &reversed));
+    }
+
+    #[test]
+    fn test_empty_capture_slot_fails_closed() {
+        let ctx = PredicateContext::new("hello");
+        let mut captures: HashMap<u32, Vec<ParseNode>> = HashMap::new();
+        captures.insert(0, Vec::new());
+
+        for predicate in [
+            Predicate::Match {
+                capture: 0,
+                regex: "hello".to_string(),
+            },
+            Predicate::NotMatch {
+                capture: 0,
+                regex: "hello".to_string(),
+            },
+            Predicate::Eq {
+                capture1: 0,
+                capture2: None,
+                value: Some("hello".to_string()),
+            },
+            Predicate::NotEq {
+                capture1: 0,
+                capture2: None,
+                value: Some("hello".to_string()),
+            },
+            Predicate::AnyOf {
+                capture: 0,
+                values: vec!["hello".to_string()],
+            },
+        ] {
+            assert!(
+                !ctx.evaluate(&predicate, &captures),
+                "empty slot must fail closed: {predicate:?}"
+            );
+        }
     }
 }
