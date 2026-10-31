@@ -25,10 +25,11 @@ fn leaf_transforms(attrs: &[Attribute]) -> Result<LeafTransforms> {
     let leaf_attr = attrs
         .iter()
         .find(|attr| attr.path() == &syn::parse_quote!(adze::leaf));
-    let leaf_params = leaf_attr.and_then(|attr| {
-        attr.parse_args_with(Punctuated::<NameValueExpr, Token![,]>::parse_terminated)
-            .ok()
-    });
+    let leaf_params = leaf_attr
+        .map(|attr| {
+            attr.parse_args_with(Punctuated::<NameValueExpr, Token![,]>::parse_terminated)
+        })
+        .transpose()?;
     let find_param = |name: &str| {
         leaf_params.as_ref().and_then(|params| {
             params
@@ -39,9 +40,9 @@ fn leaf_transforms(attrs: &[Attribute]) -> Result<LeafTransforms> {
     };
     let transform = find_param("transform");
     let try_transform = find_param("try_transform");
-    if transform.is_some() && try_transform.is_some() {
-        return Err(syn::Error::new(
-            Span::call_site(),
+    if let (Some(_), Some(fallible)) = (&transform, &try_transform) {
+        return Err(syn::Error::new_spanned(
+            fallible,
             "cannot specify both `transform` and `try_transform` on the same #[adze::leaf] field",
         ));
     }
