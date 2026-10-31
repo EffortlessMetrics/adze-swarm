@@ -11,6 +11,11 @@ use std::collections::HashMap;
 /// lazy quantifiers inside the anchors so the engine can backtrack into a
 /// longer alternative (for example `a|ab` on `"ab"`).
 pub(crate) fn compile_full_string_regex(pattern: &str) -> Result<Regex, regex::Error> {
+    // Validate the raw pattern before wrapping: interpolation alone can
+    // balance malformed syntax (for example `a)|(b` becomes the valid
+    // `\A(?:a)|(b)\z`, whose alternatives escape the anchors), turning a
+    // user error into a silently wrong matcher.
+    Regex::new(pattern)?;
     Regex::new(&format!(r"\A(?:{pattern})\z"))
 }
 
@@ -574,5 +579,38 @@ mod tests {
         for predicate in predicates {
             assert!(!ctx.evaluate(&predicate, &captures));
         }
+    }
+
+    #[test]
+    fn test_full_string_regex_rejects_pattern_balanced_only_by_wrapping() {
+        // `a)|(b` is invalid standalone, but interpolation alone balances it
+        // into `\A(?:a)|(b)\z`, whose alternatives escape the anchors. The
+        // raw pattern must be validated before wrapping.
+        assert!(compile_full_string_regex("a)|(b").is_err());
+        // Balanced patterns still compile and stay fully anchored.
+        let anchored = compile_full_string_regex("a|ab").expect("balanced alternation");
+        assert!(anchored.is_match("ab"));
+        assert!(!anchored.is_match("abc"));
+    }
+
+    #[test]
+    fn test_malformed_match_pattern_fails_closed_on_both_surfaces() {
+        let source = "a";
+        let ctx = PredicateContext::new(source);
+        let mut captures = HashMap::new();
+        captures.insert(0, make_node(0, 1));
+
+        // Manually constructed predicate: an invalid pattern is unavailable,
+        // never a match, and negation never turns it into a match.
+        let matched = Predicate::Match {
+            capture: 0,
+            regex: "a)|(b".to_string(),
+        };
+        assert!(!ctx.evaluate(&matched, &captures));
+        let not_matched = Predicate::NotMatch {
+            capture: 0,
+            regex: "a)|(b".to_string(),
+        };
+        assert!(!ctx.evaluate(&not_matched, &captures));
     }
 }
