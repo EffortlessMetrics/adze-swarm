@@ -291,7 +291,7 @@ impl GrammarJsConverter {
 
         // Rule conversion inserts auxiliary rules into existing LHS groups,
         // so the derived production map no longer matches insertion order.
-        grammar.refresh_production_ids();
+        grammar.refresh_production_ids()?;
 
         // Check what the start symbol will be
         if let Some(start_symbol) = grammar.start_symbol() {
