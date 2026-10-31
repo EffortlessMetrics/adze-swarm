@@ -16,16 +16,17 @@ timeout follows the target list. A `#` comment ends at the next line ending.
 
 ## Qualification boundary
 
-This is a source-path, non-published downstream fixture under issues #1129 and
-#882. Its new feature composition and nine tests still require Rust execution
-before acceptance. It does not establish a registry install, a release, or a
-support-tier promotion. The isolated workspace keeps it out of the release graph
-and out of default workspace test selection.
+This is a source-path, non-published downstream fixture under issues #1129,
+#1138 and #882. Its feature composition, nine application tests, one edit-anchor
+check and one explicitly selected edit/debug journey are **authored, not yet
+Rust-qualified**. It does not establish a registry install, a release, or a
+support-tier promotion. Its isolated workspace is outside the release graph
+and default root-workspace test selection.
 
 ## Run from the repository root
 
-Use the repository's declared Rust toolchain. These commands are the intended
-qualification steps, not a receipt that they have already passed:
+Use the repository's declared Rust toolchain. These are qualification commands,
+not receipts that they have already passed:
 
 ```sh
 cargo test --manifest-path samples/config-dsl/Cargo.toml
@@ -57,16 +58,51 @@ Both numeric leaves use `try_transform`. A matching digit token can still exceed
 `u16`; that must return a structured conversion error, not panic or become zero.
 Missing timeout and `timeout=0;` have different meanings and are tested separately.
 
-## Change, break, and repair
+## Change the data
 
-Start by changing the fixture to five retries, three targets and no timeout. The
-expected values are `5`, `[api, worker, scheduler]`, and `None`; add that assertion
-to `tests/contract.rs` before changing the grammar. Then deliberately add a trailing
-comma to the target list. The parser must reject it, and removing the comma must
-restore the same values. These are data-edit exercises, not evidence of grammar-
-change compatibility.
+Try five retries, three targets and no timeout. The expected values are `5`,
+`[api, worker, scheduler]`, and `None`. Add a trailing comma to the target list;
+the parser must reject it. Removing the comma must restore the same values.
+These are data changes, not changes to the grammar.
 
-The next #1129 slice adds a tested grammar-extension walkthrough and runs this
-application through the installed-package harness. Do not replace these tests
-with accepted error snapshots if the current parser cannot handle a valid case;
-retain the witness and repair its owning grammar/extraction issue.
+## Extend, break, and repair the grammar
+
+The separate journey in `tests/edit_debug.rs` copies this sample's actual grammar
+and build script into a temporary downstream project. It never edits your sample.
+Run it explicitly because it invokes Cargo four times:
+
+```sh
+cargo test --manifest-path samples/config-dsl/Cargo.toml --test edit_debug -- --ignored --exact grammar_edit_break_repair --nocapture
+```
+
+An ordinary `cargo test` **does not execute this journey**. An ignored test is
+not evidence that the walkthrough works.
+
+| Phase | Change | Required result |
+| --- | --- | --- |
+| Baseline | Use the original grammar. | The old policy retains exact values; a `backoff=7;` clause is rejected. |
+| Extend | Add `pub backoff: Option<Backoff>` after `timeout` and the annotated `Backoff` type. | Backoff values `0`, `7` and `65535` are exact; absence remains `None`; old inputs still work; `65536` produces a ranged conversion error. |
+| Break | Change the new field's type to `Option<MissingBackoffType1138>`. | Cargo fails with a diagnostic naming that missing type; an old successful test binary cannot qualify. |
+| Repair | Restore `Option<Backoff>`. | The extension assertions pass again without deleting the target directory. |
+
+`FIELD_ANCHOR`, `BACKOFF_TYPE` and `EXTENSION_TEST` in that test are the exact
+editable source and expected-value contract; this guide does not maintain a second
+copy of the grammar. Each successful phase must execute the named
+`journey_contract` test, not merely report a successful Cargo exit. The same
+owned target directory is reused across all phases. The test also checks that the
+original source/build script and an unrelated file remain unchanged.
+
+For a manual exercise, make those edits in your own copy and add the new typed
+assertions before accepting the change. The sample CLI is intentionally unchanged
+by the automated journey: it demonstrates the new AST field through tests, not a
+new printed field.
+
+## Remaining proof
+
+The journey still needs actual Rust execution, formatting/lint checks and selected
+Windows/Linux runs. Installed-package execution belongs to the existing package
+harness; these checkout-path dependencies are not package-install evidence.
+
+Do not replace valid-input assertions with accepted error snapshots, discard a
+failing grammar construct, or turn overflow into a default value to make the
+sample look green. Retain the witness and repair the owning implementation.
