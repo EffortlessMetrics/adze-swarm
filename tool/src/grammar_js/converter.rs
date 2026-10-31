@@ -46,6 +46,7 @@ pub struct GrammarJsConverter {
     next_production_id: usize,
     next_field_id: usize,
     fields: IndexMap<FieldId, String>,
+    capacity_error: Option<String>,
 }
 
 impl GrammarJsConverter {
@@ -58,6 +59,68 @@ impl GrammarJsConverter {
             next_production_id: 0,
             next_field_id: 0,
             fields: IndexMap::new(),
+            capacity_error: None,
+        }
+    }
+
+    fn alloc_symbol_id(&mut self) -> SymbolId {
+        match u16::try_from(self.next_symbol_id) {
+            Ok(value) if value != 0 => {
+                self.next_symbol_id += 1;
+                SymbolId(value)
+            }
+            _ => {
+                self.capacity_error.get_or_insert_with(|| {
+                    format!(
+                        "symbol ID space exhausted during grammar.js conversion: {} symbols exceed the SymbolId(u16) domain",
+                        self.next_symbol_id
+                    )
+                });
+                SymbolId(0)
+            }
+        }
+    }
+
+    fn alloc_production_id(&mut self) -> ProductionId {
+        match u16::try_from(self.next_production_id) {
+            Ok(value) => {
+                self.next_production_id += 1;
+                ProductionId(value)
+            }
+            Err(_) => {
+                self.capacity_error.get_or_insert_with(|| {
+                    format!(
+                        "production ID space exhausted during grammar.js conversion: {} productions exceed the ProductionId(u16) domain",
+                        self.next_production_id
+                    )
+                });
+                ProductionId(0)
+            }
+        }
+    }
+
+    fn alloc_field_id(&mut self) -> FieldId {
+        match u16::try_from(self.next_field_id) {
+            Ok(value) => {
+                self.next_field_id += 1;
+                FieldId(value)
+            }
+            Err(_) => {
+                self.capacity_error.get_or_insert_with(|| {
+                    format!(
+                        "field ID space exhausted during grammar.js conversion: {} fields exceed the FieldId(u16) domain",
+                        self.next_field_id
+                    )
+                });
+                FieldId(0)
+            }
+        }
+    }
+
+    fn check_capacity(&self) -> Result<()> {
+        match &self.capacity_error {
+            Some(message) => anyhow::bail!("{message}"),
+            None => Ok(()),
         }
     }
 
@@ -101,6 +164,7 @@ impl GrammarJsConverter {
 
         // First pass: collect all symbols (rules and tokens)
         self.collect_symbols(&mut grammar)?;
+        self.check_capacity()?;
 
         if let Some(word_rule) = &self.grammar_js.word {
             if let Some(&symbol_id) = self.symbol_names.get(word_rule) {
@@ -115,6 +179,7 @@ impl GrammarJsConverter {
 
         // Convert rules to IR rules
         self.convert_rules(&mut grammar)?;
+        self.check_capacity()?;
 
         self.apply_compiler_identity(&mut grammar)?;
 
@@ -207,6 +272,7 @@ impl GrammarJsConverter {
             }
         }
 
+        self.check_capacity()?;
         // Copy fields
         grammar.fields = self.fields.clone();
 
@@ -225,7 +291,7 @@ impl GrammarJsConverter {
 
         // Rule conversion inserts auxiliary rules into existing LHS groups,
         // so the derived production map no longer matches insertion order.
-        grammar.refresh_production_ids();
+        grammar.refresh_production_ids()?;
 
         // Check what the start symbol will be
         if let Some(start_symbol) = grammar.start_symbol() {
@@ -297,8 +363,9 @@ impl GrammarJsConverter {
 
     fn collect_symbols(&mut self, grammar: &mut Grammar) -> Result<()> {
         // Add all rule names as non-terminals
-        for rule_name in self.grammar_js.rules.keys() {
-            let symbol_id = SymbolId(self.next_symbol_id.try_into().unwrap());
+        let rule_names: Vec<String> = self.grammar_js.rules.keys().cloned().collect();
+        for rule_name in &rule_names {
+            let symbol_id = self.alloc_symbol_id();
             eprintln!(
                 "Debug: Collecting symbol '{}' as SymbolId({})",
                 rule_name, self.next_symbol_id
@@ -311,7 +378,6 @@ impl GrammarJsConverter {
             }
             self.symbol_names.insert(rule_name.clone(), symbol_id);
             grammar.rule_names.insert(symbol_id, rule_name.clone());
-            self.next_symbol_id += 1;
         }
 
         // Add common terminal tokens
@@ -335,10 +401,15 @@ impl GrammarJsConverter {
         }
 
         // Add external symbols
-        for external in &self.grammar_js.externals {
-            let symbol_id = SymbolId(self.next_symbol_id.try_into().unwrap());
-            self.symbol_names.insert(external.name.clone(), symbol_id);
-            self.next_symbol_id += 1;
+        let external_names: Vec<String> = self
+            .grammar_js
+            .externals
+            .iter()
+            .map(|e| e.name.clone())
+            .collect();
+        for external_name in &external_names {
+            let symbol_id = self.alloc_symbol_id();
+            self.symbol_names.insert(external_name.clone(), symbol_id);
         }
 
         Ok(())
@@ -350,7 +421,7 @@ impl GrammarJsConverter {
         name: &str,
         pattern: &str,
     ) -> Result<()> {
-        let symbol_id = SymbolId(self.next_symbol_id.try_into().unwrap());
+        let symbol_id = self.alloc_symbol_id();
         self.symbol_names.insert(name.to_string(), symbol_id);
 
         grammar.tokens.insert(
@@ -362,7 +433,6 @@ impl GrammarJsConverter {
             },
         );
 
-        self.next_symbol_id += 1;
         Ok(())
     }
 
@@ -428,8 +498,7 @@ impl GrammarJsConverter {
         }
 
         // Create new token
-        let id = SymbolId(self.next_symbol_id.try_into().unwrap());
-        self.next_symbol_id += 1;
+        let id = self.alloc_symbol_id();
         let token = Token {
             name: format!("\"{}\"", value),
             pattern: TokenPattern::String(value.to_string()),
@@ -450,8 +519,7 @@ impl GrammarJsConverter {
         }
 
         // Create new token
-        let id = SymbolId(self.next_symbol_id.try_into().unwrap());
-        self.next_symbol_id += 1;
+        let id = self.alloc_symbol_id();
         let token = Token {
             name: format!("/{}/", pattern),
             pattern: TokenPattern::Regex(pattern.to_string()),
@@ -519,8 +587,7 @@ impl GrammarJsConverter {
     }
 
     fn aux_symbol(&mut self, grammar: &mut Grammar, kind: &str) -> SymbolId {
-        let aux_id = SymbolId(self.next_symbol_id.try_into().unwrap());
-        self.next_symbol_id += 1;
+        let aux_id = self.alloc_symbol_id();
         grammar
             .rule_names
             .insert(aux_id, format!("_{kind}_aux_{}", aux_id.0));
@@ -560,9 +627,7 @@ impl GrammarJsConverter {
                 for member in members {
                     match member {
                         JsRule::Blank => {
-                            let pid =
-                                adze_ir::ProductionId(self.next_production_id.try_into().unwrap());
-                            self.next_production_id += 1;
+                            let pid = self.alloc_production_id();
                             grammar.add_rule(adze_ir::Rule {
                                 lhs: aux_id,
                                 rhs: vec![Symbol::Epsilon],
@@ -712,9 +777,8 @@ impl GrammarJsConverter {
             precedence,
             associativity,
             fields,
-            production_id: ProductionId(self.next_production_id.try_into().unwrap()),
+            production_id: self.alloc_production_id(),
         };
-        self.next_production_id += 1;
 
         // Calculate rule_id before modifying grammar.rules
         let total_rules = grammar
@@ -722,7 +786,17 @@ impl GrammarJsConverter {
             .values()
             .map(|rules| rules.len())
             .sum::<usize>();
-        let rule_id = RuleId(total_rules.try_into().unwrap());
+        let rule_id = match u16::try_from(total_rules) {
+            Ok(value) => RuleId(value),
+            Err(_) => {
+                self.capacity_error.get_or_insert_with(|| {
+                    format!(
+                        "rule ID space exhausted during grammar.js conversion: {total_rules} rules exceed the RuleId(u16) domain"
+                    )
+                });
+                RuleId(0)
+            }
+        };
         grammar.production_ids.insert(rule_id, rule.production_id);
 
         // Now add the rule
@@ -738,9 +812,8 @@ impl GrammarJsConverter {
         }
 
         // Create new field
-        let field_id = FieldId(self.next_field_id.try_into().unwrap());
+        let field_id = self.alloc_field_id();
         self.fields.insert(field_id, name.to_string());
-        self.next_field_id += 1;
         field_id
     }
 
@@ -771,10 +844,9 @@ impl GrammarJsConverter {
             return Ok(symbol_id);
         }
 
-        let symbol_id = SymbolId(self.next_symbol_id.try_into().unwrap());
+        let symbol_id = self.alloc_symbol_id();
         self.symbol_names
             .insert(registry_key.to_string(), symbol_id);
-        self.next_symbol_id += 1;
 
         let token = Token {
             name: token_name.to_string(),
@@ -803,6 +875,21 @@ fn is_generated_tuple_field_name(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn converter_symbol_exhaustion_returns_typed_error_not_panic() {
+        let mut grammar_js = GrammarJs::new("importer_capacity".to_string());
+        for i in 0..65_536u32 {
+            grammar_js.rules.insert(format!("rule_{i}"), JsRule::Blank);
+        }
+        let err = GrammarJsConverter::new(grammar_js)
+            .convert()
+            .expect_err("capacity must fail as Err, not panic");
+        assert!(
+            err.to_string().contains("symbol ID space exhausted"),
+            "{err:#}"
+        );
+    }
 
     #[test]
     fn test_simple_conversion() {

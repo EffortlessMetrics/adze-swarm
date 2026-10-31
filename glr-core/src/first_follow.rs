@@ -213,7 +213,7 @@ impl FirstFollowSets {
     #[must_use = "computation result must be checked"]
     pub fn compute_normalized(grammar: &mut Grammar) -> Result<Self, GLRError> {
         // Normalize the grammar to convert complex symbols to simple rules
-        grammar.normalize();
+        grammar.try_normalize()?;
 
         // Now compute FIRST/FOLLOW sets on the normalized grammar
         Self::compute(grammar)
@@ -244,7 +244,7 @@ impl FirstFollowSets {
     #[must_use = "computation result must be checked"]
     pub fn compute(grammar: &Grammar) -> Result<Self, GLRError> {
         let mut normalized_grammar = grammar.clone();
-        let _ = normalized_grammar.normalize();
+        normalized_grammar.try_normalize()?;
 
         FirstFollowBuilder::new(&normalized_grammar).compute()
     }

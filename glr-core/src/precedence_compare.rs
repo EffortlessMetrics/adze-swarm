@@ -42,13 +42,13 @@ impl StaticPrecedenceResolver {
             }
         }
 
-        // Extract rule precedences
-        for rules in grammar.rules.values() {
-            for rule in rules {
+        // Extract rule precedences (keyed by dense RuleId, #1060)
+        for (dense_id, rule) in grammar.all_rules_with_ids() {
+            {
                 if let Some(PrecedenceKind::Static(level)) = &rule.precedence {
                     let assoc = rule.associativity.unwrap_or(Associativity::None);
                     rule_precedences.insert(
-                        RuleId(rule.production_id.0),
+                        dense_id,
                         PrecedenceInfo {
                             level: *level,
                             associativity: assoc,

@@ -4,8 +4,8 @@
 //! and integration scenarios without dealing with the internal complexity.
 
 use crate::{
-    Associativity, ConflictDeclaration, ExternalToken, Grammar, LexicalMetadata, Precedence,
-    PrecedenceKind, ProductionId, Rule, Symbol, SymbolId, Token, TokenPattern,
+    Associativity, ConflictDeclaration, ExternalToken, Grammar, GrammarError, LexicalMetadata,
+    Precedence, PrecedenceKind, ProductionId, Rule, Symbol, SymbolId, Token, TokenPattern,
 };
 use indexmap::IndexMap;
 
@@ -28,8 +28,9 @@ use indexmap::IndexMap;
 /// ```
 pub struct GrammarBuilder {
     name: String,
-    next_symbol_id: u16,
-    next_production_id: u16,
+    next_symbol_id: u32,
+    next_production_id: u32,
+    capacity_error: Option<GrammarError>,
     symbol_ids: IndexMap<String, SymbolId>,
     rules: IndexMap<SymbolId, Vec<Rule>>,
     tokens: IndexMap<SymbolId, Token>,
@@ -53,6 +54,7 @@ impl GrammarBuilder {
             name: name.to_string(),
             next_symbol_id: 1, // Reserve SymbolId(0) for EOF
             next_production_id: 0,
+            capacity_error: None,
             symbol_ids: IndexMap::new(),
             rules: IndexMap::new(),
             tokens: IndexMap::new(),
@@ -75,8 +77,18 @@ impl GrammarBuilder {
         if let Some(&id) = self.symbol_ids.get(name) {
             id
         } else {
-            let id = SymbolId(self.next_symbol_id);
-            self.next_symbol_id += 1;
+            // Checked allocation (#985): never wrap into EOF/occupied ids.
+            let id = match u16::try_from(self.next_symbol_id) {
+                Ok(value) if value != 0 => {
+                    self.next_symbol_id += 1;
+                    SymbolId(value)
+                }
+                _ => {
+                    self.capacity_error
+                        .get_or_insert(GrammarError::SymbolSpaceExhausted);
+                    SymbolId(0)
+                }
+            };
             self.symbol_ids.insert(name.to_string(), id);
             // Also update rule_names if it's not a token
             if !name.chars().all(|c| c.is_uppercase() || c == '_')
@@ -98,6 +110,20 @@ impl GrammarBuilder {
                 self.rule_names.insert(id, name.to_string());
             }
             id
+        }
+    }
+
+    fn alloc_production_id(&mut self) -> ProductionId {
+        match u16::try_from(self.next_production_id) {
+            Ok(value) => {
+                self.next_production_id += 1;
+                ProductionId(value)
+            }
+            Err(_) => {
+                self.capacity_error
+                    .get_or_insert(GrammarError::ProductionSpaceExhausted);
+                ProductionId(0)
+            }
         }
     }
 
@@ -170,8 +196,7 @@ impl GrammarBuilder {
                 .collect()
         };
 
-        let production_id = ProductionId(self.next_production_id);
-        self.next_production_id += 1;
+        let production_id = self.alloc_production_id();
 
         let rule = Rule {
             lhs: lhs_id,
@@ -208,8 +233,7 @@ impl GrammarBuilder {
             })
             .collect();
 
-        let production_id = ProductionId(self.next_production_id);
-        self.next_production_id += 1;
+        let production_id = self.alloc_production_id();
 
         let rule = Rule {
             lhs: lhs_id,
@@ -318,8 +342,21 @@ impl GrammarBuilder {
         self
     }
 
-    /// Build the final grammar
-    pub fn build(mut self) -> Grammar {
+    /// Build the final grammar, returning a typed capacity error (#985).
+    ///
+    /// # Errors
+    /// Returns [`GrammarError::SymbolSpaceExhausted`],
+    /// [`GrammarError::ProductionSpaceExhausted`], or
+    /// [`GrammarError::RuleSpaceExhausted`] when a bounded ID domain
+    /// cannot represent the requested grammar; no partial grammar is returned.
+    pub fn try_build(mut self) -> Result<Grammar, GrammarError> {
+        if let Some(error) = self.capacity_error.take() {
+            return Err(error);
+        }
+        let total_rules: usize = self.rules.values().map(Vec::len).sum();
+        if total_rules > usize::from(u16::MAX) + 1 {
+            return Err(GrammarError::RuleSpaceExhausted);
+        }
         // If a start symbol was specified, ensure its rules come first
         let mut ordered_rules = IndexMap::new();
 
@@ -367,8 +404,18 @@ impl GrammarBuilder {
             wrapper_token_relations,
         };
         // The RuleId -> ProductionId map is total from build time (#980).
-        grammar.refresh_production_ids();
-        grammar
+        grammar.refresh_production_ids()?;
+        Ok(grammar)
+    }
+
+    /// Build the final grammar.
+    ///
+    /// # Panics
+    /// Panics only when a bounded ID domain is exhausted; use
+    /// [`try_build`](Self::try_build) for the typed-error form.
+    pub fn build(self) -> Grammar {
+        self.try_build()
+            .unwrap_or_else(|error| panic!("grammar construction failed: {error}"))
     }
 }
 

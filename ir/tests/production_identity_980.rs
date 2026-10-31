@@ -49,7 +49,7 @@ fn production_ids_many_to_one_for_shared_production() {
     grammar.add_rule(rule(1, 100));
     grammar.add_rule(rule(1, 100));
     grammar.add_rule(rule(2, 100));
-    grammar.refresh_production_ids();
+    grammar.refresh_production_ids().unwrap();
 
     assert_eq!(grammar.production_ids.len(), 3);
     assert_eq!(
@@ -69,7 +69,7 @@ fn production_ids_total_for_sparse_production_ids() {
     let mut grammar = Grammar::new("sparse".to_string());
     grammar.add_rule(rule(1, 100));
     grammar.add_rule(rule(2, 200));
-    grammar.refresh_production_ids();
+    grammar.refresh_production_ids().unwrap();
 
     assert_eq!(grammar.production_ids.len(), 2);
     assert_eq!(
@@ -92,11 +92,11 @@ fn production_ids_total_for_sparse_production_ids() {
 fn production_ids_refresh_replaces_stale_entries() {
     let mut grammar = Grammar::new("refresh".to_string());
     grammar.add_rule(rule(1, 1));
-    grammar.refresh_production_ids();
+    grammar.refresh_production_ids().unwrap();
     assert_eq!(grammar.production_ids.len(), 1);
 
     grammar.add_rule(rule(1, 2));
-    grammar.refresh_production_ids();
+    grammar.refresh_production_ids().unwrap();
     assert_eq!(
         grammar.production_ids.len(),
         2,
