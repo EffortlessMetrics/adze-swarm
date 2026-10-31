@@ -24,10 +24,16 @@ pub struct QueryCapture {
 }
 
 /// State for matching a pattern
+///
+/// A capture ID identifies a capture slot, not one node: every occurrence a
+/// supported pattern selects is pushed in visit order. Predicates evaluate
+/// all occurrences under universal semantics (documented at
+/// [`PredicateContext::evaluate`]); output preserves occurrence order within
+/// each ID via a stable index sort.
 #[derive(Clone, Debug)]
 struct MatchState {
-    /// Current captures
-    captures: HashMap<u32, ParseNode>,
+    /// Current captures: one entry per occurrence, in match order.
+    captures: HashMap<u32, Vec<ParseNode>>,
 }
 
 #[derive(Clone, Copy)]
@@ -98,11 +104,17 @@ impl<'a> QueryMatcher<'a> {
                 .iter()
                 .all(|pred| predicate_ctx.evaluate(pred, &state.captures))
             {
-                // Convert captures to vector
+                // Convert captures to a vector. One entry per occurrence,
+                // sorted by capture ID with occurrence order preserved
+                // (stable sort over push-ordered vectors).
                 let mut captures: Vec<_> = state
                     .captures
                     .into_iter()
-                    .map(|(index, node)| QueryCapture { index, node })
+                    .flat_map(|(index, nodes)| {
+                        nodes
+                            .into_iter()
+                            .map(move |node| QueryCapture { index, node })
+                    })
                     .collect();
                 captures.sort_by_key(|c| c.index);
 
@@ -119,7 +131,12 @@ impl<'a> QueryMatcher<'a> {
         }
     }
 
-    /// Match a pattern node against a parse node
+    /// Match a pattern node against a parse node.
+    ///
+    /// The match is atomic with respect to the caller's state: the node's
+    /// own capture and every nested attempt run on a branch-local copy, and
+    /// only a successful match commits. A failed node therefore leaves no
+    /// residue, including its own capture ID.
     fn match_node(&self, pattern: &PatternNode, node: &ParseNode, state: &mut MatchState) -> bool {
         // Check symbol
         if pattern.symbol != node.symbol {
@@ -131,18 +148,30 @@ impl<'a> QueryMatcher<'a> {
             return false;
         }
 
-        // Capture if needed
+        let mut attempt = state.clone();
+        // Capture if needed. Occurrences accumulate; nothing overwrites.
         if let Some(capture_id) = pattern.capture {
-            state.captures.insert(capture_id, node.clone());
+            attempt
+                .captures
+                .entry(capture_id)
+                .or_default()
+                .push(node.clone());
         }
 
-        // Match based on quantifier
-        match pattern.quantifier {
-            Quantifier::One => self.match_children_one(pattern, node, state),
-            Quantifier::Optional => self.match_children_optional(pattern, node, state),
-            Quantifier::Plus => self.match_children_plus(pattern, node, state),
-            Quantifier::Star => self.match_children_star(pattern, node, state),
+        // Match based on quantifier. The node's own capture above stays
+        // staged in `attempt` until the whole node is known to match; only
+        // Optional may succeed vacuously, and then only a successful inner
+        // attempt commits (otherwise the staged capture vanishes too).
+        let (matched, commit) = match pattern.quantifier {
+            Quantifier::One => (self.match_children_one(pattern, node, &mut attempt), true),
+            Quantifier::Optional => (true, self.match_children_one(pattern, node, &mut attempt)),
+            Quantifier::Plus => (self.match_children_plus(pattern, node, &mut attempt), true),
+            Quantifier::Star => (self.match_children_star(pattern, node, &mut attempt), true),
+        };
+        if matched && commit {
+            *state = attempt;
         }
+        matched
     }
 
     /// Match children with One quantifier
@@ -174,18 +203,6 @@ impl<'a> QueryMatcher<'a> {
             return self.match_child_sequence(&pattern.children, &node.children, 0, 0, state);
         }
 
-        true
-    }
-
-    /// Match children with Optional quantifier
-    fn match_children_optional(
-        &self,
-        pattern: &PatternNode,
-        node: &ParseNode,
-        state: &mut MatchState,
-    ) -> bool {
-        // Optional always matches, but we try to match if possible
-        self.match_children_one(pattern, node, state);
         true
     }
 
@@ -1167,5 +1184,123 @@ mod tests {
         let matches = matcher.matches(&root);
 
         assert_eq!(matches.len(), 1);
+    }
+
+    #[test]
+    fn test_repeated_capture_returns_every_occurrence_in_order() {
+        // Same capture name on two siblings with identical text: occurrences
+        // stay distinct by identity, not text.
+        let source = "aa aa";
+        let root = make_root(vec![make_node(1, 0, 2), make_node(1, 3, 5)], source.len());
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        let query = query_with_root(pattern);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1, "one match, not one per occurrence");
+        assert_eq!(matches[0].captures.len(), 2, "both occurrences retained");
+        assert_eq!(matches[0].captures[0].index, 0);
+        assert_eq!(matches[0].captures[0].node.start_byte, 0);
+        assert_eq!(matches[0].captures[1].index, 0);
+        assert_eq!(matches[0].captures[1].node.start_byte, 3);
+    }
+
+    #[test]
+    fn test_plus_quantifier_captures_every_repetition() {
+        let source = "aab";
+        let root = make_root(
+            vec![make_node(1, 0, 1), make_node(1, 1, 2), make_node(2, 2, 3)],
+            source.len(),
+        );
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true)
+                .with_capture(0)
+                .with_quantifier(Quantifier::Plus),
+        ));
+        pattern.add_child(PatternChild::Node(PatternNode::new(SymbolId(2), true)));
+        let query = query_with_root(pattern);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(
+            matches[0].captures.len(),
+            2,
+            "Plus captures every repetition"
+        );
+        assert_eq!(matches[0].captures[0].node.start_byte, 0);
+        assert_eq!(matches[0].captures[1].node.start_byte, 1);
+    }
+
+    #[test]
+    fn test_backtrack_returns_only_the_accepted_match_captures() {
+        // (identifier @x) . (number): the anchor forces adjacency, so the
+        // plausible first identifier fails and only the accepted second
+        // attempt is captured.
+        let source = "aab";
+        let root = make_root(
+            vec![make_node(1, 0, 1), make_node(1, 1, 2), make_node(2, 2, 3)],
+            source.len(),
+        );
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Anchor);
+        pattern.add_child(PatternChild::Node(PatternNode::new(SymbolId(2), true)));
+        let query = query_with_root(pattern);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(
+            matches[0].captures.len(),
+            1,
+            "no residue from the failed attempt"
+        );
+        assert_eq!(matches[0].captures[0].index, 0);
+        assert_eq!(matches[0].captures[0].node.start_byte, 1);
+    }
+
+    #[test]
+    fn test_failed_optional_leaves_no_capture_residue() {
+        // Field-nested optional: (B @b ...)? matches the left child and
+        // captures it, then fails its required child. The failed attempt
+        // must vanish while the overall match still succeeds.
+        let source = "x";
+        let mut a = make_node(1, 0, 1);
+        a.children = vec![make_field_node(2, 0, 1, "left")];
+        let root = make_root(vec![a], source.len());
+        let mut optional = PatternNode::new(SymbolId(2), true).with_capture(0);
+        optional.quantifier = Quantifier::Optional;
+        optional.add_child(PatternChild::Node(PatternNode::new(SymbolId(3), true)));
+        let mut a_pattern = PatternNode::new(SymbolId(1), true);
+        a_pattern.fields.insert("left".to_string(), optional);
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(a_pattern));
+        let query = query_with_root(pattern);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+        assert!(
+            matches[0].captures.is_empty(),
+            "failed optional contributes no speculative capture"
+        );
     }
 }
