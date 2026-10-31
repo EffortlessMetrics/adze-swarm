@@ -1,0 +1,4 @@
+# A policy for two services.
+retries = 3;
+targets = [api, worker];
+timeout = 30;
