@@ -156,27 +156,22 @@ impl<'a> ConflictVisualizer<'a> {
 
     /// Format a rule with a dot at the given position
     fn format_rule_with_dot(&self, rule_id: RuleId, position: usize) -> String {
-        // Find the rule by iterating through all rules
-        for rules in self.grammar.rules.values() {
-            for rule in rules {
-                if rule.production_id.0 == rule_id.0 {
-                    let mut result = format!("{} ->", self.symbol_name(rule.lhs));
+        if let Some(rule) = self.grammar.rule_by_id(rule_id) {
+            let mut result = format!("{} ->", self.symbol_name(rule.lhs));
 
-                    for (i, symbol) in rule.rhs.iter().enumerate() {
-                        if i == position {
-                            result.push_str(" •");
-                        }
-                        result.push(' ');
-                        result.push_str(&self.format_symbol(symbol));
-                    }
-
-                    if position >= rule.rhs.len() {
-                        result.push_str(" •");
-                    }
-
-                    return result;
+            for (i, symbol) in rule.rhs.iter().enumerate() {
+                if i == position {
+                    result.push_str(" •");
                 }
+                result.push(' ');
+                result.push_str(&self.format_symbol(symbol));
             }
+
+            if position >= rule.rhs.len() {
+                result.push_str(" •");
+            }
+
+            return result;
         }
 
         format!("Rule {}", rule_id.0)
@@ -184,14 +179,9 @@ impl<'a> ConflictVisualizer<'a> {
 
     /// Format a rule
     fn format_rule(&self, rule_id: RuleId) -> String {
-        // Find the rule by iterating through all rules
-        for rules in self.grammar.rules.values() {
-            for rule in rules {
-                if rule.production_id.0 == rule_id.0 {
-                    let rhs: Vec<String> = rule.rhs.iter().map(|s| self.format_symbol(s)).collect();
-                    return format!("{} -> {}", self.symbol_name(rule.lhs), rhs.join(" "));
-                }
-            }
+        if let Some(rule) = self.grammar.rule_by_id(rule_id) {
+            let rhs: Vec<String> = rule.rhs.iter().map(|s| self.format_symbol(s)).collect();
+            return format!("{} -> {}", self.symbol_name(rule.lhs), rhs.join(" "));
         }
 
         format!("Rule {}", rule_id.0)

@@ -107,7 +107,8 @@ impl GrammarOptimizer {
         self.renumber_symbols(grammar);
         check_source_file(grammar, "renumber_symbols");
 
-        grammar.refresh_production_ids();
+        // Infallible boundary: an over-capacity grammar keeps its prior map.
+        let _ = grammar.refresh_production_ids();
 
         stats
     }

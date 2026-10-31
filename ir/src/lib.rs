@@ -123,18 +123,20 @@ impl Grammar {
     /// `RuleId(index)` denotes the `index`-th rule of
     /// [`all_rules`](Self::all_rules). The mapping is many-to-one:
     /// production IDs are grammar-local slots and are never renumbered.
-    pub fn refresh_production_ids(&mut self) {
+    pub fn refresh_production_ids(&mut self) -> Result<(), GrammarError> {
         let entries: Vec<(RuleId, ProductionId)> = self
             .all_rules()
             .enumerate()
             .map(|(index, rule)| {
-                let rule_id =
-                    RuleId(u16::try_from(index).expect("rule count exceeds the RuleId range"));
-                (rule_id, rule.production_id)
+                let rule_id = u16::try_from(index)
+                    .map(RuleId)
+                    .map_err(|_| GrammarError::RuleSpaceExhausted)?;
+                Ok((rule_id, rule.production_id))
             })
-            .collect();
+            .collect::<Result<_, GrammarError>>()?;
         self.production_ids.clear();
         self.production_ids.extend(entries);
+        Ok(())
     }
 
     /// First production slot shared by rules whose field/alias metadata
@@ -146,8 +148,11 @@ impl Grammar {
     pub(crate) fn conflicting_production_share(&self) -> Option<(ProductionId, Vec<RuleId>)> {
         let mut groups: IndexMap<ProductionId, Vec<(RuleId, &Rule)>> = IndexMap::new();
         for (index, rule) in self.all_rules().enumerate() {
-            let rule_id =
-                RuleId(u16::try_from(index).expect("rule count exceeds the RuleId range"));
+            // Rules beyond the dense RuleId domain cannot be named in a
+            // conflict report; skip them rather than panicking (#985).
+            let Some(rule_id) = u16::try_from(index).ok().map(RuleId) else {
+                continue;
+            };
             groups
                 .entry(rule.production_id)
                 .or_default()
@@ -172,6 +177,28 @@ impl Grammar {
             }
         }
         None
+    }
+
+    /// Rule denoted by a dense [`RuleId`], when in range (#1060).
+    /// Rule identity is this index; it is never inferred from
+    /// [`ProductionId`] metadata, which distinct rules may share.
+    pub fn rule_by_id(&self, rule_id: RuleId) -> Option<&Rule> {
+        self.all_rules().nth(usize::from(rule_id.0))
+    }
+
+    /// All rules paired with their dense [`RuleId`]s, in rule order (#1060).
+    pub fn all_rules_with_ids(&self) -> impl Iterator<Item = (RuleId, &Rule)> {
+        self.all_rules()
+            .enumerate()
+            .filter_map(|(index, rule)| u16::try_from(index).ok().map(|id| (RuleId(id), rule)))
+    }
+
+    /// Dense [`RuleId`]s of every rule with this LHS, in rule order.
+    pub fn rule_ids_for_symbol(&self, symbol: SymbolId) -> Vec<RuleId> {
+        self.all_rules_with_ids()
+            .filter(|(_, rule)| rule.lhs == symbol)
+            .map(|(rule_id, _)| rule_id)
+            .collect()
     }
 
     /// Production slot for one rule, when `rule_id` is in the current
@@ -594,6 +621,23 @@ impl Grammar {
             });
         }
 
+        // Alias sequences are positional for every owning rule, not only
+        // shared productions: a stale length designates wrong children (#981).
+        for (production_id, sequence) in &self.alias_sequences {
+            for rule in self
+                .all_rules()
+                .filter(|rule| rule.production_id == *production_id)
+            {
+                if rule.rhs.len() != sequence.aliases.len() {
+                    return Err(GrammarError::AliasLengthMismatch {
+                        production_id: *production_id,
+                        alias_len: sequence.aliases.len(),
+                        rhs_len: rule.rhs.len(),
+                    });
+                }
+            }
+        }
+
         // Validate symbol references
         for rule in self.all_rules() {
             for symbol in &rule.rhs {
@@ -610,7 +654,8 @@ impl Grammar {
         // Inline simple rules where beneficial
         // Optimize precedence declarations
         // This will be implemented based on Tree-sitter's optimization strategies
-        self.refresh_production_ids();
+        // Infallible boundary: an over-capacity grammar keeps its prior map.
+        let _ = self.refresh_production_ids();
     }
 
     /// Every symbol identity this grammar already carries, across all
@@ -775,12 +820,22 @@ impl Grammar {
     /// grammar when fewer free production slots remain than helper rules
     /// require. A grammar that needs no helper rules succeeds even when
     /// the production maximum is already saturated.
+    /// Returns [`GrammarError::RuleSpaceExhausted`] when the rule count
+    /// (before or after helper expansion) exceeds the dense `RuleId`
+    /// domain; the grammar is left unchanged.
     ///
     /// Normalization is atomic: every fallible exit leaves the grammar
     /// unchanged, including a late allocation failure after nested
     /// rewrites duplicated demand across helper rules (#1059).
     pub fn try_normalize(&mut self) -> Result<Vec<Rule>, GrammarError> {
+        // SymbolId(0) is reserved in occupied_symbol_ids, so helpers never
+        // collide with EOF even for legacy grammars using 0 as an LHS (#1059).
         let mut occupied = self.occupied_symbol_ids();
+        // Dense RuleIds cannot name more than u16::MAX + 1 rules (#985):
+        // reject before any mutation instead of panicking at refresh.
+        if self.all_rules().count() > usize::from(u16::MAX) + 1 {
+            return Err(GrammarError::RuleSpaceExhausted);
+        }
         let helpers_needed: usize = self
             .rules
             .values()
@@ -885,16 +940,28 @@ impl Grammar {
         // leaking partial helpers. The preflight above is exact, so this
         // restore is unreachable on current demand accounting; it guards
         // against future accounting drift.
-        let saved_rules = self.rules.clone();
+        let saved = self.clone();
         if let Err(error) =
             self.expand_complex_symbols(&mut occupied, &mut next_aux, &mut fresh_production_id)
         {
-            self.rules = saved_rules;
+            *self = saved;
             return Err(error);
         }
 
+        self.max_alias_sequence_length = self.max_alias_sequence_length.max(
+            self.alias_sequences
+                .values()
+                .map(|sequence| sequence.aliases.len())
+                .max()
+                .unwrap_or(0),
+        );
         // Return all rules for compatibility (though caller probably doesn't need this)
-        self.refresh_production_ids();
+        // Helper expansion may push the count over the RuleId domain even
+        // when the input fit; restore the pre-call grammar on that error.
+        if let Err(error) = self.refresh_production_ids() {
+            *self = saved;
+            return Err(error);
+        }
         Ok(self.rules.values().flatten().cloned().collect())
     }
 
@@ -912,6 +979,8 @@ impl Grammar {
         // We need to keep processing until no complex symbols remain
         loop {
             let mut found_complex = false;
+            let alias_snapshot = self.alias_sequences.clone();
+            let mut remapped_aliases: IndexMap<ProductionId, AliasSequence> = IndexMap::new();
             let mut all_rules = Vec::new();
 
             // Collect all current rules
@@ -1066,9 +1135,71 @@ impl Grammar {
                     rule.fields = remapped;
                 }
 
+                // Remap positional aliases through the same origin ranges (#981).
+                if let Some(sequence) = alias_snapshot.get(&rule.production_id) {
+                    // Sequences longer than this RHS with a real alias are
+                    // stored metadata for a shared production; they have no
+                    // position in this rule to remap, so preserve them
+                    // verbatim. An all-None longer sequence carries no
+                    // positional information, so it falls through and is
+                    // reconciled to this rule's new RHS length below.
+                    if sequence.aliases.len() > field_ranges.len()
+                        && sequence.aliases.iter().any(Option::is_some)
+                    {
+                        remapped_aliases
+                            .entry(rule.production_id)
+                            .or_insert_with(|| sequence.clone());
+                        rule.rhs = new_rhs;
+                        self.add_rule(rule);
+                        continue;
+                    }
+                    let mut aliases = vec![None; new_rhs.len()];
+                    for (position, alias) in sequence.aliases.iter().enumerate() {
+                        let Some(range) = field_ranges.get(position) else {
+                            continue;
+                        };
+                        if alias.is_some() {
+                            if range.len() != 1 {
+                                return Err(GrammarError::AliasOnExpandedSequence {
+                                    lhs: rule.lhs,
+                                    production_id: rule.production_id,
+                                });
+                            }
+                            aliases[range.start] = alias.clone();
+                        }
+                    }
+                    // An all-None sequence carries no alias to anchor a
+                    // truncated length, so it is padded with `None` to the
+                    // new RHS length and validates positionally (#981).
+                    // Sequences with a real alias keep the established
+                    // stored form: trailing unaliased children after the
+                    // last alias are not stored.
+                    let stored_len = aliases
+                        .iter()
+                        .rposition(|alias| alias.is_some())
+                        .map_or(aliases.len(), |last| last + 1);
+                    aliases.truncate(stored_len);
+                    let candidate = AliasSequence { aliases };
+                    if let Some(existing) = remapped_aliases.get(&rule.production_id) {
+                        if *existing != candidate {
+                            return Err(GrammarError::AliasOnExpandedSequence {
+                                lhs: rule.lhs,
+                                production_id: rule.production_id,
+                            });
+                        }
+                    } else {
+                        remapped_aliases.insert(rule.production_id, candidate);
+                    }
+                }
+
                 rule.rhs = new_rhs;
                 self.add_rule(rule);
             }
+            // Keep alias entries for productions with no rule in this pass.
+            for (production_id, sequence) in alias_snapshot {
+                remapped_aliases.entry(production_id).or_insert(sequence);
+            }
+            self.alias_sequences = remapped_aliases;
 
             // If no complex symbols were found in this iteration, we're done
             if !found_complex {
@@ -1142,6 +1273,36 @@ pub enum GrammarError {
     FieldOnEmptySequence {
         /// Rule whose field cannot be preserved
         lhs: SymbolId,
+    },
+
+    /// Rule count exceeds the dense `RuleId(u16)` domain (#985)
+    #[error(
+        "rule ID space exhausted during grammar construction: rule count exceeds the RuleId range"
+    )]
+    RuleSpaceExhausted,
+
+    /// An alias targets a source position expanding to zero or many children (#981)
+    #[error(
+        "alias on rule {lhs} (production {production_id}) cannot be preserved through normalization expansion"
+    )]
+    AliasOnExpandedSequence {
+        /// Rule whose alias cannot be preserved
+        lhs: SymbolId,
+        /// Production whose alias sequence is ambiguous
+        production_id: ProductionId,
+    },
+
+    /// An alias sequence does not describe its rule's RHS positions (#981)
+    #[error(
+        "alias sequence for production {production_id} has {alias_len} entries but a sharing rule has {rhs_len} RHS symbols"
+    )]
+    AliasLengthMismatch {
+        /// Production with the stale alias sequence
+        production_id: ProductionId,
+        /// Recorded alias entries
+        alias_len: usize,
+        /// RHS length of a rule using the production
+        rhs_len: usize,
     },
 
     /// Invalid precedence declaration
