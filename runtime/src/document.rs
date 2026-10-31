@@ -24,6 +24,8 @@ use diagnostics::{attach_related_nodes, build_diagnostics, source_line};
 use json_projection::{ambiguity_to_json, diagnostic_to_json, node_to_document_json};
 pub(crate) use runtime_metadata::DocumentRuntime;
 pub use runtime_metadata::{IncrementalFallbackReason, ParseMetadata};
+#[cfg(feature = "ts-compat")]
+pub(crate) use source_position::SourceLineIndex;
 pub use source_position::{DocumentPoint, PointRange};
 use tree_builder::{build_flat_tree, insert_symbol};
 use typed_ast::TypedAstExtractionTarget;
@@ -84,12 +86,9 @@ impl ParseOutcome {
 #[derive(Clone, Debug)]
 pub struct AdzeDocument {
     source: String,
-    // Retained recursive root: only ts-compat still projects from it
-    // (`root_parse_node`); every other consumer reads flat records. Gated so
-    // non-ts-compat builds carry no second persistent tree. Full retirement
-    // (including the ts-compat projection) is #901.
-    #[cfg(feature = "ts-compat")]
-    root: ParseNode,
+    // No persistent recursive tree: the selected tree lives only as flat
+    // records in `syntax`. The `root` construction parameter is consumed
+    // once by `SyntaxTree::from_parse_root` and dropped.
     syntax: SyntaxTree,
     language: LanguageMetadata,
     diagnostics: Vec<ParseDiagnostic>,
@@ -188,12 +187,11 @@ impl AdzeDocument {
     ) -> Self {
         let mut diagnostics = diagnostics;
         attach_related_nodes(&syntax, &mut diagnostics);
-        #[cfg(not(feature = "ts-compat"))]
+        // `root` is consumed once by flat construction above and dropped:
+        // no persistent recursive tree is retained.
         let _ = root;
         Self {
             source: source.to_string(),
-            #[cfg(feature = "ts-compat")]
-            root,
             syntax,
             language,
             diagnostics,
@@ -265,6 +263,16 @@ impl AdzeDocument {
     /// documents return an empty slice.
     pub fn ambiguities(&self) -> &[crate::glr_parser::AmbiguitySummary] {
         &self.ambiguities
+    }
+
+    /// Return the canonical flat selected-tree records.
+    ///
+    /// Compatibility projections (notably ts-compat) resolve traversal,
+    /// ranges, and flags from these facts instead of cloning or searching a
+    /// recursive tree.
+    #[cfg(feature = "ts-compat")]
+    pub(crate) fn syntax(&self) -> &SyntaxTree {
+        &self.syntax
     }
 
     /// Return parse metadata recorded for this document.
@@ -475,11 +483,6 @@ impl AdzeDocument {
             value,
             provenance: Provenance::Node(node_id),
         })
-    }
-
-    #[cfg(feature = "ts-compat")]
-    pub(crate) fn root_parse_node(&self) -> &ParseNode {
-        &self.root
     }
 
     fn typed_ast_extraction_target(&self) -> TypedAstExtractionTarget {
