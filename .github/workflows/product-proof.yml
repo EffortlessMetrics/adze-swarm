@@ -199,54 +199,33 @@ jobs:
     timeout-minutes: 5
     name: Product Proof Result
     needs: [detect-stable-product-paths, pr-canary-plan, ci-product-stable]
+    # Always evaluate (#995): a skipped required check satisfies branch
+    # protection, so cancelled/failed/skipped prerequisites must reach
+    # the evaluator and fail there instead of skipping this job.
     if: >-
       always() &&
-      (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
-      needs.detect-stable-product-paths.result != 'cancelled' &&
-      needs.pr-canary-plan.result != 'cancelled' &&
-      needs.ci-product-stable.result != 'cancelled'
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 1
+      # Two-tier meaning: on pull_request this is the cheap admission
+      # signal (detection plus canary dry-run); otherwise it verifies
+      # detection plus executed canaries. The evaluator enforces the
+      # #995 truth table; only an explicit validated no-work decision
+      # (detector success + run_stable=false + reason) may pass without
+      # selected proof.
       - name: Aggregate Product Proof result
         shell: bash
-        run: |
-          # Two-tier meaning, stated explicitly: on pull_request this
-          # check is the cheap admission signal (detection plus canary
-          # dry-run), and canary execution happens once per merge-queue
-          # entry. Otherwise it verifies detection plus executed canaries.
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "mode=pull-request-admission"
-            [[ "${{ needs.detect-stable-product-paths.result }}" == "success" ]] || exit 1
-            [[ "${{ needs.pr-canary-plan.result }}" == "success" ]] || exit 1
-            exit 0
-          fi
-          echo "mode=full-qualification"
-          detect_result="${{ needs.detect-stable-product-paths.result }}"
-          run_stable="${{ needs.detect-stable-product-paths.outputs.run_stable }}"
-          reason="${{ needs.detect-stable-product-paths.outputs.reason }}"
-          stable_result="${{ needs.ci-product-stable.result }}"
-
-          echo "detect_result=$detect_result"
-          echo "run_stable=$run_stable"
-          echo "reason=$reason"
-          echo "stable_result=$stable_result"
-
-          if [[ "$detect_result" != "success" ]]; then
-            echo "::error::Product Proof path detection failed."
-            exit 1
-          fi
-
-          if [[ "$run_stable" != "true" ]]; then
-            echo "::notice::Stable Product Proof canaries skipped: $reason"
-            exit 0
-          fi
-
-          if [[ "$stable_result" == "success" ]]; then
-            exit 0
-          fi
-
-          echo "::error::Stable Product Proof canaries were selected but did not pass."
-          exit 1
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DETECT_RESULT: ${{ needs.detect-stable-product-paths.result }}
+          RUN_STABLE: ${{ needs.detect-stable-product-paths.outputs.run_stable }}
+          DETECT_REASON: ${{ needs.detect-stable-product-paths.outputs.reason }}
+          STABLE_RESULT: ${{ needs.ci-product-stable.result }}
+          PR_CANARY_RESULT: ${{ needs.pr-canary-plan.result }}
+        run: python3 scripts/evaluate-required-result.py product
 
   ci-product:
     timeout-minutes: 30
