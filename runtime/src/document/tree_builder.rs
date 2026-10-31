@@ -1,82 +1,14 @@
 //! Syntax-tree record and edge construction helpers.
 //!
 //! Canonical flat construction uses explicit heap traversal frames so document
-//! building does not consume call-stack depth proportional to tree depth. The
-//! retained [`NodeIndex`] path bridge (used by `parse_node_by_id` for typed
-//! AST extraction) is temporary compatibility state under #901 and is not
-//! consulted by [`SyntaxTree`] construction.
+//! building does not consume call-stack depth proportional to tree depth.
+//! Parents and edges derive directly from the selected parse tree; the
+//! retained recursive root is compatibility state for ts-compat (#860/#901)
+//! and is not consulted here.
 
 use super::diagnostics::is_error_parse_node;
 use super::source_position::SourceLineIndex;
 use super::*;
-
-/// Temporary compatibility bridge for typed AST extraction (`parse_node_by_id`
-/// replays [`NodeIndex::path`] through the retained recursive root).
-///
-/// Built with an explicit heap stack so deep trees cannot overflow the call
-/// stack. The per-node cloned `path` remains `O(n*depth)` storage; that cost
-/// is owned by #901 (retire the recursive root/path index), not by canonical
-/// flat construction, which derives parents and edges directly.
-pub(super) fn build_node_index(root: &ParseNode) -> Vec<NodeIndex> {
-    enum Task<'a> {
-        Enter {
-            node: &'a ParseNode,
-            parent: Option<NodeId>,
-            path_index: Option<usize>,
-        },
-        Leave {
-            pushes_path: bool,
-        },
-    }
-
-    let mut index: Vec<NodeIndex> = Vec::new();
-    let mut path = Vec::new();
-    let mut stack = vec![Task::Enter {
-        node: root,
-        parent: None,
-        path_index: None,
-    }];
-
-    while let Some(task) = stack.pop() {
-        match task {
-            Task::Enter {
-                node,
-                parent,
-                path_index,
-            } => {
-                if let Some(child_index) = path_index {
-                    path.push(child_index);
-                }
-                let id = NodeId::new(index.len());
-                if let Some(parent_id) = parent {
-                    index[parent_id.as_usize()].child_ids.push(id);
-                }
-                index.push(NodeIndex {
-                    path: path.clone(),
-                    parent_id: parent,
-                    child_ids: Vec::with_capacity(node.children.len()),
-                });
-                stack.push(Task::Leave {
-                    pushes_path: path_index.is_some(),
-                });
-                for (child_index, child) in node.children.iter().enumerate().rev() {
-                    stack.push(Task::Enter {
-                        node: child,
-                        parent: Some(id),
-                        path_index: Some(child_index),
-                    });
-                }
-            }
-            Task::Leave { pushes_path } => {
-                if pushes_path {
-                    path.pop();
-                }
-            }
-        }
-    }
-
-    index
-}
 
 /// Flat node/edge/parent records built directly from one selected parse tree.
 ///
@@ -499,42 +431,5 @@ mod tests {
         assert!(built.nodes[0].flags().has_error(), "root");
         assert!(!built.nodes[3].flags().has_error(), "clean sibling");
         assert!(built.nodes[0].flags().has_error(), "flat root flag");
-    }
-
-    #[test]
-    fn test_node_index_deep_chain_matches_flat_parents() {
-        const DEPTH: usize = 4_000;
-        let mut current = leaf(9, 0, 1);
-        for _ in 1..DEPTH {
-            current = ParseNode {
-                symbol: SymbolId(9),
-                symbol_id: SymbolId(9),
-                start_byte: 0,
-                end_byte: 1,
-                field_name: None,
-                alias_symbol_id: None,
-                children: vec![current],
-            };
-        }
-        let source = "x".to_string();
-        let language = test_language();
-        let flat = build_flat_tree(&current, &source, &language, 0);
-        let index = build_node_index(&current);
-
-        assert_eq!(index.len(), DEPTH);
-        assert_eq!(index[0].parent_id, None);
-        for id in 1..DEPTH {
-            assert_eq!(index[id].parent_id, Some(NodeId::new(id - 1)));
-            assert_eq!(index[id - 1].child_ids, vec![NodeId::new(id)]);
-            assert_eq!(index[id].path.len(), id, "compat path length at {id}");
-        }
-        assert_eq!(
-            index
-                .iter()
-                .map(|entry| entry.parent_id)
-                .collect::<Vec<_>>(),
-            flat.parents,
-            "compat parent table must agree with canonical flat parents"
-        );
     }
 }

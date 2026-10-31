@@ -25,10 +25,10 @@ use json_projection::{ambiguity_to_json, diagnostic_to_json, node_to_document_js
 pub(crate) use runtime_metadata::DocumentRuntime;
 pub use runtime_metadata::{IncrementalFallbackReason, ParseMetadata};
 pub use source_position::{DocumentPoint, PointRange};
-use tree_builder::{build_flat_tree, build_node_index, insert_symbol};
+use tree_builder::{build_flat_tree, insert_symbol};
 use typed_ast::TypedAstExtractionTarget;
 pub use typed_ast::{Provenance, SyntheticReason, TypedAst};
-use typed_conversion::document_node_to_parsed_node;
+use typed_conversion::flat_subtree_to_parsed_node;
 
 use adze_ir::{Grammar, SymbolId};
 use std::num::NonZeroU16;
@@ -84,8 +84,12 @@ impl ParseOutcome {
 #[derive(Clone, Debug)]
 pub struct AdzeDocument {
     source: String,
+    // Retained recursive root: only ts-compat still projects from it
+    // (`root_parse_node`); every other consumer reads flat records. Gated so
+    // non-ts-compat builds carry no second persistent tree. Full retirement
+    // (including the ts-compat projection) is #901.
+    #[cfg(feature = "ts-compat")]
     root: ParseNode,
-    node_index: Vec<NodeIndex>,
     syntax: SyntaxTree,
     language: LanguageMetadata,
     diagnostics: Vec<ParseDiagnostic>,
@@ -109,7 +113,6 @@ impl AdzeDocument {
             parse_table,
             pure_language: None,
         };
-        let node_index = build_node_index(&root);
         let language = LanguageMetadata::from_runtime(
             runtime.language_name,
             runtime.grammar,
@@ -122,7 +125,6 @@ impl AdzeDocument {
             root,
             error_count,
             runtime,
-            node_index,
             language,
             syntax,
             diagnostics,
@@ -155,7 +157,6 @@ impl AdzeDocument {
         diagnostics: Vec<ParseDiagnostic>,
         ambiguities: Vec<crate::glr_parser::AmbiguitySummary>,
     ) -> Self {
-        let node_index = build_node_index(&root);
         let language = LanguageMetadata::from_runtime(
             runtime.language_name,
             runtime.grammar,
@@ -167,7 +168,6 @@ impl AdzeDocument {
             root,
             error_count,
             runtime,
-            node_index,
             language,
             syntax,
             diagnostics,
@@ -181,7 +181,6 @@ impl AdzeDocument {
         root: ParseNode,
         error_count: usize,
         runtime: DocumentRuntime<'_>,
-        node_index: Vec<NodeIndex>,
         language: LanguageMetadata,
         syntax: SyntaxTree,
         diagnostics: Vec<ParseDiagnostic>,
@@ -189,10 +188,12 @@ impl AdzeDocument {
     ) -> Self {
         let mut diagnostics = diagnostics;
         attach_related_nodes(&syntax, &mut diagnostics);
+        #[cfg(not(feature = "ts-compat"))]
+        let _ = root;
         Self {
             source: source.to_string(),
+            #[cfg(feature = "ts-compat")]
             root,
-            node_index,
             syntax,
             language,
             diagnostics,
@@ -394,16 +395,38 @@ impl AdzeDocument {
     {
         let language = self.typed_ast_language()?;
 
-        let parsed_root = document_node_to_parsed_node(&self.root, language, self.source_bytes());
+        // Convert only the extraction-target subtree from flat records: no
+        // path replay, no full-root conversion, one shared line index.
         let extraction_target = self.typed_ast_extraction_target();
-        let extract_node = extraction_target
+        let target_id = extraction_target
             .child_index
-            .and_then(|child_index| parsed_root.children.get(child_index))
-            .unwrap_or(&parsed_root);
+            .and_then(|child_index| self.syntax.child_id(self.syntax.root_id(), child_index))
+            .unwrap_or_else(|| self.syntax.root_id());
+        let Some(parsed_target) = flat_subtree_to_parsed_node(
+            &self.syntax,
+            self.language(),
+            language,
+            &self.source,
+            target_id,
+        ) else {
+            return Err(vec![crate::errors::ParseError {
+                reason: crate::errors::ParseErrorReason::UnexpectedToken(format!(
+                    "typed AST extraction target {} does not exist in document",
+                    target_id.as_usize()
+                )),
+                start: 0,
+                end: 0,
+                expected: Vec::new(),
+            }]);
+        };
 
-        let value =
-            <T as crate::Extract<_>>::try_extract(Some(extract_node), self.source_bytes(), 0, None)
-                .map_err(|error| vec![error])?;
+        let value = <T as crate::Extract<_>>::try_extract(
+            Some(&parsed_target),
+            self.source_bytes(),
+            0,
+            None,
+        )
+        .map_err(|error| vec![error])?;
 
         Ok(TypedAst {
             value,
@@ -426,7 +449,13 @@ impl AdzeDocument {
         T: crate::Extract<T>,
     {
         let language = self.typed_ast_language()?;
-        let Some(node) = self.parse_node_by_id(node_id) else {
+        let Some(parsed_node) = flat_subtree_to_parsed_node(
+            &self.syntax,
+            self.language(),
+            language,
+            &self.source,
+            node_id,
+        ) else {
             return Err(vec![crate::errors::ParseError {
                 reason: crate::errors::ParseErrorReason::UnexpectedToken(format!(
                     "typed AST extraction node {} does not exist in document",
@@ -438,7 +467,6 @@ impl AdzeDocument {
             }]);
         };
 
-        let parsed_node = document_node_to_parsed_node(node, language, self.source_bytes());
         let value =
             <T as crate::Extract<_>>::try_extract(Some(&parsed_node), self.source_bytes(), 0, None)
                 .map_err(|error| vec![error])?;
@@ -452,24 +480,6 @@ impl AdzeDocument {
     #[cfg(feature = "ts-compat")]
     pub(crate) fn root_parse_node(&self) -> &ParseNode {
         &self.root
-    }
-
-    /// Look up the recursive bridge node for a document-local id.
-    ///
-    /// This replays the recorded root-to-node child path through the retained
-    /// recursive `root` storage. It exists only as a compatibility bridge for
-    /// typed AST extraction until extraction also reads flat records. Native
-    /// traversal ([`AdzeTree::node`], [`AdzeNode`]) resolves ids directly from
-    /// [`SyntaxTree`] records and never calls this helper.
-    fn parse_node_by_id(&self, node_id: NodeId) -> Option<&ParseNode> {
-        let index = self.node_index.get(node_id.as_usize())?;
-        let mut node = &self.root;
-
-        for &child_index in &index.path {
-            node = node.children.get(child_index)?;
-        }
-
-        Some(node)
     }
 
     fn typed_ast_extraction_target(&self) -> TypedAstExtractionTarget {
@@ -599,16 +609,6 @@ impl NodeId {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct NodeIndex {
-    /// Root-to-node child path replayed through the retained recursive root
-    /// by `parse_node_by_id`. Temporary compatibility state under #901: the
-    /// canonical flat builder never reads it.
-    path: Vec<usize>,
-    parent_id: Option<NodeId>,
-    child_ids: Vec<NodeId>,
-}
-
 /// Direct selected-tree storage for an [`AdzeDocument`].
 ///
 /// This is the alpha v2 storage layer behind the borrowed [`AdzeTree`] view.
@@ -630,8 +630,8 @@ impl SyntaxTree {
     /// Construction uses explicit heap traversal frames (no recursion) and a
     /// single document-local line index. Every child of every visited node
     /// yields exactly one edge; nothing is silently dropped. The retained
-    /// recursive root and [`NodeIndex`] path table are compatibility state
-    /// owned by #901 and are not consulted here.
+    /// recursive root is compatibility state owned by #901 (ts-compat) and
+    /// is not consulted here.
     fn from_parse_root(
         root: &ParseNode,
         source: &str,
