@@ -178,8 +178,8 @@ class ObservationTests(unittest.TestCase):
     def test_task_packet_denominator_matches_instructions_and_rubric(self):
         import re
         folder = SCRIPT.parent.parent / "docs/product/developer-tasks"
-        instructions = (folder / "tasks.md").read_text()
-        rubric = (folder / "evaluator.md").read_text()
+        instructions = (folder / "tasks.md").read_text(encoding="utf-8")
+        rubric = (folder / "evaluator.md").read_text(encoding="utf-8")
         self.assertEqual(tuple(re.findall(r"^## (D[0-9]{2}) ", instructions, re.MULTILINE)), validator.TASK_IDS)
         self.assertEqual(tuple(re.findall(r"^\| (D[0-9]{2}) \|", rubric, re.MULTILINE)), validator.TASK_IDS)
         self.assertIsNone(re.search(r"#[0-9]{3,}", instructions))
