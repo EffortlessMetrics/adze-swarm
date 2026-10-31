@@ -25,7 +25,7 @@ use json_projection::{ambiguity_to_json, diagnostic_to_json, node_to_document_js
 pub(crate) use runtime_metadata::DocumentRuntime;
 pub use runtime_metadata::{IncrementalFallbackReason, ParseMetadata};
 pub use source_position::{DocumentPoint, PointRange};
-use tree_builder::{build_node_index, collect_edge_records, collect_node_records, insert_symbol};
+use tree_builder::{build_flat_tree, build_node_index, insert_symbol};
 use typed_ast::TypedAstExtractionTarget;
 pub use typed_ast::{Provenance, SyntheticReason, TypedAst};
 use typed_conversion::document_node_to_parsed_node;
@@ -144,8 +144,7 @@ impl AdzeDocument {
             runtime.grammar,
             runtime.parse_table,
         );
-        let syntax =
-            SyntaxTree::from_parse_root(&root, source, &language, error_count, &node_index);
+        let syntax = SyntaxTree::from_parse_root(&root, source, &language, error_count);
         let mut diagnostics = diagnostics;
         attach_related_nodes(&root, &mut diagnostics);
         Self {
@@ -560,6 +559,9 @@ impl NodeId {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct NodeIndex {
+    /// Root-to-node child path replayed through the retained recursive root
+    /// by `parse_node_by_id`. Temporary compatibility state under #901: the
+    /// canonical flat builder never reads it.
     path: Vec<usize>,
     parent_id: Option<NodeId>,
     child_ids: Vec<NodeId>,
@@ -580,23 +582,28 @@ pub struct SyntaxTree {
 }
 
 impl SyntaxTree {
+    /// Build canonical flat node/edge/parent records directly from one
+    /// selected parse tree.
+    ///
+    /// Construction uses explicit heap traversal frames (no recursion) and a
+    /// single document-local line index. Every child of every visited node
+    /// yields exactly one edge; nothing is silently dropped. The retained
+    /// recursive root and [`NodeIndex`] path table are compatibility state
+    /// owned by #901 and are not consulted here.
     fn from_parse_root(
         root: &ParseNode,
         source: &str,
         language: &LanguageMetadata,
         error_count: usize,
-        node_index: &[NodeIndex],
     ) -> Self {
-        let mut nodes = Vec::new();
-        collect_node_records(root, source, language, error_count, true, &mut nodes);
+        let built = build_flat_tree(root, source, language, error_count);
 
-        let mut tree = Self {
+        let tree = Self {
             root_id: NodeId::new(0),
-            nodes,
-            edges: Vec::new(),
-            parents: node_index.iter().map(|index| index.parent_id).collect(),
+            nodes: built.nodes,
+            edges: built.edges,
+            parents: built.parents,
         };
-        collect_edge_records(root, tree.root_id, node_index, language, &mut tree);
         debug_assert!(
             tree.validate().is_ok(),
             "document SyntaxTree construction must produce symmetric node/edge/parent records"
