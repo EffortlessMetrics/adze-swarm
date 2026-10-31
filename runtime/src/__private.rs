@@ -13,6 +13,104 @@ use crate::pure_parser::ParsedNode;
 #[cfg(not(feature = "pure-rust"))]
 use crate::tree_sitter;
 
+/// The one table-derived engine decision consumed by both generated
+/// `parse()` and `parse_document()` (#895 inventory, #896 dispatch).
+///
+/// The decision is derived from the *actual decoded parse table*, never
+/// from the generated `HAS_CONFLICTS` hint alone: a hint/table mismatch
+/// therefore cannot silently select a different engine. See
+/// `docs/reference/parser-engine-ownership.md` for the full entry-point
+/// inventory and the status of every non-canonical parser module.
+#[cfg(feature = "pure-rust")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EngineDispatch {
+    /// Conflict-free (or precedence-resolved) table: the deterministic
+    /// LR engine (`pure_parser::Parser::parse_string`) owns semantics.
+    DeterministicLr,
+    /// Genuinely conflicted table with a streaming-capable generated
+    /// lexer: the streaming GLR engine (`adze_glr_core::Driver`) owns
+    /// semantics, including its native failure facts.
+    StreamingGlr,
+    /// Genuinely conflicted table for a language with no generated
+    /// `lex_fn`: the legacy `glr_parser::GLRParser` route. Retained only
+    /// for lex-fn-less synthetic languages; not a generated production
+    /// route and not silently interchangeable with `StreamingGlr`.
+    LegacyGlrWithoutLexFn,
+    /// Conflicted table that cannot run on the compiled GLR engine
+    /// (a generated lexer that is not streaming-routable). Callers must
+    /// fail explicitly; no other engine may be substituted.
+    UnsupportedConflictedTable,
+}
+
+/// Decide the engine for `language` from its decoded `parse_table`.
+///
+/// This is the single dispatch policy (#896): both public generated
+/// entry points call it and execute exactly the returned decision. A
+/// selected engine's failure is returned as-is; this policy never
+/// retries another engine after a failure (#897/#1030).
+/// Feature-independent dispatch policy (#896). `glr_enabled` is the
+/// compiled capability, passed explicitly so this decision can be unit
+/// tested in either feature profile. A conflicted table without the
+/// `glr` feature keeps the pre-existing pure-rust diagnostics contract
+/// (deterministic LR diagnostics, feature-stable per the
+/// `generated_parse_errors` suite); making it explicitly unsupported
+/// is a contract change still owned by #896/#1072.
+#[cfg(feature = "pure-rust")]
+fn engine_dispatch_policy(
+    has_conflicts: bool,
+    glr_enabled: bool,
+    has_lex_fn: bool,
+    streaming_routable: bool,
+) -> EngineDispatch {
+    if !has_conflicts {
+        return EngineDispatch::DeterministicLr;
+    }
+    if !glr_enabled {
+        return EngineDispatch::DeterministicLr;
+    }
+    if has_lex_fn && streaming_routable {
+        return EngineDispatch::StreamingGlr;
+    }
+    if has_lex_fn {
+        return EngineDispatch::UnsupportedConflictedTable;
+    }
+    EngineDispatch::LegacyGlrWithoutLexFn
+}
+
+#[cfg(feature = "pure-rust")]
+pub fn engine_dispatch_for_table(
+    language: &'static crate::pure_parser::TSLanguage,
+    parse_table: &adze_glr_core::ParseTable,
+) -> EngineDispatch {
+    let has_conflicts = parse_table_has_conflicts(parse_table);
+    #[cfg(feature = "glr")]
+    let streaming_routable = has_conflicts
+        && language.lex_fn.is_some()
+        && crate::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
+            language,
+            parse_table,
+        );
+    #[cfg(not(feature = "glr"))]
+    let streaming_routable = false;
+    engine_dispatch_policy(
+        has_conflicts,
+        cfg!(feature = "glr"),
+        language.lex_fn.is_some(),
+        streaming_routable,
+    )
+}
+
+/// Convenience wrapper over [`engine_dispatch_for_table`] that decodes
+/// the table for `language` first. Prefer the table-taking form when a
+/// decoded table already exists, to avoid decoding twice.
+#[cfg(feature = "pure-rust")]
+pub fn engine_dispatch_for_language(
+    language: &'static crate::pure_parser::TSLanguage,
+) -> EngineDispatch {
+    let parse_table = crate::decoder::decode_parse_table(language);
+    engine_dispatch_for_table(language, &parse_table)
+}
+
 #[cfg(feature = "pure-rust")]
 /// A cursor for navigating parsed nodes in pure-rust mode
 pub struct TreeCursor<'a> {
@@ -395,30 +493,32 @@ pub fn parse<T: Extract<T>>(
     input: &str,
     language: impl Fn() -> &'static crate::pure_parser::TSLanguage,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
-    // Select parser backend based on feature flags
-    use crate::parser_selection::ParserBackend;
-    let backend = crate::parser_selection::current_backend_for(T::HAS_CONFLICTS);
-
-    match backend {
-        ParserBackend::GLR => {
-            // GLR parser path (parser_v4)
-            parse_with_glr::<T>(input, language)
+    // One table-derived dispatch (#896), shared with `parse_document`.
+    // The decoded table is authoritative; `T::HAS_CONFLICTS` is only a
+    // generated hint and must not override it. The selected engine's
+    // result is returned directly: no cross-engine retry (#897).
+    let lang = language();
+    let parse_table = crate::decoder::decode_parse_table(lang);
+    match engine_dispatch_for_table(lang, &parse_table) {
+        EngineDispatch::DeterministicLr => parse_with_pure_parser::<T>(input, language),
+        #[cfg(feature = "glr")]
+        dispatch @ (EngineDispatch::StreamingGlr
+        | EngineDispatch::LegacyGlrWithoutLexFn
+        | EngineDispatch::UnsupportedConflictedTable) => {
+            parse_with_true_glr_runtime::<T>(input, lang, parse_table, dispatch)
         }
-        ParserBackend::PureRust => {
-            // Simple LR parser path (pure_parser)
-            parse_with_pure_parser::<T>(input, language)
-        }
-        ParserBackend::TreeSitter => {
-            let errors = vec![crate::errors::ParseError {
-                reason: crate::errors::ParseErrorReason::UnexpectedToken(
-                    "TreeSitter backend is not supported in pure-rust mode".to_string(),
-                ),
-                start: 0,
-                end: 0,
-                expected: vec![],
-            }];
-            Err(errors)
-        }
+        #[cfg(not(feature = "glr"))]
+        EngineDispatch::StreamingGlr
+        | EngineDispatch::LegacyGlrWithoutLexFn
+        | EngineDispatch::UnsupportedConflictedTable => Err(vec![crate::errors::ParseError {
+            reason: crate::errors::ParseErrorReason::UnexpectedToken(
+                "conflicted grammar requires the `glr` feature; no other engine was substituted"
+                    .to_string(),
+            ),
+            start: 0,
+            end: 0,
+            expected: vec![],
+        }]),
     }
 }
 
@@ -433,14 +533,30 @@ pub fn parse_document(
     let grammar = crate::decoder::decode_grammar(lang);
     let parse_table = crate::decoder::decode_parse_table(lang);
 
+    // Same table-derived dispatch as `parse()` (#896): both entry points
+    // execute the one decision returned for this decoded table.
+    let dispatch = engine_dispatch_for_table(lang, &parse_table);
+    #[cfg(not(feature = "glr"))]
+    if dispatch == EngineDispatch::UnsupportedConflictedTable {
+        return Err(vec![crate::errors::ParseError {
+            reason: crate::errors::ParseErrorReason::UnexpectedToken(
+                "conflicted grammar requires the `glr` feature; no other engine was substituted"
+                    .to_string(),
+            ),
+            start: 0,
+            end: 0,
+            expected: vec![],
+        }]);
+    }
     #[cfg(feature = "glr")]
-    if parse_table_has_conflicts(&parse_table) {
+    if dispatch != EngineDispatch::DeterministicLr {
         return parse_document_with_true_glr_runtime(
             input,
             lang,
             grammar_name,
             grammar,
             parse_table,
+            dispatch,
         );
     }
 
@@ -494,7 +610,7 @@ pub fn parse_document(
     )
 }
 
-#[cfg(all(feature = "glr", feature = "pure-rust"))]
+#[cfg(feature = "pure-rust")]
 fn parse_table_has_conflicts(parse_table: &adze_glr_core::ParseTable) -> bool {
     use adze_glr_core::conflict_inspection::state_has_conflicts;
     use adze_ir::StateId;
@@ -544,20 +660,67 @@ fn parse_document_with_streaming_true_glr_runtime(
 
 /// Diagnostics from outermost error (symbol-0) nodes in a converted
 /// document tree. Ranges are clamped to the source; expected tokens are
-/// deliberately empty where the selected tree carries no such metadata.
+/// native GLR missing-terminal names where the selected tree carries
+/// them, and deliberately empty otherwise.
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
-fn recovery_diagnostics_for_document_root(
+/// Diagnostics as above, with native GLR missing-terminal expected names (#1030)
+/// keyed by byte position, computed before tree conversion, plus the
+/// decoded table's initial-state expected names for an error at byte 0.
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn recovery_diagnostics_for_document_root_with_missing(
     root: &crate::parser_v4::ParseNode,
     source: &str,
+    missing: &[(usize, Vec<String>)],
+    initial_expected: &[String],
+    failure_expected: &[(usize, Vec<String>)],
 ) -> Vec<crate::document::ParseDiagnostic> {
     fn collect(
         node: &crate::parser_v4::ParseNode,
         source: &str,
+        missing: &[(usize, Vec<String>)],
+        initial_expected: &[String],
+        failure_expected: &[(usize, Vec<String>)],
         out: &mut Vec<crate::document::ParseDiagnostic>,
     ) {
         if node.symbol.0 == 0 {
-            let start_byte = node.start_byte.min(source.len());
-            let end_byte = node.end_byte.min(source.len()).max(start_byte);
+            let mut start_byte = node.start_byte.min(source.len());
+            let mut end_byte = node.end_byte.min(source.len()).max(start_byte);
+            // Missing terminal inserted before a real token: the
+            // diagnostic points at that token, matching parse() (#1097).
+            if start_byte == end_byte
+                && start_byte < source.len()
+                && missing.iter().any(|(byte, _)| *byte == start_byte)
+            {
+                end_byte = diagnostic_end_for_byte(source.as_bytes(), start_byte);
+            }
+            // Trailing-delimiter presentation (#1097), matching parse():
+            // a delimiter at EOF after a complete construct is the
+            // unexpected token; only end-of-input was expected after it.
+            let mut expected_override: Option<Vec<String>> = None;
+            if start_byte == end_byte && start_byte == source.len() {
+                let bytes = source.as_bytes();
+                let mut sep_end = start_byte;
+                while sep_end > 0 && bytes[sep_end - 1].is_ascii_whitespace() {
+                    sep_end -= 1;
+                }
+                let missing_names = missing
+                    .iter()
+                    .find(|(byte, _)| *byte == start_byte)
+                    .map(|(_, names)| names);
+                if sep_end > 0
+                    && (bytes[sep_end - 1] == b',' || bytes[sep_end - 1] == b';')
+                    && missing_names.is_some_and(|names| {
+                        !names.iter().any(|name| name == "end")
+                            && !names
+                                .iter()
+                                .any(|name| name == &(bytes[sep_end - 1] as char).to_string())
+                    })
+                {
+                    start_byte = sep_end - 1;
+                    end_byte = sep_end;
+                    expected_override = Some(vec!["end".to_string()]);
+                }
+            }
             let (found, message) = if start_byte == end_byte && start_byte == source.len() {
                 (
                     Some("end of input".to_string()),
@@ -577,18 +740,51 @@ fn recovery_diagnostics_for_document_root(
                     start_byte..end_byte,
                 ),
                 found,
-                expected: Vec::new(),
+                expected: expected_override.unwrap_or_else(|| {
+                    let from_missing = missing
+                        .iter()
+                        .find(|(byte, _)| *byte >= start_byte && *byte <= end_byte.max(start_byte))
+                        .map(|(_, names)| names.clone());
+                    match from_missing {
+                        Some(names) => names,
+                        None => failure_expected
+                            .iter()
+                            .find(|(byte, _)| *byte == start_byte)
+                            .map(|(_, names)| names.clone())
+                            .unwrap_or_else(|| {
+                                if start_byte == 0 {
+                                    initial_expected.to_vec()
+                                } else {
+                                    Vec::new()
+                                }
+                            }),
+                    }
+                }),
                 related_nodes: Vec::new(),
                 message,
             });
             return;
         }
         for child in &node.children {
-            collect(child, source, out);
+            collect(
+                child,
+                source,
+                missing,
+                initial_expected,
+                failure_expected,
+                out,
+            );
         }
     }
     let mut diagnostics = Vec::new();
-    collect(root, source, &mut diagnostics);
+    collect(
+        root,
+        source,
+        missing,
+        initial_expected,
+        failure_expected,
+        &mut diagnostics,
+    );
     diagnostics
 }
 
@@ -608,7 +804,21 @@ pub fn adze_document_from_streaming_parse(
         source.len(),
     );
     let ambiguities = parsed.ambiguities.into_iter().collect::<Vec<_>>();
-    let diagnostics = recovery_diagnostics_for_document_root(&root, source);
+    let missing = missing_token_names_for_subtree(&parsed.root, language);
+    let mut aligned = parse_table.clone();
+    align_true_glr_parse_table_to_language_symbols(language, &mut aligned);
+    let initial = initial_state_expected_names(language, &aligned);
+    let mut doc_leaves: Vec<(u16, usize, usize)> = Vec::new();
+    collect_leaf_terminals_for_subtree(&parsed.root, language, &mut doc_leaves);
+    let failure_expected =
+        failure_expected_for_document_root(&root, language, &aligned, &doc_leaves);
+    let diagnostics = recovery_diagnostics_for_document_root_with_missing(
+        &root,
+        source,
+        &missing,
+        &initial,
+        &failure_expected,
+    );
     let error_count = diagnostics.len();
 
     crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
@@ -646,25 +856,113 @@ fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
 
     if extract_node.has_error() {
         // Error syntax rejects before extraction (#898/#1030): no typed
-        // extraction or converter runs on this path. The LR pass below is
-        // a diagnostic-only observer (`parse_string` builds a tree; it
-        // never calls `Extract`/leaf transforms) retained for the #1097
-        // expected-token contract; it is not native GLR evidence and must
-        // not be used for conversion or selected-tree facts.
-        if let Ok(input) = std::str::from_utf8(source) {
-            let mut lr_parser = crate::pure_parser::Parser::new();
-            if lr_parser.set_language(_language).is_ok() {
-                let lr_errors = lr_parser.parse_string(input).errors;
-                if !lr_errors.is_empty() {
-                    return Err(lr_errors
-                        .into_iter()
-                        .map(|e| map_lr_parse_error(input, _language, e))
-                        .collect());
+        // extraction or converter runs on this path, and no other engine
+        // is consulted for diagnostics (#1030 remainder). Native
+        // expected-token metadata comes from the selected GLR tree
+        // itself: a recovery-inserted missing terminal's symbol is a
+        // token the GLR engine expected at that byte, so its generated
+        // name populates `expected`. Hard streaming failures carry the
+        // fuller native set via `glr_error_to_parse_errors`.
+        let mut missing: Vec<(usize, Vec<String>)> = Vec::new();
+        collect_missing_token_names(extract_node, _language, &mut missing);
+        let mut errors = vec![];
+        crate::errors::collect_parsing_errors(extract_node, source, &mut errors);
+        for error in &mut errors {
+            if error.expected.is_empty()
+                && let Some((byte, names)) = missing
+                    .iter()
+                    .find(|(byte, _)| *byte >= error.start && *byte <= error.end.max(error.start))
+                    .map(|(byte, names)| (*byte, names.clone()))
+            {
+                error.expected = names.clone();
+                if matches!(
+                    error.reason,
+                    crate::errors::ParseErrorReason::FailedNode(ref inner) if inner.is_empty()
+                ) {
+                    // Trailing-delimiter presentation (#1097), applied to
+                    // native GLR missing facts: a list delimiter at EOF
+                    // after a complete construct is the unexpected token
+                    // and only end-of-input was expected after it.
+                    let mut sep_end = source.len();
+                    while sep_end > 0 && source[sep_end - 1].is_ascii_whitespace() {
+                        sep_end -= 1;
+                    }
+                    let trailing_delimiter = byte >= source.len()
+                        && sep_end > 0
+                        && (source[sep_end - 1] == b',' || source[sep_end - 1] == b';')
+                        && !names.iter().any(|name| name == "end")
+                        && !names
+                            .iter()
+                            .any(|name| name == &(source[sep_end - 1] as char).to_string());
+                    error.reason = if trailing_delimiter {
+                        error.start = sep_end - 1;
+                        error.end = sep_end;
+                        error.expected =
+                            vec![symbol_name_for_diagnostic(_language, _language.eof_symbol)];
+                        let found = (source[sep_end - 1] as char).to_string();
+                        crate::errors::ParseErrorReason::UnexpectedToken(
+                            crate::diagnostic_format::unexpected_token_message(
+                                found,
+                                error.expected.clone(),
+                            ),
+                        )
+                    } else if byte >= source.len() {
+                        crate::errors::ParseErrorReason::UnexpectedEof
+                    } else if error.start == error.end {
+                        // A missing terminal inserted before a real token:
+                        // that token is the unexpected one (#1097 facts,
+                        // derived natively from the GLR recovery tree).
+                        error.start = byte;
+                        error.end = diagnostic_end_for_byte(source, byte);
+                        let found =
+                            String::from_utf8_lossy(&source[error.start..error.end]).into_owned();
+                        crate::errors::ParseErrorReason::UnexpectedToken(
+                            crate::diagnostic_format::unexpected_token_message(found, names),
+                        )
+                    } else {
+                        crate::errors::ParseErrorReason::MissingToken(
+                            names.first().cloned().unwrap_or_default(),
+                        )
+                    };
                 }
             }
         }
-        let mut errors = vec![];
-        crate::errors::collect_parsing_errors(extract_node, source, &mut errors);
+        // An error chunk at the very start of input carries no missing
+        // terminal; the parser was in the initial state there, so the
+        // decoded table's initial ACTION row is the native expected set.
+        if errors.iter().any(|e| e.expected.is_empty() && e.start == 0) {
+            let mut table = crate::decoder::decode_parse_table(_language);
+            align_true_glr_parse_table_to_language_symbols(_language, &mut table);
+            let initial = initial_state_expected_names(_language, &table);
+            if !initial.is_empty() {
+                for error in &mut errors {
+                    if error.expected.is_empty() && error.start == 0 {
+                        error.expected = initial.clone();
+                    }
+                }
+            }
+        }
+        // Mid-input failures (#1030 critic): a recovered error token
+        // away from byte 0 carries neither a missing terminal at its
+        // span nor an initial-state row. Derive its expected set from
+        // the reconstructed GLR stack tops at the failure byte (see
+        // `glr_expected_names_at_failure`); leave it empty only when
+        // that native replay cannot be performed.
+        if errors.iter().any(|error| error.expected.is_empty()) {
+            let mut table = crate::decoder::decode_parse_table(_language);
+            align_true_glr_parse_table_to_language_symbols(_language, &mut table);
+            let mut leaves: Vec<(u16, usize, usize)> = Vec::new();
+            collect_leaf_terminals(extract_node, &mut leaves);
+            for error in &mut errors {
+                if error.expected.is_empty() {
+                    let names =
+                        glr_expected_names_at_failure(_language, &table, &leaves, error.start);
+                    if !names.is_empty() {
+                        error.expected = names;
+                    }
+                }
+            }
+        }
         if errors.is_empty() {
             errors.push(crate::errors::ParseError {
                 reason: crate::errors::ParseErrorReason::UnexpectedToken(
@@ -680,6 +978,299 @@ fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
 
     <T as crate::Extract<_>>::try_extract(Some(extract_node), source, 0, None)
         .map_err(|error| vec![error])
+}
+
+/// Generated names of recovery-inserted missing terminals in a
+/// selected tree, keyed by their zero-width byte position. These are
+/// native GLR expected-token facts (#1030): the engine inserted exactly
+/// these terminals where the input ran out.
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn collect_missing_token_names(
+    node: &crate::pure_parser::ParsedNode,
+    language: &'static crate::pure_parser::TSLanguage,
+    out: &mut Vec<(usize, Vec<String>)>,
+) {
+    if node.is_missing {
+        let names = expected_symbol_names_for_diagnostic(language, &[node.symbol]);
+        if !names.is_empty() {
+            out.push((node.start_byte, names));
+        }
+    }
+    for child in &node.children {
+        collect_missing_token_names(child, language, out);
+    }
+}
+
+/// Expected terminal names in the table's initial state, from the
+/// decoded table's own ACTION row. Native table metadata (#1030) used
+/// for an error chunk at the very start of input, where the parser is
+/// known to be in the initial state.
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+pub(crate) fn initial_state_expected_names(
+    language: &'static crate::pure_parser::TSLanguage,
+    parse_table: &adze_glr_core::ParseTable,
+) -> Vec<String> {
+    expected_names_for_tops(language, parse_table, &[parse_table.initial_state])
+}
+
+/// Expected terminal names from the ACTION rows of the given GLR stack
+/// tops: every terminal with a shift, reduce, accept, or fork action on
+/// at least one top. This is the driver's own failure-state metadata
+/// (`Driver::expected_terminals_for_tops`), reproduced over tops
+/// reconstructed in the finish path below.
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn expected_names_for_tops(
+    language: &'static crate::pure_parser::TSLanguage,
+    parse_table: &adze_glr_core::ParseTable,
+    tops: &[adze_ir::StateId],
+) -> Vec<String> {
+    let mut symbols: Vec<u16> = Vec::new();
+    for sym in parse_table.symbol_to_index.keys() {
+        if parse_table.nonterminal_to_index.contains_key(sym) || parse_table.extras.contains(sym) {
+            continue;
+        }
+        let actionable = tops.iter().any(|top| {
+            parse_table.actions(*top, *sym).iter().any(|action| {
+                matches!(
+                    action,
+                    adze_glr_core::Action::Shift(_)
+                        | adze_glr_core::Action::Reduce(_)
+                        | adze_glr_core::Action::Accept
+                        | adze_glr_core::Action::Fork(_)
+                )
+            })
+        });
+        if actionable {
+            symbols.push(sym.0);
+        }
+    }
+    expected_symbol_names_for_diagnostic(language, &symbols)
+}
+
+/// Real (non-missing, non-error, non-extra) leaf terminals of a selected
+/// pure tree, as `(symbol, start_byte, end_byte)` in tree order.
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn collect_leaf_terminals(
+    node: &crate::pure_parser::ParsedNode,
+    out: &mut Vec<(u16, usize, usize)>,
+) {
+    if node.children.is_empty() {
+        if !node.is_missing && !node.is_error && !node.is_extra {
+            out.push((node.symbol, node.start_byte, node.end_byte));
+        }
+        return;
+    }
+    for child in &node.children {
+        collect_leaf_terminals(child, out);
+    }
+}
+
+/// Same leaf terminals for a streaming `Subtree` root, before document
+/// conversion collapses error structure to symbol-0 nodes.
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn collect_leaf_terminals_for_subtree(
+    subtree: &crate::subtree::Subtree,
+    language: &'static crate::pure_parser::TSLanguage,
+    out: &mut Vec<(u16, usize, usize)>,
+) {
+    if subtree.children.is_empty() {
+        if !subtree.node.is_error
+            && !is_extra_symbol_for_diagnostic(language, subtree.node.symbol_id.0)
+        {
+            out.push((
+                subtree.node.symbol_id.0,
+                subtree.node.byte_range.start,
+                subtree.node.byte_range.end,
+            ));
+        }
+        return;
+    }
+    for child in &subtree.children {
+        collect_leaf_terminals_for_subtree(&child.subtree, language, out);
+    }
+}
+
+/// Native GLR expected-token names at a mid-input failure byte.
+///
+/// The selected tree no longer carries driver stacks, so the stack tops
+/// at `failure_byte` are reconstructed from the tree's own consumed
+/// prefix terminals replayed through the aligned parse table: GLR
+/// reduce closure on each lookahead, then shift. The expected set is
+/// then the ACTION-row union over those tops, exactly as the driver
+/// computes it for a hard failure. No deterministic LR parser is run.
+/// Returns empty when the prefix cannot be replayed (no faked set).
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn glr_expected_names_at_failure(
+    language: &'static crate::pure_parser::TSLanguage,
+    parse_table: &adze_glr_core::ParseTable,
+    leaves: &[(u16, usize, usize)],
+    failure_byte: usize,
+) -> Vec<String> {
+    use adze_glr_core::Action;
+    use adze_ir::{StateId, SymbolId};
+
+    let mut prefix: Vec<(u16, usize, usize)> = leaves
+        .iter()
+        .copied()
+        .filter(|(_, _, end)| *end <= failure_byte)
+        .collect();
+    prefix.sort_by_key(|(_, start, _)| *start);
+
+    let mut stacks: Vec<Vec<StateId>> = vec![vec![parse_table.initial_state]];
+    for &(symbol, _, _) in &prefix {
+        let lookahead = SymbolId(symbol);
+        if parse_table.nonterminal_to_index.contains_key(&lookahead) {
+            continue;
+        }
+        // Reduce closure: every stack reachable by reductions on this
+        // lookahead is a candidate for shifting it.
+        let mut candidates: Vec<Vec<StateId>> = Vec::new();
+        let mut work: Vec<Vec<StateId>> = stacks.clone();
+        while let Some(stack) = work.pop() {
+            if candidates.contains(&stack) {
+                continue;
+            }
+            candidates.push(stack.clone());
+            if candidates.len() > 1024 {
+                return Vec::new();
+            }
+            let Some(&top) = stack.last() else { continue };
+            let mut reduces: Vec<adze_ir::RuleId> = Vec::new();
+            for action in parse_table.actions(top, lookahead) {
+                match action {
+                    Action::Reduce(rule) => reduces.push(*rule),
+                    Action::Fork(nested) => {
+                        for inner in nested {
+                            if let Action::Reduce(rule) = inner {
+                                reduces.push(*rule);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            for rule in reduces {
+                let (lhs, rhs_len) = parse_table.rule(rule);
+                let rhs_len = rhs_len as usize;
+                if stack.len() <= rhs_len {
+                    continue;
+                }
+                let mut reduced: Vec<StateId> = stack[..stack.len() - rhs_len].to_vec();
+                let Some(&goto_from) = reduced.last() else {
+                    continue;
+                };
+                if let Some(next_state) = parse_table.goto(goto_from, lhs) {
+                    reduced.push(next_state);
+                    if !candidates.contains(&reduced) && !work.contains(&reduced) {
+                        work.push(reduced);
+                    }
+                }
+            }
+        }
+        let mut next: Vec<Vec<StateId>> = Vec::new();
+        for stack in &candidates {
+            let Some(&top) = stack.last() else { continue };
+            for action in parse_table.actions(top, lookahead) {
+                let shifts: Vec<StateId> = match action {
+                    Action::Shift(next_state) => vec![*next_state],
+                    Action::Fork(nested) => nested
+                        .iter()
+                        .filter_map(|inner| match inner {
+                            Action::Shift(next_state) => Some(*next_state),
+                            _ => None,
+                        })
+                        .collect(),
+                    _ => Vec::new(),
+                };
+                for next_state in shifts {
+                    let mut shifted = stack.clone();
+                    shifted.push(next_state);
+                    if !next.contains(&shifted) {
+                        next.push(shifted);
+                    }
+                }
+            }
+        }
+        if next.is_empty() || next.len() > 1024 {
+            return Vec::new();
+        }
+        stacks = next;
+    }
+
+    let tops: Vec<StateId> = stacks
+        .iter()
+        .filter_map(|stack| stack.last().copied())
+        .collect();
+    if tops.is_empty() {
+        return Vec::new();
+    }
+    expected_names_for_tops(language, parse_table, &tops)
+}
+
+/// `(failure_byte, expected names)` for every outermost symbol-0 error
+/// node in a converted document root, derived with
+/// [`glr_expected_names_at_failure`] from subtree leaf terminals.
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn failure_expected_for_document_root(
+    root: &crate::parser_v4::ParseNode,
+    language: &'static crate::pure_parser::TSLanguage,
+    parse_table: &adze_glr_core::ParseTable,
+    leaves: &[(u16, usize, usize)],
+) -> Vec<(usize, Vec<String>)> {
+    fn collect_starts(node: &crate::parser_v4::ParseNode, out: &mut Vec<usize>) {
+        if node.symbol.0 == 0 {
+            out.push(node.start_byte);
+            return;
+        }
+        for child in &node.children {
+            collect_starts(child, out);
+        }
+    }
+    let mut starts = Vec::new();
+    collect_starts(root, &mut starts);
+    starts.sort_unstable();
+    starts.dedup();
+    starts
+        .into_iter()
+        .map(|byte| {
+            (
+                byte,
+                glr_expected_names_at_failure(language, parse_table, leaves, byte),
+            )
+        })
+        .filter(|(_, names)| !names.is_empty())
+        .collect()
+}
+
+/// Same missing-terminal facts for a streaming `Subtree` root, used to
+/// give document diagnostics native expected names before conversion
+/// collapses error/missing nodes to symbol 0.
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn missing_token_names_for_subtree(
+    subtree: &crate::subtree::Subtree,
+    language: &'static crate::pure_parser::TSLanguage,
+) -> Vec<(usize, Vec<String>)> {
+    fn collect(
+        subtree: &crate::subtree::Subtree,
+        language: &'static crate::pure_parser::TSLanguage,
+        out: &mut Vec<(usize, Vec<String>)>,
+    ) {
+        if subtree.node.is_error
+            && subtree.node.byte_range.is_empty()
+            && subtree.children.is_empty()
+        {
+            let names = expected_symbol_names_for_diagnostic(language, &[subtree.node.symbol_id.0]);
+            if !names.is_empty() {
+                out.push((subtree.node.byte_range.start, names));
+            }
+        }
+        for child in &subtree.children {
+            collect(&child.subtree, language, out);
+        }
+    }
+    let mut out = Vec::new();
+    collect(subtree, language, &mut out);
+    out
 }
 
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
@@ -702,13 +1293,9 @@ fn parse_document_with_true_glr_runtime(
     grammar_name: &str,
     grammar: adze_ir::Grammar,
     parse_table: adze_glr_core::ParseTable,
+    dispatch: EngineDispatch,
 ) -> core::result::Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
-    if language.lex_fn.is_some()
-        && crate::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
-            language,
-            &parse_table,
-        )
-    {
+    if dispatch == EngineDispatch::StreamingGlr {
         return parse_document_with_streaming_true_glr_runtime(
             input,
             language,
@@ -718,7 +1305,7 @@ fn parse_document_with_true_glr_runtime(
         );
     }
 
-    if language.lex_fn.is_some() {
+    if dispatch == EngineDispatch::UnsupportedConflictedTable {
         return Ok(parse_document_from_glr_errors(
             input,
             language,
@@ -732,7 +1319,9 @@ fn parse_document_with_true_glr_runtime(
     let source = input.as_bytes();
     let mut runtime_parse_table = parse_table.clone();
     align_true_glr_parse_table_to_language_symbols(language, &mut runtime_parse_table);
-    let mut parser = crate::glr_parser::GLRParser::new(runtime_parse_table, grammar.clone());
+    let initial_expected = initial_state_expected_names(language, &runtime_parse_table);
+    let mut parser =
+        crate::glr_parser::GLRParser::new(runtime_parse_table.clone(), grammar.clone());
 
     let mut lexer = match crate::glr_lexer::GLRLexer::new(&grammar, input.to_string()) {
         Ok(lexer) => lexer,
@@ -805,7 +1394,18 @@ fn parse_document_with_true_glr_runtime(
         source.len(),
     );
 
-    let diagnostics = recovery_diagnostics_for_document_root(&root, input);
+    let missing = missing_token_names_for_subtree(&root_node, language);
+    let mut doc_leaves: Vec<(u16, usize, usize)> = Vec::new();
+    collect_leaf_terminals_for_subtree(&root_node, language, &mut doc_leaves);
+    let failure_expected =
+        failure_expected_for_document_root(&root, language, &runtime_parse_table, &doc_leaves);
+    let diagnostics = recovery_diagnostics_for_document_root_with_missing(
+        &root,
+        input,
+        &missing,
+        &initial_expected,
+        &failure_expected,
+    );
     let error_count = diagnostics.len();
     Ok(
         crate::document::AdzeDocument::from_parse_result_with_diagnostics_and_ambiguities(
@@ -1015,51 +1615,22 @@ fn parse_with_pure_parser<T: Extract<T>>(
         .map_err(|error| vec![error])
 }
 
-/// Parse using the GLR parser (parser_v4)
-#[cfg(all(feature = "glr", feature = "pure-rust"))]
-fn parse_with_glr<T: Extract<T>>(
-    input: &str,
-    language: impl Fn() -> &'static crate::pure_parser::TSLanguage,
-) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
-    use adze_glr_core::conflict_inspection::state_has_conflicts;
-    use adze_ir::StateId;
-
-    // Get the language and inspect the parse table for real conflicts.
-    let lang = language();
-    let parse_table = crate::decoder::decode_parse_table(lang);
-    let has_conflicts = (0..parse_table.state_count)
-        .any(|state| state_has_conflicts(&parse_table, StateId(state as u16)));
-
-    if has_conflicts {
-        return parse_with_true_glr_runtime::<T>(input, lang, parse_table);
-    }
-
-    // Conflict-free generated grammars must use the mode-aware generated lexer on the
-    // deterministic product path (#927), matching parse_document() routing.
-    parse_with_pure_parser::<T>(input, language)
-}
-
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
 fn parse_with_true_glr_runtime<T: Extract<T>>(
     input: &str,
     language: &'static crate::pure_parser::TSLanguage,
     mut parse_table: adze_glr_core::ParseTable,
+    dispatch: EngineDispatch,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
-    if language.lex_fn.is_some()
-        && crate::glr_streaming_runtime::should_route_conflict_table_through_streaming_driver(
-            language,
-            &parse_table,
-        )
-    {
+    if dispatch == EngineDispatch::StreamingGlr {
         let grammar = crate::decoder::decode_grammar(language);
-        // Native failure facts (#1030): a streaming failure must never
-        // invoke another engine's *typed* parse/extraction (which would
-        // run user converters on a GLR-rejected/LR-accepted input).
-        // Selected-tree extraction errors below are likewise returned
-        // directly, exactly once. The LR pass in the error branch is a
-        // diagnostic-only observer (`parse_string` never calls
-        // `Extract`/leaf transforms) retained for the #1097
-        // expected-token contract; it is not native GLR evidence.
+        // Native failure facts (#1030 remainder): a streaming failure is
+        // projected directly through `glr_error_to_parse_errors`, whose
+        // expected-token names come from the GLR driver's own structured
+        // `GlrUnexpectedToken`. No LR observer reparse and no other
+        // engine's typed extraction is invoked after a selected-engine
+        // failure (#897). Selected-tree extraction errors below are
+        // likewise returned directly, exactly once.
         let parsed = match crate::glr_streaming_runtime::parse_with_streaming_driver(
             input,
             language,
@@ -1068,16 +1639,6 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
         ) {
             Ok(parsed) => parsed,
             Err(error) => {
-                let mut lr_parser = crate::pure_parser::Parser::new();
-                if lr_parser.set_language(language).is_ok() {
-                    let lr_errors = lr_parser.parse_string(input).errors;
-                    if !lr_errors.is_empty() {
-                        return Err(lr_errors
-                            .into_iter()
-                            .map(|e| map_lr_parse_error(input, language, e))
-                            .collect());
-                    }
-                }
                 return Err(crate::glr_streaming_runtime::glr_error_to_parse_errors(
                     input, error, language,
                 ));
@@ -1089,7 +1650,7 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
         return finish_typed_extract_from_parsed_node(parsed_node, source, language);
     }
 
-    if language.lex_fn.is_some() {
+    if dispatch == EngineDispatch::UnsupportedConflictedTable {
         return Err(unsupported_true_glr_fixed_bridge_error(input));
     }
 
@@ -1930,26 +2491,40 @@ fn is_extra_symbol_for_diagnostic(
     unsafe { (*lang.symbol_metadata.add(symbol as usize) & 0x04) != 0 }
 }
 
-#[cfg(feature = "pure-rust")]
-/// Parse using the GLR parser (stub for when feature is not enabled)
-#[cfg(all(feature = "pure-rust", not(feature = "glr")))]
-fn parse_with_glr<T: Extract<T>>(
-    _input: &str,
-    _language: impl Fn() -> &'static crate::pure_parser::TSLanguage,
-) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
-    Err(vec![crate::errors::ParseError {
-        reason: crate::errors::ParseErrorReason::UnexpectedToken(
-            "GLR parser backend is unavailable because the `glr` feature is disabled".to_string(),
-        ),
-        start: 0,
-        end: 0,
-        expected: vec![],
-    }])
-}
-
 #[cfg(all(test, feature = "pure-rust"))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn engine_dispatch_policy_conflicted_without_glr_is_deterministic() {
+        // Feature-independent decision (#896): the same assertions run
+        // in glr and glr-off profiles because `glr_enabled` is explicit.
+        assert_eq!(
+            engine_dispatch_policy(false, false, true, false),
+            EngineDispatch::DeterministicLr
+        );
+        assert_eq!(
+            engine_dispatch_policy(true, false, true, true),
+            EngineDispatch::DeterministicLr,
+            "conflicted table without glr keeps the pure-rust diagnostics contract"
+        );
+        assert_eq!(
+            engine_dispatch_policy(true, false, false, false),
+            EngineDispatch::DeterministicLr
+        );
+        assert_eq!(
+            engine_dispatch_policy(true, true, true, true),
+            EngineDispatch::StreamingGlr
+        );
+        assert_eq!(
+            engine_dispatch_policy(true, true, true, false),
+            EngineDispatch::UnsupportedConflictedTable
+        );
+        assert_eq!(
+            engine_dispatch_policy(true, true, false, false),
+            EngineDispatch::LegacyGlrWithoutLexFn
+        );
+    }
     use crate::pure_parser::{
         ExternalScanner, ParsedNode, Point, TSLanguage, TSLexState, TSParseAction, TSRule,
     };

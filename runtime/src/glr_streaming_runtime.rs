@@ -276,6 +276,22 @@ pub fn parse_with_streaming_driver(
                     expected: Vec::new(),
                 })));
             }
+            // Cannot-lex failures from the driver now arrive structured
+            // with the ACTION-row expected set for the surviving stack
+            // tops; only the byte needs correcting to the lexer's exact
+            // stall position (the driver position precedes skipped extras).
+            if let GlrError::UnexpectedToken(unexpected) = &error
+                && unexpected.found.is_none()
+                && let Some(stall) = lex_failure_pos.get()
+            {
+                return Err(GlrError::UnexpectedToken(Box::new(GlrUnexpectedToken {
+                    byte_start: stall,
+                    byte_end: stall,
+                    found: None,
+                    found_is_eof: stall >= input.len(),
+                    expected: unexpected.expected.clone(),
+                })));
+            }
             return Err(error);
         }
     };
@@ -619,7 +635,18 @@ pub(crate) fn glr_error_to_parse_errors(
         } else {
             source_len
         };
-        let expected = glr_expected_token_names(language, &unexpected.expected);
+        let mut expected = glr_expected_token_names(language, &unexpected.expected);
+        if expected.is_empty() && start == 0 {
+            // Native table metadata (#1030): a failure at the first byte
+            // happened in the initial state, whose ACTION row names the
+            // expected terminals. No other engine is consulted.
+            let mut table = crate::decoder::decode_parse_table(language);
+            crate::__private::align_true_glr_parse_table_to_language_symbols(language, &mut table);
+            let initial = crate::__private::initial_state_expected_names(language, &table);
+            if !initial.is_empty() {
+                expected = initial;
+            }
+        }
         let found_name = match unexpected.found {
             Some(found) => glr_found_token_name(language, found),
             None if start < source_len => input
