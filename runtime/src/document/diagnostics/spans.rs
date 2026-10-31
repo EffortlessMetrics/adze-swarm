@@ -1,9 +1,9 @@
 use super::*;
 
-pub(super) fn first_error_span(node: &ParseNode) -> Option<Range<usize>> {
-    if node.symbol.0 == 0 {
-        return Some(node.start_byte..node.end_byte);
-    }
-
-    node.children.iter().find_map(first_error_span)
+pub(super) fn first_error_span(tree: &SyntaxTree) -> Option<Range<usize>> {
+    (0..tree.node_count())
+        .map(NodeId::new)
+        .filter_map(|node_id| tree.node_record(node_id))
+        .find(|record| record.flags().is_error())
+        .map(|record| record.byte_range())
 }

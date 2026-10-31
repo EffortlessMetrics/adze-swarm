@@ -103,14 +103,31 @@ impl AdzeDocument {
         grammar: &Grammar,
         parse_table: &ParseTable,
     ) -> Self {
-        let diagnostics = build_diagnostics(&root, error_count, source);
         let runtime = DocumentRuntime {
             language_name,
             grammar,
             parse_table,
             pure_language: None,
         };
-        Self::from_parse_result_with_diagnostics(source, root, error_count, runtime, diagnostics)
+        let node_index = build_node_index(&root);
+        let language = LanguageMetadata::from_runtime(
+            runtime.language_name,
+            runtime.grammar,
+            runtime.parse_table,
+        );
+        let syntax = SyntaxTree::from_parse_root(&root, source, &language, error_count);
+        let diagnostics = build_diagnostics(&syntax, error_count, source);
+        Self::from_parse_result_with_built_parts(
+            source,
+            root,
+            error_count,
+            runtime,
+            node_index,
+            language,
+            syntax,
+            diagnostics,
+            Vec::new(),
+        )
     }
 
     pub(crate) fn from_parse_result_with_diagnostics(
@@ -145,8 +162,33 @@ impl AdzeDocument {
             runtime.parse_table,
         );
         let syntax = SyntaxTree::from_parse_root(&root, source, &language, error_count);
+        Self::from_parse_result_with_built_parts(
+            source,
+            root,
+            error_count,
+            runtime,
+            node_index,
+            language,
+            syntax,
+            diagnostics,
+            ambiguities,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn from_parse_result_with_built_parts(
+        source: &str,
+        root: ParseNode,
+        error_count: usize,
+        runtime: DocumentRuntime<'_>,
+        node_index: Vec<NodeIndex>,
+        language: LanguageMetadata,
+        syntax: SyntaxTree,
+        diagnostics: Vec<ParseDiagnostic>,
+        ambiguities: Vec<crate::glr_parser::AmbiguitySummary>,
+    ) -> Self {
         let mut diagnostics = diagnostics;
-        attach_related_nodes(&root, &mut diagnostics);
+        attach_related_nodes(&syntax, &mut diagnostics);
         Self {
             source: source.to_string(),
             root,
