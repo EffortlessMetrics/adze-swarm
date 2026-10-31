@@ -13,7 +13,8 @@ fn toml_path(path: &Path) -> String {
 
 #[test]
 fn readme_numeric_conversion_is_fallible() {
-    let readme = include_str!("../../README.md");
+    // Normalize documentation checkout line endings, never parser input.
+    let readme = include_str!("../../README.md").replace("\r\n", "\n");
     let grammar_block = readme
         .split("```rust\n")
         .skip(1)
@@ -105,7 +106,13 @@ fn long_numeric_token_does_not_panic_or_default() {
     )
     .expect("write conversion contract");
     let output = Command::new("cargo")
-        .args(["test", "--test", "conversion_contract", "--", "--test-threads=1"])
+        .args([
+            "test",
+            "--test",
+            "conversion_contract",
+            "--",
+            "--test-threads=1",
+        ])
         .current_dir(project)
         .env("CARGO_TARGET_DIR", project.join("target"))
         .output()
@@ -117,7 +124,9 @@ fn long_numeric_token_does_not_panic_or_default() {
         String::from_utf8_lossy(&output.stderr),
     );
     assert!(
-        String::from_utf8_lossy(&output.stdout).contains("4 passed"),
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .any(|line| line.starts_with("test result: ok. 4 passed; 0 failed; 0 ignored;")),
         "all four conversion controls must execute: {:?}",
         output.stdout,
     );
