@@ -36,42 +36,39 @@ impl<'a> PredicateContext<'a> {
         }
     }
 
+    /// Predicate-only context for pre-resolved occurrence texts.
+    ///
+    /// The shared engine resolves capture texts itself (recursive nodes or
+    /// flat records); only the regex cache needs context state.
+    pub fn for_resolved_texts() -> PredicateContext<'static> {
+        PredicateContext {
+            source: "",
+            regex_cache: RefCell::new(HashMap::new()),
+        }
+    }
+
     /// Get text for a node
     pub fn node_text(&self, node: &ParseNode) -> Option<&str> {
         self.source.get(node.start_byte..node.end_byte)
     }
 
-    /// All occurrence texts for a capture slot.
+    /// Evaluate a predicate against pre-resolved occurrence texts.
     ///
-    /// Returns `None` when the slot has no occurrences or any occurrence
-    /// text is unavailable (missing capture, out-of-bounds or reversed
-    /// range, or a range that does not fall on UTF-8 boundaries).
-    /// Predicates evaluate every occurrence under universal semantics: a
-    /// constraint holds only when it holds for all of them, so a failing
-    /// nonfinal occurrence can never be hidden by a passing final one.
-    fn capture_texts(
+    /// `None` entries mark unavailable text and fail the constraint closed,
+    /// as does an empty slot. Otherwise universal semantics apply: every
+    /// occurrence must satisfy the constraint.
+    pub fn evaluate_texts(
         &self,
-        capture: u32,
-        captures: &HashMap<u32, Vec<ParseNode>>,
-    ) -> Option<Vec<&str>> {
-        let nodes = captures.get(&capture).filter(|nodes| !nodes.is_empty())?;
-        nodes.iter().map(|node| self.node_text(node)).collect()
-    }
-
-    /// Evaluate a predicate. Invalid or unavailable operands fail closed:
-    /// they are distinct from a valid `false` comparison, and negation
-    /// (`NotEq`/`NotMatch`) never turns them into `true`.
-    ///
-    /// Multi-occurrence captures evaluate universally: every occurrence
-    /// must satisfy the constraint.
-    pub fn evaluate(&self, predicate: &Predicate, captures: &HashMap<u32, Vec<ParseNode>>) -> bool {
+        predicate: &Predicate,
+        texts: &HashMap<u32, Vec<Option<&str>>>,
+    ) -> bool {
         match predicate {
             Predicate::Eq {
                 capture1,
                 capture2,
                 value,
             } => self
-                .evaluate_eq_result(*capture1, capture2.as_ref(), value.as_ref(), captures)
+                .evaluate_eq_texts(*capture1, capture2.as_ref(), value.as_ref(), texts)
                 .unwrap_or(false),
 
             Predicate::NotEq {
@@ -79,20 +76,22 @@ impl<'a> PredicateContext<'a> {
                 capture2,
                 value,
             } => self
-                .evaluate_eq_result(*capture1, capture2.as_ref(), value.as_ref(), captures)
+                .evaluate_eq_texts(*capture1, capture2.as_ref(), value.as_ref(), texts)
                 .map(|equal| !equal)
                 .unwrap_or(false),
 
-            Predicate::Match { capture, regex } => self.evaluate_match(*capture, regex, captures),
+            Predicate::Match { capture, regex } => self
+                .evaluate_match_texts(*capture, regex, texts)
+                .unwrap_or(false),
 
             Predicate::NotMatch { capture, regex } => self
-                .evaluate_match_result(*capture, regex, captures)
+                .evaluate_match_texts(*capture, regex, texts)
                 .map(|matched| !matched)
                 .unwrap_or(false),
 
-            Predicate::AnyOf { capture, values } => {
-                self.evaluate_any_of(*capture, values, captures)
-            }
+            Predicate::AnyOf { capture, values } => self
+                .evaluate_any_of_texts(*capture, values, texts)
+                .unwrap_or(false),
 
             Predicate::Set { .. } | Predicate::Is { .. } | Predicate::IsNot { .. } => {
                 // Property predicates are handled separately
@@ -107,47 +106,43 @@ impl<'a> PredicateContext<'a> {
         }
     }
 
-    /// Evaluate an equality comparison as `Some(equal)` only when every
-    /// operand is available and valid; `None` is invalid/unavailable and
-    /// must fail closed for both `Eq` and `NotEq`. With repeated captures,
-    /// every occurrence text must agree.
-    fn evaluate_eq_result(
+    /// All available occurrence texts for a capture slot, or `None` when
+    /// the slot is empty or any occurrence text is unavailable.
+    fn available_texts<'t>(texts: &[Option<&'t str>]) -> Option<Vec<&'t str>> {
+        if texts.is_empty() {
+            return None;
+        }
+        texts.iter().copied().collect()
+    }
+
+    /// Evaluate an equality comparison over resolved texts.
+    fn evaluate_eq_texts(
         &self,
         capture1: u32,
         capture2: Option<&u32>,
         value: Option<&String>,
-        captures: &HashMap<u32, Vec<ParseNode>>,
+        texts: &HashMap<u32, Vec<Option<&str>>>,
     ) -> Option<bool> {
-        let texts1 = self.capture_texts(capture1, captures)?;
+        let first = Self::available_texts(texts.get(&capture1)?)?;
         if let Some(capture2) = capture2 {
-            let texts2 = self.capture_texts(*capture2, captures)?;
-            let mut all = texts1;
-            all.extend(texts2);
+            let second = Self::available_texts(texts.get(capture2)?)?;
+            let mut all = first;
+            all.extend(second);
             Some(all.windows(2).all(|pair| pair[0] == pair[1]))
         } else {
             let value = value?;
-            Some(texts1.iter().all(|text| *text == value))
+            Some(first.iter().all(|text| *text == value))
         }
     }
 
-    /// Evaluate #match? predicate
-    fn evaluate_match(
+    /// Evaluate #match? over resolved texts.
+    fn evaluate_match_texts(
         &self,
         capture: u32,
         regex_str: &str,
-        captures: &HashMap<u32, Vec<ParseNode>>,
-    ) -> bool {
-        self.evaluate_match_result(capture, regex_str, captures)
-            .unwrap_or(false)
-    }
-
-    fn evaluate_match_result(
-        &self,
-        capture: u32,
-        regex_str: &str,
-        captures: &HashMap<u32, Vec<ParseNode>>,
+        texts: &HashMap<u32, Vec<Option<&str>>>,
     ) -> Option<bool> {
-        let texts = self.capture_texts(capture, captures)?;
+        let resolved = Self::available_texts(texts.get(&capture)?)?;
         let mut cache = self.regex_cache.borrow_mut();
         let regex = if let Some(regex) = cache.get(regex_str) {
             regex.clone()
@@ -158,22 +153,46 @@ impl<'a> PredicateContext<'a> {
             cache.insert(regex_str.to_string(), regex.clone());
             regex
         };
-        Some(texts.iter().all(|text| regex.is_match(text)))
+        Some(resolved.iter().all(|text| regex.is_match(text)))
     }
 
-    /// Evaluate #any-of? predicate: every occurrence must name a listed value.
-    fn evaluate_any_of(
+    /// Evaluate #any-of? over resolved texts: every occurrence must name a
+    /// listed value.
+    fn evaluate_any_of_texts(
         &self,
         capture: u32,
         values: &[String],
-        captures: &HashMap<u32, Vec<ParseNode>>,
-    ) -> bool {
-        match self.capture_texts(capture, captures) {
-            Some(texts) => texts
+        texts: &HashMap<u32, Vec<Option<&str>>>,
+    ) -> Option<bool> {
+        let resolved = Self::available_texts(texts.get(&capture)?)?;
+        Some(
+            resolved
                 .iter()
                 .all(|text| values.iter().any(|value| value == text)),
-            None => false,
-        }
+        )
+    }
+
+    /// Resolve recursive-capture occurrences to optional texts, then
+    /// evaluate through the shared resolved-text entry point.
+    fn resolved_texts(
+        &self,
+        captures: &HashMap<u32, Vec<ParseNode>>,
+    ) -> HashMap<u32, Vec<Option<&str>>> {
+        captures
+            .iter()
+            .map(|(id, nodes)| (*id, nodes.iter().map(|node| self.node_text(node)).collect()))
+            .collect()
+    }
+
+    /// Evaluate a predicate. Invalid or unavailable operands fail closed:
+    /// they are distinct from a valid `false` comparison, and negation
+    /// (`NotEq`/`NotMatch`) never turns them into `true`.
+    ///
+    /// Multi-occurrence captures evaluate universally: every occurrence
+    /// must satisfy the constraint.
+    pub fn evaluate(&self, predicate: &Predicate, captures: &HashMap<u32, Vec<ParseNode>>) -> bool {
+        let texts = self.resolved_texts(captures);
+        self.evaluate_texts(predicate, &texts)
     }
 }
 
