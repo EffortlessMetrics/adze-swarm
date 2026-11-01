@@ -1,9 +1,13 @@
 // Enhanced query pattern matching with predicate evaluation
 use super::ast::*;
 use super::predicate_eval::PredicateContext;
+#[cfg(feature = "query")]
+use crate::document::{AdzeDocument, LanguageMetadata, NodeId, SyntaxTree};
 use crate::parser_v4::ParseNode;
 use adze_glr_core::SymbolMetadata;
+use adze_ir::SymbolId;
 use std::collections::HashMap;
+use std::ops::Range;
 
 /// A match of a query pattern
 #[derive(Debug, Clone)]
@@ -23,17 +27,206 @@ pub struct QueryCapture {
     pub node: ParseNode,
 }
 
+/// A match of a query pattern against a document's flat records.
+///
+/// Only available with the `query` feature: this is the document-backed
+/// matcher entry.
+#[cfg(feature = "query")]
+#[derive(Debug, Clone)]
+pub struct DocumentQueryMatch {
+    /// Pattern index that matched
+    pub pattern_index: usize,
+    /// Captured document-local node ids, in (capture ID, occurrence) order
+    pub captures: Vec<DocumentQueryCapture>,
+}
+
+/// A captured document node in a query match.
+///
+/// Only available with the `query` feature, alongside
+/// [`DocumentQueryMatch`].
+#[cfg(feature = "query")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DocumentQueryCapture {
+    /// Capture index
+    pub index: u32,
+    /// The captured document-local node id
+    pub node_id: NodeId,
+}
+
+/// A node view for the single shared matching engine.
+///
+/// The engine traverses, captures, and backtracks through this interface;
+/// [`ParsedView`] borrows a recursive tree and [`FlatView`] resolves
+/// document-local flat records. Both visit preorder identically, so capture
+/// order agrees across backends. All views are cheap to copy, so traversal
+/// never moves out of a borrowed handle.
+trait ViewNode<'s>: Clone + Copy {
+    /// Grammar symbol id used for pattern-symbol comparison
+    fn symbol(self) -> SymbolId;
+    /// Byte range covered by this node
+    fn byte_range(self) -> Range<usize>;
+    /// Field name attached to the edge from this node's parent, if any
+    fn field_name(self) -> Option<&'s str>;
+    /// Number of direct children
+    fn child_count(self) -> usize;
+    /// Child node by child index
+    fn child(self, index: usize) -> Option<Self>;
+    /// Whether this node counts as named for pattern matching
+    fn is_named(self) -> bool;
+    /// Whether this node is extra (skipped while sequencing)
+    fn is_extra(self) -> bool;
+    /// Source text covered by this node, if available and well-formed
+    fn text(self) -> Option<&'s str>;
+}
+
+/// Recursive-tree backend (compatibility entry points).
+#[derive(Clone, Copy)]
+struct ParsedView<'s> {
+    node: &'s ParseNode,
+    source: &'s str,
+    symbol_metadata: &'s [SymbolMetadata],
+}
+
+impl<'s> ViewNode<'s> for ParsedView<'s> {
+    fn symbol(self) -> SymbolId {
+        self.node.symbol
+    }
+
+    fn byte_range(self) -> Range<usize> {
+        self.node.start_byte..self.node.end_byte
+    }
+
+    fn field_name(self) -> Option<&'s str> {
+        self.node.field_name.as_deref()
+    }
+
+    fn child_count(self) -> usize {
+        self.node.children.len()
+    }
+
+    fn child(self, index: usize) -> Option<Self> {
+        self.node.children.get(index).map(|node| ParsedView {
+            node,
+            source: self.source,
+            symbol_metadata: self.symbol_metadata,
+        })
+    }
+
+    fn is_named(self) -> bool {
+        self.symbol_metadata
+            .get(self.node.symbol.0 as usize)
+            .map(|metadata| metadata.is_named)
+            .unwrap_or(true)
+    }
+
+    fn is_extra(self) -> bool {
+        self.symbol_metadata
+            .get(self.node.symbol.0 as usize)
+            .map(|metadata| metadata.is_extra)
+            .unwrap_or(false)
+    }
+
+    fn text(self) -> Option<&'s str> {
+        let range = self.byte_range();
+        self.source.get(range)
+    }
+}
+
+/// Flat-record backend (document entry points, `query` feature only).
+#[cfg(feature = "query")]
+#[derive(Clone, Copy)]
+struct FlatView<'s> {
+    syntax: &'s SyntaxTree,
+    language: &'s LanguageMetadata,
+    source: &'s str,
+    id: NodeId,
+}
+
+#[cfg(feature = "query")]
+impl<'s> FlatView<'s> {
+    fn record(self) -> Option<&'s crate::document::NodeRecord> {
+        self.syntax.node_record(self.id)
+    }
+}
+
+#[cfg(feature = "query")]
+impl<'s> ViewNode<'s> for FlatView<'s> {
+    fn symbol(self) -> SymbolId {
+        // Traversal only visits validated ids; the fallback never matches a
+        // real pattern symbol in a well-formed tree.
+        self.record()
+            .map(|record| record.grammar_id())
+            .unwrap_or(SymbolId(0))
+    }
+
+    fn byte_range(self) -> Range<usize> {
+        self.record()
+            .map(|record| record.byte_range())
+            .unwrap_or(0..0)
+    }
+
+    fn field_name(self) -> Option<&'s str> {
+        self.syntax
+            .parent_edge_record(self.id)
+            .and_then(|edge| edge.field_id())
+            .and_then(|field_id| self.language.field_name_for_id(field_id.get()))
+    }
+
+    fn child_count(self) -> usize {
+        self.record()
+            .map(|record| record.edge_range().len())
+            .unwrap_or(0)
+    }
+
+    fn child(self, index: usize) -> Option<Self> {
+        self.syntax.child_id(self.id, index).map(|id| FlatView {
+            syntax: self.syntax,
+            language: self.language,
+            source: self.source,
+            id,
+        })
+    }
+
+    fn is_named(self) -> bool {
+        // Alias-aware named-ness, consistent with the document's own typed
+        // CST/JSON/ts-compat projections.
+        self.record()
+            .and_then(|record| self.language.symbol(record.visible_id()))
+            .map(|kind| kind.is_named())
+            .unwrap_or(true)
+    }
+
+    fn is_extra(self) -> bool {
+        self.record()
+            .and_then(|record| self.language.symbol(record.visible_id()))
+            .map(|kind| kind.is_extra())
+            .unwrap_or(false)
+    }
+
+    fn text(self) -> Option<&'s str> {
+        let range = self.byte_range();
+        self.source.get(range)
+    }
+}
+
 /// State for matching a pattern
 ///
 /// A capture ID identifies a capture slot, not one node: every occurrence a
 /// supported pattern selects is pushed in visit order. Predicates evaluate
 /// all occurrences under universal semantics (documented at
-/// [`PredicateContext::evaluate`]); output preserves occurrence order within
-/// each ID via a stable index sort.
+/// [`PredicateContext::evaluate_texts`]); output preserves occurrence order
+/// within each ID via a stable index sort.
 #[derive(Clone, Debug)]
-struct MatchState {
+struct MatchState<N> {
     /// Current captures: one entry per occurrence, in match order.
-    captures: HashMap<u32, Vec<ParseNode>>,
+    captures: HashMap<u32, Vec<N>>,
+}
+
+/// One pattern's accepted captures in a backend-neutral shape.
+struct GenericMatch<N> {
+    pattern_index: usize,
+    /// (capture ID, occurrences in visit order), sorted by capture ID.
+    captures: Vec<(u32, Vec<N>)>,
 }
 
 #[derive(Clone, Copy)]
@@ -61,6 +254,77 @@ impl<'a> QueryMatcher<'a> {
 
     /// Match all patterns in the query against a parse tree
     pub fn matches(&self, root: &ParseNode) -> Vec<QueryMatch> {
+        let view = ParsedView {
+            node: root,
+            source: self.source,
+            symbol_metadata: self.symbol_metadata,
+        };
+        self.match_all(view)
+            .into_iter()
+            .map(|generic| {
+                let mut captures: Vec<_> = generic
+                    .captures
+                    .into_iter()
+                    .flat_map(|(index, nodes)| {
+                        nodes.into_iter().map(move |view| QueryCapture {
+                            index,
+                            node: view.node.clone(),
+                        })
+                    })
+                    .collect();
+                captures.sort_by_key(|capture| capture.index);
+                QueryMatch {
+                    pattern_index: generic.pattern_index,
+                    captures,
+                }
+            })
+            .collect()
+    }
+
+    /// Match all patterns in the query against a native parse document.
+    ///
+    /// This is the selected document-backed entry: traversal, ranges, and
+    /// flags resolve from canonical flat records, and captures are
+    /// document-local node ids. The recursive-tree [`matches`] entry remains
+    /// as the compatibility path for hand-built trees.
+    #[cfg(feature = "query")]
+    pub fn matches_document(&self, document: &AdzeDocument) -> Vec<DocumentQueryMatch> {
+        let syntax = document.syntax();
+        let Some(_) = syntax.node_record(syntax.root_id()) else {
+            return Vec::new();
+        };
+        let view = FlatView {
+            syntax,
+            language: document.language(),
+            source: document.source_text(),
+            id: syntax.root_id(),
+        };
+        self.match_all(view)
+            .into_iter()
+            .map(|generic| {
+                let captures: Vec<_> = generic
+                    .captures
+                    .into_iter()
+                    .flat_map(|(index, nodes)| {
+                        nodes.into_iter().map(move |node| DocumentQueryCapture {
+                            index,
+                            node_id: node.id,
+                        })
+                    })
+                    .collect();
+                DocumentQueryMatch {
+                    pattern_index: generic.pattern_index,
+                    captures,
+                }
+            })
+            .collect()
+    }
+
+    /// Run every pattern against one root view of either backend.
+    fn match_all<'s, V>(&self, root: V) -> Vec<GenericMatch<V>>
+    where
+        V: ViewNode<'s>,
+    {
         let mut matches = Vec::new();
 
         // Try each pattern
@@ -72,53 +336,60 @@ impl<'a> QueryMatcher<'a> {
     }
 
     /// Match a single pattern against the tree
-    fn match_pattern(
+    fn match_pattern<'s, V>(
         &self,
         pattern_index: usize,
         pattern: &Pattern,
-        root: &ParseNode,
-        matches: &mut Vec<QueryMatch>,
-    ) {
+        root: V,
+        matches: &mut Vec<GenericMatch<V>>,
+    ) where
+        V: ViewNode<'s>,
+    {
         // Walk the tree and try to match at each node
         self.match_pattern_at_node(pattern_index, pattern, root, matches);
     }
 
     /// Try to match pattern starting at a specific node
-    fn match_pattern_at_node(
+    fn match_pattern_at_node<'s, V>(
         &self,
         pattern_index: usize,
         pattern: &Pattern,
-        node: &ParseNode,
-        matches: &mut Vec<QueryMatch>,
-    ) {
+        node: V,
+        matches: &mut Vec<GenericMatch<V>>,
+    ) where
+        V: ViewNode<'s>,
+    {
         // Try to match the pattern at this node
         let mut state = MatchState {
             captures: HashMap::new(),
         };
 
         if self.match_node(&pattern.root, node, &mut state) {
-            // Check predicates with source text
-            let predicate_ctx = PredicateContext::new(self.source);
+            // Check predicates against every occurrence's text. A constraint
+            // holds only when all occurrences satisfy it.
+            let texts: HashMap<u32, Vec<Option<&str>>> = state
+                .captures
+                .iter()
+                .map(|(id, nodes)| {
+                    (
+                        *id,
+                        nodes.iter().map(|candidate| candidate.text()).collect(),
+                    )
+                })
+                .collect();
+            let predicate_ctx = PredicateContext::for_resolved_texts();
             if pattern
                 .predicates
                 .iter()
-                .all(|pred| predicate_ctx.evaluate(pred, &state.captures))
+                .all(|pred| predicate_ctx.evaluate_texts(pred, &texts))
             {
-                // Convert captures to a vector. One entry per occurrence,
-                // sorted by capture ID with occurrence order preserved
-                // (stable sort over push-ordered vectors).
-                let mut captures: Vec<_> = state
-                    .captures
-                    .into_iter()
-                    .flat_map(|(index, nodes)| {
-                        nodes
-                            .into_iter()
-                            .map(move |node| QueryCapture { index, node })
-                    })
-                    .collect();
-                captures.sort_by_key(|c| c.index);
+                // One entry per occurrence, sorted by capture ID with
+                // occurrence order preserved (stable sort over
+                // push-ordered vectors).
+                let mut captures: Vec<_> = state.captures.into_iter().collect();
+                captures.sort_by_key(|(index, _)| *index);
 
-                matches.push(QueryMatch {
+                matches.push(GenericMatch {
                     pattern_index,
                     captures,
                 });
@@ -126,8 +397,10 @@ impl<'a> QueryMatcher<'a> {
         }
 
         // Recursively try child nodes
-        for child in &node.children {
-            self.match_pattern_at_node(pattern_index, pattern, child, matches);
+        for index in 0..node.child_count() {
+            if let Some(child) = node.child(index) {
+                self.match_pattern_at_node(pattern_index, pattern, child, matches);
+            }
         }
     }
 
@@ -137,13 +410,15 @@ impl<'a> QueryMatcher<'a> {
     /// own capture and every nested attempt run on a branch-local copy, and
     /// only a successful match commits. A failed node therefore leaves no
     /// residue, including its own capture ID.
-    fn match_node(&self, pattern: &PatternNode, node: &ParseNode, state: &mut MatchState) -> bool {
+    fn match_node<'s, V>(&self, pattern: &PatternNode, node: V, state: &mut MatchState<V>) -> bool
+    where
+        V: ViewNode<'s>,
+    {
         // Check symbol
-        if pattern.symbol != node.symbol {
+        if pattern.symbol != node.symbol() {
             return false;
         }
         // Confirm named/anonymous status matches the pattern expectation
-        // When node metadata becomes available, this will use the actual flag.
         if self.node_is_named(node) != pattern.is_named {
             return false;
         }
@@ -151,11 +426,7 @@ impl<'a> QueryMatcher<'a> {
         let mut attempt = state.clone();
         // Capture if needed. Occurrences accumulate; nothing overwrites.
         if let Some(capture_id) = pattern.capture {
-            attempt
-                .captures
-                .entry(capture_id)
-                .or_default()
-                .push(node.clone());
+            attempt.captures.entry(capture_id).or_default().push(node);
         }
 
         // Match based on quantifier. The node's own capture above stays
@@ -175,19 +446,21 @@ impl<'a> QueryMatcher<'a> {
     }
 
     /// Match children with One quantifier
-    fn match_children_one(
+    fn match_children_one<'s, V>(
         &self,
         pattern: &PatternNode,
-        node: &ParseNode,
-        state: &mut MatchState,
-    ) -> bool {
+        node: V,
+        state: &mut MatchState<V>,
+    ) -> bool
+    where
+        V: ViewNode<'s>,
+    {
         // Check field assertions
         for (field_name, field_pattern) in &pattern.fields {
             // Find child with this field name
-            let field_node = node
-                .children
-                .iter()
-                .find(|child| child.field_name.as_ref() == Some(field_name));
+            let field_node = (0..node.child_count())
+                .filter_map(|index| node.child(index))
+                .find(|child| child.field_name() == Some(field_name.as_str()));
 
             if let Some(field_node) = field_node {
                 if !self.match_node(field_pattern, field_node, state) {
@@ -200,19 +473,22 @@ impl<'a> QueryMatcher<'a> {
 
         // If pattern has explicit children, match them
         if !pattern.children.is_empty() {
-            return self.match_child_sequence(&pattern.children, &node.children, 0, 0, state);
+            return self.match_child_sequence(&pattern.children, node, 0, 0, state);
         }
 
         true
     }
 
     /// Match children with Plus quantifier
-    fn match_children_plus(
+    fn match_children_plus<'s, V>(
         &self,
         pattern: &PatternNode,
-        node: &ParseNode,
-        state: &mut MatchState,
-    ) -> bool {
+        node: V,
+        state: &mut MatchState<V>,
+    ) -> bool
+    where
+        V: ViewNode<'s>,
+    {
         // Must match at least once
         if !self.match_children_one(pattern, node, state) {
             return false;
@@ -223,46 +499,52 @@ impl<'a> QueryMatcher<'a> {
     }
 
     /// Match children with Star quantifier
-    fn match_children_star(
+    fn match_children_star<'s, V>(
         &self,
         pattern: &PatternNode,
-        node: &ParseNode,
-        state: &mut MatchState,
-    ) -> bool {
+        node: V,
+        state: &mut MatchState<V>,
+    ) -> bool
+    where
+        V: ViewNode<'s>,
+    {
         // Star always matches (zero or more)
         self.match_children_plus(pattern, node, state);
         true
     }
 
-    /// Determine if a node should be treated as named using symbol metadata.
-    fn node_is_named(&self, node: &ParseNode) -> bool {
-        self.symbol_metadata
-            .get(node.symbol.0 as usize)
-            .map(|m| m.is_named)
-            .unwrap_or(true)
+    /// Determine if a node should be treated as named.
+    fn node_is_named<'s, V>(&self, node: V) -> bool
+    where
+        V: ViewNode<'s>,
+    {
+        node.is_named()
     }
 
     /// Determine if a node should be treated as an "extra" node that should
     /// be ignored during pattern matching.
-    fn node_is_extra(&self, node: &ParseNode) -> bool {
-        self.symbol_metadata
-            .get(node.symbol.0 as usize)
-            .map(|m| m.is_extra)
-            .unwrap_or(false)
+    fn node_is_extra<'s, V>(&self, node: V) -> bool
+    where
+        V: ViewNode<'s>,
+    {
+        node.is_extra()
     }
 
     /// Match a sequence of pattern children against node children
-    fn match_child_sequence(
+    fn match_child_sequence<'s, V>(
         &self,
         pattern_children: &[PatternChild],
-        node_children: &[ParseNode],
+        parent: V,
         pattern_idx: usize,
         node_idx: usize,
-        state: &mut MatchState,
-    ) -> bool {
+        state: &mut MatchState<V>,
+    ) -> bool
+    where
+        V: ViewNode<'s>,
+    {
         if let Some(next_state) = self.match_child_sequence_from(
             pattern_children,
-            node_children,
+            parent,
             pattern_idx,
             node_idx,
             state.clone(),
@@ -275,15 +557,18 @@ impl<'a> QueryMatcher<'a> {
         }
     }
 
-    fn match_child_sequence_from(
+    fn match_child_sequence_from<'s, V>(
         &self,
         pattern_children: &[PatternChild],
-        node_children: &[ParseNode],
+        parent: V,
         pattern_idx: usize,
         node_idx: usize,
-        state: MatchState,
+        state: MatchState<V>,
         anchored_next: bool,
-    ) -> Option<MatchState> {
+    ) -> Option<MatchState<V>>
+    where
+        V: ViewNode<'s>,
+    {
         // Base case: all patterns matched
         if pattern_idx >= pattern_children.len() {
             // If extra nodes remain, ensure they're ignorable
@@ -292,12 +577,16 @@ impl<'a> QueryMatcher<'a> {
 
         let mut node_idx = node_idx;
         // Skip over any extra nodes before attempting to match
-        while node_idx < node_children.len() && self.node_is_extra(&node_children[node_idx]) {
+        while node_idx < parent.child_count()
+            && parent
+                .child(node_idx)
+                .is_some_and(|child| self.node_is_extra(child))
+        {
             node_idx += 1;
         }
 
         // Base case: no more nodes but patterns remain
-        if node_idx >= node_children.len() {
+        if node_idx >= parent.child_count() {
             // Check if remaining patterns are all optional
             return pattern_children[pattern_idx..]
                 .iter()
@@ -315,11 +604,11 @@ impl<'a> QueryMatcher<'a> {
         // Try to match current pattern
         match &pattern_children[pattern_idx] {
             PatternChild::Anchor => self
-                .anchor_satisfied(pattern_children, pattern_idx, node_children, node_idx)
+                .anchor_satisfied(pattern_children, pattern_idx, parent, node_idx)
                 .then(|| {
                     self.match_child_sequence_from(
                         pattern_children,
-                        node_children,
+                        parent,
                         pattern_idx + 1,
                         node_idx,
                         state,
@@ -331,7 +620,7 @@ impl<'a> QueryMatcher<'a> {
                 Quantifier::One => self.match_single_child_candidate(
                     pattern_node,
                     pattern_children,
-                    node_children,
+                    parent,
                     (pattern_idx, node_idx),
                     state,
                     anchored_next,
@@ -340,7 +629,7 @@ impl<'a> QueryMatcher<'a> {
                     .match_single_child_candidate(
                         pattern_node,
                         pattern_children,
-                        node_children,
+                        parent,
                         (pattern_idx, node_idx),
                         state.clone(),
                         anchored_next,
@@ -348,7 +637,7 @@ impl<'a> QueryMatcher<'a> {
                     .or_else(|| {
                         self.match_child_sequence_from(
                             pattern_children,
-                            node_children,
+                            parent,
                             pattern_idx + 1,
                             node_idx,
                             state,
@@ -358,7 +647,7 @@ impl<'a> QueryMatcher<'a> {
                 Quantifier::Plus => self.match_repeated_child_candidates(
                     pattern_node,
                     pattern_children,
-                    node_children,
+                    parent,
                     (pattern_idx, node_idx),
                     state,
                     RepeatSearch {
@@ -370,7 +659,7 @@ impl<'a> QueryMatcher<'a> {
                     .match_repeated_child_candidates(
                         pattern_node,
                         pattern_children,
-                        node_children,
+                        parent,
                         (pattern_idx, node_idx),
                         state.clone(),
                         RepeatSearch {
@@ -381,7 +670,7 @@ impl<'a> QueryMatcher<'a> {
                     .or_else(|| {
                         self.match_child_sequence_from(
                             pattern_children,
-                            node_children,
+                            parent,
                             pattern_idx + 1,
                             node_idx,
                             state,
@@ -392,7 +681,7 @@ impl<'a> QueryMatcher<'a> {
             PatternChild::Token(token) => self.match_token_candidate(
                 token,
                 pattern_children,
-                node_children,
+                parent,
                 (pattern_idx, node_idx),
                 state,
                 anchored_next,
@@ -400,95 +689,112 @@ impl<'a> QueryMatcher<'a> {
         }
     }
 
-    fn anchor_satisfied(
+    fn anchor_satisfied<'s, V>(
         &self,
         pattern_children: &[PatternChild],
         pattern_idx: usize,
-        node_children: &[ParseNode],
+        parent: V,
         node_idx: usize,
-    ) -> bool {
+    ) -> bool
+    where
+        V: ViewNode<'s>,
+    {
         if pattern_idx == 0 {
-            node_children[..node_idx]
-                .iter()
-                .all(|n| self.node_is_extra(n))
+            (0..node_idx).all(|index| {
+                parent
+                    .child(index)
+                    .is_some_and(|child| self.node_is_extra(child))
+            })
         } else if pattern_idx + 1 == pattern_children.len() {
-            node_children[node_idx..]
-                .iter()
-                .all(|n| self.node_is_extra(n))
+            (node_idx..parent.child_count()).all(|index| {
+                parent
+                    .child(index)
+                    .is_some_and(|child| self.node_is_extra(child))
+            })
         } else {
             true
         }
     }
 
-    fn candidate_indices(
+    fn candidate_indices<'s, V>(
         &self,
-        node_children: &[ParseNode],
+        parent: V,
         node_idx: usize,
         anchored_next: bool,
-    ) -> Vec<usize> {
+    ) -> Vec<usize>
+    where
+        V: ViewNode<'s>,
+    {
         if anchored_next {
-            (node_idx < node_children.len())
+            (node_idx < parent.child_count())
                 .then_some(node_idx)
                 .into_iter()
                 .collect()
         } else {
-            (node_idx..node_children.len())
-                .filter(|idx| !self.node_is_extra(&node_children[*idx]))
+            (node_idx..parent.child_count())
+                .filter(|idx| {
+                    parent
+                        .child(*idx)
+                        .is_some_and(|child| !self.node_is_extra(child))
+                })
                 .collect()
         }
     }
 
-    fn match_single_child_candidate(
+    fn match_single_child_candidate<'s, V>(
         &self,
         pattern_node: &PatternNode,
         pattern_children: &[PatternChild],
-        node_children: &[ParseNode],
+        parent: V,
         position: (usize, usize),
-        state: MatchState,
+        state: MatchState<V>,
         anchored_next: bool,
-    ) -> Option<MatchState> {
+    ) -> Option<MatchState<V>>
+    where
+        V: ViewNode<'s>,
+    {
         let (pattern_idx, node_idx) = position;
 
-        self.candidate_indices(node_children, node_idx, anchored_next)
+        self.candidate_indices(parent, node_idx, anchored_next)
             .into_iter()
             .filter_map(|candidate_idx| {
-                self.match_child_node_once(
-                    pattern_node,
-                    &node_children[candidate_idx],
-                    state.clone(),
-                )
-                .and_then(|next_state| {
-                    self.match_child_sequence_from(
-                        pattern_children,
-                        node_children,
-                        pattern_idx + 1,
-                        candidate_idx + 1,
-                        next_state,
-                        false,
-                    )
-                })
+                let child = parent.child(candidate_idx)?;
+                self.match_child_node_once(pattern_node, child, state.clone())
+                    .and_then(|next_state| {
+                        self.match_child_sequence_from(
+                            pattern_children,
+                            parent,
+                            pattern_idx + 1,
+                            candidate_idx + 1,
+                            next_state,
+                            false,
+                        )
+                    })
             })
             .next()
     }
 
-    fn match_repeated_child_candidates(
+    fn match_repeated_child_candidates<'s, V>(
         &self,
         pattern_node: &PatternNode,
         pattern_children: &[PatternChild],
-        node_children: &[ParseNode],
+        parent: V,
         position: (usize, usize),
-        state: MatchState,
+        state: MatchState<V>,
         repeat: RepeatSearch,
-    ) -> Option<MatchState> {
+    ) -> Option<MatchState<V>>
+    where
+        V: ViewNode<'s>,
+    {
         let (_, node_idx) = position;
 
-        self.candidate_indices(node_children, node_idx, repeat.anchored_next)
+        self.candidate_indices(parent, node_idx, repeat.anchored_next)
             .into_iter()
             .find_map(|candidate_idx| {
                 self.match_repeated_child_node(
                     pattern_node,
                     pattern_children,
-                    node_children,
+                    parent,
                     (position.0, candidate_idx),
                     state.clone(),
                     repeat.min_count,
@@ -496,25 +802,29 @@ impl<'a> QueryMatcher<'a> {
             })
     }
 
-    fn match_token_candidate(
+    fn match_token_candidate<'s, V>(
         &self,
         token: &str,
         pattern_children: &[PatternChild],
-        node_children: &[ParseNode],
+        parent: V,
         position: (usize, usize),
-        state: MatchState,
+        state: MatchState<V>,
         anchored_next: bool,
-    ) -> Option<MatchState> {
+    ) -> Option<MatchState<V>>
+    where
+        V: ViewNode<'s>,
+    {
         let (pattern_idx, node_idx) = position;
 
-        self.candidate_indices(node_children, node_idx, anchored_next)
+        self.candidate_indices(parent, node_idx, anchored_next)
             .into_iter()
             .filter_map(|candidate_idx| {
-                (self.node_text(&node_children[candidate_idx]) == Some(token))
+                let child = parent.child(candidate_idx)?;
+                (child.text() == Some(token))
                     .then(|| {
                         self.match_child_sequence_from(
                             pattern_children,
-                            node_children,
+                            parent,
                             pattern_idx + 1,
                             candidate_idx + 1,
                             state.clone(),
@@ -526,38 +836,45 @@ impl<'a> QueryMatcher<'a> {
             .next()
     }
 
-    fn match_child_node_once(
+    fn match_child_node_once<'s, V>(
         &self,
         pattern_node: &PatternNode,
-        node: &ParseNode,
-        mut state: MatchState,
-    ) -> Option<MatchState> {
+        node: V,
+        mut state: MatchState<V>,
+    ) -> Option<MatchState<V>>
+    where
+        V: ViewNode<'s>,
+    {
         let mut single = pattern_node.clone();
         single.quantifier = Quantifier::One;
 
         self.match_node(&single, node, &mut state).then_some(state)
     }
 
-    fn match_repeated_child_node(
+    fn match_repeated_child_node<'s, V>(
         &self,
         pattern_node: &PatternNode,
         pattern_children: &[PatternChild],
-        node_children: &[ParseNode],
+        parent: V,
         position: (usize, usize),
-        state: MatchState,
+        state: MatchState<V>,
         min_count: usize,
-    ) -> Option<MatchState> {
+    ) -> Option<MatchState<V>>
+    where
+        V: ViewNode<'s>,
+    {
         let (pattern_idx, node_idx) = position;
         let mut candidates = vec![(node_idx, state)];
         let mut cursor = node_idx;
 
-        while cursor < node_children.len() {
+        while cursor < parent.child_count() {
             let (_, last_state) = candidates.last().expect("candidate seed exists");
-            let Some(next_state) = self.match_child_node_once(
-                pattern_node,
-                &node_children[cursor],
-                last_state.clone(),
-            ) else {
+            let Some(child) = parent.child(cursor) else {
+                break;
+            };
+            let Some(next_state) =
+                self.match_child_node_once(pattern_node, child, last_state.clone())
+            else {
                 break;
             };
             cursor += 1;
@@ -572,17 +889,13 @@ impl<'a> QueryMatcher<'a> {
             .find_map(|(_, (next_node_idx, next_state))| {
                 self.match_child_sequence_from(
                     pattern_children,
-                    node_children,
+                    parent,
                     pattern_idx + 1,
                     next_node_idx,
                     next_state,
                     false,
                 )
             })
-    }
-
-    fn node_text(&self, node: &ParseNode) -> Option<&str> {
-        self.source.get(node.start_byte..node.end_byte)
     }
 }
 
@@ -1301,6 +1614,223 @@ mod tests {
         assert!(
             matches[0].captures.is_empty(),
             "failed optional contributes no speculative capture"
+        );
+    }
+
+    #[cfg(feature = "query")]
+    fn doc_fixture(source: &str, root: ParseNode) -> AdzeDocument {
+        doc_fixture_with_fields(source, root, &[])
+    }
+
+    #[cfg(feature = "query")]
+    fn doc_fixture_with_fields(source: &str, root: ParseNode, fields: &[&str]) -> AdzeDocument {
+        use adze_glr_core::ParseTable;
+        use adze_ir::Grammar;
+
+        let grammar = Grammar::new("doc-fixture".to_string());
+        let mut table = ParseTable::default();
+        // Flat field names resolve through the table's field list, mirroring
+        // how real parse tables carry generated field names.
+        table.field_names = fields.iter().map(ToString::to_string).collect();
+        AdzeDocument::from_parse_result(source, root, 0, "doc-fixture", &grammar, &table)
+    }
+
+    #[cfg(feature = "query")]
+    fn document_ranges(document: &AdzeDocument, ids: &[NodeId]) -> Vec<std::ops::Range<usize>> {
+        ids.iter()
+            .map(|id| {
+                document
+                    .syntax()
+                    .node_record(*id)
+                    .expect("captured id resolves")
+                    .byte_range()
+            })
+            .collect()
+    }
+
+    #[cfg(feature = "query")]
+    #[test]
+    fn test_matches_document_agrees_with_recursive_matches() {
+        // Same hand-built facts through both entries: (index, ranges) agree.
+        let source = "aab";
+        let root = make_root(
+            vec![make_node(1, 0, 1), make_node(1, 1, 2), make_node(2, 2, 3)],
+            source.len(),
+        );
+        let document = doc_fixture(source, root.clone());
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Anchor);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(2), true).with_capture(1),
+        ));
+        let query = query_with_root(pattern);
+        let metadata = test_symbol_metadata();
+
+        let flat = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+        let recursive = QueryMatcher::new(&query, source, &metadata).matches(&root);
+
+        assert_eq!(flat.len(), recursive.len());
+        assert_eq!(flat.len(), 1, "agreement fixture must match");
+        for (flat_match, recursive_match) in flat.iter().zip(recursive.iter()) {
+            assert_eq!(flat_match.pattern_index, recursive_match.pattern_index);
+            assert_eq!(flat_match.captures.len(), recursive_match.captures.len());
+            let flat_ranges: Vec<std::ops::Range<usize>> = flat_match
+                .captures
+                .iter()
+                .map(|capture| {
+                    document
+                        .syntax()
+                        .node_record(capture.node_id)
+                        .expect("captured id resolves")
+                        .byte_range()
+                })
+                .collect();
+            let recursive_ranges: Vec<std::ops::Range<usize>> = recursive_match
+                .captures
+                .iter()
+                .map(|capture| capture.node.start_byte..capture.node.end_byte)
+                .collect();
+            // Index order is assertion order: compare per position.
+            for (flat_capture, recursive_capture) in flat_match
+                .captures
+                .iter()
+                .zip(recursive_match.captures.iter())
+            {
+                assert_eq!(flat_capture.index, recursive_capture.index);
+            }
+            assert_eq!(flat_ranges, recursive_ranges);
+        }
+    }
+
+    #[cfg(feature = "query")]
+    #[test]
+    fn test_matches_document_returns_repeated_captures_in_order() {
+        let source = "aa aa";
+        let root = make_root(vec![make_node(1, 0, 2), make_node(1, 3, 5)], source.len());
+        let document = doc_fixture(source, root);
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        let query = query_with_root(pattern);
+
+        let matches = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures.len(), 2);
+        assert_eq!(matches[0].captures[0].index, 0);
+        assert_eq!(matches[0].captures[1].index, 0);
+        let ids: Vec<NodeId> = matches[0].captures.iter().map(|c| c.node_id).collect();
+        assert_eq!(document_ranges(&document, &ids), vec![0..2, 3..5]);
+    }
+
+    #[cfg(feature = "query")]
+    #[test]
+    fn test_matches_document_captures_plus_repetitions() {
+        let source = "aab";
+        let root = make_root(
+            vec![make_node(1, 0, 1), make_node(1, 1, 2), make_node(2, 2, 3)],
+            source.len(),
+        );
+        let document = doc_fixture(source, root);
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true)
+                .with_capture(0)
+                .with_quantifier(Quantifier::Plus),
+        ));
+        pattern.add_child(PatternChild::Node(PatternNode::new(SymbolId(2), true)));
+        let query = query_with_root(pattern);
+
+        let matches = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures.len(), 2);
+        let ids: Vec<NodeId> = matches[0].captures.iter().map(|c| c.node_id).collect();
+        assert_eq!(document_ranges(&document, &ids), vec![0..1, 1..2]);
+    }
+
+    #[cfg(feature = "query")]
+    #[test]
+    fn test_matches_document_backtrack_keeps_only_accepted_captures() {
+        let source = "aab";
+        let root = make_root(
+            vec![make_node(1, 0, 1), make_node(1, 1, 2), make_node(2, 2, 3)],
+            source.len(),
+        );
+        let document = doc_fixture(source, root);
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Anchor);
+        pattern.add_child(PatternChild::Node(PatternNode::new(SymbolId(2), true)));
+        let query = query_with_root(pattern);
+
+        let matches = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures.len(), 1);
+        let ids: Vec<NodeId> = matches[0].captures.iter().map(|c| c.node_id).collect();
+        assert_eq!(document_ranges(&document, &ids), vec![1..2]);
+    }
+
+    #[cfg(feature = "query")]
+    #[test]
+    fn test_matches_document_failed_optional_leaves_no_residue() {
+        let source = "x";
+        let mut a = make_node(1, 0, 1);
+        a.children = vec![make_field_node(2, 0, 1, "left")];
+        let root = make_root(vec![a], source.len());
+        let document = doc_fixture_with_fields(source, root, &["left"]);
+        let mut optional = PatternNode::new(SymbolId(2), true).with_capture(0);
+        optional.quantifier = Quantifier::Optional;
+        optional.add_child(PatternChild::Node(PatternNode::new(SymbolId(3), true)));
+        let mut a_pattern = PatternNode::new(SymbolId(1), true);
+        a_pattern.fields.insert("left".to_string(), optional);
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(a_pattern));
+        let query = query_with_root(pattern);
+
+        let matches = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+
+        assert_eq!(matches.len(), 1);
+        assert!(
+            matches[0].captures.is_empty(),
+            "failed optional contributes no speculative capture"
+        );
+    }
+
+    #[cfg(feature = "query")]
+    #[test]
+    fn test_matches_document_applies_universal_predicates() {
+        let source = "ab cd";
+        let root = make_root(vec![make_node(1, 0, 2), make_node(1, 3, 5)], source.len());
+        let document = doc_fixture(source, root);
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        let mut query = query_with_root(pattern);
+        query.patterns[0].predicates.push(Predicate::Match {
+            capture: 0,
+            regex: "ab".to_string(),
+        });
+
+        let matches = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+
+        assert!(
+            matches.is_empty(),
+            "a failing occurrence must fail the predicate even when another passes"
         );
     }
 }

@@ -267,10 +267,10 @@ impl AdzeDocument {
 
     /// Return the canonical flat selected-tree records.
     ///
-    /// Compatibility projections (notably ts-compat) resolve traversal,
-    /// ranges, and flags from these facts instead of cloning or searching a
-    /// recursive tree.
-    #[cfg(feature = "ts-compat")]
+    /// Compatibility projections (notably ts-compat) and the query matcher
+    /// resolve traversal, ranges, and flags from these facts instead of
+    /// cloning or searching a recursive tree.
+    #[cfg(any(feature = "ts-compat", feature = "query"))]
     pub(crate) fn syntax(&self) -> &SyntaxTree {
         &self.syntax
     }
