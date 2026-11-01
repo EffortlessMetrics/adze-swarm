@@ -632,9 +632,10 @@ impl SyntaxTree {
     ///
     /// Construction uses explicit heap traversal frames (no recursion) and a
     /// single document-local line index. Every child of every visited node
-    /// yields exactly one edge; nothing is silently dropped. The retained
-    /// recursive root is compatibility state owned by #901 (ts-compat) and
-    /// is not consulted here.
+    /// yields exactly one edge; nothing is silently dropped. The `root`
+    /// construction parameter is consumed once here and dropped: no
+    /// persistent recursive tree is retained (retirement completed under
+    /// #900b/#860; #901 tracks consumer migration only).
     fn from_parse_root(
         root: &ParseNode,
         source: &str,
