@@ -3,8 +3,8 @@
 //! Canonical flat construction uses explicit heap traversal frames so document
 //! building does not consume call-stack depth proportional to tree depth.
 //! Parents and edges derive directly from the selected parse tree; the
-//! retained recursive root is compatibility state for ts-compat (#860/#901)
-//! and is not consulted here.
+//! construction input is consumed once and no persistent recursive tree is
+//! retained (storage retirement completed under #900b/#860).
 
 use super::diagnostics::is_error_parse_node;
 use super::source_position::SourceLineIndex;
