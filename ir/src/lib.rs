@@ -289,8 +289,14 @@ impl Grammar {
         }
     }
 
-    /// Build a new symbol registry from the grammar
-    pub fn build_registry(&self) -> SymbolRegistry {
+    /// Build a new symbol registry from the grammar, returning a typed
+    /// capacity error instead of panicking or wrapping on exhaustion (#985).
+    ///
+    /// # Errors
+    /// Returns [`GrammarError::SymbolSpaceExhausted`] without caching
+    /// anything when the grammar's distinct names exceed the `SymbolId`
+    /// domain; identical valid input registers identically.
+    pub fn try_build_registry(&self) -> Result<SymbolRegistry, GrammarError> {
         let mut registry = SymbolRegistry::new();
 
         // Sort tokens deterministically: underscore-prefixed last
@@ -310,7 +316,7 @@ impl Grammar {
                 hidden: self.extras.contains(symbol_id),
                 terminal: true,
             };
-            registry.register(&token.name, metadata);
+            registry.try_register(&token.name, metadata)?;
         }
 
         // Sort non-terminals deterministically
@@ -326,7 +332,7 @@ impl Grammar {
                     hidden: name.starts_with('_'),
                     terminal: false,
                 };
-                registry.register(name, metadata);
+                registry.try_register(name, metadata)?;
             }
         }
 
@@ -338,10 +344,21 @@ impl Grammar {
                 hidden: false,
                 terminal: true,
             };
-            registry.register(&external.name, metadata);
+            registry.try_register(&external.name, metadata)?;
         }
 
-        registry
+        Ok(registry)
+    }
+
+    /// Build a new symbol registry from the grammar
+    ///
+    /// # Panics
+    /// Panics only when the `SymbolId` domain is exhausted; use
+    /// [`try_build_registry`](Self::try_build_registry) for the typed-error
+    /// form.
+    pub fn build_registry(&self) -> SymbolRegistry {
+        self.try_build_registry()
+            .unwrap_or_else(|error| panic!("symbol registry construction failed: {error}"))
     }
 }
 
@@ -900,7 +917,7 @@ impl Grammar {
                 if !occupied[candidate as usize] {
                     occupied[candidate as usize] = true;
                     return Ok(SymbolId(
-                        u16::try_from(candidate).expect("candidate is within u16 range"),
+                        u16::try_from(candidate).map_err(|_| GrammarError::SymbolSpaceExhausted)?,
                     ));
                 }
             }
@@ -910,7 +927,7 @@ impl Grammar {
                 if !occupied[candidate as usize] {
                     occupied[candidate as usize] = true;
                     return Ok(SymbolId(
-                        u16::try_from(candidate).expect("candidate is within u16 range"),
+                        u16::try_from(candidate).map_err(|_| GrammarError::SymbolSpaceExhausted)?,
                     ));
                 }
             }

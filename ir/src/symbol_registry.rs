@@ -1,6 +1,6 @@
 //! Deterministic symbol ID assignment via an ordered registry.
 
-use crate::{SymbolId, SymbolMetadata};
+use crate::{GrammarError, SymbolId, SymbolMetadata};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -53,21 +53,57 @@ impl SymbolRegistry {
     }
 
     /// Register a symbol with automatic ID assignment
+    ///
+    /// # Panics
+    /// Panics only when the `SymbolId(u16)` domain is exhausted; use
+    /// [`try_register`](Self::try_register) for the typed-error form.
     pub fn register(&mut self, name: &str, metadata: SymbolMetadata) -> SymbolId {
+        self.try_register(name, metadata).unwrap_or_else(|error| {
+            panic!("symbol registry exhausted: cannot register {name:?}: {error}")
+        })
+    }
+
+    /// Register a symbol with automatic ID assignment, returning a typed
+    /// capacity error instead of panicking, wrapping, or aliasing EOF (#985).
+    ///
+    /// The reserved EOF id `SymbolId(0)` is handed out exactly once (to
+    /// `"end"` at construction); every other call returns a distinct
+    /// non-zero id, so identical input registers identically.
+    ///
+    /// # Errors
+    /// Returns [`GrammarError::SymbolSpaceExhausted`] without mutating the
+    /// registry when no fresh `SymbolId` remains (including a wrapped or
+    /// otherwise inconsistent counter pointing at an occupied id, which
+    /// fails closed rather than aliasing EOF or an occupied symbol).
+    pub fn try_register(
+        &mut self,
+        name: &str,
+        metadata: SymbolMetadata,
+    ) -> Result<SymbolId, GrammarError> {
         if let Some(&id) = self.symbols.get(name) {
             // Update metadata if symbol already exists
             self.metadata.insert(id, metadata);
-            return id;
+            return Ok(id);
         }
+        // One fresh slot per distinct name: EOF plus at most u16::MAX
+        // further symbols fit the SymbolId domain.
+        if self.symbols.len() > usize::from(u16::MAX) {
+            return Err(GrammarError::SymbolSpaceExhausted);
+        }
+        let candidate = SymbolId(self.next_id);
+        if self.ids.contains_key(&candidate) {
+            // The counter wrapped past the domain edge (or the registry
+            // was deserialized into an inconsistent state): the candidate
+            // identity is already taken. Fail closed.
+            return Err(GrammarError::SymbolSpaceExhausted);
+        }
+        self.next_id = self.next_id.wrapping_add(1);
 
-        let id = SymbolId(self.next_id);
-        self.next_id += 1;
+        self.symbols.insert(name.to_string(), candidate);
+        self.ids.insert(candidate, name.to_string());
+        self.metadata.insert(candidate, metadata);
 
-        self.symbols.insert(name.to_string(), id);
-        self.ids.insert(id, name.to_string());
-        self.metadata.insert(id, metadata);
-
-        id
+        Ok(candidate)
     }
 
     /// Get symbol ID by name
@@ -409,5 +445,80 @@ mod tests {
             restored.get_metadata(restored.get_id("beta").unwrap()),
             Some(nt_meta())
         );
+    }
+
+    #[test]
+    fn try_register_returns_distinct_nonzero_ids() {
+        let mut reg = SymbolRegistry::new();
+        let a = reg.try_register("a", term_meta()).unwrap();
+        let b = reg.try_register("b", term_meta()).unwrap();
+        assert_ne!(a, SymbolId(0), "fresh ids must never alias EOF");
+        assert_ne!(b, SymbolId(0), "fresh ids must never alias EOF");
+        assert_ne!(a, b);
+        assert_eq!(reg.len(), 3); // end + a + b
+    }
+
+    #[test]
+    fn try_register_duplicate_name_reuses_id_without_consuming_capacity() {
+        let mut reg = SymbolRegistry::new();
+        reg.next_id = u16::MAX;
+        let last = reg.try_register("last", term_meta()).unwrap();
+        assert_eq!(last, SymbolId(u16::MAX));
+        // Re-registering an existing name succeeds even at the edge.
+        let again = reg.try_register("last", nt_meta()).unwrap();
+        assert_eq!(again, last);
+        assert_eq!(reg.len(), 2); // end + last
+    }
+
+    #[test]
+    fn try_register_hands_out_last_slot_then_fails_typed() {
+        // Falsifier 1 (#985): last valid SymbolId followed by one
+        // additional symbol; falsifier 10: deterministic result at the
+        // exact highest supported count.
+        let mut reg = SymbolRegistry::new();
+        reg.next_id = u16::MAX - 1;
+        assert_eq!(
+            reg.try_register("second-to-last", term_meta()).unwrap(),
+            SymbolId(u16::MAX - 1)
+        );
+        assert_eq!(
+            reg.try_register("last", term_meta()).unwrap(),
+            SymbolId(u16::MAX)
+        );
+        let before = reg.clone();
+        let err = reg.try_register("overflow", term_meta()).unwrap_err();
+        assert!(
+            matches!(err, crate::GrammarError::SymbolSpaceExhausted),
+            "expected SymbolSpaceExhausted, got {err:?}"
+        );
+        // Atomicity: the failed registration mutates nothing.
+        assert_eq!(reg, before);
+        assert_eq!(reg.get_id("overflow"), None);
+    }
+
+    #[test]
+    fn try_register_is_deterministic_at_the_domain_edge() {
+        let mut first = SymbolRegistry::new();
+        first.next_id = u16::MAX - 1;
+        let mut second = SymbolRegistry::new();
+        second.next_id = u16::MAX - 1;
+        for name in ["x", "y"] {
+            let a = first.try_register(name, term_meta()).unwrap();
+            let b = second.try_register(name, term_meta()).unwrap();
+            assert_eq!(a, b);
+        }
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    #[should_panic(expected = "symbol registry exhausted")]
+    fn register_panics_explicitly_when_exhausted() {
+        // The infallible default path fails closed with an actionable
+        // message instead of wrapping into EOF; try_register is the
+        // typed-error form.
+        let mut reg = SymbolRegistry::new();
+        reg.next_id = u16::MAX;
+        let _ = reg.register("last", term_meta());
+        let _ = reg.register("overflow", term_meta());
     }
 }
