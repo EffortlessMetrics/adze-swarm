@@ -653,7 +653,7 @@ mod tests {
     }
 
     #[test]
-    fn test_restore_empty_invokes_present_reset_hook() {
+    fn test_restore_empty_invokes_reset_hook_with_null_buffer() {
         let mut language = stateful_language();
         language.external_scanner.deserialize = Some(resettable_deserialize);
         let mut scanner = GeneratedExternalStreamingScanner::new(&language);
@@ -712,7 +712,7 @@ mod tests {
         buffer: *const u8,
         length: u32,
     ) {
-        if length == 0 && !scanner.is_null() {
+        if length == 0 && buffer.is_null() && !scanner.is_null() {
             unsafe { *(scanner as *mut u32) = 0 };
         } else {
             unsafe { stateful_deserialize(scanner, buffer, length) };
