@@ -28,6 +28,8 @@ enum CandidatePattern {
     LowerPlus,
     Identifier,
     CharClass(&'static [u8]),
+    ByteClassPlus(&'static [u8]),
+    LineComment(u8),
     Whitespace,
 }
 
@@ -185,6 +187,8 @@ fn helper_needs_for(mode_candidates: &BTreeMap<u16, Vec<LexCandidate>>) -> Helpe
                 CandidatePattern::DigitPlus
                 | CandidatePattern::LowerPlus
                 | CandidatePattern::CharClass(_)
+                | CandidatePattern::ByteClassPlus(_)
+                | CandidatePattern::LineComment(_)
                 | CandidatePattern::Whitespace => {}
             }
         }
@@ -271,11 +275,13 @@ fn pattern_to_candidate(pattern: &TokenPattern, is_word_token: bool) -> Option<C
                 return Some(CandidatePattern::Literal(regex.as_bytes().to_vec()));
             }
             match regex.as_str() {
-                r"\d+" => Some(CandidatePattern::DigitPlus),
+                r"\d+" | r"[0-9]+" => Some(CandidatePattern::DigitPlus),
                 r"\w+" => Some(CandidatePattern::WordPlus),
                 r"[a-z]+" => Some(CandidatePattern::LowerPlus),
                 r"[-+*/]" => Some(CandidatePattern::CharClass(b"-+*/")),
                 r"\s" | r"\s+" | r"\s*" => Some(CandidatePattern::Whitespace),
+                r"[ \t\r\n]+" => Some(CandidatePattern::ByteClassPlus(b" \t\r\n")),
+                r"#[^\r\n]*" => Some(CandidatePattern::LineComment(b'#')),
                 _ => None,
             }
         }
@@ -310,6 +316,8 @@ impl CandidatePattern {
             | CandidatePattern::WordPlus
             | CandidatePattern::LowerPlus
             | CandidatePattern::Identifier
+            | CandidatePattern::ByteClassPlus(_)
+            | CandidatePattern::LineComment(_)
             | CandidatePattern::Whitespace => usize::MAX,
             CandidatePattern::CharClass(_) => 1,
         }
@@ -462,6 +470,44 @@ fn generate_match_expr(pattern: &CandidatePattern) -> TokenStream {
                 } else {
                     None
                 }
+            }
+        }
+        CandidatePattern::ByteClassPlus(chars) => {
+            let checks = chars.iter().map(|ch| {
+                let byte = *ch as u32;
+                quote! { byte == #byte }
+            });
+            quote! {
+                let mut len = 0usize;
+                loop {
+                    let byte = lexer_byte_at_rel(lexer, len);
+                    if !(#(#checks)||*) {
+                        break;
+                    }
+                    len += 1;
+                }
+                if len == 0 {
+                    return None;
+                }
+                Some(len)
+            }
+        }
+        CandidatePattern::LineComment(prefix) => {
+            let prefix = *prefix as u32;
+            quote! {
+                if lexer_byte_at_rel(lexer, 0) != #prefix {
+                    return None;
+                }
+                let mut len = 1usize;
+                let remaining = (*lexer_view(lexer)).input_len.saturating_sub(lexer_pos(lexer));
+                while len < remaining {
+                    let byte = lexer_byte_at_rel(lexer, len);
+                    if byte == b'\r' as u32 || byte == b'\n' as u32 {
+                        break;
+                    }
+                    len += 1;
+                }
+                Some(len)
             }
         }
         CandidatePattern::Whitespace => quote! {

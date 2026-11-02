@@ -155,3 +155,111 @@ fn legacy_generate_lexer_entry_still_available() {
     let code = generate_lexer(&grammar, &map).to_string();
     assert!(code.contains("lexer_fn"));
 }
+
+#[test]
+fn test_generated_lexer_executes_config_numeric_whitespace_and_comment_patterns() {
+    use adze_ir::{Token, TokenPattern};
+    use std::process::Command;
+
+    let mut grammar = Grammar::new("config_lexical_subset".to_string());
+    for (id, name, pattern) in [
+        (1, "number", r"[0-9]+"),
+        (2, "space", r"[ \t\r\n]+"),
+        (3, "comment", r"#[^\r\n]*"),
+    ] {
+        grammar.tokens.insert(
+            SymbolId(id),
+            Token {
+                name: name.to_owned(),
+                pattern: TokenPattern::Regex(pattern.to_owned()),
+                fragile: false,
+            },
+        );
+    }
+    let generated = codegen(&grammar, None);
+    // Compile and execute the emitted matcher. The minimal callback ABI below
+    // provides the same repr(C) input-slice/position backing as the runtime.
+    let source = [
+        r###"
+mod adze {
+    pub mod pure_parser { pub struct TSLexState { pub lex_state: u16 } }
+    pub mod lex {
+        pub struct TsLexer {
+            pub data: *mut std::ffi::c_void,
+            pub result_symbol: u16,
+            pub mark_end: unsafe extern "C" fn(*mut TsLexer),
+        }
+    }
+}
+"###,
+        &generated,
+        r###"
+#[repr(C)]
+struct Backing<'a> { input: &'a [u8], pos: usize }
+unsafe extern "C" fn mark_end(_: *mut adze::lex::TsLexer) {}
+fn check(input: &str, expected: Option<(u16, usize)>) {
+    let mut backing = Backing { input: input.as_bytes(), pos: 0 };
+    let mut lexer = adze::lex::TsLexer {
+        data: &mut backing as *mut _ as *mut std::ffi::c_void,
+        result_symbol: u16::MAX,
+        mark_end,
+    };
+    let matched = unsafe { lexer_fn(&mut lexer as *mut _ as *mut std::ffi::c_void,
+        adze::pure_parser::TSLexState { lex_state: 0 }) };
+    assert_eq!(matched, expected.is_some(), "input {input:?}");
+    if let Some((symbol, length)) = expected {
+        assert_eq!((lexer.result_symbol, backing.pos), (symbol, length), "input {input:?}");
+    } else {
+        assert_eq!(backing.pos, 0, "failed candidates must not consume input {input:?}");
+    }
+}
+fn main() {
+    check("0", Some((1, 1)));
+    check("65535;", Some((1, 5)));
+    check("-1", None);
+    check("١", None);
+    check(" \t\r\nx", Some((2, 4)));
+    check("\u{000b}", None);
+    check("\u{000c}", None);
+    check("#", Some((3, 1)));
+    check("# café λ\r\nnext", Some((3, "# café λ".len())));
+    check("##\n", Some((3, 2)));
+    check("# no final newline", Some((3, 18)));
+    check("# before\0after\n", Some((3, "# before\0after".len())));
+    check("x#", None);
+}
+"###,
+    ]
+    .concat();
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("timestamp")
+        .as_nanos();
+    let directory =
+        std::env::temp_dir().join(format!("adze-config-lexer-{}-{nonce}", std::process::id()));
+    std::fs::create_dir(&directory).expect("owned compiler test directory");
+    let source_path = directory.join("lexer.rs");
+    let executable = directory.join(format!("lexer{}", std::env::consts::EXE_SUFFIX));
+    std::fs::write(&source_path, source).expect("generated lexer source");
+    let compiler = Command::new(std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into()))
+        .arg("--edition=2024")
+        .arg(&source_path)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("execute compiler for emitted matcher");
+    assert!(
+        compiler.status.success(),
+        "generated lexer must compile: {}",
+        String::from_utf8_lossy(&compiler.stderr)
+    );
+    let execution = Command::new(&executable)
+        .output()
+        .expect("execute emitted matcher");
+    assert!(
+        execution.status.success(),
+        "generated lexer must honor exact byte spans: {}",
+        String::from_utf8_lossy(&execution.stderr)
+    );
+    std::fs::remove_dir_all(directory).expect("remove only the owned compiler test directory");
+}
