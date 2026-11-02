@@ -208,6 +208,14 @@ impl AdzeDocument {
         }
     }
 
+    pub(crate) fn matches_native_language(
+        &self,
+        language: &'static crate::pure_parser::TSLanguage,
+    ) -> bool {
+        self.pure_language
+            .is_some_and(|actual| std::ptr::eq(actual, language))
+    }
+
     /// Return the generic native CST view.
     pub fn tree(&self) -> AdzeTree<'_> {
         AdzeTree { document: self }

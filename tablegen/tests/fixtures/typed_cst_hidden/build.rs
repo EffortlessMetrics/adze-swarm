@@ -53,10 +53,33 @@ fn main() {
     .unwrap();
     let mut foreign = Grammar::new("schema_hidden_consumer".into());
     foreign.start_symbol = Some(SymbolId(10));
-    foreign.tokens.insert(SymbolId(2), Token { name: "foreign_token".into(), pattern: TokenPattern::String("z".into()), fragile: false });
-    foreign.rule_names.insert(SymbolId(10), "source_file".into());
-    foreign.add_rule(Rule { lhs: SymbolId(10), rhs: vec![Symbol::Terminal(SymbolId(2))], fields: vec![], precedence: None, associativity: None, production_id: ProductionId(0) });
-    let generated = adze_tool::pure_rust_builder::build_parser(foreign, adze_tool::pure_rust_builder::BuildOptions::default()).unwrap();
-    std::fs::write(std::path::Path::new(&std::env::var("OUT_DIR").unwrap()).join("foreign_generated.rs"), generated.parser_code).unwrap();
-
+    foreign.tokens.insert(
+        SymbolId(2),
+        Token {
+            name: "foreign_token".into(),
+            pattern: TokenPattern::String("z".into()),
+            fragile: false,
+        },
+    );
+    foreign
+        .rule_names
+        .insert(SymbolId(10), "source_file".into());
+    foreign.add_rule(Rule {
+        lhs: SymbolId(10),
+        rhs: vec![Symbol::Terminal(SymbolId(2))],
+        fields: vec![],
+        precedence: None,
+        associativity: None,
+        production_id: ProductionId(0),
+    });
+    let generated = adze_tool::pure_rust_builder::build_parser(
+        foreign,
+        adze_tool::pure_rust_builder::BuildOptions::default(),
+    )
+    .unwrap();
+    std::fs::write(
+        std::path::Path::new(&std::env::var("OUT_DIR").unwrap()).join("foreign_generated.rs"),
+        generated.parser_code,
+    )
+    .unwrap();
 }

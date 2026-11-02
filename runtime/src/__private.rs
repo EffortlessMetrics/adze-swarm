@@ -522,6 +522,18 @@ pub fn parse<T: Extract<T>>(
     }
 }
 
+/// Bind generated typed handles to their immutable native language object.
+///
+/// Numeric grammar identities are language-local. This private generated-code
+/// boundary compares the existing document binding without exposing a pointer.
+#[doc(hidden)]
+pub fn document_matches_language(
+    document: &crate::document::AdzeDocument,
+    language: &'static crate::pure_parser::TSLanguage,
+) -> bool {
+    document.matches_native_language(language)
+}
+
 /// Parses an input string into the native parse document alpha.
 ///
 /// Native ABI tables alone omit canonical field targets/cardinality. Documents

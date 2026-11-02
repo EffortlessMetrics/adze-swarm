@@ -2,8 +2,9 @@
 //! Typed CST wrapper code generation.
 //!
 //! This module is an alpha generator target for Rust-native typed CST handles.
-//! It emits wrappers over `AdzeDocument` node IDs and edge field metadata, but
-//! is not yet wired into generated grammar crates.
+//! It emits wrappers over `AdzeDocument` node IDs and checked canonical field
+//! projection. The syntax module is co-generated next to its native `LANGUAGE`
+//! object; casts validate that immutable language binding before local IDs.
 
 use adze_ir::{Grammar, Symbol, SymbolId, TokenPattern};
 use proc_macro2::{Ident, Span, TokenStream};
@@ -127,7 +128,8 @@ impl<'a> TypedCstGenerator<'a> {
                 #(#wrappers)*
 
                 fn node_has_kind(document: &AdzeDocument, id: NodeId, expected: u16) -> bool {
-                    document.tree().node(id).is_some_and(|node| node.grammar_id().0 == expected)
+                    ::adze::__private::document_matches_language(document, &super::LANGUAGE)
+                        && document.tree().node(id).is_some_and(|node| node.grammar_id().0 == expected)
                 }
             }
         }
