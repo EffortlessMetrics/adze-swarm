@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "adze"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-bdd-governance-core",
  "adze-glr-core",
@@ -27,11 +27,11 @@ dependencies = [
 
 [[package]]
 name = "adze-bdd-governance-core"
-version = "0.1.0"
+version = "0.10.0"
 
 [[package]]
 name = "adze-common"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-common-type-ops-core",
  "quote",
@@ -40,14 +40,14 @@ dependencies = [
 
 [[package]]
 name = "adze-common-type-ops-core"
-version = "0.1.0"
+version = "0.10.0"
 dependencies = [
  "syn 2.0.106",
 ]
 
 [[package]]
 name = "adze-example"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze",
  "adze-glr-core",
@@ -62,7 +62,7 @@ dependencies = [
 
 [[package]]
 name = "adze-glr-core"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-ir",
  "fixedbitset",
@@ -76,9 +76,8 @@ dependencies = [
 
 [[package]]
 name = "adze-ir"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
- "anyhow",
  "indexmap",
  "serde",
  "serde_json",
@@ -87,11 +86,11 @@ dependencies = [
 
 [[package]]
 name = "adze-linecol-core"
-version = "0.1.0"
+version = "0.10.0"
 
 [[package]]
 name = "adze-macro"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-common",
  "proc-macro2",
@@ -101,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "adze-parsetable-metadata"
-version = "0.1.0"
+version = "0.10.0"
 dependencies = [
  "adze-bdd-governance-core",
  "serde",
@@ -111,7 +110,7 @@ dependencies = [
 
 [[package]]
 name = "adze-tablegen"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-bdd-governance-core",
  "adze-glr-core",
@@ -132,7 +131,7 @@ dependencies = [
 
 [[package]]
 name = "adze-tool"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "adze-common",
  "adze-glr-core",
@@ -189,9 +188,9 @@ dependencies = [
 
 [[package]]
 name = "anstream"
-version = "0.6.20"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ae563653d1938f79b1ab1b5e668c87c76a9930414574a6583a7b7e11a8e6192"
+checksum = "824a212faf96e9acacdbd09febd34438f8f711fb84e09a8916013cd7815ca28d"
 dependencies = [
  "anstyle",
  "anstyle-parse",
@@ -204,15 +203,15 @@ dependencies = [
 
 [[package]]
 name = "anstyle"
-version = "1.0.11"
+version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "862ed96ca487e809f1c8e5a8447f6ee2cf102f846893800b20cebdf541fc6bbd"
+checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
 
 [[package]]
 name = "anstyle-parse"
-version = "0.2.7"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e7644824f0aa2c7b9384579234ef10eb7efb6a0deb83f9630a49594dd9c15c2"
+checksum = "52ce7f38b242319f7cabaa6813055467063ecdc9d355bbb4ce0c68908cd8130e"
 dependencies = [
  "utf8parse",
 ]
@@ -320,9 +319,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.45"
+version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fc0e74a703892159f5ae7d3aac52c8e6c392f5ae5f359c70b5881d60aaac318"
+checksum = "aa8876b300ab35ba921adea3dfd70157a46249b33f95c9084ae5709785478946"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -330,9 +329,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.44"
+version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3e7f4214277f3c7aa526a59dd3fbe306a370daee1f8b7b8c987069cd8e888a8"
+checksum = "ec0797fb7aeb1406c84efac526901f7ec3ead2124f946b494e72879d4b54704d"
 dependencies = [
  "anstream",
  "anstyle",
@@ -342,21 +341,21 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.5.45"
+version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14cb31bb0a7d536caef2639baa7fad459e15c3144efefa6dbd1c84562c4739f6"
+checksum = "f9c751b79415d4e559e3d1fcf128e09e720eb673a06d26cf6f392d37d75b66e0"
 dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.106",
+ "syn 3.0.9",
 ]
 
 [[package]]
 name = "clap_lex"
-version = "0.7.5"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b94f61472cee1439c0b966b47e3aca9ae07e45d070759512cd390ea2bebc6675"
+checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 
 [[package]]
 name = "codemap"
@@ -821,18 +820,18 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.101"
+version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89ae43fd86e4158d6db51ad8e2b80f313af9cc74f5c0e03ccb87de09998732de"
+checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
 ]
 
 [[package]]
 name = "quote"
-version = "1.0.40"
+version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1885c039570dc00dcb4ff087a89e185fd56bae234ddc7f056a945bf36467248d"
+checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
 ]
@@ -1076,6 +1075,17 @@ name = "syn"
 version = "2.0.106"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ede7c438028d4436d71104916910f5bb611972c5cfd7f89b8300a8186e6fada6"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
+name = "syn"
+version = "3.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d78c8dee4c7bf0e14673097256fed6142ce9d3b85a408189d07482442145823b"
 dependencies = [
  "proc-macro2",
  "quote",
