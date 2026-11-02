@@ -950,7 +950,9 @@ fn test_parse_static_tree_mode_emits_document_backed_tree() {
         .stdout(predicate::str::contains("Expr"))
         .stdout(predicate::str::contains(r"/\d+/"))
         .stdout(predicate::str::contains("[0..3]"))
-        .stdout(predicate::str::contains("Static parse mode").not());
+        .stdout(predicate::str::contains("Static parse mode").not())
+        .stdout(predicate::str::contains("compiling temporary parse runner").not())
+        .stderr(predicate::str::contains("compiling temporary parse runner"));
 }
 
 #[test]

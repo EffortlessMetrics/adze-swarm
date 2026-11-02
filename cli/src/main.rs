@@ -952,7 +952,7 @@ fn run_static_parse_runner(grammar: &Path, input: &Path, output_format: &str) ->
     )?;
 
     let output = {
-        println!("compiling temporary parse runner (first run may take a while)...");
+        eprintln!("compiling temporary parse runner (first run may take a while)...");
         Command::new("cargo")
             .arg("run")
             .arg("--quiet")
