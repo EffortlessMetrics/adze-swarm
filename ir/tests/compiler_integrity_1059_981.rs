@@ -104,6 +104,63 @@ fn builder_production_exhaustion_is_typed() {
 }
 
 #[test]
+fn primitive_grammar_at_saturated_production_max_needs_no_helpers() {
+    // #1060 capacity packet 1: `S -> a` at ProductionId(65535) requires no
+    // helper rules, so normalization must succeed without allocating a
+    // production slot (the pre-#1081 allocator panicked here).
+    let mut g = Grammar::new("saturated_prim".into());
+    g.tokens.insert(SymbolId(2), tok(2));
+    g.add_rule(rule(1, vec![Symbol::Terminal(SymbolId(2))], 65535));
+    g.try_normalize()
+        .expect("no helpers needed at saturated max");
+    assert_eq!(g.all_rules().count(), 1);
+    let only = g.all_rules().next().expect("one rule");
+    assert_eq!(only.production_id, ProductionId(65535));
+    assert_eq!(only.rhs, vec![Symbol::Terminal(SymbolId(2))]);
+    g.validate().expect("saturated primitive validates");
+}
+
+#[test]
+fn single_choice_consumes_last_production_slot() {
+    // #1060 capacity packet 2: with max ProductionId(65534) one slot
+    // remains; the single Choice alternative must take ProductionId(65535)
+    // (the pre-#1081 allocator panicked before returning it).
+    let mut g = Grammar::new("last_slot".into());
+    g.tokens.insert(SymbolId(2), tok(2));
+    g.add_rule(rule(
+        1,
+        vec![Symbol::Choice(vec![Symbol::Terminal(SymbolId(2))])],
+        65534,
+    ));
+    g.try_normalize().expect("last slot must be usable");
+    let mut prods: Vec<u16> = g.all_rules().map(|r| r.production_id.0).collect();
+    prods.sort_unstable();
+    assert_eq!(prods, vec![65534, 65535]);
+    g.validate()
+        .expect("normalized last-slot grammar validates");
+}
+
+#[test]
+fn single_choice_past_last_slot_fails_typed_and_unchanged() {
+    // Companion to the last-slot case: with max ProductionId(65535) no
+    // slot remains, so the same shape must fail typed and atomically.
+    let mut g = Grammar::new("no_slot".into());
+    g.tokens.insert(SymbolId(2), tok(2));
+    g.add_rule(rule(
+        1,
+        vec![Symbol::Choice(vec![Symbol::Terminal(SymbolId(2))])],
+        65535,
+    ));
+    let before = g.clone();
+    let err = g.try_normalize().expect_err("no production slot remains");
+    assert!(
+        matches!(err, GrammarError::ProductionSpaceExhausted),
+        "{err:?}"
+    );
+    assert_eq!(g, before, "failed normalize must leave grammar unchanged");
+}
+
+#[test]
 fn alias_and_field_after_sequence_keep_original_child() {
     let mut g = Grammar::new("alias_origin".into());
     for id in [2u16, 3, 4] {

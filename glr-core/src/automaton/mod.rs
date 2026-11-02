@@ -320,14 +320,14 @@ pub fn build_lr1_automaton(
     // Shift actions were already added before reduce actions
 
     // Build precedence tables once
-    let production_count = augmented_grammar.all_rules().count() as u32;
+    let rule_count = augmented_grammar.all_rules().count() as u32;
     // token_count includes EOF (symbol 0 in table) plus all regular tokens.
     let token_count = (internal_tokens.len() + 1) as u32;
     let prec_tables = build_prec_tables(
         &augmented_grammar,
         &symbol_to_index,
         token_count,
-        production_count,
+        rule_count,
     );
 
     // Calculate the first non-terminal index
