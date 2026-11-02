@@ -1,0 +1,78 @@
+---
+source: tablegen/tests/typed_cst_schema_consumer.rs
+expression: json
+---
+[
+  {
+    "type": "item",
+    "named": true,
+    "fields": {
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "num",
+            "named": true
+          },
+          {
+            "type": "word",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "list",
+    "named": true,
+    "fields": {
+      "items": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "word",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "pair",
+    "named": true,
+    "fields": {
+      "value": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "_sep",
+            "named": true
+          },
+          {
+            "type": "item",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "start",
+    "named": true,
+    "fields": {
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "item",
+            "named": true
+          }
+        ]
+      }
+    }
+  }
+]
