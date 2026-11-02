@@ -232,8 +232,8 @@ adze-ir = {{ path = {:?} }}
     let stdout = String::from_utf8_lossy(&output.stdout);
     println!("{stdout}");
     assert!(
-        stdout.contains("5 passed; 0 failed; 0 ignored"),
-        "all five selected downstream controls must execute: {stdout}"
+        stdout.contains("6 passed; 0 failed; 0 ignored"),
+        "all six selected downstream controls must execute: {stdout}"
     );
     std::fs::remove_dir_all(fixture).unwrap();
 }

@@ -181,3 +181,21 @@ fn test_projection_transport_rejects_bad_version_slot_and_carrier_alternative() 
         assert_eq!(validate(bad), Err(GeneratedSchemaError::InvalidProjection));
     }
 }
+
+mod foreign {
+    const GRAMMAR_NAME: &str = "schema_hidden_consumer";
+    include!(concat!(env!("OUT_DIR"), "/foreign_generated.rs"));
+}
+#[test]
+fn test_foreign_grammar_id_collision_does_not_grant_generated_leaf_wrapper() {
+    use adze::document::{NodeId, ParseOutcome};
+    let document = foreign::parse_document("z").unwrap();
+    assert_eq!(document.outcome(), ParseOutcome::Complete);
+    assert!(document.diagnostics().is_empty());
+    let id = (0..document.tree().node_count()).map(NodeId::new)
+        .find(|id| document.tree().node(*id).unwrap().grammar_name() == Some("foreign_token")).unwrap();
+    assert_eq!(document.tree().node(id).unwrap().grammar_id().0, 2);
+    assert_eq!(document.tree().node(id).unwrap().utf8_text().unwrap(), "z");
+    assert!(!std::ptr::eq(&LANGUAGE, &foreign::LANGUAGE));
+    assert!(syntax::SepToken::try_cast(&document, id).unwrap().is_none(), "grammar-local numeric IDs cannot identify another grammar's typed wrapper");
+}
