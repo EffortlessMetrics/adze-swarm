@@ -559,7 +559,9 @@ pub fn build_ts_language(grammar: &Grammar, parse_table: &ParseTable) -> TSLangu
         external_token_count: parse_table.external_token_count as u32,
         state_count: parse_table.state_count as u32,
         large_state_count: parse_table.state_count as u32, // All states are large states
-        production_id_count: 0,
+        // This fixture allocates one alias/metadata row per sorted rule.
+        // Advertise that allocation so checked metadata readers can use it.
+        production_id_count: sorted_rules.len() as u32,
         field_count: grammar.fields.len() as u32,
         max_alias_sequence_length: max_rhs_len as u16,
         production_id_map: std::ptr::null(),

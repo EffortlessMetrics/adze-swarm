@@ -985,7 +985,7 @@ fn production_id_count_matches_rules() {
 // ===========================================================================
 
 #[test]
-fn shared_production_table_emits_rule_id_keyed_map() {
+fn test_shared_production_table_emits_rule_id_keyed_map() {
     // Two `middle` alternatives share ProductionId(1) with identical
     // (empty) metadata. The ABI PRODUCTION_ID_MAP is indexed by RuleId, so
     // it must still carry one entry per rule in rule order: [0, 1, 1].

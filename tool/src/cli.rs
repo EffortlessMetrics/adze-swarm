@@ -126,8 +126,12 @@ pub fn run_generate(
         );
     }
 
+    let Some(out_dir) = output.to_str() else {
+        anyhow::bail!("--output path is not valid UTF-8: {}", output.display());
+    };
+
     let options = BuildOptions {
-        out_dir: output.to_str().unwrap().to_string(),
+        out_dir: out_dir.to_string(),
         emit_artifacts: debug,
         compress_tables: !debug,
     };
@@ -205,4 +209,99 @@ pub fn run_info(path: &PathBuf, node_types: bool, rules: bool) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(any(unix, windows))]
+    fn non_utf8_path(parent: &Path) -> PathBuf {
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStringExt;
+            parent.join(std::ffi::OsString::from_vec(vec![
+                0xff, 0xfe, b'o', b'u', b't',
+            ]))
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::ffi::OsStringExt;
+            parent.join(std::ffi::OsString::from_wide(&[0xD800]))
+        }
+    }
+
+    #[test]
+    #[cfg(any(unix, windows))]
+    fn test_run_generate_non_utf8_output_returns_exact_path_error_without_writing() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let output = non_utf8_path(directory.path());
+        assert!(output.to_str().is_none());
+        let grammar = directory.path().join("missing grammar.js");
+        let result = std::panic::catch_unwind(|| run_generate(&grammar, &output, false, true));
+        assert!(
+            matches!(&result, Ok(Err(_))),
+            "must return a structured error without unwinding: {result:?}"
+        );
+        if let Ok(Err(error)) = result {
+            assert_eq!(
+                error.to_string(),
+                format!("--output path is not valid UTF-8: {}", output.display())
+            );
+        }
+        assert!(!output.exists());
+        assert_eq!(directory.path().read_dir()?.count(), 0);
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(any(unix, windows))]
+    fn test_run_generate_disabled_pure_rust_precedes_output_validation() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let output = non_utf8_path(directory.path());
+        assert!(output.to_str().is_none());
+        let result = run_generate(
+            &directory.path().join("missing grammar.js"),
+            &output,
+            false,
+            false,
+        );
+        assert!(result.is_err());
+        if let Err(error) = result {
+            assert_eq!(
+                error.to_string(),
+                "Only pure-rust implementation is currently supported. Remove --no-pure-rust flag."
+            );
+        }
+        assert_eq!(directory.path().read_dir()?.count(), 0);
+        Ok(())
+    }
+
+    // Creating an invalid-byte filename requires filesystem support. This
+    // positive fixture is qualified on Linux; the rejection controls above
+    // only construct paths and remain available on Unix and Windows.
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn test_run_generate_native_non_utf8_input_with_utf8_output_succeeds() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let grammar = non_utf8_path(directory.path());
+        assert!(grammar.to_str().is_none());
+        std::fs::write(
+            &grammar,
+            "module.exports = grammar({ name: 'cli_native_path', rules: { source_file: $ => 'x' } });",
+        )?;
+        let output = directory.path().join("generated é with spaces");
+        assert!(output.to_str().is_some());
+        run_generate(&grammar, &output, false, true)?;
+        let parser = output.join("grammar_cli_native_path/parser_cli_native_path.rs");
+        assert!(
+            parser.is_file(),
+            "expected generated parser at {}",
+            parser.display()
+        );
+        let source = std::fs::read_to_string(parser)?;
+        assert!(source.contains("static LANGUAGE"));
+        assert!(source.contains("cli_native_path"));
+        Ok(())
+    }
 }

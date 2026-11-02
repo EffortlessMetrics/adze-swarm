@@ -1,6 +1,8 @@
 # Parser Cookbook
 
-Status: advisory recipes backed by `runtime/tests/cookbook.rs`.
+Status: advisory recipes backed by `runtime/tests/cookbook.rs` and the
+`examples/cookbook` crate (`cargo test --manifest-path examples/cookbook/Cargo.toml`, 15 tests by
+default, 16 with `--features serialization`).
 
 This cookbook shows the canonical Adze product ladder:
 
@@ -54,6 +56,12 @@ The tested recipe uses `adze_example::csv_list::grammar`. Comma-separated
 multi-item delimiter parsing is a known follow-up and is not promoted by this
 cookbook proof yet.
 
+Multi-item comma-separated lists of identifiers are additionally proved by
+the `examples/cookbook` crate (`cookbook_csv_multi_item_row_is_exact`):
+cells use the identifier token shape, which is inside the generated lexer's
+fixed pattern subset (`\s+`, `\d+`, identifiers, text literals). Richer cell
+patterns are a follow-up until the lexer subset grows.
+
 ## Object-Like Records
 
 Use explicit token leaves for punctuation and typed fields for semantic values:
@@ -63,6 +71,11 @@ let object = grammar::parse("{ answer: 42 }")?;
 ```
 
 The tested recipe uses `adze_example::object_like_contract::grammar`.
+
+The `examples/cookbook` crate adds a fuller object recipe
+(`cookbook_config_full_object_is_exact`): fixed-order named fields, a
+repeated tag list, keyword leaves for keys and boolean values, and word-token
+identifiers for values, with whitespace extras.
 
 ## Fixed Tokens And Identifiers
 
@@ -77,6 +90,28 @@ The tested recipes use `adze_example::object_like_contract::grammar` and
 `adze_example::fielded_precedence_typed_cst_contract::grammar`. Word-boundary
 keyword grammar behavior is intentionally not promoted by this cookbook until
 its happy path has a repeatable proof.
+
+The `examples/cookbook` crate proves the working boundary
+(`cookbook_config_keywords_survive_as_identifiers`): identifier values may
+start with or contain keyword text (`hostname`, `truex`) because the longer
+identifier match wins. Bare keyword text as an identifier value still lexes
+as the keyword, so that shape stays a follow-up.
+
+## Fallible Numeric Conversion
+
+Use `try_transform` (never an unwrapping `transform`) for user-supplied
+numbers. Overflow fails as a structured `ConversionFailed` diagnostic over
+the token's byte range instead of panicking:
+
+```rust
+let errors = grammar::parse("256").expect_err("u8 overflow fails");
+assert!(matches!(errors[0].reason, ParseErrorReason::ConversionFailed(_)));
+assert_eq!(errors[0].byte_span(), 0..3);
+```
+
+The syntax outcome stays `Complete` while `document.ast()` reports the
+conversion failure (`cookbook_fallible_document_keeps_syntax_outcome_but_ast_fails`).
+The tested recipes live in the `examples/cookbook` crate.
 
 ## Document Tooling Path
 
@@ -249,10 +284,13 @@ tracks the same gaps.
 
 | Shape | Blocker |
 | --- | --- |
-| Comma-separated multi-item lists | Delimited repetition has no exact-value proof (matrix `Gap`) |
-| Keywords versus identifiers | Word-token happy path has no repeatable proof |
-| Optional and repeated fields | Cardinality agreement across typed AST, typed CST, and node schema is unproved |
-| Fallible numeric transforms | Proved in the generated-grammar matrix via `try_transform` (#864); no cookbook recipe yet |
+| Comma-separated multi-item lists | Identifier-cell lists proved by `examples/cookbook`; richer cell patterns need lexer-subset growth (see below) |
+| Keywords versus identifiers | Prefix/superstring identifiers proved by `examples/cookbook`; bare keyword text as an identifier value still lexes as the keyword |
+| Optional and repeated fields | `Vec` repetition proved by `examples/cookbook`; skipping `Option<Struct>` mis-generates the continuation (`{ a: x, b: y }` fails where the trailing clause is present-tense fine), so `Option` stays unproved |
+| Fallible numeric transforms | Proved by `examples/cookbook` (`cookbook_fallible_*`); matrix row now has a cookbook recipe |
+| General regex leaf patterns | The generated `lex_fn` lowers only `\s+`, `\d+`, the identifier shape, and text literals; other patterns (e.g. `[^...]`, `#[ -~]*`) produce no lexer code and never match — no build error is emitted |
+| Empty delimited lists | `non_empty = false` with `#[adze::delimited]` still requires an element (`tags: []` fails); use `non_empty = true` until proved |
+| Comment extras | Blocked on the regex-subset row above; `#` comment patterns do not lex |
 | Document-backed queries | The query recipe builds its tree by hand; queries over a parsed document are a named gap (#861/#878) |
 | Performance claims | No cookbook speed claims; see [perf baselines](../perf/baselines.md) for how performance receipts are produced |
 
@@ -270,3 +308,16 @@ cargo run -p adze --features "pure-rust,glr,serialization" --example diagnostics
 
 Expected counts: at least 6 tests pass without `serialization`, at least 7
 with it (the JSON projection recipe is feature-gated).
+
+The `examples/cookbook` crate proof is:
+
+```bash
+cargo test --manifest-path examples/cookbook/Cargo.toml -- --test-threads=1 --nocapture
+cargo test --manifest-path examples/cookbook/Cargo.toml --features serialization -- --test-threads=1 --nocapture
+```
+
+Expected counts: 15 tests pass without `serialization`, 16 with it
+(the document JSON projection recipe is feature-gated). The crate is a
+standalone workspace-detached package (same pattern as `test-example/`),
+so these commands run from the checkout without touching workspace
+manifests.

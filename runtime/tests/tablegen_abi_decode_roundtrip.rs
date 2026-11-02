@@ -572,7 +572,7 @@ fn generated_ambiguous_expr_decode_preserves_glr_conflict_cells() {
 // Three syntax rules share metadata slot 0; slot 5 is sparse. The syntax
 // lengths must survive independently of production metadata and map allocation.
 #[test]
-fn shared_sparse_production_decode_preserves_rule_identity() {
+fn test_shared_sparse_production_decode_preserves_rule_identity() {
     static MAP: [u16; 3] = [5, 0, 0];
     static RULES: [TSRule; 3] = [
         TSRule {
@@ -634,7 +634,7 @@ fn shared_sparse_production_decode_preserves_rule_identity() {
 }
 
 #[test]
-fn native_tablegen_and_runtime_rule_metadata_layouts_match() {
+fn test_native_tablegen_and_runtime_rule_metadata_layouts_match() {
     use adze_tablegen::abi as generated;
     use std::mem::{align_of, offset_of, size_of};
     assert_eq!(size_of::<TSLanguage>(), size_of::<generated::TSLanguage>());
@@ -654,7 +654,7 @@ fn native_tablegen_and_runtime_rule_metadata_layouts_match() {
 }
 
 #[test]
-fn shared_production_fields_use_metadata_slots_and_rule_keys() {
+fn test_shared_production_fields_use_metadata_slots_and_rule_keys() {
     static MAP: [u16; 3] = [2, 0, 0];
     static RULES: [TSRule; 3] = [TSRule {
         lhs: 2,
@@ -689,7 +689,7 @@ fn shared_production_fields_use_metadata_slots_and_rule_keys() {
 }
 
 #[test]
-fn shared_production_rule_count_can_exceed_metadata_count_and_invalid_rules_reject() {
+fn test_shared_production_rule_count_can_exceed_metadata_count_and_invalid_rules_reject() {
     // Extra allocated backing prevents the pre-repair implementation from
     // invoking UB if it uses metadata count or an invalid rule index.
     static MAP: [u16; 6] = [0; 6];
@@ -732,7 +732,7 @@ fn shared_production_rule_count_can_exceed_metadata_count_and_invalid_rules_reje
 }
 
 #[test]
-fn pure_parser_accepts_empty_alternative_with_shared_metadata() {
+fn test_pure_parser_accepts_empty_alternative_with_shared_metadata() {
     static MAP: [u16; 3] = [0, 0, 0];
     static RULES: [TSRule; 3] = [
         TSRule {

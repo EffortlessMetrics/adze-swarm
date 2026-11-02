@@ -548,7 +548,7 @@ fn production_id_map_preserves_rule_id_order() {
 }
 
 #[test]
-fn ts_rules_are_rule_ordered_for_sparse_production_ids() {
+fn test_ts_rules_are_rule_ordered_for_sparse_production_ids() {
     let t = SymbolId(1);
     let table = make_empty_table(1, 1, 2, 0);
     let nt1 = table.start_symbol;

@@ -405,18 +405,34 @@ fn snapshot_error_whitespace_only() {
     insta::assert_snapshot!("error_whitespace_only_sexpr", safe_arith_parse("   "));
 }
 
-// 16. Repetitions grammar — smoke tests (non-deterministic across runs, so no snapshot)
+// 16. Repetitions grammar — regression for the #1062 `unwrap()` panic class
+// (the repeat-aux sentinel's empty text reached the leaf transform).
 #[test]
 fn snapshot_repetitions_single() {
-    let result = adze_example::repetitions::grammar::parse("1");
-    // Result may vary across runs; just verify it parses without panic
-    let _output = format!("{:?}", result);
+    let parsed = adze_example::repetitions::grammar::parse("1")
+        .unwrap_or_else(|errors| panic!("singleton parses: {errors:?}"));
+    let items: Vec<(i32, (usize, usize))> = parsed
+        .numbers
+        .value
+        .iter()
+        .map(|item| (item.value, item.span))
+        .collect();
+    assert_eq!(items, vec![(1, (0, 1))]);
+    assert_eq!(parsed.numbers.span, (0, 1));
 }
 
 #[test]
 fn snapshot_repetitions_list() {
-    let result = adze_example::repetitions::grammar::parse("1, 2");
-    let _output = format!("{:?}", result);
+    let parsed = adze_example::repetitions::grammar::parse("1, 2")
+        .unwrap_or_else(|errors| panic!("pair parses: {errors:?}"));
+    let items: Vec<(i32, (usize, usize))> = parsed
+        .numbers
+        .value
+        .iter()
+        .map(|item| (item.value, item.span))
+        .collect();
+    assert_eq!(items, vec![(1, (0, 1)), (2, (3, 4))]);
+    assert_eq!(parsed.numbers.span, (0, 4));
 }
 
 // 17. Zero value

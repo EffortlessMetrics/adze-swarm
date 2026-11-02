@@ -34,7 +34,9 @@ struct RulePrec {
 pub(super) struct PrecTables {
     // table-indexed; entries 0..token_count-1 may be Some(..); others None
     tok_prec_by_index: Vec<Option<TokPrec>>,
-    // production_id -> precedence and associativity
+    // dense RuleId -> precedence and associativity (#1060). Precedence is
+    // per-syntax-rule: distinct rules may share one ProductionId (metadata
+    // identity), so production slots must never key this table.
     rule_prec: Vec<RulePrec>,
 }
 
@@ -42,11 +44,11 @@ pub(super) fn build_prec_tables(
     grammar: &Grammar,
     symbol_to_index: &BTreeMap<SymbolId, usize>,
     token_count: u32,
-    production_count: u32,
+    rule_count: u32,
 ) -> PrecTables {
     use adze_ir::{Associativity, PrecedenceKind};
 
-    debug_assert!(production_count > 0, "production_count must be positive");
+    debug_assert!(rule_count > 0, "rule_count must be positive");
 
     let mut tok_prec_by_index = vec![None; symbol_to_index.len()];
     let tok_prec_len = tok_prec_by_index.len();
@@ -66,100 +68,96 @@ pub(super) fn build_prec_tables(
             prec: 0,
             assoc: Assoc::None,
         };
-        production_count as usize
+        rule_count as usize
     ];
 
-    for rules in grammar.rules.values() {
-        for rule in rules {
-            let pid = rule.production_id.0 as usize;
-            if pid >= production_count as usize {
-                continue;
-            }
+    for (rule_id, rule) in grammar.all_rules_with_ids() {
+        let rid = rule_id.0 as usize;
+        if rid >= rule_count as usize {
+            continue;
+        }
 
-            let explicit = rule.precedence.and_then(|p| {
-                if let PrecedenceKind::Static(level) = p {
-                    Some(level as u8)
+        let explicit = rule.precedence.and_then(|p| {
+            if let PrecedenceKind::Static(level) = p {
+                Some(level as u8)
+            } else {
+                None
+            }
+        });
+
+        let rule_assoc = rule
+            .associativity
+            .map(|assoc| match assoc {
+                Associativity::Left => Assoc::Left,
+                Associativity::Right => Assoc::Right,
+                Associativity::None => Assoc::None,
+            })
+            .unwrap_or(Assoc::None);
+
+        if let Some(level) = explicit {
+            let tok_idx_opt = rule.rhs.iter().rev().find_map(|sym| {
+                if let Symbol::Terminal(id) = sym {
+                    symbol_to_index.get(id).copied()
                 } else {
                     None
                 }
             });
 
-            let rule_assoc = rule
-                .associativity
-                .map(|assoc| match assoc {
-                    Associativity::Left => Assoc::Left,
-                    Associativity::Right => Assoc::Right,
-                    Associativity::None => Assoc::None,
-                })
-                .unwrap_or(Assoc::None);
-
-            if let Some(level) = explicit {
-                let tok_idx_opt = rule.rhs.iter().rev().find_map(|sym| {
-                    if let Symbol::Terminal(id) = sym {
-                        symbol_to_index.get(id).copied()
-                    } else {
-                        None
-                    }
-                });
-
-                if let Some(tok_idx) = tok_idx_opt
-                    && tok_idx < tok_prec_len
-                {
-                    set_tok_prec(
-                        tok_idx,
-                        TokPrec {
-                            prec: level,
-                            assoc: rule_assoc,
-                        },
-                    );
-                }
+            if let Some(tok_idx) = tok_idx_opt
+                && tok_idx < tok_prec_len
+            {
+                set_tok_prec(
+                    tok_idx,
+                    TokPrec {
+                        prec: level,
+                        assoc: rule_assoc,
+                    },
+                );
             }
-
-            rule_prec[pid] = RulePrec {
-                prec: explicit.unwrap_or(0),
-                assoc: rule_assoc,
-            };
         }
+
+        rule_prec[rid] = RulePrec {
+            prec: explicit.unwrap_or(0),
+            assoc: rule_assoc,
+        };
     }
 
-    for rules in grammar.rules.values() {
-        for rule in rules {
-            let pid = rule.production_id.0 as usize;
-            if pid >= production_count as usize {
-                continue;
-            }
-
-            if rule_prec[pid].prec > 0 {
-                continue;
-            }
-
-            let derived = rule
-                .rhs
-                .iter()
-                .rev()
-                .find_map(|sym| {
-                    if let Symbol::Terminal(id) = sym {
-                        symbol_to_index.get(id).and_then(|&idx| {
-                            if (idx as u32) < token_count {
-                                tok_prec_by_index[idx]
-                            } else {
-                                None
-                            }
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(TokPrec {
-                    prec: 0,
-                    assoc: Assoc::None,
-                });
-
-            rule_prec[pid] = RulePrec {
-                prec: derived.prec,
-                assoc: derived.assoc,
-            };
+    for (rule_id, rule) in grammar.all_rules_with_ids() {
+        let rid = rule_id.0 as usize;
+        if rid >= rule_count as usize {
+            continue;
         }
+
+        if rule_prec[rid].prec > 0 {
+            continue;
+        }
+
+        let derived = rule
+            .rhs
+            .iter()
+            .rev()
+            .find_map(|sym| {
+                if let Symbol::Terminal(id) = sym {
+                    symbol_to_index.get(id).and_then(|&idx| {
+                        if (idx as u32) < token_count {
+                            tok_prec_by_index[idx]
+                        } else {
+                            None
+                        }
+                    })
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(TokPrec {
+                prec: 0,
+                assoc: Assoc::None,
+            });
+
+        rule_prec[rid] = RulePrec {
+            prec: derived.prec,
+            assoc: derived.assoc,
+        };
     }
 
     PrecTables {
@@ -179,10 +177,10 @@ pub(super) enum PrecDecision {
 #[inline]
 pub(super) fn decide_with_precedence(
     lookahead_tok_idx: usize,
-    reduce_prod_id: u16,
+    reduce_rule_id: u16,
     prec: &PrecTables,
 ) -> PrecDecision {
-    if reduce_prod_id as usize >= prec.rule_prec.len() {
+    if reduce_rule_id as usize >= prec.rule_prec.len() {
         return PrecDecision::NoInfo;
     }
 
@@ -194,7 +192,7 @@ pub(super) fn decide_with_precedence(
         Some(p) => p,
         None => return PrecDecision::NoInfo,
     };
-    let rulep = prec.rule_prec[reduce_prod_id as usize];
+    let rulep = prec.rule_prec[reduce_rule_id as usize];
 
     if tokp.prec == 0 || rulep.prec == 0 {
         return PrecDecision::NoInfo;
@@ -296,12 +294,12 @@ mod tests {
     // ---- decide_with_precedence ----------------------------------------
 
     #[test]
-    fn decide_with_precedence_out_of_range_prod_returns_no_info() {
+    fn decide_with_precedence_out_of_range_rule_returns_no_info() {
         let prec = tables_for_decision(vec![(1, Assoc::Left)], vec![(1, Assoc::Left)]);
         assert_eq!(
             decide_with_precedence(0, 5, &prec),
             PrecDecision::NoInfo,
-            "reduce_prod_id beyond rule_prec must yield NoInfo"
+            "reduce_rule_id beyond rule_prec must yield NoInfo"
         );
     }
 
@@ -560,9 +558,78 @@ mod tests {
     }
 
     #[test]
-    fn build_prec_tables_skips_rules_with_out_of_range_production_id() {
-        // A rule whose production_id exceeds production_count must be silently skipped
-        // (no panic, no out-of-bounds write).
+    fn build_prec_tables_keys_by_rule_id_not_shared_production() {
+        // #1060: two distinct syntax rules may share one ProductionId
+        // (field/alias metadata identity). Precedence is per-syntax-rule,
+        // so each dense RuleId keeps its own entry instead of
+        // last-writer-wins on the shared slot.
+        let a = SymbolId(1);
+        let x = SymbolId(2);
+        let y = SymbolId(3);
+
+        let mut grammar = Grammar::new("shared".to_string());
+        grammar.tokens.insert(x, make_token("x"));
+        grammar.tokens.insert(y, make_token("y"));
+        grammar.rules.entry(a).or_default().push(make_rule(
+            a,
+            vec![Symbol::Terminal(x)],
+            Some(PrecedenceKind::Static(2)),
+            Some(Associativity::Left),
+            0,
+        ));
+        grammar.rules.entry(a).or_default().push(make_rule(
+            a,
+            vec![Symbol::Terminal(y)],
+            Some(PrecedenceKind::Static(9)),
+            Some(Associativity::Right),
+            0, // shared production slot
+        ));
+
+        let mut symbol_to_index = BTreeMap::new();
+        symbol_to_index.insert(x, 0usize);
+        symbol_to_index.insert(y, 1usize);
+        symbol_to_index.insert(a, 2usize);
+
+        let tables = build_prec_tables(&grammar, &symbol_to_index, 2, 2);
+        assert_eq!(tables.rule_prec[0].prec, 2);
+        assert_eq!(tables.rule_prec[0].assoc, Assoc::Left);
+        assert_eq!(tables.rule_prec[1].prec, 9);
+        assert_eq!(tables.rule_prec[1].assoc, Assoc::Right);
+    }
+
+    #[test]
+    fn build_prec_tables_keeps_sparse_production_explicit_precedence() {
+        // #1060: a rule whose ProductionId exceeds the rule count (a sparse
+        // metadata slot) must still contribute its explicit precedence
+        // under its dense RuleId instead of being silently skipped.
+        let a = SymbolId(1);
+        let x = SymbolId(2);
+
+        let mut grammar = Grammar::new("sparse".to_string());
+        grammar.tokens.insert(x, make_token("x"));
+        grammar.rules.entry(a).or_default().push(make_rule(
+            a,
+            vec![Symbol::Terminal(x)],
+            Some(PrecedenceKind::Static(4)),
+            Some(Associativity::Left),
+            7, // sparse production slot
+        ));
+
+        let mut symbol_to_index = BTreeMap::new();
+        symbol_to_index.insert(x, 0usize);
+        symbol_to_index.insert(a, 1usize);
+
+        let tables = build_prec_tables(&grammar, &symbol_to_index, 1, 1);
+        assert_eq!(tables.rule_prec.len(), 1);
+        assert_eq!(tables.rule_prec[0].prec, 4);
+        assert_eq!(tables.rule_prec[0].assoc, Assoc::Left);
+    }
+
+    #[test]
+    fn build_prec_tables_records_rule_with_sparse_production_id() {
+        // #1060: precedence is keyed by dense RuleId, so a rule whose
+        // production slot exceeds the rule count is recorded under its own
+        // RuleId (no panic, no out-of-bounds write) instead of skipped.
         let expr = SymbolId(1);
         let plus = SymbolId(2);
 
@@ -573,7 +640,7 @@ mod tests {
             vec![Symbol::Terminal(plus)],
             Some(PrecedenceKind::Static(9)),
             Some(Associativity::Left),
-            // production_id 7 is out of range vs. production_count = 1
+            // production_id 7 exceeds the rule count but the rule is RuleId(0)
             7,
         ));
 
@@ -582,11 +649,14 @@ mod tests {
         symbol_to_index.insert(expr, 1usize);
 
         let tables = build_prec_tables(&grammar, &symbol_to_index, 1, 1);
-        // Table size still respects production_count, and the single slot stays at default.
+        // Table size still respects the rule count; the single rule slot
+        // carries its explicit precedence.
         assert_eq!(tables.rule_prec.len(), 1);
-        assert_eq!(tables.rule_prec[0].prec, 0);
-        assert_eq!(tables.rule_prec[0].assoc, Assoc::None);
-        // Token slot is also untouched because the rule was skipped before set_tok_prec.
-        assert!(tables.tok_prec_by_index[0].is_none());
+        assert_eq!(tables.rule_prec[0].prec, 9);
+        assert_eq!(tables.rule_prec[0].assoc, Assoc::Left);
+        // The rightmost-terminal token slot is populated from the same rule.
+        let plus_slot = tables.tok_prec_by_index[0].expect("plus must have token prec");
+        assert_eq!(plus_slot.prec, 9);
+        assert_eq!(plus_slot.assoc, Assoc::Left);
     }
 }

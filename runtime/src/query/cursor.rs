@@ -3,7 +3,12 @@ use super::{Query, QueryMatch, QueryMatches};
 use crate::parser_v4::ParseNode;
 use std::ops::Range;
 
-/// A stateful object for executing queries on a syntax tree
+/// A stateful object for executing queries on a [`ParseNode`] syntax tree.
+///
+/// Bounds matching by byte range and root-only flags. This is a different
+/// type from the same-named [`glr_query::QueryCursor`](crate::glr_query::QueryCursor),
+/// which bounds [`Subtree`](crate::glr_query::Subtree) matching by maximum
+/// depth. The shared name is a known collision tracked by #871 §d.
 pub struct QueryCursor {
     /// Byte range to restrict matches
     byte_range: Option<Range<usize>>,
@@ -35,7 +40,14 @@ impl QueryCursor {
         self.match_root = match_root;
     }
 
-    /// Execute a query and return all matches
+    /// Execute a query and return all matches through the canonical matcher.
+    ///
+    /// This compatibility entry has no source text or named/extra metadata.
+    /// Symbol/field matching, capture occurrences, range filtering and root-only
+    /// mode remain available. Literal tokens and text predicates fail closed,
+    /// including capture-to-capture comparisons: equal spans are not proof of
+    /// equal text. Use the source-aware/document matcher for those operations.
+    /// Owned recursive capture payloads are retained for API compatibility.
     pub fn matches<'a>(&'a mut self, query: &'a Query, root: &'a ParseNode) -> QueryMatches<'a> {
         QueryMatches::new_with_options(query, root, self.byte_range.as_ref(), self.match_root)
     }

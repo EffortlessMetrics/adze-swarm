@@ -16,6 +16,7 @@ CANARIES=(
   "typed extraction exact value|cargo test -p adze --features pure-rust --test typed_ast_contract typed_ast_contract_left_associative_addition -- --exact --nocapture"
   "typed extraction repeated-parse determinism|cargo test -p adze --features pure-rust --test typed_ast_contract typed_ast_contract_repeated_parse_is_deterministic -- --exact --nocapture"
   "deterministic generated lexer contract|cargo test -p adze --features pure-rust --test generated_lexer_contract -- --nocapture"
+  "README numeric conversion boundaries|cargo test -p xtask --test readme_numeric_conversion -- --exact readme_numeric_conversion_is_fallible --nocapture"
   "README quickstart clean-room parse and diagnostics|cargo test -p adze-cli readme_arithmetic_quickstart_builds_and_runs -- --exact --nocapture"
   "Getting Started quickstart clean-room parse and diagnostics|cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture"
   "Book quickstart clean-room parse and diagnostics|cargo test -p adze-cli book_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture"

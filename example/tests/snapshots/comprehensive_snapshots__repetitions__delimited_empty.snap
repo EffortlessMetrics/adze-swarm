@@ -5,11 +5,12 @@ expression: "grammar::parse(\"\")"
 Err(
     [
         ParseError {
-            reason: UnexpectedToken(
-                "end",
-            ),
+            reason: UnexpectedEof,
             start: 0,
             end: 0,
+            expected: [
+                "number",
+            ],
         },
     ],
 )

@@ -698,21 +698,33 @@ fn test_edge_combined_fields_aliases_productions() {
 #[test]
 fn test_edge_fields_survive_normalize_then_optimize() {
     let mut g = grammar_with_fields();
+    // Positional over `expr -> expr PLUS expr` (production 0, three
+    // children): a real alias followed by trailing unaliased children.
+    // #981 requires the remapped vector to stay exactly RHS-length so it
+    // keeps describing the normalized children and `max` agrees with it,
+    // instead of truncating the trailing `None`s (which stales the
+    // sequence and fails validation).
     g.alias_sequences.insert(
         ProductionId(0),
         AliasSequence {
-            aliases: vec![Some("x".to_string())],
+            aliases: vec![Some("x".to_string()), None, None],
         },
     );
     g.production_ids.insert(RuleId(0), ProductionId(0));
-    g.max_alias_sequence_length = 1;
+    g.max_alias_sequence_length = 3;
 
     let _ = g.normalize();
+    g.validate()
+        .expect("remapped alias must stay positional and valid");
     g.optimize();
 
     assert_eq!(g.fields.len(), 3);
     assert_eq!(g.fields[&FieldId(0)], "left");
     assert_eq!(g.alias_sequences.len(), 1);
+    assert_eq!(
+        g.alias_sequences[&ProductionId(0)].aliases,
+        vec![Some("x".to_string()), None, None]
+    );
     assert_eq!(g.production_ids[&RuleId(0)], ProductionId(0));
-    assert_eq!(g.max_alias_sequence_length, 1);
+    assert_eq!(g.max_alias_sequence_length, 3);
 }
