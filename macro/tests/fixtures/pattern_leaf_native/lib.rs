@@ -129,6 +129,31 @@ pub mod same_regex_wrapped_siblings {
     }
 }
 
+// The annotated modules above consume the unchanged public build outputs.
+// These separate modules consume explicitly priority-controlled IR outputs.
+mod shared_pattern_identity_controlled {
+    include!(concat!(
+        env!("OUT_DIR"),
+        "/controlled/grammar_shared_pattern_identity/parser_shared_pattern_identity.rs"
+    ));
+    pub fn parse(
+        input: &str,
+    ) -> Result<super::shared_pattern_identity::Root, Vec<adze::errors::ParseError>> {
+        adze::__private::parse::<super::shared_pattern_identity::Root>(input, || &LANGUAGE)
+    }
+}
+mod same_regex_wrapped_siblings_controlled {
+    include!(concat!(
+        env!("OUT_DIR"),
+        "/controlled/grammar_same_regex_wrapped_siblings/parser_same_regex_wrapped_siblings.rs"
+    ));
+    pub fn parse(
+        input: &str,
+    ) -> Result<super::same_regex_wrapped_siblings::Choice, Vec<adze::errors::ParseError>> {
+        adze::__private::parse::<super::same_regex_wrapped_siblings::Choice>(input, || &LANGUAGE)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -296,7 +321,7 @@ mod tests {
     }
     #[test]
     fn test_shared_regex_inline_token_cannot_dispatch_as_wrapped_sibling() {
-        let document = shared_pattern_identity::parse_document("7;17").unwrap();
+        let document = shared_pattern_identity_controlled::parse_document("7;17").unwrap();
         assert_eq!(document.outcome(), ParseOutcome::Complete);
         assert!(document.diagnostics().is_empty());
         let selected = (0..document.tree().node_count())
@@ -310,7 +335,7 @@ mod tests {
             .unwrap();
         assert_eq!(selected.kind_name(), Some(r"/\d+/"));
         assert_eq!(selected.utf8_text().unwrap(), "17");
-        let ast = shared_pattern_identity::parse("7;17").unwrap();
+        let ast = shared_pattern_identity_controlled::parse("7;17").unwrap();
         assert_eq!(ast.seed.value, "7");
         assert_eq!(
             ast.choice,
@@ -319,7 +344,7 @@ mod tests {
     }
     #[test]
     fn test_shared_regex_wrapped_siblings_keep_selected_second_variant_identity() {
-        let document = same_regex_wrapped_siblings::parse_document("17").unwrap();
+        let document = same_regex_wrapped_siblings_controlled::parse_document("17").unwrap();
         assert_leaf(&document, "17", r"_/\d+/");
         let names: Vec<_> = (0..document.tree().node_count())
             .map(|i| {
@@ -333,8 +358,62 @@ mod tests {
         assert!(names.contains(&Some("Choice_ASecond")));
         assert!(!names.contains(&Some("Choice_ZFirst")));
         assert_eq!(
-            same_regex_wrapped_siblings::parse("17").unwrap(),
+            same_regex_wrapped_siblings_controlled::parse("17").unwrap(),
             same_regex_wrapped_siblings::Choice::ASecond("a:17".into())
         );
+    }
+    #[test]
+    fn test_shared_regex_ordinary_build_route_parses_without_assuming_tie_winner() {
+        let document = shared_pattern_identity::parse_document("7;17").unwrap();
+        assert_eq!(document.outcome(), ParseOutcome::Complete);
+        assert!(document.diagnostics().is_empty());
+        let ast = shared_pattern_identity::parse("7;17").unwrap();
+        assert_eq!(ast.seed.value, "7");
+        let names: Vec<_> = (0..document.tree().node_count())
+            .map(|i| {
+                document
+                    .tree()
+                    .node(adze::document::NodeId::new(i))
+                    .unwrap()
+                    .kind_name()
+            })
+            .collect();
+        match ast.choice {
+            shared_pattern_identity::Choice::Wrapped(value) => {
+                assert_eq!(value, "17");
+                assert!(names.contains(&Some("Choice_Wrapped")));
+            }
+            shared_pattern_identity::Choice::Inline(value) => {
+                assert_eq!(value, "17");
+                assert!(!names.contains(&Some("Choice_Wrapped")));
+            }
+        }
+    }
+    #[test]
+    fn test_equal_wrapped_regex_ordinary_build_route_follows_selected_native_identity() {
+        let document = same_regex_wrapped_siblings::parse_document("17").unwrap();
+        assert_eq!(document.outcome(), ParseOutcome::Complete);
+        assert!(document.diagnostics().is_empty());
+        let names: Vec<_> = (0..document.tree().node_count())
+            .map(|i| {
+                document
+                    .tree()
+                    .node(adze::document::NodeId::new(i))
+                    .unwrap()
+                    .kind_name()
+            })
+            .collect();
+        match same_regex_wrapped_siblings::parse("17").unwrap() {
+            same_regex_wrapped_siblings::Choice::ZFirst(value) => {
+                assert_eq!(value, "z:17");
+                assert!(names.contains(&Some("Choice_ZFirst")));
+                assert!(!names.contains(&Some("Choice_ASecond")));
+            }
+            same_regex_wrapped_siblings::Choice::ASecond(value) => {
+                assert_eq!(value, "a:17");
+                assert!(names.contains(&Some("Choice_ASecond")));
+                assert!(!names.contains(&Some("Choice_ZFirst")));
+            }
+        }
     }
 }

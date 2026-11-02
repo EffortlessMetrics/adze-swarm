@@ -86,6 +86,7 @@ impl GrammarJsParserV3 {
             precedences: vec![],
             start_symbol: None,
             wrapper_token_relations: IndexMap::new(),
+            inferred_wrapper_rules: Default::default(),
         };
 
         // Extract name

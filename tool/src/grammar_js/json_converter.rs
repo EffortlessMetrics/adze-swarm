@@ -143,6 +143,18 @@ pub fn from_tree_sitter_json(value: &Value) -> Result<GrammarJs> {
         }
     }
 
+    if let Some(origins) = obj.get("inferred_wrapper_rules") {
+        let names = origins
+            .as_array()
+            .context("inferred_wrapper_rules must be an array")?;
+        for name in names {
+            let name = name
+                .as_str()
+                .context("inferred_wrapper_rules entry must be a string")?;
+            grammar_js.inferred_wrapper_rules.insert(name.to_owned());
+        }
+    }
+
     infer_imported_compiler_identity(&mut grammar_js);
 
     Ok(grammar_js)
