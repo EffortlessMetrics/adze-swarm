@@ -50,11 +50,72 @@ pub(crate) const GENERATED_SEMANTIC_VERSION: Option<(u8, u8, u8)> = Some((0, 25,
 /// grammar found in the given module and recursive submodules.
 pub fn generate_grammars(root_file: &Path) -> ToolResult<Vec<Value>> {
     let root_file = syn_inline_mod::parse_and_inline_modules(root_file).items;
+    grammar_values(&root_file)
+}
+
+fn grammar_values(items: &[Item]) -> ToolResult<Vec<Value>> {
     let mut out = vec![];
-    for i in root_file.iter() {
-        generate_all_grammars(i, &mut out)?;
+    for item in items {
+        generate_all_grammars(item, &mut out)?;
     }
     Ok(out)
+}
+
+/// Files actually read by the existing inliner, plus source directories whose
+/// contents can change module resolution. This is not arbitrary Rust closure.
+#[cfg(feature = "build_parsers")]
+#[derive(Debug, Default)]
+pub(crate) struct GrammarInputs {
+    pub(crate) files: std::collections::BTreeSet<std::path::PathBuf>,
+    pub(crate) directories: std::collections::BTreeSet<std::path::PathBuf>,
+}
+
+#[cfg(feature = "build_parsers")]
+pub(crate) struct TracedGrammars {
+    pub(crate) grammars: Vec<Value>,
+    pub(crate) inputs: GrammarInputs,
+}
+
+/// Cargo-only tracing reuses the inliner's actual reads. Public generation
+/// keeps its existing API/error path and never emits build-script directives.
+#[cfg(feature = "build_parsers")]
+pub(crate) fn generate_grammars_with_inputs(root_file: &Path) -> ToolResult<TracedGrammars> {
+    let mut inputs = GrammarInputs::default();
+    let inlined = syn_inline_mod::InlinerBuilder::default()
+        .inline_with_callback(root_file, |path, _contents| {
+            inputs.files.insert(path.to_path_buf());
+        })
+        .map_err(|error| match error {
+            syn_inline_mod::Error::Io(error) => ToolError::Io(error),
+            syn_inline_mod::Error::Parse(syn_error) => ToolError::SynError { syn_error },
+        })?;
+    // Preserve the existing best-effort nested-inlining policy. Failed paths
+    // and the actual source parents still participate in invalidation, so a
+    // missing/alternative module becoming available cannot leave stale output.
+    for error in inlined.errors() {
+        inputs.files.insert(error.src_path().to_path_buf());
+        add_existing_source_parent(&mut inputs.directories, &std::path::absolute(error.path())?);
+    }
+    inputs.files = inputs
+        .files
+        .into_iter()
+        .map(std::path::absolute)
+        .collect::<std::io::Result<_>>()?;
+    for file in &inputs.files {
+        add_existing_source_parent(&mut inputs.directories, file);
+    }
+    let grammars = grammar_values(&inlined.output().items)?;
+    Ok(TracedGrammars { grammars, inputs })
+}
+
+#[cfg(feature = "build_parsers")]
+fn add_existing_source_parent(
+    directories: &mut std::collections::BTreeSet<std::path::PathBuf>,
+    file: &Path,
+) {
+    if let Some(parent) = file.ancestors().skip(1).find(|parent| parent.is_dir()) {
+        directories.insert(parent.to_path_buf());
+    }
 }
 
 fn generate_all_grammars(item: &Item, out: &mut Vec<Value>) -> ToolResult<()> {

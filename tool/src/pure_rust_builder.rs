@@ -276,10 +276,34 @@ pub fn build_parser_from_grammar_js(
 
 /// Build a parser for all grammars in a crate
 pub fn build_parser_for_crate(root_file: &Path, options: BuildOptions) -> Result<Vec<BuildResult>> {
-    let mut results = Vec::new();
-
-    // Find all grammar definitions
     let grammars = crate::generate_grammars(root_file)?;
+    build_crate_grammars(root_file, grammars, options)
+}
+
+#[cfg(feature = "build_parsers")]
+pub(crate) struct CrateBuildWithInputs {
+    pub(crate) parsers: Vec<BuildResult>,
+    pub(crate) inputs: crate::GrammarInputs,
+}
+
+#[cfg(feature = "build_parsers")]
+pub(crate) fn build_parser_for_crate_with_inputs(
+    root_file: &Path,
+    options: BuildOptions,
+) -> Result<CrateBuildWithInputs> {
+    let traced = crate::generate_grammars_with_inputs(root_file)?;
+    Ok(CrateBuildWithInputs {
+        parsers: build_crate_grammars(root_file, traced.grammars, options)?,
+        inputs: traced.inputs,
+    })
+}
+
+fn build_crate_grammars(
+    root_file: &Path,
+    grammars: Vec<Value>,
+    options: BuildOptions,
+) -> Result<Vec<BuildResult>> {
+    let mut results = Vec::new();
 
     // Debug: write to file
     if cfg!(debug_assertions)
@@ -296,7 +320,7 @@ pub fn build_parser_for_crate(root_file: &Path, options: BuildOptions) -> Result
 
     for grammar_json in grammars {
         // Convert serde_json::Value to string
-        let grammar_json_str = serde_json::to_string(&grammar_json).unwrap();
+        let grammar_json_str = serde_json::to_string(&grammar_json)?;
         let result = build_parser_from_json(grammar_json_str, options.clone())?;
         results.push(result);
     }
