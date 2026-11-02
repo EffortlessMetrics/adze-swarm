@@ -232,8 +232,81 @@ adze-ir = {{ path = {:?} }}
     let stdout = String::from_utf8_lossy(&output.stdout);
     println!("{stdout}");
     assert!(
-        stdout.contains("1 passed; 0 failed; 0 ignored"),
-        "actual downstream control must execute: {stdout}"
+        stdout.contains("2 passed; 0 failed; 0 ignored"),
+        "both present and absent downstream controls must execute: {stdout}"
+    );
+    std::fs::remove_dir_all(fixture).unwrap();
+}
+
+#[test]
+fn test_ordinary_optional_downstream_source_owner_and_selected_value() {
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap();
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let fixture = std::env::temp_dir().join(format!(
+        "adze-ordinary-optional-{}-{nonce}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(fixture.join("src")).unwrap();
+    let manifest = format!(
+        r#"[package]
+name = "adze-ordinary-optional-consumer"
+version = "0.0.0"
+edition = "2024"
+[workspace]
+[features]
+default = ["pure-rust"]
+pure-rust = ["adze/pure-rust"]
+[dependencies]
+adze = {{ path = {:?}, default-features = false, features = ["pure-rust"] }}
+[build-dependencies]
+adze-tool = {{ path = {:?} }}
+adze-ir = {{ path = {:?} }}
+"#,
+        repository.join("runtime"),
+        repository.join("tool"),
+        repository.join("ir")
+    );
+    std::fs::write(fixture.join("Cargo.toml"), manifest).unwrap();
+    // Seed the standalone consumer with the reviewed repository's versions.
+    std::fs::copy(repository.join("Cargo.lock"), fixture.join("Cargo.lock")).unwrap();
+    std::fs::write(
+        fixture.join("build.rs"),
+        include_str!("fixtures/typed_cst_ordinary_optional/build.rs"),
+    )
+    .unwrap();
+    std::fs::write(
+        fixture.join("src/lib.rs"),
+        include_str!("fixtures/typed_cst_ordinary_optional/lib.rs"),
+    )
+    .unwrap();
+    // A distinct target avoids nested Cargo locking the parent target.
+    let target = std::env::var_os("CARGO_TARGET_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| repository.join("target"))
+        .join("typed-cst-ordinary-optional-consumer");
+    let output = std::process::Command::new(env!("CARGO"))
+        .args(["test", "--offline", "--manifest-path"])
+        .arg(fixture.join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", target)
+        .output()
+        .expect("run actual downstream generated accessor control");
+    assert!(
+        output.status.success(),
+        "downstream fixture retained at {}\nstdout:\n{}\nstderr:\n{}",
+        fixture.display(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    println!("{stdout}");
+    assert!(
+        stdout.contains("2 passed; 0 failed; 0 ignored"),
+        "both present and absent downstream controls must execute: {stdout}"
     );
     std::fs::remove_dir_all(fixture).unwrap();
 }
