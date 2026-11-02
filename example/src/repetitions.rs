@@ -11,7 +11,7 @@ pub mod grammar {
             #[adze::leaf(text = ",")]
             ()
         )]
-        #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+        #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<i32>())]
         pub numbers: Spanned<Vec<Spanned<i32>>>,
     }
 
@@ -30,7 +30,7 @@ pub mod grammar2 {
     #[derive(Debug)]
     #[allow(dead_code)]
     pub struct NumberList {
-        #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+        #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<i32>())]
         pub numbers: Spanned<Vec<Spanned<i32>>>,
     }
 
@@ -53,7 +53,7 @@ pub mod grammar3 {
             #[adze::leaf(text = ",")]
             ()
         )]
-        #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+        #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<i32>())]
         pub numbers: Spanned<Vec<Spanned<Option<i32>>>>,
         #[adze::skip(123)]
         pub metadata: u32,
@@ -365,5 +365,92 @@ mod tests {
             let errors = grammar3::parse(input).expect_err("malformed delimiters rejected");
             assert!(!errors.is_empty(), "bounded diagnostics for {input:?}");
         }
+    }
+
+    #[test]
+    fn repetitions_overflow_is_structured_conversion_error_1062() {
+        // #1062/#1045: numeric overflow is a structured conversion error
+        // through `try_transform`, not a parser panic or a silent zero.
+        // i32::MAX stays valid with its exact value and span.
+        use adze::errors::ParseErrorReason;
+
+        let parsed = grammar::parse("2147483647")
+            .unwrap_or_else(|errors| panic!("i32::MAX parses: {errors:?}"));
+        let items: Vec<(i32, (usize, usize))> = parsed
+            .numbers
+            .value
+            .iter()
+            .map(|item| (item.value, item.span))
+            .collect();
+        assert_eq!(items, vec![(i32::MAX, (0, 10))]);
+
+        for (input, span) in [("2147483648", 0..10), ("1, 2147483648", 3..13)] {
+            let errors = grammar::parse(input)
+                .expect_err("overflow must be a conversion error, not a panic or default");
+            let first = errors
+                .first()
+                .expect("conversion failure carries at least one error");
+            assert!(
+                matches!(first.reason, ParseErrorReason::ConversionFailed(_)),
+                "overflow is ConversionFailed for {input:?}: {first:?}"
+            );
+            assert_eq!(first.byte_span(), span, "token range for {input:?}");
+        }
+    }
+
+    #[test]
+    fn repetitions_undelimited_overflow_is_structured_conversion_error_1062() {
+        // #1062/#1045: same overflow contract for the undelimited shape.
+        use adze::errors::ParseErrorReason;
+
+        let parsed = grammar2::parse("2147483647")
+            .unwrap_or_else(|errors| panic!("i32::MAX parses: {errors:?}"));
+        let items: Vec<(i32, (usize, usize))> = parsed
+            .numbers
+            .value
+            .iter()
+            .map(|item| (item.value, item.span))
+            .collect();
+        assert_eq!(items, vec![(i32::MAX, (0, 10))]);
+
+        let errors = grammar2::parse("1 2147483648")
+            .expect_err("overflow must be a conversion error, not a panic or default");
+        let first = errors
+            .first()
+            .expect("conversion failure carries at least one error");
+        assert!(
+            matches!(first.reason, ParseErrorReason::ConversionFailed(_)),
+            "overflow is ConversionFailed: {first:?}"
+        );
+        assert_eq!(first.byte_span(), 2..12);
+    }
+
+    #[test]
+    fn repetitions_optional_overflow_is_structured_conversion_error_1062() {
+        // #1062/#1045: same overflow contract for the nested-optional shape.
+        // The table demands a delimiter pair, so the row uses two elements.
+        use adze::errors::ParseErrorReason;
+
+        let parsed = grammar3::parse("2147483647, 1")
+            .unwrap_or_else(|errors| panic!("i32::MAX pair parses: {errors:?}"));
+        let items: Vec<(Option<i32>, (usize, usize))> = parsed
+            .numbers
+            .value
+            .iter()
+            .map(|item| (item.value, item.span))
+            .collect();
+        assert_eq!(items, vec![(Some(i32::MAX), (0, 10)), (Some(1), (12, 13))]);
+        assert_eq!(parsed.metadata, 123);
+
+        let errors = grammar3::parse("1, 2147483648")
+            .expect_err("overflow must be a conversion error, not a panic or default");
+        let first = errors
+            .first()
+            .expect("conversion failure carries at least one error");
+        assert!(
+            matches!(first.reason, ParseErrorReason::ConversionFailed(_)),
+            "overflow is ConversionFailed: {first:?}"
+        );
+        assert_eq!(first.byte_span(), 3..13);
     }
 }
