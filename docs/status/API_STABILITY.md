@@ -111,7 +111,6 @@ The main user-facing crate. Re-exports `adze-macro` proc-macros at the top level
 | `tree_node_data` | Unstable | — | ✅ | — |
 | `parser_selection` | Unstable | — | ✅ | ✅ |
 | `optimizations` | Unstable | — | ✅ | — |
-| `pure_external_scanner` | Unstable | — | ✅ | — |
 
 > **0.10.0 note (errors):** `ParseErrorReason` is `#[non_exhaustive]` and
 > gained an explicit `UnexpectedEof` variant so true end-of-input is

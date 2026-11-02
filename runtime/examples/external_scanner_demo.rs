@@ -1,8 +1,53 @@
 // runtime/examples/external_scanner_demo.rs
 use std::panic::{self, AssertUnwindSafe};
 
-use adze::pure_external_scanner::{ExternalScanner, ExternalScannerRegistry, Lexer};
 use adze_python::grammar_python::LANGUAGE as PY_LANGUAGE;
+
+// Minimal inline surface for the deleted legacy `pure_external_scanner`
+// module (production scanners live in `adze::scanners` + streaming paths).
+// Kept only so this demo still compiles.
+pub trait ExternalScanner: Send + Sync {
+    fn scan(&mut self, lexer: &mut Lexer, valid_symbols: &[bool]) -> bool;
+
+    fn serialize(&self, _buffer: &mut [u8]) -> usize {
+        0
+    }
+
+    fn deserialize(&mut self, _buffer: &[u8]) {}
+}
+
+pub struct Lexer<'a> {
+    input: &'a [u8],
+    position: usize,
+}
+
+impl<'a> Lexer<'a> {
+    pub fn new(input: &'a [u8], position: usize) -> Self {
+        Lexer { input, position }
+    }
+}
+
+pub struct ExternalScannerRegistry {
+    scanners: Vec<(String, Box<dyn ExternalScanner>)>,
+}
+
+impl Default for ExternalScannerRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ExternalScannerRegistry {
+    pub fn new() -> Self {
+        ExternalScannerRegistry {
+            scanners: Vec::new(),
+        }
+    }
+
+    pub fn register(&mut self, name: String, scanner: Box<dyn ExternalScanner>) {
+        self.scanners.push((name, scanner));
+    }
+}
 
 #[derive(Default)]
 struct PythonStringsScanner;
