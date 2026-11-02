@@ -2,6 +2,21 @@
 //!
 //! Invokes a generated `TSLanguage::external_scanner` at a byte position with the
 //! union of valid external symbols supplied by the streaming driver.
+//!
+//! # Experimental boundary (#931, Option A for 0.10)
+//!
+//! External scanners are **Experimental** and outside the mandatory Gate A
+//! internal-lexer/GLR contract. This adapter makes **no branch-state isolation
+//! claim**: one wrapper owns one mutable scanner instance, and the streaming
+//! driver evaluates speculative candidates through that shared instance, so
+//! sibling GLR branches can observe each other's mutations. The union
+//! valid-symbol mask validated here must not be conflated with branch-state
+//! correctness.
+//!
+//! Use [`GeneratedExternalStreamingScanner::snapshot`] and
+//! [`GeneratedExternalStreamingScanner::restore`] to save and roll back scanner
+//! state around speculative branch evaluation. Wiring one snapshot per GLR
+//! branch into the driver is deferred productization work tracked by #931.
 
 #![cfg(all(feature = "glr", feature = "pure-rust", feature = "external_scanners"))]
 
@@ -11,6 +26,13 @@ use core::ffi::c_void;
 
 use crate::lex::TsLexer;
 use crate::pure_parser::TSLanguage;
+
+/// Maximum bytes captured by a single generated-scanner snapshot.
+///
+/// Bounds per-branch scanner state so speculative GLR evaluation cannot carry
+/// unbounded scanner memory. Rejects oversized snapshots deterministically
+/// instead of silently truncating them.
+pub const MAX_GENERATED_SCANNER_SNAPSHOT_BYTES: usize = 1024;
 
 /// Structured failure from a single generated external-scanner invocation.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -44,6 +66,17 @@ pub enum StreamingExternalScanError {
         /// Byte offset where scanning started.
         pos: usize,
     },
+    /// A snapshot exceeds the bounded per-branch scanner state budget.
+    #[error("external scanner snapshot is {len} bytes, above the {max}-byte bound")]
+    SnapshotTooLarge {
+        /// Offered snapshot length in bytes.
+        len: usize,
+        /// Enforced bound in bytes.
+        max: usize,
+    },
+    /// No deserialize hook is available to restore non-empty scanner state.
+    #[error("external scanner has no deserialize hook for snapshot restore")]
+    RestoreUnsupported,
 }
 
 /// Persistent generated external scanner state for streaming lexing.
@@ -123,6 +156,66 @@ impl<'a> GeneratedExternalStreamingScanner<'a> {
             start: start as u32,
             end: end as u32,
         }))
+    }
+
+    /// Capture the current scanner state for one GLR branch.
+    ///
+    /// Delegates to the language `serialize` hook into a bounded buffer; the
+    /// returned bytes are at most [`MAX_GENERATED_SCANNER_SNAPSHOT_BYTES`].
+    /// Returns an empty snapshot when the language exposes no serialize hook
+    /// or owns no scanner instance (stateless scanners carry nothing).
+    pub fn snapshot(&self) -> Vec<u8> {
+        let Some(serialize) = self.language.external_scanner.serialize else {
+            return Vec::new();
+        };
+        if self.scanner_instance.is_null() {
+            return Vec::new();
+        }
+        let mut buffer = [0u8; MAX_GENERATED_SCANNER_SNAPSHOT_BYTES];
+        // SAFETY: `scanner_instance` was created by the language `create` hook
+        // (or is null, excluded above). `buffer` is live for the call and the
+        // hook reports how many bytes it wrote.
+        let len = unsafe { serialize(self.scanner_instance, buffer.as_mut_ptr()) } as usize;
+        let len = len.min(buffer.len());
+        buffer[..len].to_vec()
+    }
+
+    /// Roll the scanner back to a previously captured branch snapshot.
+    ///
+    /// Delegates to the language `deserialize` hook. Fails deterministically
+    /// when the snapshot exceeds [`MAX_GENERATED_SCANNER_SNAPSHOT_BYTES`] or
+    /// when restoring non-empty state without a deserialize hook, so missing
+    /// isolation support is loud rather than silently ignored.
+    pub fn restore(&mut self, snapshot: &[u8]) -> Result<(), StreamingExternalScanError> {
+        if snapshot.len() > MAX_GENERATED_SCANNER_SNAPSHOT_BYTES {
+            return Err(StreamingExternalScanError::SnapshotTooLarge {
+                len: snapshot.len(),
+                max: MAX_GENERATED_SCANNER_SNAPSHOT_BYTES,
+            });
+        }
+        let Some(deserialize) = self.language.external_scanner.deserialize else {
+            if snapshot.is_empty() {
+                return Ok(());
+            }
+            return Err(StreamingExternalScanError::RestoreUnsupported);
+        };
+        if self.scanner_instance.is_null() {
+            if snapshot.is_empty() {
+                return Ok(());
+            }
+            return Err(StreamingExternalScanError::RestoreUnsupported);
+        }
+        // SAFETY: `scanner_instance` was created by the language `create` hook
+        // (or is null, excluded above). `snapshot` outlives the call; the hook
+        // contract bounds reads by the passed length.
+        unsafe {
+            deserialize(
+                self.scanner_instance,
+                snapshot.as_ptr(),
+                snapshot.len() as u32,
+            );
+        }
+        Ok(())
     }
 }
 
@@ -388,5 +481,171 @@ mod tests {
             StreamingExternalScanError::NoValidSymbols { pos: 0 },
             "unexpected error: {err:?}"
         );
+    }
+
+    #[test]
+    fn stateful_scan_mutation_is_visible_across_calls() {
+        // Characterization of the single-shared-instance seam (#931): one
+        // wrapper owns one scanner instance, so a stateful scan is visible to
+        // every later evaluation. Competing GLR branches are NOT isolated.
+        let language = stateful_language();
+        let mut scanner = GeneratedExternalStreamingScanner::new(&language);
+        let valid = [true];
+        let mode = LexMode {
+            lex_state: 0,
+            external_lex_state: 0b001,
+        };
+
+        scanner
+            .scan_at("x", 0, &valid, mode)
+            .expect("first scan should succeed")
+            .expect("token expected");
+        scanner
+            .scan_at("x", 0, &valid, mode)
+            .expect("second scan should succeed")
+            .expect("token expected");
+
+        assert_eq!(
+            counter_of(&scanner),
+            2,
+            "shared instance must observe both evaluations (no branch isolation)"
+        );
+    }
+
+    #[test]
+    fn branch_state_can_be_snapshot_and_restored() {
+        // #931 branch-state isolation probe: snapshot before a speculative
+        // branch evaluation, restore afterwards, and the sibling branch must
+        // observe the pre-branch state.
+        let language = stateful_language();
+        let mut scanner = GeneratedExternalStreamingScanner::new(&language);
+        let valid = [true];
+        let mode = LexMode {
+            lex_state: 0,
+            external_lex_state: 0b001,
+        };
+
+        let clean = scanner.snapshot();
+        scanner
+            .scan_at("x", 0, &valid, mode)
+            .expect("branch scan should succeed")
+            .expect("token expected");
+        assert_eq!(counter_of(&scanner), 1);
+        scanner.restore(&clean).expect("restore should succeed");
+        assert_eq!(
+            counter_of(&scanner),
+            0,
+            "restore must roll back speculative branch state"
+        );
+    }
+
+    #[test]
+    fn restore_rejects_oversized_snapshot() {
+        // Snapshots are bounded (#931 acceptance): an over-limit snapshot is a
+        // structured failure, never a silent truncation.
+        let language = stateful_language();
+        let mut scanner = GeneratedExternalStreamingScanner::new(&language);
+        let oversized = vec![0u8; MAX_GENERATED_SCANNER_SNAPSHOT_BYTES + 1];
+
+        let err = scanner
+            .restore(&oversized)
+            .expect_err("oversized snapshot must fail");
+        assert_eq!(
+            err,
+            StreamingExternalScanError::SnapshotTooLarge {
+                len: oversized.len(),
+                max: MAX_GENERATED_SCANNER_SNAPSHOT_BYTES,
+            }
+        );
+    }
+
+    #[test]
+    fn restore_without_deserialize_hook_is_unsupported() {
+        // A language without a deserialize hook cannot restore non-empty
+        // state: report it instead of silently ignoring the snapshot.
+        let language = stub_language(Some(stub_scan_fn));
+        let mut scanner = GeneratedExternalStreamingScanner::new(&language);
+
+        let err = scanner
+            .restore(&[1, 2, 3])
+            .expect_err("hookless restore must fail");
+        assert_eq!(err, StreamingExternalScanError::RestoreUnsupported);
+    }
+
+    #[test]
+    fn snapshot_without_serialize_hook_is_empty() {
+        // Deterministic degenerate case: no serialize hook means no state to
+        // carry across branches.
+        let language = stub_language(Some(stub_scan_fn));
+        let scanner = GeneratedExternalStreamingScanner::new(&language);
+        assert!(scanner.snapshot().is_empty());
+    }
+
+    unsafe extern "C" fn stateful_create() -> *mut c_void {
+        Box::into_raw(Box::new(0u32)) as *mut c_void
+    }
+
+    unsafe extern "C" fn stateful_destroy(scanner: *mut c_void) {
+        if !scanner.is_null() {
+            unsafe {
+                let _ = Box::from_raw(scanner as *mut u32);
+            }
+        }
+    }
+
+    unsafe extern "C" fn stateful_scan_fn(
+        scanner: *mut c_void,
+        lexer: *mut c_void,
+        valid_symbols: *const bool,
+    ) -> bool {
+        if scanner.is_null() {
+            return false;
+        }
+        unsafe {
+            let counter = &mut *(scanner as *mut u32);
+            *counter = counter.wrapping_add(1);
+        }
+        unsafe { stub_scan_fn(scanner, lexer, valid_symbols) }
+    }
+
+    unsafe extern "C" fn stateful_serialize(scanner: *mut c_void, buffer: *mut u8) -> u32 {
+        if scanner.is_null() || buffer.is_null() {
+            return 0;
+        }
+        unsafe {
+            let counter = *(scanner as *const u32);
+            let bytes = counter.to_le_bytes();
+            core::ptr::copy_nonoverlapping(bytes.as_ptr(), buffer, bytes.len());
+            bytes.len() as u32
+        }
+    }
+
+    unsafe extern "C" fn stateful_deserialize(
+        scanner: *mut c_void,
+        buffer: *const u8,
+        length: u32,
+    ) {
+        if scanner.is_null() || buffer.is_null() || length < 4 {
+            return;
+        }
+        unsafe {
+            let mut bytes = [0u8; 4];
+            core::ptr::copy_nonoverlapping(buffer, bytes.as_mut_ptr(), 4);
+            *(scanner as *mut u32) = u32::from_le_bytes(bytes);
+        }
+    }
+
+    fn stateful_language() -> TSLanguage {
+        let mut language = stub_language(Some(stateful_scan_fn));
+        language.external_scanner.create = Some(stateful_create);
+        language.external_scanner.destroy = Some(stateful_destroy);
+        language.external_scanner.serialize = Some(stateful_serialize);
+        language.external_scanner.deserialize = Some(stateful_deserialize);
+        language
+    }
+
+    fn counter_of(scanner: &GeneratedExternalStreamingScanner) -> u32 {
+        assert!(!scanner.scanner_instance.is_null());
+        unsafe { *(scanner.scanner_instance as *const u32) }
     }
 }
