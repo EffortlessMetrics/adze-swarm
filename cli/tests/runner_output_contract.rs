@@ -279,3 +279,67 @@ fn test_serialized_diagnostic_and_ambiguity_facts_are_preserved() {
         reject("json", &serde_json::to_vec(&broken).unwrap());
     }
 }
+
+fn deep_document(nodes: usize) -> Value {
+    let mut doc = document();
+    let template = doc["tree"]["root"].clone();
+    let mut node = template.clone();
+    for id in 1..nodes {
+        let mut parent = template.clone();
+        parent["id"] = json!(id);
+        parent["text"] = Value::Null;
+        parent["children"] =
+            json!([{"child_index":0,"field_name":null,"field_id":null,"node":node}]);
+        node = parent;
+    }
+    doc["tree"]["root"] = node;
+    doc
+}
+
+#[test]
+fn test_deep_forwarded_json_preserves_original_document_and_projection_bytes() {
+    for nodes in [64, 96] {
+        let doc = deep_document(nodes);
+        for mode in ["json", "document-json", "tree-json"] {
+            let payload = if mode == "tree-json" {
+                json!({"schema":"adze.tree.v1","document_schema":"adze.document.v1",
+                    "language":doc["language"],"tree":doc["tree"]})
+            } else {
+                doc.clone()
+            };
+            let bytes = format!(" {}\n", serde_json::to_string(&payload).unwrap());
+            let output = run(mode, bytes.as_bytes(), b"", 0);
+            assert!(output.status.success(), "{mode}/{nodes}: {:?}", output);
+            assert_eq!(output.stdout, bytes.as_bytes());
+        }
+    }
+}
+
+#[test]
+fn test_deep_nodes_still_require_fields_and_one_complete_payload() {
+    let doc = deep_document(96);
+    let mut malformed = doc.clone();
+    let mut leaf = &mut malformed["tree"]["root"];
+    while !leaf["children"].as_array().unwrap().is_empty() {
+        leaf = &mut leaf["children"][0]["node"];
+    }
+    leaf.as_object_mut().unwrap().remove("kind");
+    reject("json", &serde_json::to_vec(&malformed).unwrap());
+    let mut bytes = serde_json::to_vec(&doc).unwrap();
+    bytes.pop();
+    reject("json", &bytes);
+    let mut bytes = serde_json::to_vec(&doc).unwrap();
+    bytes.extend_from_slice(b"\n{}");
+    reject("json", &bytes);
+}
+
+#[test]
+fn test_visual_rendering_keeps_its_existing_recursive_decoder_limit() {
+    let bytes = serde_json::to_vec(&deep_document(64)).unwrap();
+    for mode in ["tree", "sexp", "dot"] {
+        let output = run(mode, &bytes, b"", 0);
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("recursion limit exceeded"));
+    }
+}
