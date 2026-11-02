@@ -13,8 +13,9 @@ assertion helper exists.
 ## The ledger
 
 Exceptions are recorded in [`policy/no-panic-allowlist.toml`](../policy/no-panic-allowlist.toml).
-Identity is `(path, family, selector)` — line and column drift do not
-invalidate an entry.
+Identity is `(path, family, kind, container, callee, receiver_fingerprint)`.
+Line and column drift do not invalidate an entry; every identity field must
+match, including the presence or absence of a receiver fingerprint.
 
 Each entry must specify:
 
@@ -88,16 +89,35 @@ matches against the allowlist. It emits Markdown + JSON reports in
 - `target/policy/no-panic.md` — human-readable summary.
 - `target/policy/no-panic.json` — machine-readable findings.
 
-Today the check runs in **advisory** mode: it reports but does not fail CI.
-Once the baseline is committed and burned down, we will flip it to blocking
-in `just ci-supported`.
+The default **advisory** mode reports panic-family debt without enforcing
+allowlist coverage. Every mode fails on selected unreadable/unparseable files or an
+empty production-file denominator. `no-panic-propose` applies these same
+integrity checks before writing its proposal, including with `--baseline`.
+Proposals require individual review and never update the allowlist.
+
+Directory traversal errors are not yet included in the failed-file report.
+The integrity checks cover files the walker selected; they do not prove that
+every unreadable directory was visited. Completing that coverage remains part
+of the scanner work in #867.
+
+Production prefixes come from published packages marked `production_use` in
+`policy/package-boundary.toml`. Counts classify files: conventional test,
+benchmark, and example paths are separate, but inline `#[cfg(test)]` modules
+retain their containing file's scope. The production-finding count therefore
+does not mean every reported call is compiled into a production artifact.
+
+Return-context classification is syntactic. An explicit function or closure
+return type mentioning `Result` selects `unwrap_in_result`; a closure never
+inherits its enclosing function's return type. Inferred closure results are
+unknown and remain ordinary `unwrap` findings. The scanner does not resolve
+types or prove that replacing any particular call with `?` would compile.
 
 ## Exit modes
 
 | Mode                              | Description                                  |
 | --------------------------------- | -------------------------------------------- |
-| `advisory` (current default)      | Report + write artifacts, never fails.       |
-| `blocking-allowlist`              | Fail on unallowlisted findings.              |
-| `blocking-strict`                 | Fail on unallowlisted, stale, or expired.    |
+| `advisory` (current default)      | Report debt; fail on scan-integrity errors. |
+| `blocking-allowlist`              | Also fail on unallowlisted findings; freshness is reported. |
+| `blocking-strict`                 | Also fail on unallowlisted, stale, or expired entries. |
 
 The mode is chosen via `--mode` on the command line.
