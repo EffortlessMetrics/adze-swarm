@@ -116,7 +116,7 @@ pub use glr_incremental::{Edit, GLRToken, IncrementalGLRParser};
 // Additional stable re-exports can be added here as needed
 // DO NOT move or remove existing re-exports
 
-// Lexer implementation and token types.
+/// Lexer implementation and token types.
 pub mod lexer;
 /// Registry for managing external scanners.
 pub mod scanner_registry;
