@@ -1557,6 +1557,55 @@ mod tests {
     }
 
     #[test]
+    fn test_repeated_capture_predicate_failing_first_occurrence_rejects() {
+        // "cd ab": the FIRST occurrence fails (#match? @x "ab") while the
+        // final occurrence passes. Universal semantics reject the match; a
+        // last-occurrence-only inspection would wrongly accept it.
+        let source = "cd ab";
+        let mut repeated = PatternNode::new(SymbolId(0), true);
+        repeated.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        repeated.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        let mut query = query_with_root(repeated);
+        query.patterns[0].predicates.push(Predicate::Match {
+            capture: 0,
+            regex: "ab".to_string(),
+        });
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let root = make_root(vec![make_node(1, 0, 2), make_node(1, 3, 5)], source.len());
+        assert!(
+            matcher.matches(&root).is_empty(),
+            "a failing nonfinal occurrence must not be hidden by a passing final one"
+        );
+
+        // Positive control: a predicate every occurrence satisfies keeps the
+        // match with both occurrences in declared order.
+        query.patterns[0].predicates = vec![Predicate::Match {
+            capture: 0,
+            regex: "ab|cd".to_string(),
+        }];
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures.len(), 2);
+        assert_eq!(
+            matches[0]
+                .captures
+                .iter()
+                .map(|capture| capture.node.start_byte..capture.node.end_byte)
+                .collect::<Vec<_>>(),
+            vec![0..2, 3..5]
+        );
+        assert_eq!(&source[0..2], "cd");
+        assert_eq!(&source[3..5], "ab");
+    }
+
+    #[test]
     fn test_backtrack_returns_only_the_accepted_match_captures() {
         // (identifier @x) . (number): the anchor forces adjacency, so the
         // plausible first identifier fails and only the accepted second
@@ -1586,6 +1635,32 @@ mod tests {
         );
         assert_eq!(matches[0].captures[0].index, 0);
         assert_eq!(matches[0].captures[0].node.start_byte, 1);
+    }
+
+    #[test]
+    fn test_star_zero_occurrences_contributes_no_capture() {
+        // (identifier @x)* matches zero times before the tail number: the
+        // match succeeds with no speculative capture.
+        let source = "b";
+        let root = make_root(vec![make_node(2, 0, 1)], source.len());
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true)
+                .with_capture(0)
+                .with_quantifier(Quantifier::Star),
+        ));
+        pattern.add_child(PatternChild::Node(PatternNode::new(SymbolId(2), true)));
+        let query = query_with_root(pattern);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+        assert!(
+            matches[0].captures.is_empty(),
+            "zero-occurrence Star success contributes no speculative capture"
+        );
     }
 
     #[test]
@@ -1831,6 +1906,59 @@ mod tests {
         assert!(
             matches.is_empty(),
             "a failing occurrence must fail the predicate even when another passes"
+        );
+    }
+
+    #[cfg(feature = "query")]
+    #[test]
+    fn test_matches_document_rejects_failing_first_occurrence() {
+        // "cd ab" through the flat backend: the FIRST occurrence fails
+        // (#match? @x "ab") while the final passes. Universal semantics
+        // reject the match; a last-occurrence-only inspection would accept.
+        let source = "cd ab";
+        let root = make_root(vec![make_node(1, 0, 2), make_node(1, 3, 5)], source.len());
+        let document = doc_fixture(source, root);
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        let mut query = query_with_root(pattern);
+        query.patterns[0].predicates.push(Predicate::Match {
+            capture: 0,
+            regex: "ab".to_string(),
+        });
+
+        let matches = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+        assert!(
+            matches.is_empty(),
+            "a failing nonfinal occurrence must not be hidden by a passing final one"
+        );
+    }
+
+    #[cfg(feature = "query")]
+    #[test]
+    fn test_matches_document_star_zero_occurrences_contributes_no_capture() {
+        let source = "b";
+        let root = make_root(vec![make_node(2, 0, 1)], source.len());
+        let document = doc_fixture(source, root);
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true)
+                .with_capture(0)
+                .with_quantifier(Quantifier::Star),
+        ));
+        pattern.add_child(PatternChild::Node(PatternNode::new(SymbolId(2), true)));
+        let query = query_with_root(pattern);
+
+        let matches = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+
+        assert_eq!(matches.len(), 1);
+        assert!(
+            matches[0].captures.is_empty(),
+            "zero-occurrence Star success contributes no speculative capture"
         );
     }
 }
