@@ -2441,4 +2441,131 @@ mod tests {
         stack.push(StateId(2), node2);
         assert_eq!(stack.version.dynamic_prec, 5); // 3 + 2
     }
+
+    /// Determinism probe for #1031: repeated ambiguous parses through the
+    /// runtime consumer route must select the identical winner and expose
+    /// identical alternative identities.
+    ///
+    /// The `glr-core` tie-break rules are owned by another lane; this probe
+    /// covers only the `glr_parser.rs` consumer side (`finish`,
+    /// `finish_all_alternatives`, `finish_ambiguity_summary`): pointer-keyed
+    /// worklist/dedup maps, first-writer-wins retention and iteration order
+    /// must not surface allocation- or hash-dependent facts to callers.
+    /// Identity is compared structurally (never by pointer), so any
+    /// address-allocation or cross-run variation fails this test.
+    #[test]
+    fn glr_consumer_selection_stable_across_repeated_ambiguous_parses() {
+        use adze_glr_core::{FirstFollowSets, build_lr1_automaton};
+        use adze_ir::{ProductionId, Rule, Symbol, Token, TokenPattern};
+
+        fn ambiguous_grammar() -> Grammar {
+            let mut grammar = Grammar::new("probe_ambiguous_expr".to_string());
+            let number_id = SymbolId(1);
+            grammar.tokens.insert(
+                number_id,
+                Token {
+                    name: "number".to_string(),
+                    pattern: TokenPattern::Regex(r"\d+".to_string()),
+                    fragile: false,
+                },
+            );
+            let plus_id = SymbolId(2);
+            grammar.tokens.insert(
+                plus_id,
+                Token {
+                    name: "plus".to_string(),
+                    pattern: TokenPattern::String("+".to_string()),
+                    fragile: false,
+                },
+            );
+            let expr_id = SymbolId(10);
+            grammar.rule_names.insert(expr_id, "expression".to_string());
+            grammar.rules.entry(expr_id).or_default().push(Rule {
+                lhs: expr_id,
+                rhs: vec![Symbol::Terminal(number_id)],
+                precedence: None,
+                associativity: None,
+                production_id: ProductionId(0),
+                fields: vec![],
+            });
+            grammar.rules.entry(expr_id).or_default().push(Rule {
+                lhs: expr_id,
+                rhs: vec![
+                    Symbol::NonTerminal(expr_id),
+                    Symbol::Terminal(plus_id),
+                    Symbol::NonTerminal(expr_id),
+                ],
+                precedence: None,
+                associativity: None,
+                production_id: ProductionId(1),
+                fields: vec![],
+            });
+            grammar.set_start_symbol(expr_id);
+            grammar
+        }
+
+        // `1+2+3` without precedence is genuinely ambiguous (`(1+2)+3`
+        // versus `1+(2+3)`); tokens are fed manually with exact byte
+        // offsets so the probe covers only the GLRParser consumer path.
+        let tokens: Vec<(SymbolId, &str, usize)> = vec![
+            (SymbolId(1), "1", 0),
+            (SymbolId(2), "+", 1),
+            (SymbolId(1), "2", 2),
+            (SymbolId(2), "+", 3),
+            (SymbolId(1), "3", 4),
+        ];
+        let input_len = 5;
+
+        let mut fingerprints = Vec::new();
+        for _ in 0..25 {
+            let grammar = ambiguous_grammar();
+            let first_follow = FirstFollowSets::compute(&grammar).expect("fixture FIRST/FOLLOW");
+            let parse_table =
+                build_lr1_automaton(&grammar, &first_follow).expect("fixture LR(1) table");
+            let mut parser = GLRParser::new(parse_table, grammar);
+            for (symbol, text, offset) in &tokens {
+                parser.process_token(*symbol, text, *offset);
+            }
+            parser.process_eof(input_len);
+
+            let winner = parser.finish().expect("ambiguous parse should succeed");
+            let winner_key = subtree_selection_key(&winner);
+            let alternatives = parser
+                .finish_all_alternatives()
+                .expect("ambiguous parse should retain alternatives");
+            let alternative_keys: Vec<_> = alternatives
+                .iter()
+                .map(|tree| subtree_selection_key(tree))
+                .collect();
+            let summary = parser
+                .finish_ambiguity_summary()
+                .expect("ambiguity summary should not error");
+            fingerprints.push((winner_key, alternative_keys, summary));
+        }
+
+        let (first_winner, first_alternatives, first_summary) = &fingerprints[0];
+        assert!(
+            first_alternatives.len() > 1,
+            "probe requires a genuinely ambiguous parse, got {} alternative(s)",
+            first_alternatives.len()
+        );
+        assert!(
+            first_summary.is_some(),
+            "probe requires an ambiguity summary, got None"
+        );
+        for (run, (winner, alternatives, summary)) in fingerprints.iter().enumerate() {
+            assert_eq!(
+                winner, first_winner,
+                "run {run} selected a structurally different winner"
+            );
+            assert_eq!(
+                alternatives, first_alternatives,
+                "run {run} retained different alternative identities"
+            );
+            assert_eq!(
+                summary, first_summary,
+                "run {run} reported a different ambiguity summary"
+            );
+        }
+    }
 }
