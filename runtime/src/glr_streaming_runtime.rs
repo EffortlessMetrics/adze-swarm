@@ -16,7 +16,7 @@ use crate::pure_parser::TSLanguage;
 use crate::subtree::{ChildEdge, FIELD_NONE, Subtree, SubtreeNode};
 use adze_glr_core::parse_forest::ERROR_SYMBOL;
 use adze_glr_core::{
-    Driver, ForestView, LexMode, ParseTable, build_lex_modes_from_shiftable_terminals,
+    Driver, ForestView, LexMode, ParseTable, build_lex_modes_from_usable_lookahead,
     driver::{GlrError, GlrUnexpectedToken},
 };
 use adze_ir::{Grammar, Symbol, SymbolId};
@@ -147,8 +147,8 @@ pub fn prepare_streaming_parse_table(
     parse_table
 }
 
-/// Select lex modes that match the generated lexer ABI instead of inventing
-/// shiftable-terminal signatures that the generated `lex_fn` cannot execute.
+/// Use generated ABI modes where applicable and canonical usable-lookahead
+/// signatures for the existing mode-reconstruction paths.
 fn populate_streaming_parse_table_lex_modes(
     language: &'static TSLanguage,
     parse_table: &mut ParseTable,
@@ -163,7 +163,7 @@ fn populate_streaming_parse_table_lex_modes(
         if language_lex_modes_match_state_count(language, parse_table.state_count) {
             parse_table.lex_modes = lex_modes_from_generated_language(language);
         } else {
-            parse_table.lex_modes = build_lex_modes_from_shiftable_terminals(
+            parse_table.lex_modes = build_lex_modes_from_usable_lookahead(
                 &parse_table.action_table,
                 &parse_table.external_scanner_states,
             );
@@ -172,7 +172,7 @@ fn populate_streaming_parse_table_lex_modes(
     }
 
     if has_external_scanner {
-        parse_table.lex_modes = build_lex_modes_from_shiftable_terminals(
+        parse_table.lex_modes = build_lex_modes_from_usable_lookahead(
             &parse_table.action_table,
             &parse_table.external_scanner_states,
         );
@@ -191,7 +191,7 @@ fn populate_streaming_parse_table_lex_modes(
         return;
     }
 
-    parse_table.lex_modes = build_lex_modes_from_shiftable_terminals(
+    parse_table.lex_modes = build_lex_modes_from_usable_lookahead(
         &parse_table.action_table,
         &parse_table.external_scanner_states,
     );

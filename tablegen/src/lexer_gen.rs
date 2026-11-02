@@ -229,23 +229,12 @@ fn build_mode_candidates(
     for (lex_state, columns) in eligibility {
         let mode_candidates = all_candidates
             .iter()
-            .filter(|candidate| {
-                matches!(
-                    candidate.pattern,
-                    CandidatePattern::Literal(_) | CandidatePattern::CharClass(_)
-                ) || columns.contains(&(candidate.symbol_index as usize))
-            })
+            .filter(|candidate| columns.contains(&(candidate.symbol_index as usize)))
             .cloned()
             .collect::<Vec<_>>();
-        if !mode_candidates.is_empty() {
-            modes.insert(lex_state, mode_candidates);
-        }
-    }
-
-    if modes.is_empty() {
-        let mut fallback = BTreeMap::new();
-        fallback.insert(0, all_candidates);
-        return fallback;
+        // An explicitly empty mode rejects all candidates. It must not fall
+        // back to the unfiltered lexer used when no table was supplied.
+        modes.insert(lex_state, mode_candidates);
     }
 
     modes
@@ -309,7 +298,9 @@ fn build_lex_state_eligibility(parse_table: &ParseTable) -> BTreeMap<u16, BTreeS
             .unwrap_or(0);
         let entry = map.entry(lex_state).or_default();
         for (col_idx, cell) in row.iter().enumerate() {
-            if cell.iter().any(|action| matches!(action, Action::Shift(_))) {
+            // Lexing precedes reduction: a real lookahead may first drive a
+            // Reduce action before it becomes shiftable (#1174).
+            if cell.iter().any(Action::uses_lookahead) {
                 entry.insert(col_idx);
             }
         }
@@ -334,6 +325,9 @@ impl CandidatePattern {
 }
 
 fn generate_mode_arm(lex_state: u16, candidates: &[LexCandidate]) -> TokenStream {
+    if candidates.is_empty() {
+        return quote! { #lex_state => false, };
+    }
     let candidate_blocks = candidates
         .iter()
         .map(generate_candidate_block)
