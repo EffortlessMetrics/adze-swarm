@@ -8,6 +8,7 @@ use std::process::Command;
 use walkdir::WalkDir;
 
 mod grammar_analysis;
+mod runner_output;
 
 use grammar_analysis::analyze_grammar_file;
 
@@ -843,21 +844,7 @@ fn parse_file(
 
 fn parse_file_static_tree(grammar: &Path, input: &Path) -> Result<()> {
     let output = run_static_parse_runner(grammar, input, "document-json")?;
-    let document: serde_json::Value = serde_json::from_str(&output).map_err(|err| {
-        anyhow::anyhow!(
-            "static tree output could not read generated document JSON for {}: {}",
-            grammar.display(),
-            err
-        )
-    })?;
-
-    let root = &document["tree"]["root"];
-    if root.is_null() {
-        anyhow::bail!(
-            "static tree output could not find document tree root for {}",
-            grammar.display()
-        );
-    }
+    let root = &output.json()["tree"]["root"];
 
     let mut rendered = String::new();
     render_selected_tree(root, 0, None, &mut rendered);
@@ -867,21 +854,7 @@ fn parse_file_static_tree(grammar: &Path, input: &Path) -> Result<()> {
 
 fn parse_file_static_sexp(grammar: &Path, input: &Path) -> Result<()> {
     let output = run_static_parse_runner(grammar, input, "document-json")?;
-    let document: serde_json::Value = serde_json::from_str(&output).map_err(|err| {
-        anyhow::anyhow!(
-            "static sexp output could not read generated document JSON for {}: {}",
-            grammar.display(),
-            err
-        )
-    })?;
-
-    let root = &document["tree"]["root"];
-    if root.is_null() {
-        anyhow::bail!(
-            "static sexp output could not find document tree root for {}",
-            grammar.display()
-        );
-    }
+    let root = &output.json()["tree"]["root"];
 
     let mut rendered = String::new();
     render_selected_sexp(root, None, &mut rendered);
@@ -892,27 +865,13 @@ fn parse_file_static_sexp(grammar: &Path, input: &Path) -> Result<()> {
 
 fn parse_file_static_json(grammar: &Path, input: &Path) -> Result<()> {
     let output = run_static_parse_runner(grammar, input, "document-json")?;
-    print!("{output}");
+    print!("{}", output.text());
     Ok(())
 }
 
 fn parse_file_static_dot(grammar: &Path, input: &Path) -> Result<()> {
     let output = run_static_parse_runner(grammar, input, "document-json")?;
-    let document: serde_json::Value = serde_json::from_str(&output).map_err(|err| {
-        anyhow::anyhow!(
-            "static dot output could not read generated document JSON for {}: {}",
-            grammar.display(),
-            err
-        )
-    })?;
-
-    let root = &document["tree"]["root"];
-    if root.is_null() {
-        anyhow::bail!(
-            "static dot output could not find document tree root for {}",
-            grammar.display()
-        );
-    }
+    let root = &output.json()["tree"]["root"];
 
     let mut rendered = String::new();
     render_selected_dot(root, &mut rendered);
@@ -926,11 +885,15 @@ fn parse_file_static_document_projection(
     format: OutputFormat,
 ) -> Result<()> {
     let output = run_static_parse_runner(grammar, input, format.cli_name())?;
-    print!("{output}");
+    print!("{}", output.text());
     Ok(())
 }
 
-fn run_static_parse_runner(grammar: &Path, input: &Path, output_format: &str) -> Result<String> {
+fn run_static_parse_runner(
+    grammar: &Path,
+    input: &Path,
+    output_format: &str,
+) -> Result<runner_output::RunnerOutput> {
     let grammar = absolute_path(grammar)?;
     let input = absolute_path(input)?;
     if !input.is_file() {
@@ -965,16 +928,27 @@ fn run_static_parse_runner(grammar: &Path, input: &Path, output_format: &str) ->
             .output()?
     };
 
+    interpret_runner_output(&grammar, output_format, output)
+}
+
+/// Admit completed process bytes before rendering or printing public output.
+/// A process failure keeps its actual status/root cause and is never replaced
+/// by a success-channel JSON error. Capture/deadlines are unchanged here.
+fn interpret_runner_output(
+    grammar: &Path,
+    output_format: &str,
+    output: std::process::Output,
+) -> Result<runner_output::RunnerOutput> {
     if !output.status.success() {
         return Err(static_parse_runner_error(
-            &grammar,
+            grammar,
             output.status,
             &output.stdout,
             &output.stderr,
         ));
     }
-
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    runner_output::RunnerOutput::parse(&output.stdout, output_format)
+        .with_context(|| format!("static runner output rejected for {}", grammar.display()))
 }
 
 /// Build the top-level error for a failed temporary parse runner.

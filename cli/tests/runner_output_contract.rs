@@ -247,3 +247,35 @@ fn test_nonzero_process_status_wins_over_valid_or_malformed_payload() {
         assert!(!stderr.contains("not UTF-8"), "{stderr}");
     }
 }
+
+#[test]
+fn test_serialized_diagnostic_and_ambiguity_facts_are_preserved() {
+    let mut doc = document();
+    doc["metadata"]["outcome"] = json!("recovered");
+    doc["metadata"]["error_count"] = json!(1);
+    doc["tree"]["root"]["flags"]["has_error"] = json!(true);
+    doc["diagnostics"] = json!([{
+        "start_byte":2,"end_byte":3,"point_range":{"start":{"row":0,"column":2},"end":{"row":0,"column":3}},
+        "found":"@","expected":["word"],"related_nodes":[0],"message":"controlled diagnostic"
+    }]);
+    doc["ambiguities"] = json!([{
+        "span":{"start_byte":0,"end_byte":5},"selected":null,"selection_reason":"Unresolved",
+        "alternatives":[{"index":0,"root_symbol":1,"span":{"start_byte":0,"end_byte":5},
+            "dynamic_precedence":-1,"in_error":false,"cost":0,"node_count":1}]
+    }]);
+    let bytes = serde_json::to_vec(&doc).unwrap();
+    let output = run("json", &bytes, b"", 0);
+    assert!(output.status.success(), "{:?}", output);
+    assert_eq!(output.stdout, bytes);
+    for pointer in [
+        "/diagnostics/0/expected",
+        "/diagnostics/0/related_nodes",
+        "/diagnostics/0/point_range/start/row",
+        "/ambiguities/0/alternatives/0/dynamic_precedence",
+        "/ambiguities/0/selected",
+    ] {
+        let mut broken = doc.clone();
+        *broken.pointer_mut(pointer).unwrap() = json!("wrong field type");
+        reject("json", &serde_json::to_vec(&broken).unwrap());
+    }
+}
