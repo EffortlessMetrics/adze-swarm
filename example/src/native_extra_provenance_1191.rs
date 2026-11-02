@@ -8,12 +8,14 @@ pub mod grammar {
         pub value: u16,
     }
 
+    #[allow(dead_code)]
     #[adze::extra]
     struct Comment {
         #[adze::leaf(pattern = r"#[^\r\n]*")]
         _comment: (),
     }
 
+    #[allow(dead_code)]
     #[adze::extra]
     struct Whitespace {
         #[adze::leaf(pattern = r"\s")]

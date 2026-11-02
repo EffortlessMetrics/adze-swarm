@@ -343,3 +343,78 @@ fn test_infallible_repeat_binary_shape_ignores_direct_extra_children() {
     );
     assert_eq!(values, vec![1, 2, 3]);
 }
+
+fn tuple_with_interleaved_extras() -> ParsedNode {
+    let gap = |start, end| {
+        ParsedNode::builder(2, vec![], start, end)
+            .is_extra(true)
+            .build()
+    };
+    let left = ParsedNode::builder(1, vec![], 1, 2).build();
+    let operator = ParsedNode::builder(3, vec![], 3, 4).build();
+    let right = ParsedNode::builder(1, vec![], 5, 6).build();
+    ParsedNode::builder(
+        10,
+        vec![
+            gap(0, 1),
+            left,
+            gap(2, 3),
+            operator,
+            gap(4, 5),
+            right,
+            gap(6, 7),
+        ],
+        0,
+        7,
+    )
+    .build()
+}
+
+#[test]
+fn test_fallible_tuple_slots_ignore_prefix_and_interleaved_extras() {
+    use adze::{
+        __private::{extract_field_try, extract_struct_or_variant_try},
+        WithTryLeaf,
+    };
+    let root = tuple_with_interleaved_extras();
+    let leaf = |text: &str| text.parse::<i32>().map_err(|error| error.to_string());
+    let value = extract_struct_or_variant_try(&root, |cursor, last_idx| {
+        let left = extract_field_try::<WithTryLeaf<i32>, i32>(
+            cursor,
+            b" 1 + 2 ",
+            last_idx,
+            "0",
+            Some(&leaf),
+        )?;
+        extract_field_try::<(), ()>(cursor, b" 1 + 2 ", last_idx, "1", None)?;
+        let right = extract_field_try::<WithTryLeaf<i32>, i32>(
+            cursor,
+            b" 1 + 2 ",
+            last_idx,
+            "2",
+            Some(&leaf),
+        )?;
+        Ok((left, right))
+    })
+    .unwrap();
+    assert_eq!(value, (1, 2));
+}
+
+#[test]
+fn test_infallible_tuple_slots_ignore_prefix_and_interleaved_extras() {
+    use adze::{
+        __private::{extract_field, extract_struct_or_variant},
+        WithLeaf,
+    };
+    let root = tuple_with_interleaved_extras();
+    let leaf = |text: &str| text.parse::<i32>().unwrap();
+    let value = extract_struct_or_variant(&root, |cursor, last_idx| {
+        let left =
+            extract_field::<WithLeaf<i32>, i32>(cursor, b" 1 + 2 ", last_idx, "0", Some(&leaf));
+        extract_field::<(), ()>(cursor, b" 1 + 2 ", last_idx, "1", None);
+        let right =
+            extract_field::<WithLeaf<i32>, i32>(cursor, b" 1 + 2 ", last_idx, "2", Some(&leaf));
+        (left, right)
+    });
+    assert_eq!(value, (1, 2));
+}
