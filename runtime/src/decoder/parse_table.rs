@@ -229,9 +229,13 @@ fn decode_parse_rules(
             .collect::<Vec<_>>()
     };
 
-    for rule in &mut rules {
-        if (rule.lhs.0 as usize) < index_to_symbol.len() {
-            rule.lhs = index_to_symbol[rule.lhs.0 as usize];
+    // Native TS_RULES store table columns. The grammar fallback has already
+    // been translated into public IDs by decode_grammar, so map only once.
+    if !lang.rules.is_null() {
+        for rule in &mut rules {
+            if (rule.lhs.0 as usize) < index_to_symbol.len() {
+                rule.lhs = index_to_symbol[rule.lhs.0 as usize];
+            }
         }
     }
 

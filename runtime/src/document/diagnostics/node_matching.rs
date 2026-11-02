@@ -77,6 +77,7 @@ mod tests {
             symbols: Vec::new(),
             fields: Vec::new(),
             field_semantics: Default::default(),
+            field_schema_availability: crate::document::FieldSchemaAvailability::Unavailable,
         }
     }
 

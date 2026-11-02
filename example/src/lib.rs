@@ -17,6 +17,7 @@ pub mod csv_list;
 pub mod dangling_else;
 pub mod external_word_example;
 pub mod fallible_transforms;
+pub mod fielded_ambiguous_schema_contract;
 pub mod fielded_precedence_typed_cst_contract;
 pub mod fielded_typed_cst_contract;
 pub mod ini_file;

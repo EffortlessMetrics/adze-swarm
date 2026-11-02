@@ -19,6 +19,10 @@
 use adze_ir::{Grammar, Symbol, SymbolId};
 use std::collections::{BTreeMap, HashMap};
 
+/// Revision of the canonical field semantics transported by generated sidecars.
+/// Increment when the meaning of emitted owner/cardinality/target facts changes.
+pub const FIELD_SCHEMA_REVISION: u32 = 1;
+
 /// Cardinality and target kinds for one field of one node kind.
 ///
 /// `targets` holds leaf symbols only (terminals, non-terminals, externals):

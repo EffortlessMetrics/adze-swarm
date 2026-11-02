@@ -588,3 +588,32 @@ fn find_node<'doc>(
 
     None
 }
+
+#[test]
+fn generated_document_field_grants_validate_for_public_grammar_ids() {
+    let source = "123+";
+    let document = adze_example::fielded_typed_cst_contract::grammar::parse_document(source)
+        .expect("fielded generated grammar parses");
+    assert_eq!(document.metadata().error_count, 0);
+    let pair =
+        find_node(document.tree().root(), "Pair", source).expect("generated document exposes Pair");
+    let fields: Vec<_> = pair
+        .child_edges()
+        .filter_map(|edge| {
+            edge.field_name()
+                .map(|name| (name, edge.child().unwrap().utf8_text().ok()))
+        })
+        .collect();
+    assert_eq!(fields, vec![("left", Some("123")), ("right", Some("+"))]);
+    assert_eq!(pair.grammar_id(), adze_ir::SymbolId(4));
+    for (name, target) in [("left", 5), ("right", 6)] {
+        let fact = document
+            .language()
+            .field_semantics(pair.grammar_id(), name)
+            .expect("generated field has canonical semantics");
+        assert_eq!(fact.target_kinds, vec![adze_ir::SymbolId(target)], "{name}");
+        assert!(fact.required, "{name}");
+        assert!(!fact.multiple, "{name}");
+    }
+    assert_eq!(document.validate_fields(), Ok(()));
+}

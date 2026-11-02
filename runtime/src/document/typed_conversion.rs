@@ -186,6 +186,7 @@ mod tests {
             symbols: Vec::new(),
             fields: vec!["left".to_string(), "right".to_string()],
             field_semantics: Default::default(),
+            field_schema_availability: crate::document::FieldSchemaAvailability::Unavailable,
         }
     }
 

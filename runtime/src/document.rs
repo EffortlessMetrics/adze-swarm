@@ -22,7 +22,7 @@ use changed_ranges::conservative_changed_ranges;
 use diagnostics::{attach_related_nodes, build_diagnostics, source_line};
 #[cfg(feature = "serialization")]
 use json_projection::{ambiguity_to_json, diagnostic_to_json, node_to_document_json};
-pub(crate) use runtime_metadata::DocumentRuntime;
+pub(crate) use runtime_metadata::{DocumentFieldSchema, DocumentRuntime};
 pub use runtime_metadata::{IncrementalFallbackReason, ParseMetadata};
 #[cfg(feature = "ts-compat")]
 pub(crate) use source_position::SourceLineIndex;
@@ -111,6 +111,7 @@ impl AdzeDocument {
             language_name,
             grammar,
             parse_table,
+            field_schema: DocumentFieldSchema::CompleteIr,
             pure_language: None,
         };
         let language = LanguageMetadata::from_runtime(
@@ -157,10 +158,11 @@ impl AdzeDocument {
         diagnostics: Vec<ParseDiagnostic>,
         ambiguities: Vec<crate::glr_parser::AmbiguitySummary>,
     ) -> Self {
-        let language = LanguageMetadata::from_runtime(
+        let language = LanguageMetadata::from_runtime_with_schema(
             runtime.language_name,
             runtime.grammar,
             runtime.parse_table,
+            runtime.field_schema,
         );
         let syntax = SyntaxTree::from_parse_root(&root, source, &language, error_count);
         Self::from_parse_result_with_built_parts(
@@ -210,6 +212,18 @@ impl AdzeDocument {
     /// Return language metadata recorded for this document.
     pub fn language(&self) -> &LanguageMetadata {
         &self.language
+    }
+
+    /// Validate every field-carrying edge against canonical field facts.
+    ///
+    /// This walks the flat selected tree and resolves each edge's field id
+    /// through the document language: unknown field ids, field names the
+    /// schema never declares, and fields attached to node kinds the schema
+    /// never grants them to all fail with a structured
+    /// [`FieldValidationError`] instead of degrading into silent empty
+    /// results downstream. See [`SyntaxTree::validate_fields`].
+    pub fn validate_fields(&self) -> Result<(), FieldValidationError> {
+        self.syntax.validate_fields(&self.language)
     }
 
     /// Return structured diagnostics recorded for this parse.
@@ -795,6 +809,73 @@ impl SyntaxTree {
         }
         Ok(())
     }
+
+    /// Validate every field-carrying edge against canonical field facts.
+    ///
+    /// This is the first genuine consumer of
+    /// [`LanguageMetadata::field_semantics`]: each edge with a field id
+    /// resolves to a field name through the language field table, and that
+    /// name must carry recorded schema facts for the parent node's grammar
+    /// kind. Names absent from the language field table are rejected as unknown
+    /// fields. Genuinely positional children (no field name or id) are skipped.
+    /// Structural symmetry is out of scope here; run [`validate`](Self::validate)
+    /// for the node/edge/parent diagnosis.
+    pub fn validate_fields(&self, language: &LanguageMetadata) -> Result<(), FieldValidationError> {
+        if language.field_schema_availability == FieldSchemaAvailability::Unavailable {
+            return Err(FieldValidationError::SchemaUnavailable);
+        }
+        for (edge_index, edge) in self.edges.iter().enumerate() {
+            let parent = edge.parent_id;
+            let child = edge.child_id;
+            if let Some(field_name) = edge.unresolved_field_name.as_deref() {
+                let Some(owner_record) = self.node_record(parent) else {
+                    return Err(FieldValidationError::UnknownParent { edge_index, parent });
+                };
+                return Err(FieldValidationError::UnknownField {
+                    edge_index,
+                    parent,
+                    child,
+                    owner: owner_record.grammar_id(),
+                    field_name: field_name.to_string(),
+                });
+            }
+            let Some(field_id) = edge.field_id else {
+                continue;
+            };
+            let Some(field_name) = language.field_name_for_id(field_id.get()) else {
+                return Err(FieldValidationError::UnknownFieldId {
+                    edge_index,
+                    parent,
+                    child,
+                    field_id: field_id.get(),
+                });
+            };
+            let Some(owner_record) = self.node_record(parent) else {
+                return Err(FieldValidationError::UnknownParent { edge_index, parent });
+            };
+            let owner = owner_record.grammar_id();
+            if language.field_semantics(owner, field_name).is_some() {
+                continue;
+            }
+            if language.field_name_is_known(field_name) {
+                return Err(FieldValidationError::FieldNotGranted {
+                    edge_index,
+                    parent,
+                    child,
+                    owner,
+                    field_name: field_name.to_string(),
+                });
+            }
+            return Err(FieldValidationError::UnknownField {
+                edge_index,
+                parent,
+                child,
+                owner,
+                field_name: field_name.to_string(),
+            });
+        }
+        Ok(())
+    }
 }
 
 /// Contiguous edge range owned by one [`NodeRecord`].
@@ -896,6 +977,9 @@ pub struct EdgeRecord {
     child_id: NodeId,
     child_index: usize,
     field_id: Option<FieldId>,
+    // Preserve names absent from the language table instead of turning them
+    // into positional edges. Resolved names remain interned in the language.
+    unresolved_field_name: Option<Box<str>>,
 }
 
 impl EdgeRecord {
@@ -933,7 +1017,29 @@ pub struct LanguageMetadata {
     /// facts the table generator emits, keyed for direct lookup during
     /// native traversal and query validation instead of re-derivation.
     field_semantics: BTreeMap<SymbolId, BTreeMap<String, FieldSemantics>>,
+    field_schema_availability: FieldSchemaAvailability,
 }
+
+/// Provenance and availability of canonical field facts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FieldSchemaAvailability {
+    /// Facts computed from a complete, explicitly supplied IR grammar.
+    CompleteIr,
+    /// Facts transported by a validated co-generated Rust descriptor.
+    Generated {
+        /// Sidecar format version, independent of the native ABI version.
+        format_version: u32,
+        /// Canonical generator schema revision.
+        schema_revision: u32,
+    },
+    /// The caller supplied only native ABI tables, which omit canonical facts.
+    Unavailable,
+}
+
+/// Native ABI tables alone do not supply canonical field semantics.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("canonical field schema unavailable for this language")]
+pub struct FieldSchemaUnavailable;
 
 /// Canonical field cardinality facts for one node's field, as recorded on
 /// the document's language metadata.
@@ -947,11 +1053,96 @@ pub struct FieldSemantics {
     pub target_kinds: Vec<SymbolId>,
 }
 
+/// Structured failure for field validation against canonical field facts.
+///
+/// [`SyntaxTree::validate_fields`] and [`AdzeDocument::validate_fields`] walk
+/// the flat selected tree and resolve every edge carrying a field id against
+/// [`LanguageMetadata::field_semantics`]. Positional children without a field
+/// name or id are skipped; every other edge must resolve, so a
+/// mismatch surfaces here instead of degrading into a silent empty query or
+/// projection result downstream.
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum FieldValidationError {
+    /// Canonical facts were not supplied; absence is not a negative field grant.
+    #[error("canonical field schema unavailable for this language")]
+    SchemaUnavailable,
+    /// An edge carries a field id the language's field table does not know.
+    #[error(
+        "edge {edge_index} from node {parent:?} to node {child:?} carries unknown field id {field_id}"
+    )]
+    UnknownFieldId {
+        /// Index of the offending edge in the flat edge table.
+        edge_index: usize,
+        /// Document-local parent node id.
+        parent: NodeId,
+        /// Document-local child node id.
+        child: NodeId,
+        /// Raw field id that resolved to no field name.
+        field_id: u16,
+    },
+    /// The field name is absent from the language field table or granted to no
+    /// node kind in the schema.
+    #[error("node {parent:?} ({owner}) carries unknown field {field_name:?} to node {child:?}")]
+    UnknownField {
+        /// Index of the offending edge in the flat edge table.
+        edge_index: usize,
+        /// Document-local parent node id.
+        parent: NodeId,
+        /// Document-local child node id.
+        child: NodeId,
+        /// Grammar symbol id of the owning parent node.
+        owner: SymbolId,
+        /// Field name absent from the language table or from all schema facts.
+        field_name: String,
+    },
+    /// The field exists in the schema but was never granted to this owner.
+    #[error(
+        "node {parent:?} ({owner}) carries field {field_name:?} to node {child:?}, but the schema never grants that field to {owner}"
+    )]
+    FieldNotGranted {
+        /// Index of the offending edge in the flat edge table.
+        edge_index: usize,
+        /// Document-local parent node id.
+        parent: NodeId,
+        /// Document-local child node id.
+        child: NodeId,
+        /// Grammar symbol id of the owning parent node.
+        owner: SymbolId,
+        /// Resolved field name granted to some other node kind.
+        field_name: String,
+    },
+    /// The edge's parent id points at no node record (corrupt structure).
+    ///
+    /// Run [`SyntaxTree::validate`] for the full structural diagnosis; field
+    /// validation never panics on corrupt parent links.
+    #[error("edge {edge_index} points at unknown parent node {parent:?}")]
+    UnknownParent {
+        /// Index of the offending edge in the flat edge table.
+        edge_index: usize,
+        /// Parent node id with no matching node record.
+        parent: NodeId,
+    },
+}
+
 impl LanguageMetadata {
     pub(crate) fn from_runtime(
         language_name: &str,
         grammar: &Grammar,
         parse_table: &ParseTable,
+    ) -> Self {
+        Self::from_runtime_with_schema(
+            language_name,
+            grammar,
+            parse_table,
+            DocumentFieldSchema::CompleteIr,
+        )
+    }
+
+    fn from_runtime_with_schema(
+        language_name: &str,
+        grammar: &Grammar,
+        parse_table: &ParseTable,
+        schema: DocumentFieldSchema,
     ) -> Self {
         let mut symbols = Vec::new();
 
@@ -999,40 +1190,70 @@ impl LanguageMetadata {
         // Canonical per-node field facts, resolved once per language through
         // the same schema the table generator consumes. Targets keep their
         // grammar identities; only leaf symbols are stored.
-        let field_semantics = adze_tablegen::field_schema::field_semantics_for_grammar(grammar)
-            .into_iter()
-            .map(|(owner, fields)| {
-                let semantics = fields
+        let (field_schema_availability, field_semantics) = match schema {
+            DocumentFieldSchema::Unavailable => {
+                (FieldSchemaAvailability::Unavailable, BTreeMap::new())
+            }
+            DocumentFieldSchema::Generated(schema) => {
+                let mut facts: BTreeMap<SymbolId, BTreeMap<String, FieldSemantics>> =
+                    BTreeMap::new();
+                for fact in schema.facts {
+                    facts.entry(SymbolId(fact.owner)).or_default().insert(
+                        fact.name.to_owned(),
+                        FieldSemantics {
+                            required: fact.required,
+                            multiple: fact.multiple,
+                            target_kinds: fact.targets.iter().copied().map(SymbolId).collect(),
+                        },
+                    );
+                }
+                (
+                    FieldSchemaAvailability::Generated {
+                        format_version: schema.format_version,
+                        schema_revision: schema.schema_revision,
+                    },
+                    facts,
+                )
+            }
+            DocumentFieldSchema::CompleteIr => {
+                let facts = adze_tablegen::field_schema::field_semantics_for_grammar(grammar)
                     .into_iter()
-                    .map(|(name, fact)| {
-                        let mut targets = Vec::with_capacity(fact.targets.len());
-                        for target in &fact.targets {
-                            match target {
-                                adze_ir::Symbol::Terminal(id)
-                                | adze_ir::Symbol::NonTerminal(id)
-                                | adze_ir::Symbol::External(id) => targets.push(*id),
-                                _ => {}
-                            }
-                        }
-                        (
-                            name,
-                            FieldSemantics {
-                                required: fact.required,
-                                multiple: fact.multiple,
-                                target_kinds: targets,
-                            },
-                        )
+                    .map(|(owner, fields)| {
+                        let semantics = fields
+                            .into_iter()
+                            .map(|(name, fact)| {
+                                let mut targets = Vec::with_capacity(fact.targets.len());
+                                for target in &fact.targets {
+                                    match target {
+                                        adze_ir::Symbol::Terminal(id)
+                                        | adze_ir::Symbol::NonTerminal(id)
+                                        | adze_ir::Symbol::External(id) => targets.push(*id),
+                                        _ => {}
+                                    }
+                                }
+                                (
+                                    name,
+                                    FieldSemantics {
+                                        required: fact.required,
+                                        multiple: fact.multiple,
+                                        target_kinds: targets,
+                                    },
+                                )
+                            })
+                            .collect();
+                        (owner, semantics)
                     })
                     .collect();
-                (owner, semantics)
-            })
-            .collect();
+                (FieldSchemaAvailability::CompleteIr, facts)
+            }
+        };
 
         Self {
             name: language_name.to_string(),
             symbols,
             fields: parse_table.field_names.clone(),
             field_semantics,
+            field_schema_availability,
         }
     }
 
@@ -1094,9 +1315,40 @@ impl LanguageMetadata {
     ///
     /// This is the document-side projection of the canonical field schema:
     /// the same required/multiple/target facts the table generator emits,
-    /// keyed by owning node kind and field name.
+    /// keyed by owning node kind and field name. `None` also covers unavailable
+    /// metadata; use [`Self::checked_field_semantics`] to distinguish it from
+    /// an absent grant.
     pub fn field_semantics(&self, owner: SymbolId, field_name: &str) -> Option<&FieldSemantics> {
         self.field_semantics.get(&owner)?.get(field_name)
+    }
+
+    /// Return whether canonical facts are available and how they were obtained.
+    pub fn field_schema_availability(&self) -> FieldSchemaAvailability {
+        self.field_schema_availability
+    }
+
+    /// Look up a field while distinguishing unavailable schema from an absent grant.
+    pub fn checked_field_semantics(
+        &self,
+        owner: SymbolId,
+        field_name: &str,
+    ) -> Result<Option<&FieldSemantics>, FieldSchemaUnavailable> {
+        if self.field_schema_availability == FieldSchemaAvailability::Unavailable {
+            return Err(FieldSchemaUnavailable);
+        }
+        Ok(self.field_semantics(owner, field_name))
+    }
+
+    /// Return whether any node kind in the schema is granted this field name.
+    ///
+    /// Field validation uses this to distinguish a field name the schema
+    /// never declares ([`FieldValidationError::UnknownField`]) from a real
+    /// field attached to a node kind the schema never grants it to
+    /// ([`FieldValidationError::FieldNotGranted`]).
+    fn field_name_is_known(&self, field_name: &str) -> bool {
+        self.field_semantics
+            .values()
+            .any(|fields| fields.contains_key(field_name))
     }
 }
 
@@ -1802,9 +2054,11 @@ impl<'doc> AdzeEdge<'doc> {
 
     /// Return the field name attached to this edge, if any.
     pub fn field_name(&self) -> Option<&'doc str> {
-        self.record
-            .field_id()
-            .and_then(|field_id| self.document.language().field_name_for_id(field_id.get()))
+        self.record.unresolved_field_name.as_deref().or_else(|| {
+            self.record
+                .field_id()
+                .and_then(|field_id| self.document.language().field_name_for_id(field_id.get()))
+        })
     }
 
     /// Return the public field id attached to this edge, if any.
@@ -2103,6 +2357,7 @@ mod tests {
                 language_name: "fielded",
                 grammar: &grammar,
                 parse_table: &table,
+                field_schema: DocumentFieldSchema::CompleteIr,
                 pure_language: None,
             },
             Vec::new(),
@@ -2696,5 +2951,258 @@ mod tests {
                 "multiple must agree for owner {owner} field {field}"
             );
         }
+    }
+
+    fn schema_leaf(symbol: u16, start: usize, end: usize, field: &str) -> ParseNode {
+        ParseNode {
+            symbol: SymbolId(symbol),
+            symbol_id: SymbolId(symbol),
+            start_byte: start,
+            end_byte: end,
+            field_name: Some(field.to_string()),
+            alias_symbol_id: None,
+            children: Vec::new(),
+        }
+    }
+
+    fn schema_test_document(root: ParseNode, source: &str) -> AdzeDocument {
+        let mut grammar = schema_test_grammar();
+        grammar.try_normalize().expect("schema fixture normalizes");
+        let mut table = ParseTable::default();
+        // Table order fixes public field ids: FieldId(1) -> "value",
+        // FieldId(2) -> "items". "bogus" stays table-known but
+        // schema-unknown, so it exercises the unknown-field rule without
+        // inventing a parallel grammar fixture.
+        table.field_names = vec![
+            "value".to_string(),
+            "items".to_string(),
+            "bogus".to_string(),
+        ];
+        AdzeDocument::from_parse_result(source, root, 0, "schema-fixture", &grammar, &table)
+    }
+
+    /// Valid fielded tree over the shared schema fixture:
+    /// doc -value-> item -value-> num, plus group -items-> item -value-> word.
+    fn schema_field_document(num_field: &str, word_field: &str) -> AdzeDocument {
+        let source = "1a2b";
+        let root = ParseNode {
+            symbol: SymbolId(10),
+            symbol_id: SymbolId(10),
+            start_byte: 0,
+            end_byte: source.len(),
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![
+                ParseNode {
+                    symbol: SymbolId(11),
+                    symbol_id: SymbolId(11),
+                    start_byte: 0,
+                    end_byte: 2,
+                    field_name: Some("value".to_string()),
+                    alias_symbol_id: None,
+                    children: vec![schema_leaf(1, 0, 1, num_field)],
+                },
+                ParseNode {
+                    symbol: SymbolId(12),
+                    symbol_id: SymbolId(12),
+                    start_byte: 2,
+                    end_byte: source.len(),
+                    field_name: None,
+                    alias_symbol_id: None,
+                    children: vec![ParseNode {
+                        symbol: SymbolId(11),
+                        symbol_id: SymbolId(11),
+                        start_byte: 2,
+                        end_byte: source.len(),
+                        field_name: Some("items".to_string()),
+                        alias_symbol_id: None,
+                        children: vec![schema_leaf(2, 2, 3, word_field)],
+                    }],
+                },
+            ],
+        };
+        schema_test_document(root, source)
+    }
+
+    #[test]
+    fn test_validate_fields_when_tree_matches_schema_passes() {
+        let document = schema_field_document("value", "value");
+
+        assert!(document.tree().validate_structure().is_ok());
+        assert_eq!(document.validate_fields(), Ok(()));
+    }
+
+    // Direct-edge controls deliberately avoid normalization carriers: the
+    // canonical doc.value grant is required, singular, and targets item(11).
+    fn direct_schema_document(children: Vec<ParseNode>) -> AdzeDocument {
+        schema_test_document(
+            ParseNode {
+                symbol: SymbolId(10),
+                symbol_id: SymbolId(10),
+                start_byte: 0,
+                end_byte: 2,
+                field_name: None,
+                alias_symbol_id: None,
+                children,
+            },
+            "12",
+        )
+    }
+
+    fn direct_schema_item(start: usize) -> ParseNode {
+        ParseNode {
+            symbol: SymbolId(11),
+            symbol_id: SymbolId(11),
+            start_byte: start,
+            end_byte: start + 1,
+            field_name: Some("value".to_string()),
+            alias_symbol_id: None,
+            children: vec![schema_leaf(1, start, start + 1, "value")],
+        }
+    }
+
+    #[test]
+    fn test_validate_fields_rejects_direct_wrong_target() {
+        let document = direct_schema_document(vec![schema_leaf(1, 0, 1, "value")]);
+        let fact = document
+            .language
+            .field_semantics(SymbolId(10), "value")
+            .unwrap();
+        assert_eq!(fact.target_kinds, vec![SymbolId(11)]);
+        assert!(document.tree().validate_structure().is_ok());
+        assert!(document.diagnostics().is_empty());
+        assert!(
+            document.validate_fields().is_err(),
+            "doc.value cannot target num(1)"
+        );
+    }
+
+    #[test]
+    fn test_validate_fields_rejects_direct_missing_required() {
+        let document = direct_schema_document(Vec::new());
+        let fact = document
+            .language
+            .field_semantics(SymbolId(10), "value")
+            .unwrap();
+        assert!(fact.required);
+        assert!(document.tree().validate_structure().is_ok());
+        assert!(document.diagnostics().is_empty());
+        assert!(
+            document.validate_fields().is_err(),
+            "doc.value requires an occurrence"
+        );
+    }
+
+    #[test]
+    fn test_validate_fields_rejects_direct_duplicate_single() {
+        let document = direct_schema_document(vec![direct_schema_item(0), direct_schema_item(1)]);
+        let fact = document
+            .language
+            .field_semantics(SymbolId(10), "value")
+            .unwrap();
+        assert!(!fact.multiple);
+        assert!(document.tree().validate_structure().is_ok());
+        assert!(document.diagnostics().is_empty());
+        assert!(
+            document.validate_fields().is_err(),
+            "doc.value permits only one occurrence"
+        );
+    }
+
+    #[test]
+    fn test_validate_fields_when_field_unknown_to_schema_fails() {
+        // "bogus" resolves through the field table but no node kind in the
+        // schema is ever granted it.
+        let document = schema_field_document("value", "bogus");
+
+        assert_eq!(
+            document.validate_fields(),
+            Err(FieldValidationError::UnknownField {
+                edge_index: 4,
+                parent: NodeId::new(4),
+                child: NodeId::new(5),
+                owner: SymbolId(11),
+                field_name: "bogus".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_validate_fields_when_field_name_unknown_to_table_fails() {
+        let document = schema_field_document("value", "typo");
+
+        assert_eq!(
+            document.tree().node(NodeId::new(5)).unwrap().field_name(),
+            Some("typo")
+        );
+        assert_eq!(
+            document.tree().node(NodeId::new(5)).unwrap().field_id(),
+            None
+        );
+        assert_eq!(
+            document.validate_fields(),
+            Err(FieldValidationError::UnknownField {
+                edge_index: 4,
+                parent: NodeId::new(4),
+                child: NodeId::new(5),
+                owner: SymbolId(11),
+                field_name: "typo".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_validate_fields_when_field_not_granted_to_owner_fails() {
+        // "items" is a real schema field, but only group (12) is granted it;
+        // item (11) carrying it must fail rather than validate silently.
+        let document = schema_field_document("items", "value");
+
+        assert_eq!(
+            document.validate_fields(),
+            Err(FieldValidationError::FieldNotGranted {
+                edge_index: 2,
+                parent: NodeId::new(1),
+                child: NodeId::new(2),
+                owner: SymbolId(11),
+                field_name: "items".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_validate_fields_uses_grammar_owner_despite_visible_alias() {
+        let mut document = schema_field_document("value", "value");
+        document.syntax.nodes[1].visible_id = SymbolId(999);
+        document.syntax.nodes[1].alias_symbol_id = Some(SymbolId(999));
+        assert_eq!(document.validate_fields(), Ok(()));
+    }
+
+    #[test]
+    fn test_validate_fields_when_field_parent_unknown_fails() {
+        let mut document = schema_field_document("value", "value");
+        document.syntax.edges[0].parent_id = NodeId::new(999);
+        assert_eq!(
+            document.validate_fields(),
+            Err(FieldValidationError::UnknownParent {
+                edge_index: 0,
+                parent: NodeId::new(999),
+            })
+        );
+    }
+
+    #[test]
+    fn test_validate_fields_when_field_id_unknown_to_table_fails() {
+        let mut document = schema_field_document("value", "value");
+        document.syntax.edges[0].field_id = FieldId::new(99);
+
+        assert_eq!(
+            document.validate_fields(),
+            Err(FieldValidationError::UnknownFieldId {
+                edge_index: 0,
+                parent: NodeId::new(0),
+                child: NodeId::new(1),
+                field_id: 99,
+            })
+        );
     }
 }

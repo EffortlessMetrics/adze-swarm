@@ -142,7 +142,7 @@ pub fn decode_grammar_with_patterns(
     let production_ids = productions::decode_fallback_rules(lang, &mut rules);
     let externals = externals::decode_external_tokens(lang, &symbol_names);
 
-    Grammar {
+    let mut grammar = Grammar {
         name: "decoded_grammar".to_string(),
         rules,
         tokens,
@@ -162,7 +162,13 @@ pub fn decode_grammar_with_patterns(
         lexical_metadata: IndexMap::new(),
         start_symbol: None,
         wrapper_token_relations: IndexMap::new(),
-    }
+    };
+    // Rules and tokens are read from ABI columns; native nodes and parse-table
+    // metadata use public grammar symbols. Translate the grammar exactly once
+    // with the same validated map used by the parse-table decoder.
+    let (index_to_symbol, _) = parse_table::decode_symbol_maps(lang, lang.symbol_count as usize);
+    symbols::remap_grammar_symbols(&mut grammar, &index_to_symbol);
+    grammar
 }
 
 pub(super) fn decode_rules(lang: &TSLanguage) -> Vec<ParseRule> {
