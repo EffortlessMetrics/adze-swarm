@@ -30,7 +30,7 @@ This plan addresses feature-flag standardization across the workspace. Documenta
 
 | Crate | File | Features |
 |-------|------|----------|
-| `adze` (runtime) | [`runtime/Cargo.toml:17-40`](runtime/Cargo.toml:17) | `pure-rust`, `tree-sitter-c2rust`, `tree-sitter-standard`, `wasm`, `simd`, `serialization`, `legacy-parsers`, `incremental_glr`, `debug_glr`, `ts-compat`, `debug_incremental`, `experimental_examples`, `json_example`, `external_scanners`, `query`, `runtime-e2e`, `strict_docs`, `strict_api`, `unstable-benches`, `glr_telemetry`, `glr`, `with-grammars` |
+| `adze` (runtime) | [`runtime/Cargo.toml:17-40`](runtime/Cargo.toml:17) | `pure-rust`, `tree-sitter-c2rust`, `tree-sitter-standard`, `wasm`, `simd`, `serialization`, `incremental_glr`, `debug_glr`, `ts-compat`, `debug_incremental`, `experimental_examples`, `json_example`, `external_scanners`, `query`, `runtime-e2e`, `strict_docs`, `strict_api`, `unstable-benches`, `glr_telemetry`, `glr`, `with-grammars` |
 | `adze-runtime` (runtime2) | [`runtime2/Cargo.toml:44-72`](runtime2/Cargo.toml:44) | `glr-core`, `pure-rust`, `pure-rust-glr` (deprecated), `serialization`, `arenas`, `incremental_glr`, `incremental` (deprecated), `external_scanners`, `external-scanners` (deprecated), `query`, `queries` (deprecated), `test-utils` |
 | `adze-glr-core` | [`glr-core/Cargo.toml:32-48`](glr-core/Cargo.toml:32) | `parallel`, `strict_docs`, `strict_api`, `glr-trace`, `test-helpers`, `strict-invariants`, `memory-tests`, `json-parity`, `perf-counters`, `test-api`, `debug_glr`, `serialization`, `glr_telemetry` |
 | `adze-ir` | [`ir/Cargo.toml:25-28`](ir/Cargo.toml:25) | `optimize`, `strict_docs` |
