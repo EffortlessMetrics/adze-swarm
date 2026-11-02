@@ -109,4 +109,39 @@ mod tests {
             literal_sequence::START,
         );
     }
+    fn assert_global_root(document: &AdzeDocument, start: u16, wrapper: u16) {
+        assert_eq!(document.outcome(), ParseOutcome::Complete);
+        assert!(document.diagnostics().is_empty());
+        assert_eq!(
+            document.tree().root().grammar_id().0,
+            start,
+            "native document root must preserve declared source identity: {document:?}"
+        );
+        assert!(
+            (0..document.tree().node_count()).all(|index| document
+                .tree()
+                .node(NodeId::new(index))
+                .unwrap()
+                .grammar_id()
+                .0
+                != wrapper),
+            "the original global no-semantic-intermediate oracle remains required"
+        );
+    }
+    #[test]
+    fn test_imported_pattern_choice_global_root_preserves_declared_start() {
+        assert_global_root(
+            &pattern_choice::parse_document(pattern_choice::SOURCE).unwrap(),
+            pattern_choice::START,
+            pattern_choice::WRAPPER,
+        );
+    }
+    #[test]
+    fn test_imported_literal_choice_global_root_preserves_declared_start() {
+        assert_global_root(
+            &literal_choice::parse_document(literal_choice::SOURCE).unwrap(),
+            literal_choice::START,
+            literal_choice::WRAPPER,
+        );
+    }
 }

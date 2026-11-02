@@ -60,8 +60,8 @@ serde_json = "1.0"
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
-        stdout.contains("4 passed; 0 failed; 0 ignored"),
-        "all four imported native controls must execute: {stdout}"
+        stdout.contains("6 passed; 0 failed; 0 ignored"),
+        "all six imported native controls must execute: {stdout}"
     );
     println!("{stdout}");
     std::fs::remove_dir_all(path).unwrap();
