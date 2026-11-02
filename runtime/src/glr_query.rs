@@ -94,7 +94,14 @@ pub enum Predicate {
     AnyOf(u32, Vec<String>),
 }
 
-/// A match found by running a query
+/// A match found by running a query against a GLR-forest [`Subtree`].
+///
+/// This is the GLR-forest-specific shape: captures hold `Subtree`s, not
+/// `ParseNode`s. It shares its name — but not its definition — with
+/// `query::matcher::QueryMatch` (source-free tree matcher) and
+/// `query::matcher_v2::QueryMatch` (source-aware; the recommended primary,
+/// see #861). The document-backed matcher is the recommended entry point
+/// for new code; do not unify these types here.
 #[derive(Debug, Clone)]
 pub struct QueryMatch {
     /// Index of the pattern that matched
@@ -103,7 +110,11 @@ pub struct QueryMatch {
     pub captures: Vec<QueryCapture>,
 }
 
-/// A captured node from a query match
+/// A captured node from a GLR-forest query match.
+///
+/// Holds a [`Subtree`], unlike the same-named `query::matcher::QueryCapture`
+/// and `query::matcher_v2::QueryCapture` types, which capture recursive-tree
+/// nodes instead.
 #[derive(Debug, Clone)]
 pub struct QueryCapture {
     /// Index of the capture
@@ -478,7 +489,12 @@ impl<'a> QueryParser<'a> {
     }
 }
 
-/// Query execution engine
+/// Query execution engine for GLR-forest [`Subtree`]s.
+///
+/// This cursor bounds search by maximum depth. It is a different type from
+/// the same-named `query::cursor::QueryCursor`, which bounds recursive-tree
+/// matching by byte range and root-only flags. For document-backed matching
+/// prefer the `matcher_v2` path (see #861).
 pub struct QueryCursor {
     /// Maximum depth to search
     max_depth: Option<usize>,

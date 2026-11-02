@@ -568,3 +568,306 @@ fn generated_ambiguous_expr_decode_preserves_glr_conflict_cells() {
         "decoded ambiguous_expr table must preserve at least one shift/reduce conflict cell"
     );
 }
+
+// Three syntax rules share metadata slot 0; slot 5 is sparse. The syntax
+// lengths must survive independently of production metadata and map allocation.
+#[test]
+fn test_shared_sparse_production_decode_preserves_rule_identity() {
+    static MAP: [u16; 3] = [5, 0, 0];
+    static RULES: [TSRule; 3] = [
+        TSRule {
+            lhs: 2,
+            rhs_len: 1,
+            _pad: 0,
+        },
+        TSRule {
+            lhs: 2,
+            rhs_len: 1,
+            _pad: 0,
+        },
+        TSRule {
+            lhs: 2,
+            rhs_len: 0,
+            _pad: 0,
+        },
+    ];
+    static ROWS: [u16; 6] = [0, 0x8001, 0, 0x8002, 0, 0x8003];
+    static OFFSETS: [u32; 4] = [0, 2, 4, 6];
+    let language = TSLanguage {
+        production_id_count: 6,
+        production_count: 6,
+        production_id_map: MAP.as_ptr(),
+        rules: RULES.as_ptr(),
+        rule_count: 3,
+        small_parse_table: ROWS.as_ptr(),
+        small_parse_table_map: OFFSETS.as_ptr(),
+        public_symbol_map: ptr::null(),
+        field_count: 0,
+        field_map_slices: ptr::null(),
+        field_map_entries: ptr::null(),
+        alias_count: 0,
+        alias_map: ptr::null(),
+        alias_sequences: ptr::null(),
+        parse_actions: ptr::null(),
+        ..LANGUAGE
+    };
+    let decoded = decode_parse_table(Box::leak(Box::new(language)));
+    assert_eq!(
+        decoded.rules.iter().map(|r| r.rhs_len).collect::<Vec<_>>(),
+        vec![1, 1, 0]
+    );
+    for i in 0..3 {
+        assert_eq!(
+            decoded.action_table[i][0],
+            vec![Action::Reduce(RuleId(i as u16))]
+        );
+    }
+    assert_eq!(
+        decoded
+            .grammar
+            .production_ids
+            .values()
+            .map(|p| p.0)
+            .collect::<Vec<_>>(),
+        vec![5, 0, 0]
+    );
+}
+
+#[test]
+fn test_native_tablegen_and_runtime_rule_metadata_layouts_match() {
+    use adze_tablegen::abi as generated;
+    use std::mem::{align_of, offset_of, size_of};
+    assert_eq!(size_of::<TSLanguage>(), size_of::<generated::TSLanguage>());
+    assert_eq!(
+        align_of::<TSLanguage>(),
+        align_of::<generated::TSLanguage>()
+    );
+    assert_eq!(
+        offset_of!(TSLanguage, rules),
+        offset_of!(generated::TSLanguage, rules)
+    );
+    assert_eq!(
+        offset_of!(TSLanguage, rule_count),
+        offset_of!(generated::TSLanguage, rule_count)
+    );
+    assert_eq!(size_of::<TSRule>(), size_of::<generated::TSRule>());
+}
+
+#[test]
+fn test_shared_production_fields_use_metadata_slots_and_rule_keys() {
+    static MAP: [u16; 3] = [2, 0, 0];
+    static RULES: [TSRule; 3] = [TSRule {
+        lhs: 2,
+        rhs_len: 1,
+        _pad: 0,
+    }; 3];
+    static SLICES: [u16; 6] = [0, 1, 0, 0, 1, 1];
+    static ENTRIES: [u16; 4] = [0, 0, 1, 0];
+    let language = TSLanguage {
+        production_id_count: 3,
+        production_count: 3,
+        production_id_map: MAP.as_ptr(),
+        rules: RULES.as_ptr(),
+        rule_count: 3,
+        field_count: 2,
+        field_names: ptr::null(),
+        field_map_slices: SLICES.as_ptr(),
+        field_map_entries: ENTRIES.as_ptr(),
+        alias_count: 0,
+        alias_map: ptr::null(),
+        alias_sequences: ptr::null(),
+        parse_actions: ptr::null(),
+        small_parse_table: ptr::null(),
+        public_symbol_map: ptr::null(),
+        ..LANGUAGE
+    };
+    let decoded = decode_parse_table(Box::leak(Box::new(language)));
+    assert_eq!(decoded.field_map.get(&(RuleId(0), 0)), Some(&1));
+    assert_eq!(decoded.field_map.get(&(RuleId(1), 0)), Some(&0));
+    assert_eq!(decoded.field_map.get(&(RuleId(2), 0)), Some(&0));
+    assert_eq!(decoded.field_map.len(), 3);
+}
+
+#[test]
+fn test_shared_production_rule_count_can_exceed_metadata_count_and_invalid_rules_reject() {
+    // Extra allocated backing prevents the pre-repair implementation from
+    // invoking UB if it uses metadata count or an invalid rule index.
+    static MAP: [u16; 6] = [0; 6];
+    static RULES: [TSRule; 3] = [TSRule {
+        lhs: 2,
+        rhs_len: 1,
+        _pad: 0,
+    }; 3];
+    static ROWS: [u16; 8] = [0, 0x8003, 0, 0x8004, 0, 0x8000, 0, 0x8007];
+    static OFFSETS: [u32; 4] = [0, 2, 4, 8];
+    let language = TSLanguage {
+        production_id_count: 1,
+        production_count: 1,
+        production_id_map: MAP.as_ptr(),
+        rules: RULES.as_ptr(),
+        rule_count: 3,
+        small_parse_table: ROWS.as_ptr(),
+        small_parse_table_map: OFFSETS.as_ptr(),
+        alias_count: 0,
+        alias_map: ptr::null(),
+        alias_sequences: ptr::null(),
+        parse_actions: ptr::null(),
+        public_symbol_map: ptr::null(),
+        field_count: 0,
+        ..LANGUAGE
+    };
+    let decoded = decode_parse_table(Box::leak(Box::new(language)));
+    assert_eq!(decoded.action_table[0][0], vec![Action::Reduce(RuleId(2))]);
+    assert!(decoded.action_table[1][0].is_empty());
+    assert!(decoded.action_table[2][0].is_empty());
+    assert_eq!(
+        decoded
+            .grammar
+            .production_ids
+            .values()
+            .map(|p| p.0)
+            .collect::<Vec<_>>(),
+        vec![0, 0, 0]
+    );
+}
+
+#[test]
+fn test_pure_parser_accepts_empty_alternative_with_shared_metadata() {
+    static MAP: [u16; 3] = [0, 0, 0];
+    static RULES: [TSRule; 3] = [
+        TSRule {
+            lhs: 2,
+            rhs_len: 1,
+            _pad: 0,
+        },
+        TSRule {
+            lhs: 2,
+            rhs_len: 2,
+            _pad: 0,
+        },
+        TSRule {
+            lhs: 2,
+            rhs_len: 0,
+            _pad: 0,
+        },
+    ];
+    static ROWS: [u16; 6] = [0, 0x8003, 2, 1, 0, 0xFFFF];
+    static OFFSETS: [u32; 3] = [0, 4, 6];
+    let language = TSLanguage {
+        state_count: 2,
+        production_id_count: 1,
+        production_count: 1,
+        production_id_map: MAP.as_ptr(),
+        rules: RULES.as_ptr(),
+        rule_count: 3,
+        small_parse_table: ROWS.as_ptr(),
+        small_parse_table_map: OFFSETS.as_ptr(),
+        parse_actions: ptr::null(),
+        public_symbol_map: ptr::null(),
+        alias_count: 0,
+        alias_map: ptr::null(),
+        alias_sequences: ptr::null(),
+        field_count: 0,
+        ..LANGUAGE
+    };
+    let mut parser = adze::pure_parser::Parser::new();
+    parser.set_language(Box::leak(Box::new(language))).unwrap();
+    let parsed = parser.parse_string("");
+    assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+    let root = parsed
+        .root
+        .expect("empty alternative must produce its node");
+    assert_eq!(root.symbol, 2);
+    assert_eq!(root.start_byte, 0);
+    assert_eq!(root.end_byte, 0);
+    assert!(root.children.is_empty());
+}
+
+// Backing storage deliberately includes guards after the advertised two cells.
+// The pre-repair decoder can read them safely, producing a semantic red witness
+// rather than intentionally invoking UB by constructing an oversized raw slice.
+#[test]
+fn test_shared_production_alias_reads_stay_within_advertised_row() {
+    static MAP: [u16; 3] = [0, 0, 1];
+    static RULES: [TSRule; 3] = [
+        TSRule {
+            lhs: 2,
+            rhs_len: 5,
+            _pad: 0,
+        },
+        TSRule {
+            lhs: 2,
+            rhs_len: 1,
+            _pad: 0,
+        },
+        TSRule {
+            lhs: 2,
+            rhs_len: 1,
+            _pad: 0,
+        },
+    ];
+    static ALIAS_OFFSETS: [u16; 2] = [0, 1];
+    static ALIAS_CELLS_WITH_GUARDS: [u16; 8] = [0, 1, 2, 2, 2, 2, 2, 2];
+    let language = TSLanguage {
+        production_id_count: 2,
+        production_count: 2,
+        production_id_map: MAP.as_ptr(),
+        rules: RULES.as_ptr(),
+        rule_count: 3,
+        max_alias_sequence_length: 1,
+        alias_map: ALIAS_OFFSETS.as_ptr(),
+        alias_sequences: ALIAS_CELLS_WITH_GUARDS.as_ptr(),
+        parse_actions: ptr::null(),
+        field_count: 0,
+        field_map_slices: ptr::null(),
+        field_map_entries: ptr::null(),
+        ..LANGUAGE
+    };
+    let grammar = adze::decoder::decode_grammar(Box::leak(Box::new(language)));
+    let long = grammar
+        .rule_by_id(RuleId(0))
+        .expect("long syntax alternative");
+    assert_eq!(long.rhs.len(), 5);
+    for symbol in &long.rhs[1..] {
+        assert_eq!(
+            *symbol,
+            adze_ir::Symbol::NonTerminal(SymbolId(0)),
+            "syntax positions outside one metadata row must not read another row or guard storage"
+        );
+    }
+    // Offset zero denotes the first row, not absence of alias data.
+    let other = grammar.rule_by_id(RuleId(2)).expect("aliased production");
+    assert_eq!(other.rhs, vec![adze_ir::Symbol::Terminal(SymbolId(1))]);
+}
+
+#[test]
+fn test_alias_offsets_outside_advertised_cells_refuse_guard_storage() {
+    static MAP: [u16; 1] = [0];
+    static RULES: [TSRule; 1] = [TSRule {
+        lhs: 2,
+        rhs_len: 1,
+        _pad: 0,
+    }];
+    static ALIAS_OFFSETS: [u16; 1] = [1];
+    static ALIAS_CELLS_WITH_GUARDS: [u16; 2] = [0, 2];
+    let language = TSLanguage {
+        production_id_count: 1,
+        production_count: 1,
+        production_id_map: MAP.as_ptr(),
+        rules: RULES.as_ptr(),
+        rule_count: 1,
+        max_alias_sequence_length: 1,
+        alias_map: ALIAS_OFFSETS.as_ptr(),
+        alias_sequences: ALIAS_CELLS_WITH_GUARDS.as_ptr(),
+        parse_actions: ptr::null(),
+        field_count: 0,
+        field_map_slices: ptr::null(),
+        field_map_entries: ptr::null(),
+        ..LANGUAGE
+    };
+    let grammar = adze::decoder::decode_grammar(Box::leak(Box::new(language)));
+    assert_eq!(
+        grammar.rule_by_id(RuleId(0)).unwrap().rhs,
+        vec![adze_ir::Symbol::NonTerminal(SymbolId(0))]
+    );
+}

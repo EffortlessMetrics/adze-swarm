@@ -48,6 +48,8 @@ fn minimal_language() -> TSLanguage {
         production_lhs_index: ptr::null(),
         production_count: 0,
         eof_symbol: 0,
+        rules: std::ptr::null(),
+        rule_count: 0,
     }
 }
 

@@ -238,11 +238,6 @@ mod tests {
                 ],
                 (0, 9),
             ),
-            // Non-numeric input matches zero elements under zero-or-more.
-            // Flagged, not blessed: trailing-vs-leading garbage acceptance
-            // belongs to the diagnostics lane; pinned so it cannot drift
-            // silently.
-            ("abc", vec![], (0, 0)),
         ];
         for (input, expected, container) in cases {
             let parsed = grammar2::parse(input)
@@ -284,20 +279,26 @@ mod tests {
     }
 
     #[test]
-    fn repetitions_undelimited_comma_prefix_is_explicit_1062() {
-        // Flagged, not blessed: the undelimited grammar stops at `,` with no
-        // diagnostic and returns the numeric prefix, silently dropping
-        // `, 2`. True rejection of trailing garbage belongs to the
-        // diagnostics lane. Pinned so the behavior cannot drift silently.
-        let parsed = grammar2::parse("1, 2").expect("current contract: prefix accepted");
-        let items: Vec<(i32, (usize, usize))> = parsed
-            .numbers
-            .value
-            .iter()
-            .map(|item| (item.value, item.span))
-            .collect();
-        assert_eq!(items, vec![(1, (0, 1))]);
-        assert_eq!(parsed.numbers.span, (0, 1));
+    fn test_repetitions_undelimited_rejects_invalid_input_1174() {
+        use adze::errors::ParseErrorReason;
+        use std::collections::BTreeSet;
+
+        // Zero-or-more permits an empty source, not ignored leading or
+        // trailing bytes. Every rejected scalar retains its actual range.
+        for (input, spans) in [("abc", vec![0..1, 1..2, 2..3]), ("1, 2", vec![1..2])] {
+            let errors =
+                grammar2::parse(input).expect_err("invalid input cannot become a prefix AST");
+            assert_eq!(errors.len(), spans.len(), "{input:?}");
+            for (error, span) in errors.iter().zip(spans) {
+                assert!(
+                    matches!(error.reason, ParseErrorReason::UnexpectedToken(_)),
+                    "{error:?}"
+                );
+                assert_eq!(error.byte_span(), span, "{input:?}");
+                let expected: BTreeSet<_> = error.expected.iter().map(String::as_str).collect();
+                assert_eq!(expected, BTreeSet::from(["end", "number"]));
+            }
+        }
     }
 
     #[test]

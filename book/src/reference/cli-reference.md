@@ -3,11 +3,12 @@
 Complete reference for the adze command-line interface.
 
 > **Current support note:** `adze init`, `adze check`, `adze stats`, `adze build`,
-> `adze test`, and `adze doc` are implemented. `adze parse` performs static
-> parsing from a grammar file: the default `tree` mode emits a document-backed
-> tree (see `test_parse_static_tree_mode_emits_document_backed_tree`). The
-> remaining static output formats and dynamic (`--dynamic`) parse output are
-> developing surfaces, not supported parse-output paths.
+> `adze test`, and `adze doc` are implemented. Static `adze parse` emits
+> document-backed tree, S-expression, DOT, and JSON representations from a Rust
+> grammar file. The CLI remains **Stabilizing**, and public JSON projections
+> remain **Experimental**; see [Support Tiers](../../../docs/status/SUPPORT_TIERS.md).
+> Dynamic (`--dynamic`) parsing is unavailable and rejects the request before
+> loading a library.
 
 ## Installation
 
@@ -120,13 +121,26 @@ Automatically rebuilds when `.rs` files change. Useful during grammar developmen
 
 Parse input files using adze grammars.
 
-**Status:** `adze parse <grammar.rs> <input>` performs static parsing. The
-default `tree` mode emits a document-backed tree and exits zero on success
-(proved by `test_parse_static_tree_mode_emits_document_backed_tree`). The other
-static formats (`sexp`, `json`, `dot`, and the `*-json` document projection
-modes) and dynamic mode are developing surfaces: their selection tests fail at
-the current head, so treat them as unproved. Dynamic mode fails without loading
-anything when `--dynamic` is passed.
+**Status:** `adze parse <grammar.rs> <input>` implements the following static
+representations through the generated grammar's document path:
+
+| Format | Output |
+| --- | --- |
+| `tree` (default) | Indented selected tree with node kinds and byte ranges. |
+| `sexp` | Selected-tree S-expression. |
+| `dot` | Selected-tree Graphviz graph. |
+| `json`, `document-json` | Full document JSON (`adze.document.v1`). |
+| `tree-json` | Tree projection (`adze.tree.v1`). |
+| `diagnostics-json` | Diagnostic projection (`adze.diagnostics.v1`). |
+| `ambiguity-json` | Ambiguity projection (`adze.ambiguity.v1`). |
+
+Static parsing compiles a temporary runner. Build progress goes to stderr;
+stdout contains the selected representation. The CLI is Stabilizing and these
+public JSON projections are Experimental. Their implementation does not change
+those [support tiers](../../../docs/status/SUPPORT_TIERS.md).
+
+Dynamic mode is unavailable: `--dynamic` returns an error before loading any
+library.
 
 **Usage:**
 ```bash
@@ -139,26 +153,33 @@ adze parse <GRAMMAR> <INPUT> [OPTIONS]
 
 **Options:**
 - `--format, -f <FORMAT>` - Output format (alias `--output`): `tree` (default), `json`, `sexp`, `dot`, `document-json`, `tree-json`, `diagnostics-json`, `ambiguity-json`
-- `--dynamic` - Use dynamic loading from shared library
-- `--symbol <SYMBOL>` - Symbol name for dynamic loading (default: "language")
+- `--dynamic` - Request dynamic parsing (currently rejected before library loading)
+- `--symbol <SYMBOL>` - Reserved dynamic symbol name (default: "language"); dynamic parsing remains unavailable
 
-**Static Parsing Example:**
+**Static Parsing Examples:**
+
 ```bash
+# Print the selected tree
 adze parse grammar.rs input.txt
+
+# Choose another static representation
+adze parse grammar.rs input.txt --format sexp
+adze parse grammar.rs input.txt --output dot
+adze parse grammar.rs input.txt --output document-json
 ```
 
-Expected result today: the default `tree` mode prints the document-backed tree
-and exits zero on success. Use `adze check` to validate a grammar, `adze build` to
-generate parsers, and call `grammar::parse(input)` from Rust code.
+On success, the command writes the requested representation to stdout and exits
+zero. Use `adze check` to validate a grammar or `adze build` to generate parsers
+for a Rust application.
 
-**Dynamic Loading Example:**
+**Dynamic Mode Boundary:**
+
 ```bash
 adze parse --dynamic libtree-sitter-json.so input.json
 ```
 
-Expected result today: a non-zero exit unless dynamic support is unavailable
-even earlier. Dynamic loading is a developing surface and is not a supported
-parse-output path.
+This command returns a nonzero exit with an unavailable-mode error. It does not
+load the library or emit a parse result.
 
 ### `test`
 
@@ -406,14 +427,18 @@ INSTA_UPDATE=no adze test
 
 ### `rust-toolchain.toml`
 
-Adze requires specific toolchain configuration:
+The repository tests the following Rust toolchain pin. The workspace and current
+`adze`, `adze-tool`, and `adze-cli` manifests declare `rust-version = "1.95.0"`.
+Use the tested pin for checkout-based development:
 
 ```toml
 [toolchain]
 channel = "1.95.0"
-edition = "2024"
 components = ["rustfmt", "clippy"]
 ```
+
+The package edition belongs in `Cargo.toml` (`edition = "2024"`), rather than
+inside the `[toolchain]` table.
 
 ### `.gitignore` Additions
 
