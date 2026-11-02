@@ -128,21 +128,18 @@ mod tests {
     #[test]
     #[ignore = "mock TSLanguage is undecodable (decoder subtract-overflow panic); decoder/ is owned outside this migration"]
     fn test_parser_creation() {
-        // `from_language` is the `parser_v4` equivalent of the retired
-        // unified `Parser::new` + `set_language`: decode tables and bind them.
-        // It is infallible, so construction success plus fresh-parser state
-        // is the ported assertion (same strength as the old `is_ok`).
-        let parser = Parser::from_language(&TEST_LANGUAGE, "test".to_string());
-        // `from_language` is infallible: reaching here means the language
-        // bound successfully (the ported equivalent of the old
-        // `set_language(...).is_ok()`). Exercise the binding:
+        // Source-only API port: the old adapter decoded through this same
+        // constructor using the default name "unknown". This ignored mock
+        // remains undecodable; infallible construction is not evidence that
+        // its tables are valid or that language binding was qualified.
+        let parser = Parser::from_language(&TEST_LANGUAGE, "unknown".to_string());
         let _ = parser.get_glr_stats();
     }
 
     #[test]
     #[ignore = "mock TSLanguage is undecodable (decoder subtract-overflow panic); decoder/ is owned outside this migration"]
     fn test_parser_reset() {
-        let mut parser = Parser::from_language(&TEST_LANGUAGE, "test".to_string());
+        let mut parser = Parser::from_language(&TEST_LANGUAGE, "unknown".to_string());
 
         // Parse some input
         let input = "test input";
@@ -158,7 +155,7 @@ mod tests {
     #[test]
     #[ignore = "mock TSLanguage is undecodable (decoder subtract-overflow panic); decoder/ is owned outside this migration"]
     fn test_parser_with_timeout() {
-        let mut parser = Parser::from_language(&TEST_LANGUAGE, "test".to_string());
+        let mut parser = Parser::from_language(&TEST_LANGUAGE, "unknown".to_string());
 
         // Set a timeout
         parser.set_timeout_micros(100_000);

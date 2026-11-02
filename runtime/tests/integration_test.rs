@@ -22,7 +22,7 @@ fn empty_parser() -> Parser {
 #[cfg(feature = "pure-rust")]
 fn test_complete_workflow() {
     // This test demonstrates the complete workflow using safe mock languages
-    // This eliminates FFI segmentation faults while testing GLR functionality
+    // Empty-table survival smoke only; no generated GLR behavior is exercised.
 
     // 1. Create a parser
     let mut parser = empty_parser();

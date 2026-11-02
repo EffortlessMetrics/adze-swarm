@@ -1,7 +1,8 @@
 // Integration tests for the complete adze parsing pipeline
 // These tests verify that all components work together correctly
 
-// TODO: These tests need to be updated to match the new API
+// Source-only sketch: cfg(skip_integration_tests) excludes this target by default.
+// This import port does not qualify compilation, recovery or scanner behavior.
 #![cfg(skip_integration_tests)]
 
 use adze::error_recovery::ErrorRecoveryConfigBuilder;
@@ -176,8 +177,8 @@ fn test_full_parsing_pipeline() {
 
     // 4. Create parser with error recovery
     // NOTE: `parser_v4::Parser` has no `with_error_recovery` builder; the
-    // config builder below is retained so its API still compiles when this
-    // file is enabled, but the parser itself runs without recovery config.
+    // unused builder below remains source-only while this file is disabled;
+    // the parser receives no recovery config. No recovery parity is claimed.
     let _error_recovery = ErrorRecoveryConfigBuilder::new()
         .add_sync_token(SymbolId(102).0) // dedent
         .add_sync_token(SymbolId(100).0) // newline
@@ -339,7 +340,8 @@ fn test_error_recovery_integration() {
     let parse_table = create_test_parse_table();
 
     // Configure aggressive error recovery (see note above: `parser_v4`
-    // has no recovery builder, so this only exercises the builder API).
+    // has no recovery builder. This disabled sketch supplies no executed
+    // recovery or builder-API proof).
     let _error_recovery = ErrorRecoveryConfigBuilder::new()
         .add_sync_token(SymbolId(100).0) // newline
         .add_sync_token(SymbolId(102).0) // dedent

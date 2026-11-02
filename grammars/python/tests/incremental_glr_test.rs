@@ -4,7 +4,8 @@ use adze::parser_v4::Parser;
 // `Parser::new` + `set_language`: it decodes the tables and binds them.
 // The `"unknown"` name preserves the old default-name wiring exactly
 // (unified `set_language` used it), so scanner-registry effects are
-// unchanged; renaming is GH-74/scenario-owner business, out of lane.
+// preserved at the constructor boundary. These ignored scenarios provide no
+// executed scanner, selected-tree or incremental-reuse parity evidence (#897).
 fn python_parser() -> Parser {
     Parser::from_language(adze_python::get_language(), "unknown".to_string())
 }
@@ -30,8 +31,9 @@ fn test_incremental_edit_simple() {
 
     // The old `parse_with_old_tree(bytes, None, Some(&edit))` ignored its
     // old-tree/edit arguments and fell back to a full reparse; `parse` is
-    // exactly that behavior, so the `pure_incremental::Edit` construction
-    // is retired with the adapter.
+    // the same full-reparse mechanism. This ignored scenario does not prove
+    // selected-result equivalence or incremental reuse; the Edit construction
+    // is no longer passed to this adapter.
     let new_tree = parser
         .parse(new_source)
         .expect("Failed to reparse with edit");
@@ -60,7 +62,8 @@ fn test_incremental_edit_into_ambiguity() {
     // This tests operator precedence handling
     let new_source = "x = 1 + 2 * 3";
 
-    // Full reparse: see `test_incremental_edit_simple` for the mapping.
+    // Full reparse API mapping only; this scenario remains ignored and does
+    // not qualify ambiguity, recovery, scanner state or incremental reuse.
     let new_tree = parser
         .parse(new_source)
         .expect("Failed to reparse with edit");
@@ -92,7 +95,8 @@ fn test_incremental_edit_multi_line() {
     // Edit to add a parameter: "def foo(x):\n    return 1"
     let new_source = "def foo(x):\n    return 1";
 
-    // Full reparse: see `test_incremental_edit_simple` for the mapping.
+    // Full reparse API mapping only; this scenario remains ignored and does
+    // not qualify ambiguity, recovery, scanner state or incremental reuse.
     let new_tree = parser
         .parse(new_source)
         .expect("Failed to reparse with edit");
