@@ -212,8 +212,6 @@ mod parser_v4_action_utils;
 /// External-scanner setup helpers for the version 4 parser.
 #[cfg(feature = "pure-rust")]
 mod parser_v4_external_setup;
-/// Pure Rust external scanner support.
-pub mod pure_external_scanner;
 /// Pure Rust incremental parsing support.
 pub mod pure_incremental;
 /// Pure Rust parser implementation.
