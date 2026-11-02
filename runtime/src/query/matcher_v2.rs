@@ -72,7 +72,11 @@ trait ViewNode<'s>: Clone + Copy {
     /// Child node by child index
     fn child(self, index: usize) -> Option<Self>;
     /// Whether this node counts as named for pattern matching
-    fn is_named(self) -> bool;
+    fn is_named(self) -> Option<bool>;
+    /// Whether source-dependent capabilities are available to this view.
+    fn source_available(self) -> bool {
+        true
+    }
     /// Whether this node is extra (skipped while sequencing)
     fn is_extra(self) -> bool;
     /// Source text covered by this node, if available and well-formed
@@ -83,7 +87,7 @@ trait ViewNode<'s>: Clone + Copy {
 #[derive(Clone, Copy)]
 struct ParsedView<'s> {
     node: &'s ParseNode,
-    source: &'s str,
+    source: Option<&'s str>,
     symbol_metadata: &'s [SymbolMetadata],
 }
 
@@ -112,11 +116,17 @@ impl<'s> ViewNode<'s> for ParsedView<'s> {
         })
     }
 
-    fn is_named(self) -> bool {
-        self.symbol_metadata
-            .get(self.node.symbol.0 as usize)
-            .map(|metadata| metadata.is_named)
-            .unwrap_or(true)
+    fn is_named(self) -> Option<bool> {
+        self.source.map(|_| {
+            self.symbol_metadata
+                .get(self.node.symbol.0 as usize)
+                .map(|metadata| metadata.is_named)
+                .unwrap_or(true)
+        })
+    }
+
+    fn source_available(self) -> bool {
+        self.source.is_some()
     }
 
     fn is_extra(self) -> bool {
@@ -128,7 +138,7 @@ impl<'s> ViewNode<'s> for ParsedView<'s> {
 
     fn text(self) -> Option<&'s str> {
         let range = self.byte_range();
-        self.source.get(range)
+        self.source?.get(range)
     }
 }
 
@@ -187,13 +197,15 @@ impl<'s> ViewNode<'s> for FlatView<'s> {
         })
     }
 
-    fn is_named(self) -> bool {
+    fn is_named(self) -> Option<bool> {
         // Alias-aware named-ness, consistent with the document's own typed
         // CST/JSON/ts-compat projections.
-        self.record()
-            .and_then(|record| self.language.symbol(record.visible_id()))
-            .map(|kind| kind.is_named())
-            .unwrap_or(true)
+        Some(
+            self.record()
+                .and_then(|record| self.language.symbol(record.visible_id()))
+                .map(|kind| kind.is_named())
+                .unwrap_or(true),
+        )
     }
 
     fn is_extra(self) -> bool {
@@ -235,10 +247,21 @@ struct RepeatSearch {
     anchored_next: bool,
 }
 
+/// Cursor restrictions are shared by every backend, with legacy overlap policy.
+#[derive(Clone, Copy, Default)]
+struct MatchOptions<'a> {
+    byte_range: Option<&'a Range<usize>>,
+    root_only: bool,
+}
+
+fn ranges_overlap(left: &Range<usize>, right: &Range<usize>) -> bool {
+    left.start <= right.end && left.end >= right.start
+}
+
 /// Query pattern matcher with source text
 pub struct QueryMatcher<'a> {
     query: &'a Query,
-    source: &'a str,
+    source: Option<&'a str>,
     symbol_metadata: &'a [SymbolMetadata],
 }
 
@@ -247,38 +270,63 @@ impl<'a> QueryMatcher<'a> {
     pub fn new(query: &'a Query, source: &'a str, symbol_metadata: &'a [SymbolMetadata]) -> Self {
         QueryMatcher {
             query,
-            source,
+            source: Some(source),
             symbol_metadata,
         }
     }
 
-    /// Match all patterns in the query against a parse tree
+    /// Compatibility construction with explicitly unavailable source/metadata.
+    pub(crate) fn source_free(query: &'a Query) -> Self {
+        Self {
+            query,
+            source: None,
+            symbol_metadata: &[],
+        }
+    }
+
+    /// Match all patterns in the query against a parse tree.
     pub fn matches(&self, root: &ParseNode) -> Vec<QueryMatch> {
+        self.matches_with_options(root, None, false)
+    }
+
+    /// Shared compatibility options, also used by the public source-free cursor.
+    pub(crate) fn matches_with_options(
+        &self,
+        root: &ParseNode,
+        byte_range: Option<&Range<usize>>,
+        root_only: bool,
+    ) -> Vec<QueryMatch> {
         let view = ParsedView {
             node: root,
             source: self.source,
             symbol_metadata: self.symbol_metadata,
         };
-        self.match_all(view)
-            .into_iter()
-            .map(|generic| {
-                let mut captures: Vec<_> = generic
-                    .captures
-                    .into_iter()
-                    .flat_map(|(index, nodes)| {
-                        nodes.into_iter().map(move |view| QueryCapture {
-                            index,
-                            node: view.node.clone(),
-                        })
+        self.match_all_with_options(
+            view,
+            MatchOptions {
+                byte_range,
+                root_only,
+            },
+        )
+        .into_iter()
+        .map(|generic| {
+            let mut captures: Vec<_> = generic
+                .captures
+                .into_iter()
+                .flat_map(|(index, nodes)| {
+                    nodes.into_iter().map(move |view| QueryCapture {
+                        index,
+                        node: view.node.clone(),
                     })
-                    .collect();
-                captures.sort_by_key(|capture| capture.index);
-                QueryMatch {
-                    pattern_index: generic.pattern_index,
-                    captures,
-                }
-            })
-            .collect()
+                })
+                .collect();
+            captures.sort_by_key(|capture| capture.index);
+            QueryMatch {
+                pattern_index: generic.pattern_index,
+                captures,
+            }
+        })
+        .collect()
     }
 
     /// Match all patterns in the query against a native parse document.
@@ -299,7 +347,7 @@ impl<'a> QueryMatcher<'a> {
             source: document.source_text(),
             id: syntax.root_id(),
         };
-        self.match_all(view)
+        self.match_all_with_options(view, MatchOptions::default())
             .into_iter()
             .map(|generic| {
                 let captures: Vec<_> = generic
@@ -320,8 +368,12 @@ impl<'a> QueryMatcher<'a> {
             .collect()
     }
 
-    /// Run every pattern against one root view of either backend.
-    fn match_all<'s, V>(&self, root: V) -> Vec<GenericMatch<V>>
+    /// Run every pattern against one root view using shared cursor restrictions.
+    fn match_all_with_options<'s, V>(
+        &self,
+        root: V,
+        options: MatchOptions<'_>,
+    ) -> Vec<GenericMatch<V>>
     where
         V: ViewNode<'s>,
     {
@@ -329,7 +381,7 @@ impl<'a> QueryMatcher<'a> {
 
         // Try each pattern
         for (pattern_index, pattern) in self.query.patterns.iter().enumerate() {
-            self.match_pattern(pattern_index, pattern, root, &mut matches);
+            self.match_pattern(pattern_index, pattern, root, options, &mut matches);
         }
 
         matches
@@ -341,12 +393,13 @@ impl<'a> QueryMatcher<'a> {
         pattern_index: usize,
         pattern: &Pattern,
         root: V,
+        options: MatchOptions<'_>,
         matches: &mut Vec<GenericMatch<V>>,
     ) where
         V: ViewNode<'s>,
     {
         // Walk the tree and try to match at each node
-        self.match_pattern_at_node(pattern_index, pattern, root, matches);
+        self.match_pattern_at_node(pattern_index, pattern, root, options, matches);
     }
 
     /// Try to match pattern starting at a specific node
@@ -355,16 +408,35 @@ impl<'a> QueryMatcher<'a> {
         pattern_index: usize,
         pattern: &Pattern,
         node: V,
+        options: MatchOptions<'_>,
         matches: &mut Vec<GenericMatch<V>>,
     ) where
         V: ViewNode<'s>,
     {
+        if options
+            .byte_range
+            .is_some_and(|range| !ranges_overlap(&node.byte_range(), range))
+        {
+            return;
+        }
         // Try to match the pattern at this node
         let mut state = MatchState {
             captures: HashMap::new(),
         };
 
-        if self.match_node(&pattern.root, node, &mut state) {
+        if self.match_node(&pattern.root, node, &mut state)
+            && options.byte_range.is_none_or(|range| {
+                if state.captures.is_empty() {
+                    ranges_overlap(&node.byte_range(), range)
+                } else {
+                    state
+                        .captures
+                        .values()
+                        .flatten()
+                        .any(|capture| ranges_overlap(&capture.byte_range(), range))
+                }
+            })
+        {
             // Check predicates against every occurrence's text. A constraint
             // holds only when all occurrences satisfy it.
             let texts: HashMap<u32, Vec<Option<&str>>> = state
@@ -378,11 +450,17 @@ impl<'a> QueryMatcher<'a> {
                 })
                 .collect();
             let predicate_ctx = PredicateContext::for_resolved_texts();
-            if pattern
-                .predicates
-                .iter()
-                .all(|pred| predicate_ctx.evaluate_texts(pred, &texts))
-            {
+            if pattern.predicates.iter().all(|pred| {
+                // Unsupported source-free property/custom predicates stay
+                // unavailable. Text predicates use the same evaluator,
+                // whose missing occurrence texts fail closed.
+                let unavailable = !node.source_available()
+                    && matches!(
+                        pred,
+                        Predicate::Is { .. } | Predicate::IsNot { .. } | Predicate::Custom { .. }
+                    );
+                !unavailable && predicate_ctx.evaluate_texts(pred, &texts)
+            }) {
                 // One entry per occurrence, sorted by capture ID with
                 // occurrence order preserved (stable sort over
                 // push-ordered vectors).
@@ -396,10 +474,13 @@ impl<'a> QueryMatcher<'a> {
             }
         }
 
+        if options.root_only {
+            return;
+        }
         // Recursively try child nodes
         for index in 0..node.child_count() {
             if let Some(child) = node.child(index) {
-                self.match_pattern_at_node(pattern_index, pattern, child, matches);
+                self.match_pattern_at_node(pattern_index, pattern, child, options, matches);
             }
         }
     }
@@ -419,7 +500,10 @@ impl<'a> QueryMatcher<'a> {
             return false;
         }
         // Confirm named/anonymous status matches the pattern expectation
-        if self.node_is_named(node) != pattern.is_named {
+        if self
+            .node_is_named(node)
+            .is_some_and(|named| named != pattern.is_named)
+        {
             return false;
         }
 
@@ -514,7 +598,7 @@ impl<'a> QueryMatcher<'a> {
     }
 
     /// Determine if a node should be treated as named.
-    fn node_is_named<'s, V>(&self, node: V) -> bool
+    fn node_is_named<'s, V>(&self, node: V) -> Option<bool>
     where
         V: ViewNode<'s>,
     {
