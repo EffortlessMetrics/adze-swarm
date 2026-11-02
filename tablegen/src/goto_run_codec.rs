@@ -92,7 +92,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn emit_pending_run_without_state_returns_error() {
+    fn test_emit_pending_run_without_state_returns_error() {
         let mut codec = GotoRunCodec::new();
         // Invariant violation: nonzero run with no pending state.
         codec.run_length = 1;
@@ -108,19 +108,26 @@ mod tests {
     }
 
     #[test]
-    fn emit_pending_run_with_no_run_is_ok() {
+    fn test_emit_pending_run_with_no_run_is_ok() {
         let mut codec = GotoRunCodec::new();
         assert!(codec.emit_pending_run().is_ok());
     }
 
     #[test]
-    fn push_repeated_state_emits_singles() {
+    fn test_push_repeated_state_emits_singles() {
         let mut codec = GotoRunCodec::new();
         codec.begin_row().unwrap();
         codec.push_state(3).unwrap();
         codec.push_state(3).unwrap();
         codec.end_row().unwrap();
-        let (data, _) = codec.finish().unwrap();
-        assert_eq!(data.len(), 2);
+        let (data, offsets) = codec.finish().unwrap();
+        assert!(matches!(
+            data.as_slice(),
+            [
+                CompressedGotoEntry::Single(3),
+                CompressedGotoEntry::Single(3)
+            ]
+        ));
+        assert_eq!(offsets, vec![0, 2]);
     }
 }
