@@ -696,7 +696,7 @@ mod tests {
     }
 
     #[test]
-    fn symbol_to_type_ref_maps_schema_leaf_targets() {
+    fn test_symbol_to_type_ref_maps_schema_leaf_targets() {
         // Schema targets are leaves by contract; the mapping covers exactly
         // those. Composite shapes never reach this function (helpers resolve
         // away in `field_schema`) and map to an explicit unknown.

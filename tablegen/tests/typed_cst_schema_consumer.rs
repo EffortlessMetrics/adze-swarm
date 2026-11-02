@@ -101,7 +101,7 @@ fn normalized_schema_fixture() -> Grammar {
 }
 
 #[test]
-fn node_types_schema_fixture_output() {
+fn test_node_types_schema_fixture_output() {
     let grammar = schema_fixture();
     let json = NodeTypesGenerator::new(&grammar)
         .generate()
@@ -110,14 +110,14 @@ fn node_types_schema_fixture_output() {
 }
 
 #[test]
-fn typed_cst_schema_fixture_output() {
+fn test_typed_cst_schema_fixture_output() {
     let grammar = schema_fixture();
     let generated = TypedCstGenerator::new(&grammar).generate().to_string();
     insta::assert_snapshot!(generated);
 }
 
 #[test]
-fn normalized_typed_cst_agrees_with_node_types_on_hidden_target() {
+fn test_normalized_typed_cst_agrees_with_node_types_on_hidden_target() {
     // The schema names `_sep` as a target of `pair.value` on the normalized
     // grammar (see the node-types snapshot). The typed-CST output must cover
     // the same fact: a retained `SepToken` wrapper plus a per-target
@@ -152,7 +152,7 @@ fn normalized_typed_cst_agrees_with_node_types_on_hidden_target() {
 }
 
 #[test]
-fn node_types_normalized_agrees_with_raw_schema_fixture() {
+fn test_node_types_normalized_agrees_with_raw_schema_fixture() {
     // Normalization must preserve canonical field facts: byte-identical JSON.
     let raw = NodeTypesGenerator::new(&schema_fixture())
         .generate()
@@ -164,8 +164,76 @@ fn node_types_normalized_agrees_with_raw_schema_fixture() {
 }
 
 #[test]
-fn typed_cst_normalized_schema_fixture_output() {
+fn test_typed_cst_normalized_schema_fixture_output() {
     let grammar = normalized_schema_fixture();
     let generated = TypedCstGenerator::new(&grammar).generate().to_string();
     insta::assert_snapshot!(generated);
+}
+
+#[test]
+fn test_normalized_hidden_target_downstream_accessor_matches_document() {
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap();
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let fixture =
+        std::env::temp_dir().join(format!("adze-hidden-cst-{}-{nonce}", std::process::id()));
+    std::fs::create_dir_all(fixture.join("src")).unwrap();
+    let manifest = format!(
+        r#"[package]
+name = "adze-hidden-cst-consumer"
+version = "0.0.0"
+edition = "2024"
+[workspace]
+[dependencies]
+adze = {{ path = {:?}, default-features = false, features = ["pure-rust"] }}
+[build-dependencies]
+adze-tool = {{ path = {:?} }}
+adze-ir = {{ path = {:?} }}
+"#,
+        repository.join("runtime"),
+        repository.join("tool"),
+        repository.join("ir")
+    );
+    std::fs::write(fixture.join("Cargo.toml"), manifest).unwrap();
+    // Seed the standalone consumer with the reviewed repository's versions.
+    std::fs::copy(repository.join("Cargo.lock"), fixture.join("Cargo.lock")).unwrap();
+    std::fs::write(
+        fixture.join("build.rs"),
+        include_str!("fixtures/typed_cst_hidden/build.rs"),
+    )
+    .unwrap();
+    std::fs::write(
+        fixture.join("src/lib.rs"),
+        include_str!("fixtures/typed_cst_hidden/lib.rs"),
+    )
+    .unwrap();
+    // A distinct target avoids nested Cargo locking the parent target.
+    let target = std::env::var_os("CARGO_TARGET_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| repository.join("target"))
+        .join("typed-cst-hidden-consumer");
+    let output = std::process::Command::new(env!("CARGO"))
+        .args(["test", "--offline", "--manifest-path"])
+        .arg(fixture.join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", target)
+        .output()
+        .expect("run actual downstream generated accessor control");
+    assert!(
+        output.status.success(),
+        "downstream fixture retained at {}\nstdout:\n{}\nstderr:\n{}",
+        fixture.display(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    println!("{stdout}");
+    assert!(
+        stdout.contains("1 passed; 0 failed; 0 ignored"),
+        "actual downstream control must execute: {stdout}"
+    );
+    std::fs::remove_dir_all(fixture).unwrap();
 }
