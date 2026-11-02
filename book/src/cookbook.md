@@ -4,7 +4,7 @@ This cookbook answers common user tasks with complete, compile-tested
 examples. Every recipe below is a runnable grammar plus tests in the
 `examples/cookbook` crate — there are no prose-only snippets here, so the
 code cannot drift from its proof. The task-oriented reference with full
-recipe text lives at `docs/reference/parser-cookbook.md`.
+recipe text lives in the [parser cookbook reference](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/reference/parser-cookbook.md).
 
 Start with the [Quick Start](getting-started/quickstart.md) if you have not
 built a first parser yet; the cookbook links back to it instead of redoing
@@ -26,8 +26,8 @@ for every surface live in `docs/status/SUPPORT_TIERS.md`.
 Run the proof:
 
 ```bash
-cargo test -p adze-cookbook -- --test-threads=1 --nocapture
-cargo test -p adze-cookbook --features serialization -- --test-threads=1 --nocapture
+cargo test --manifest-path examples/cookbook/Cargo.toml -- --test-threads=1 --nocapture
+cargo test --manifest-path examples/cookbook/Cargo.toml --features serialization -- --test-threads=1 --nocapture
 ```
 
 ## Follow-ups (owned by [#882](https://github.com/EffortlessMetrics/adze-swarm/issues/882))

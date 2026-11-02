@@ -1,7 +1,7 @@
 # Parser Cookbook
 
 Status: advisory recipes backed by `runtime/tests/cookbook.rs` and the
-`examples/cookbook` crate (`cargo test -p adze-cookbook`, 15 tests by
+`examples/cookbook` crate (`cargo test --manifest-path examples/cookbook/Cargo.toml`, 15 tests by
 default, 16 with `--features serialization`).
 
 This cookbook shows the canonical Adze product ladder:
@@ -312,8 +312,8 @@ with it (the JSON projection recipe is feature-gated).
 The `examples/cookbook` crate proof is:
 
 ```bash
-cargo test -p adze-cookbook -- --test-threads=1 --nocapture
-cargo test -p adze-cookbook --features serialization -- --test-threads=1 --nocapture
+cargo test --manifest-path examples/cookbook/Cargo.toml -- --test-threads=1 --nocapture
+cargo test --manifest-path examples/cookbook/Cargo.toml --features serialization -- --test-threads=1 --nocapture
 ```
 
 Expected counts: 15 tests pass without `serialization`, 16 with it

@@ -12,7 +12,7 @@
 // pinned schema id only). Expected output: exact typed AST, evaluated value,
 // and one AdzeDocument backing AST, ranges, and diagnostics. Limitation:
 // i64 arithmetic only, no overflow diagnostics (see Recipe 4).
-// Proof: cargo test -p adze-cookbook arithmetic -- --nocapture
+// Proof: cargo test --manifest-path examples/cookbook/Cargo.toml arithmetic -- --nocapture
 #[adze::grammar("cookbook_arithmetic")]
 pub mod arithmetic {
     #[adze::language]
@@ -40,7 +40,7 @@ pub mod arithmetic {
 // Support boundary: typed extraction (Stable). Expected output: exact
 // multi-item Vec values. Limitation: identifier-shaped cells only (the
 // generated lexer subset); no quoting/escaping.
-// Proof: cargo test -p adze-cookbook csv -- --nocapture
+// Proof: cargo test --manifest-path examples/cookbook/Cargo.toml csv -- --nocapture
 #[adze::grammar("cookbook_csv")]
 pub mod csv {
     #[adze::language]
@@ -79,7 +79,7 @@ pub mod csv {
 // Limitations:
 // fixed key order, all clauses required, non-empty tag lists; optional
 // clauses and `#` comments are tracked follow-ups (see cookbook index).
-// Proof: cargo test -p adze-cookbook config -- --nocapture
+// Proof: cargo test --manifest-path examples/cookbook/Cargo.toml config -- --nocapture
 #[adze::grammar("cookbook_config")]
 pub mod config {
     #[adze::language]
@@ -202,7 +202,7 @@ pub mod config {
 // extraction (Stable); conversion failure is a structured diagnostic, not a
 // panic. Expected output: valid values keep exact shape; `256` fails as
 // ConversionFailed over bytes 0..3. Limitation: single u8 leaf grammar.
-// Proof: cargo test -p adze-cookbook fallible -- --nocapture
+// Proof: cargo test --manifest-path examples/cookbook/Cargo.toml fallible -- --nocapture
 #[adze::grammar("cookbook_fallible")]
 pub mod fallible {
     #[adze::language]
