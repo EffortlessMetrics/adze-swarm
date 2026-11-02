@@ -26,6 +26,7 @@ struct FieldAccessor {
     method_ident: Ident,
     field_name: String,
     target_ident: Ident,
+    target_id: SymbolId,
     multiple: bool,
 }
 
@@ -46,9 +47,11 @@ impl<'a> TypedCstGenerator<'a> {
         let accessors = self.field_accessors(&specs, &schema);
         let root_fn = self.root_constructor(&specs);
 
-        let wrappers = specs.values().map(|spec| {
+        let wrappers = specs.iter().map(|(symbol_id, spec)| {
+            let symbol_id = symbol_id.0;
             let ident = &spec.ident;
-            let kind_name = &spec.kind_name;
+            let required_fields: BTreeSet<_> = accessors.get(&spec.ident.to_string())
+                .into_iter().flatten().map(|accessor| accessor.field_name.as_str()).collect();
             let wrapper_accessors = accessors
                 .get(&spec.ident.to_string())
                 .cloned()
@@ -58,25 +61,24 @@ impl<'a> TypedCstGenerator<'a> {
                     let method_ident = accessor.method_ident;
                     let field_name = accessor.field_name;
                     let target_ident = accessor.target_ident;
+                    let target_id = accessor.target_id.0;
+                    let targets = quote! {
+                        self.projection.nodes(#field_name)
+                            .filter(|target| target.grammar_id().map(|id| id.0) == Some(#target_id))
+                            .map(|target| #target_ident {
+                                document: self.document, id: target.node_id(), projection: target.view(),
+                            })
+                    };
                     if accessor.multiple {
                         quote! {
                             pub fn #method_ident(&self) -> Vec<#target_ident<'doc>> {
-                                let Some(node) = self.node() else {
-                                    return Vec::new();
-                                };
-                                node.child_edges()
-                                    .filter(|edge| edge.field_name() == Some(#field_name))
-                                    .filter_map(|edge| {
-                                        #target_ident::cast(self.document, edge.child_id())
-                                    })
-                                    .collect()
+                                #targets.collect()
                             }
                         }
                     } else {
                         quote! {
                             pub fn #method_ident(&self) -> Option<#target_ident<'doc>> {
-                                let edge = self.edge_by_field_name(#field_name)?;
-                                #target_ident::cast(self.document, edge.child_id())
+                                #targets.next()
                             }
                         }
                     }
@@ -87,11 +89,18 @@ impl<'a> TypedCstGenerator<'a> {
                 pub struct #ident<'doc> {
                     document: &'doc AdzeDocument,
                     id: NodeId,
+                    projection: FieldProjectionView<'doc>,
                 }
 
                 impl<'doc> #ident<'doc> {
                     pub fn cast(document: &'doc AdzeDocument, id: NodeId) -> Option<Self> {
-                        node_has_kind(document, id, #kind_name).then_some(Self { document, id })
+                        Self::try_cast(document, id).ok().flatten()
+                    }
+
+                    pub fn try_cast(document: &'doc AdzeDocument, id: NodeId) -> Result<Option<Self>, FieldProjectionError> {
+                        if !node_has_kind(document, id, #symbol_id) { return Ok(None); }
+                        let projection = document.field_projection_view(id, &[#(#required_fields),*])?;
+                        Ok(Some(Self { document, id, projection }))
                     }
 
                     #(#wrapper_accessors)*
@@ -111,14 +120,14 @@ impl<'a> TypedCstGenerator<'a> {
 
         quote! {
             pub mod syntax {
-                use ::adze::document::{AdzeDocument, NodeId, SyntaxNode};
+                use ::adze::document::{AdzeDocument, NodeId, SyntaxNode, FieldProjectionView, FieldProjectionError};
 
                 #root_fn
 
                 #(#wrappers)*
 
-                fn node_has_kind(document: &AdzeDocument, id: NodeId, expected: &str) -> bool {
-                    document.tree().node(id).and_then(|node| node.kind_name()) == Some(expected)
+                fn node_has_kind(document: &AdzeDocument, id: NodeId, expected: u16) -> bool {
+                    document.tree().node(id).is_some_and(|node| node.grammar_id().0 == expected)
                 }
             }
         }
@@ -206,7 +215,7 @@ impl<'a> TypedCstGenerator<'a> {
             for (field_name, semantics) in fields {
                 // Map every admitted target kind to its wrapper. Targets
                 // without a wrapper keep the historical skip behavior.
-                let mut targets: Vec<(Ident, String)> = Vec::new();
+                let mut targets: Vec<(Ident, String, SymbolId)> = Vec::new();
                 for target in &semantics.targets {
                     let (Some(target_ident), Some(kind_name)) = (
                         symbol_wrapper_ident(target, specs),
@@ -214,14 +223,21 @@ impl<'a> TypedCstGenerator<'a> {
                     ) else {
                         continue;
                     };
-                    targets.push((target_ident, kind_name));
+                    let id = match target {
+                        Symbol::Terminal(id) | Symbol::NonTerminal(id) | Symbol::External(id) => {
+                            *id
+                        }
+                        _ => continue,
+                    };
+                    targets.push((target_ident, kind_name, id));
                 }
                 if targets.is_empty() {
                     continue;
                 }
                 if targets.len() == 1 {
                     // Single admitted kind keeps the historical method name.
-                    let (target_ident, _) = targets.into_iter().next().expect("one target");
+                    let (target_ident, _, target_id) =
+                        targets.into_iter().next().expect("one target");
                     let method_ident = unique_method_name(
                         &owner_name,
                         &method_ident(field_name, "field").to_string(),
@@ -234,13 +250,14 @@ impl<'a> TypedCstGenerator<'a> {
                             method_ident,
                             field_name: field_name.clone(),
                             target_ident,
+                            target_id,
                             multiple: semantics.multiple,
                         });
                     continue;
                 }
                 // Multiple admitted kinds: one accessor per kind so every
                 // alternative is reachable without a first-type shortcut.
-                for (target_ident, kind_name) in targets {
+                for (target_ident, kind_name, target_id) in targets {
                     let method_ident = unique_method_name(
                         &owner_name,
                         &method_ident(&format!("{field_name}_{kind_name}"), "field").to_string(),
@@ -253,6 +270,7 @@ impl<'a> TypedCstGenerator<'a> {
                             method_ident,
                             field_name: field_name.clone(),
                             target_ident,
+                            target_id,
                             multiple: semantics.multiple,
                         });
                 }
@@ -476,7 +494,7 @@ mod tests {
     use adze_ir::{FieldId, ProductionId, Rule, Token};
 
     #[test]
-    fn typed_cst_generator_emits_valid_arithmetic_wrapper_module() {
+    fn test_typed_cst_generator_emits_valid_arithmetic_wrapper_module() {
         let grammar = arithmetic_grammar();
         let generated = TypedCstGenerator::new(&grammar).generate();
 
@@ -493,7 +511,7 @@ mod tests {
     }
 
     #[test]
-    fn typed_cst_generator_uniquifies_colliding_wrapper_names() {
+    fn test_typed_cst_generator_uniquifies_colliding_wrapper_names() {
         let grammar = duplicate_punctuation_token_grammar();
         let generated = TypedCstGenerator::new(&grammar).generate();
 
@@ -503,45 +521,45 @@ mod tests {
         let code = generated.to_string();
         assert_eq!(code.matches("pub struct Token <").count(), 1);
         assert!(code.contains("pub struct TokenSymbol1"));
-        assert!(code.contains("node_has_kind (document , id , \"+\")"));
-        assert!(code.contains("node_has_kind (document , id , \"-\")"));
+        assert!(code.contains("node_has_kind (document , id , 0u16)"));
+        assert!(code.contains("node_has_kind (document , id , 1u16)"));
     }
 
     #[test]
-    fn typed_cst_generator_projects_fields_through_native_edges() {
+    fn test_typed_cst_generator_projects_fields_through_checked_view() {
         let grammar = arithmetic_grammar();
         let generated = TypedCstGenerator::new(&grammar).generate().to_string();
 
         assert!(generated.contains("pub fn left"));
         assert!(generated.contains("pub fn operator"));
         assert!(generated.contains("pub fn right"));
-        assert!(generated.contains("edge_by_field_name (\"left\")"));
-        assert!(generated.contains("edge_by_field_name (\"operator\")"));
-        assert!(generated.contains("edge_by_field_name (\"right\")"));
-        assert!(generated.contains("Expression :: cast"));
-        assert!(generated.contains("MinusToken :: cast"));
+        assert!(generated.contains("nodes (\"left\")"));
+        assert!(generated.contains("nodes (\"operator\")"));
+        assert!(generated.contains("nodes (\"right\")"));
+        assert!(generated.contains("Expression { document : self . document"));
+        assert!(generated.contains("MinusToken { document : self . document"));
     }
 
     #[test]
-    fn typed_cst_generator_keeps_hidden_tokens_when_they_are_field_targets() {
+    fn test_typed_cst_generator_keeps_hidden_tokens_when_they_are_field_targets() {
         let grammar = hidden_field_token_grammar();
         let generated = TypedCstGenerator::new(&grammar).generate().to_string();
 
         assert!(generated.contains("pub struct NumberToken"));
         assert!(generated.contains("pub fn left"));
-        assert!(generated.contains("edge_by_field_name (\"left\")"));
-        assert!(generated.contains("NumberToken :: cast"));
+        assert!(generated.contains("nodes (\"left\")"));
+        assert!(generated.contains("NumberToken { document : self . document"));
     }
 
     #[test]
-    fn typed_cst_generator_casts_quoted_inline_string_field_targets() {
+    fn test_typed_cst_generator_casts_quoted_inline_string_field_targets() {
         let grammar = quoted_inline_string_field_grammar();
         let generated = TypedCstGenerator::new(&grammar).generate().to_string();
 
         assert!(generated.contains("pub fn operator"));
-        assert!(generated.contains("edge_by_field_name (\"operator\")"));
-        assert!(generated.contains("Token :: cast"));
-        assert!(generated.contains("node_has_kind (document , id , \"\\\"+\\\"\")"));
+        assert!(generated.contains("nodes (\"operator\")"));
+        assert!(generated.contains("Token { document : self . document"));
+        assert!(generated.contains("node_has_kind (document , id , 0u16)"));
     }
 
     fn arithmetic_grammar() -> Grammar {
@@ -708,7 +726,7 @@ mod tests {
     }
 
     #[test]
-    fn typed_cst_repeated_field_generates_vec_accessor() {
+    fn test_typed_cst_repeated_field_generates_vec_accessor() {
         let grammar = repeat_grammar();
         let generated = TypedCstGenerator::new(&grammar).generate().to_string();
 
@@ -723,13 +741,13 @@ mod tests {
             "repeated field must return a vector, not a single Option"
         );
         assert!(
-            generated.contains("child_edges"),
-            "repeated accessor must traverse child edges"
+            generated.contains("nodes (\"items\")"),
+            "repeated accessor must consume the shared checked projection"
         );
     }
 
     #[test]
-    fn typed_cst_multi_target_field_generates_per_target_accessors() {
+    fn test_typed_cst_multi_target_field_generates_per_target_accessors() {
         let grammar = choice_field_grammar();
         let generated = TypedCstGenerator::new(&grammar).generate().to_string();
 

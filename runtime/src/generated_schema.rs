@@ -58,6 +58,9 @@ pub enum GeneratedSchemaError {
     /// The transport format is unsupported.
     #[error("unsupported generated field-schema format {0}")]
     UnsupportedFormat(u32),
+    /// Projection origin references, versions or language/schema binding are invalid.
+    #[error("invalid generated field projection")]
+    InvalidProjection,
     /// The generator's semantic revision is unsupported.
     #[error("unsupported canonical field-schema revision {0}")]
     UnsupportedRevision(u32),
@@ -149,6 +152,168 @@ impl GeneratedLanguageDescriptor {
                     owner: fact.owner,
                     field: fact.name,
                 });
+            }
+        }
+        Ok(())
+    }
+}
+
+/// One source field occurrence in a generated selected-node projection.
+#[derive(Clone, Copy, Debug)]
+pub struct GeneratedFieldOccurrence {
+    /// Canonical field name.
+    pub name: &'static str,
+    /// Prepared RHS slot, excluding non-RHS extras.
+    pub position: usize,
+    /// Actual target grammar identity.
+    pub target: u16,
+    /// Explicit optional carrier transition, if present.
+    pub optional: Option<GeneratedOptionalCarrier>,
+}
+/// A producer-declared optional carrier with retained or unary-elided form.
+#[derive(Clone, Copy, Debug)]
+pub struct GeneratedOptionalCarrier {
+    /// Allocated helper grammar identity.
+    pub helper: u16,
+    /// Present syntax alternative ordinal (never ProductionId).
+    pub present_alternative: usize,
+    /// Empty syntax alternative ordinal (never ProductionId).
+    pub empty_alternative: usize,
+}
+/// First-slice program for an owner with exactly one source alternative.
+#[derive(Clone, Copy, Debug)]
+pub struct GeneratedOwnerProjection {
+    /// Source grammar owner.
+    pub owner: u16,
+    /// Ordered prepared RHS grammar identities.
+    pub rhs: &'static [u16],
+    /// Ordered source field occurrences.
+    pub fields: &'static [GeneratedFieldOccurrence],
+}
+/// Versioned optional-origin projection sidecar, separate from fact transport.
+#[derive(Clone, Copy)]
+pub struct GeneratedFieldProjectionV1 {
+    /// Projection transport version; currently one.
+    pub format_version: u32,
+    /// Projection semantics revision; currently one, single-rule optional only.
+    pub projection_revision: u32,
+    /// Co-generated native language identity.
+    pub language: &'static TSLanguage,
+    /// Canonical schema revision paired with this program.
+    pub schema_revision: u32,
+    /// Admitted owners. Missing owners explicitly lack this capability.
+    pub owners: &'static [GeneratedOwnerProjection],
+}
+/// Additive generated entry descriptor including selected-node projection.
+#[derive(Clone, Copy)]
+pub struct GeneratedLanguageDescriptorV2 {
+    /// Native parsing tables.
+    pub language: &'static TSLanguage,
+    /// Canonical source field facts.
+    pub field_schema: GeneratedFieldSchemaV1,
+    /// Optional explicitly versioned projection capability.
+    pub field_projection: Option<GeneratedFieldProjectionV1>,
+}
+impl GeneratedLanguageDescriptorV2 {
+    /// Validate fact transport and the projection's language/schema binding.
+    pub fn validate(&self) -> Result<(), GeneratedSchemaError> {
+        GeneratedLanguageDescriptor {
+            language: self.language,
+            field_schema: self.field_schema,
+        }
+        .validate()?;
+        let Some(projection) = &self.field_projection else {
+            return Ok(());
+        };
+        if projection.format_version != 1
+            || projection.projection_revision != 1
+            || projection.schema_revision != self.field_schema.schema_revision
+            || !std::ptr::eq(projection.language, self.language)
+        {
+            return Err(GeneratedSchemaError::InvalidProjection);
+        }
+        let public: std::collections::BTreeSet<_> =
+            self.field_schema.public_symbols.iter().copied().collect();
+        let mut owners = std::collections::BTreeSet::new();
+        if projection.owners.is_empty() {
+            return Ok(());
+        }
+        if self.language.rules.is_null() || self.language.rule_count == 0 {
+            return Err(GeneratedSchemaError::InvalidProjection);
+        }
+        // SAFETY: as in the native decoder, a valid immutable language supplies
+        // exactly rule_count TSRule entries. No RHS identities are reconstructed
+        // from aliases; the sidecar supplies those canonical facts.
+        let rules = if self.language.rule_count == 0 {
+            &[][..]
+        } else {
+            unsafe {
+                std::slice::from_raw_parts(self.language.rules, self.language.rule_count as usize)
+            }
+        };
+        let widths_for = |owner| {
+            rules
+                .iter()
+                .filter(|rule| {
+                    self.field_schema.public_symbols.get(rule.lhs as usize) == Some(&owner)
+                })
+                .map(|rule| rule.rhs_len as usize)
+                .collect::<Vec<_>>()
+        };
+        for owner in projection.owners {
+            if widths_for(owner.owner) != [owner.rhs.len()] {
+                return Err(GeneratedSchemaError::InvalidProjection);
+            }
+            if !public.contains(&owner.owner)
+                || !owners.insert(owner.owner)
+                || owner.rhs.iter().any(|id| !public.contains(id))
+            {
+                return Err(GeneratedSchemaError::InvalidProjection);
+            }
+            let facts: Vec<_> = self
+                .field_schema
+                .facts
+                .iter()
+                .filter(|fact| fact.owner == owner.owner)
+                .collect();
+            if facts.iter().any(|fact| {
+                let fields: Vec<_> = owner
+                    .fields
+                    .iter()
+                    .filter(|field| field.name == fact.name)
+                    .collect();
+                let targets: std::collections::BTreeSet<_> =
+                    fields.iter().map(|field| field.target).collect();
+                let declared: std::collections::BTreeSet<_> =
+                    fact.targets.iter().copied().collect();
+                fields.is_empty()
+                    || fact.required != fields.iter().any(|field| field.optional.is_none())
+                    || fact.multiple != (fields.len() > 1)
+                    || targets != declared
+            }) {
+                return Err(GeneratedSchemaError::InvalidProjection);
+            }
+            let mut occurrences = std::collections::BTreeSet::new();
+            for field in owner.fields {
+                let carrier = field
+                    .optional
+                    .map_or(field.target, |optional| optional.helper);
+                if owner.rhs.get(field.position) != Some(&carrier)
+                    || !occurrences.insert((field.position, field.name))
+                    || !facts
+                        .iter()
+                        .any(|fact| fact.name == field.name && fact.targets.contains(&field.target))
+                    || field.optional.is_some_and(|optional| {
+                        let widths = widths_for(optional.helper);
+                        optional.present_alternative == optional.empty_alternative
+                            || optional.helper == field.target
+                            || widths.len() != 2
+                            || widths.get(optional.present_alternative) != Some(&1)
+                            || widths.get(optional.empty_alternative) != Some(&0)
+                    })
+                {
+                    return Err(GeneratedSchemaError::InvalidProjection);
+                }
             }
         }
         Ok(())

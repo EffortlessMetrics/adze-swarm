@@ -76,6 +76,44 @@ pub fn remap_compiler_identity(grammar: &mut Grammar, old_to_new: &HashMap<Symbo
                 .insert(new_wrapper, new_token);
         }
     }
+    let origins = std::mem::take(&mut grammar.optional_origins);
+    for (helper, mut origin) in origins {
+        if let Some(&helper) = old_to_new.get(&helper) {
+            remap_origin_symbol(&mut origin.present, old_to_new);
+            grammar.optional_origins.insert(helper, origin);
+        }
+    }
+    grammar.optional_field_origins.retain_mut(|origin| {
+        let (Some(&owner), Some(&helper)) = (
+            old_to_new.get(&origin.source_rule.owner),
+            old_to_new.get(&origin.helper),
+        ) else {
+            return false;
+        };
+        origin.source_rule.owner = owner;
+        origin.helper = helper;
+        true
+    });
+}
+
+fn remap_origin_symbol(symbol: &mut crate::Symbol, mapping: &HashMap<SymbolId, SymbolId>) {
+    use crate::Symbol;
+    match symbol {
+        Symbol::Terminal(id) | Symbol::NonTerminal(id) | Symbol::External(id) => {
+            if let Some(new) = mapping.get(id) {
+                *id = *new;
+            }
+        }
+        Symbol::Optional(inner) | Symbol::Repeat(inner) | Symbol::RepeatOne(inner) => {
+            remap_origin_symbol(inner, mapping)
+        }
+        Symbol::Choice(symbols) | Symbol::Sequence(symbols) => {
+            for symbol in symbols {
+                remap_origin_symbol(symbol, mapping);
+            }
+        }
+        Symbol::Epsilon => {}
+    }
 }
 
 /// Deterministic ordering for wrapper-token relations.

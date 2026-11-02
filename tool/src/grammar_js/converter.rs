@@ -160,6 +160,8 @@ impl GrammarJsConverter {
             lexical_metadata: IndexMap::new(),
             start_symbol: None,
             wrapper_token_relations: IndexMap::new(),
+            optional_origins: IndexMap::new(),
+            optional_field_origins: Vec::new(),
         };
 
         // First pass: collect all symbols (rules and tokens)
@@ -640,6 +642,33 @@ impl GrammarJsConverter {
                         _ => self
                             .convert_rule_body(grammar, member, aux_id)
                             .context("failed to convert nested CHOICE member")?,
+                    }
+                }
+                // Retain the source optional choice at allocation time. The
+                // constructor knows which source member is empty; consumers
+                // must not infer this later from the helper's name or shape.
+                if members.len() == 2 {
+                    let empty = members
+                        .iter()
+                        .position(|member| matches!(member, JsRule::Blank));
+                    if let Some(empty_alternative) = empty {
+                        let present_alternative = 1 - empty_alternative;
+                        if let Some(present_rule) = grammar
+                            .rules
+                            .get(&aux_id)
+                            .filter(|rules| rules.len() == 2)
+                            .and_then(|rules| rules.get(present_alternative))
+                            && let [present] = present_rule.rhs.as_slice()
+                        {
+                            grammar.optional_origins.insert(
+                                aux_id,
+                                adze_ir::OptionalOrigin {
+                                    present: present.clone(),
+                                    present_alternative,
+                                    empty_alternative,
+                                },
+                            );
+                        }
                     }
                 }
                 Ok(Symbol::NonTerminal(aux_id))

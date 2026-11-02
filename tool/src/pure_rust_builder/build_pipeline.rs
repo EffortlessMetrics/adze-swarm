@@ -60,6 +60,8 @@ impl BuildPipeline {
         // so the LR items expose terminal lookaheads.
         desugar_pattern_wrappers(&mut self.grammar)?;
 
+        adze_ir::field_origin::validate(&self.grammar)
+            .with_context(|| "Invalid retained optional field origin")?;
         FirstFollowSets::compute(&self.grammar)
             .with_context(|| "Failed to compute FIRST/FOLLOW sets")
     }
@@ -157,12 +159,49 @@ impl BuildPipeline {
                     },
                 };
         };
+        let projection_owners = adze_tablegen::field_projection::for_grammar(&self.grammar)
+            .into_iter().map(|owner| {
+                let id = owner.owner.0;
+                let rhs: Vec<_> = owner.rhs.iter().map(|id| id.0).collect();
+                let fields = owner.fields.into_iter().map(|field| {
+                    let name = field.name; let position = field.position; let target = field.target.0;
+                    let optional = match field.optional {
+                        Some(optional) => {
+                            let helper = optional.helper.0;
+                            let present = optional.present_alternative;
+                            let empty = optional.empty_alternative;
+                            quote::quote!(Some(::adze::generated_schema::GeneratedOptionalCarrier {
+                                helper: #helper, present_alternative: #present, empty_alternative: #empty,
+                            }))
+                        }
+                        None => quote::quote!(None),
+                    };
+                    quote::quote!(::adze::generated_schema::GeneratedFieldOccurrence {
+                        name: #name, position: #position, target: #target, optional: #optional,
+                    })
+                });
+                quote::quote!(::adze::generated_schema::GeneratedOwnerProjection {
+                    owner: #id, rhs: &[#(#rhs),*], fields: &[#(#fields),*],
+                })
+            });
+        let projection_code = quote::quote! {
+            /// Canonical optional-origin projection, versioned separately from field facts.
+            pub static LANGUAGE_DESCRIPTOR_V2: ::adze::generated_schema::GeneratedLanguageDescriptorV2 =
+                ::adze::generated_schema::GeneratedLanguageDescriptorV2 {
+                    language: &LANGUAGE,
+                    field_schema: LANGUAGE_DESCRIPTOR.field_schema,
+                    field_projection: Some(::adze::generated_schema::GeneratedFieldProjectionV1 {
+                        format_version: 1, projection_revision: 1, language: &LANGUAGE,
+                        schema_revision: #schema_revision, owners: &[#(#projection_owners),*],
+                    }),
+                };
+        };
         let parse_document_code = quote::quote! {
             /// Parse source into the native Adze document alpha.
             pub fn parse_document(
                 input: &str,
             ) -> core::result::Result<::adze::document::AdzeDocument, Vec<::adze::errors::ParseError>> {
-                ::adze::__private::parse_document_with_descriptor(input, &LANGUAGE_DESCRIPTOR, GRAMMAR_NAME)
+                ::adze::__private::parse_document_with_descriptor_v2(input, &LANGUAGE_DESCRIPTOR_V2, GRAMMAR_NAME)
             }
         };
         let typed_cst_code = TypedCstGenerator::new(&self.grammar).generate();
@@ -170,6 +209,7 @@ impl BuildPipeline {
         Ok(quote::quote! {
             #language_code
             #descriptor_code
+            #projection_code
             #parse_document_code
             #typed_cst_code
         })

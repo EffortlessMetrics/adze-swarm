@@ -76,3 +76,87 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod projected_tests {
+    use super::grammar;
+    use adze::document::{FieldProjectionError, NodeId, SyntaxNode};
+    #[test]
+    fn test_ordinary_optional_typed_cst_and_shared_view_keep_actual_target_ids() {
+        for (source, expected) in [("<x>", Some("x")), ("<>", None)] {
+            let document = grammar::parse_document(source).unwrap();
+            let owner = (0..document.tree().node_count())
+                .map(NodeId::new)
+                .find(|id| document.tree().node(*id).unwrap().kind_name() == Some("Document"))
+                .unwrap();
+            let typed = grammar::syntax::Document::try_cast(&document, owner)
+                .unwrap()
+                .unwrap();
+            let head = typed.head();
+            assert_eq!(head.as_ref().and_then(SyntaxNode::text), expected);
+            assert_eq!(
+                head.as_ref().and_then(SyntaxNode::byte_range),
+                expected.map(|_| 1..2)
+            );
+            let projected: Vec<_> = document
+                .field_projection_view(owner, &["head"])
+                .unwrap()
+                .nodes("head")
+                .map(|target| target.node_id())
+                .collect();
+            assert_eq!(
+                projected,
+                head.iter().map(SyntaxNode::node_id).collect::<Vec<_>>()
+            );
+            let native: Vec<_> = (0..document.tree().node_count())
+                .map(NodeId::new)
+                .filter(|id| document.tree().node(*id).unwrap().kind_name() == Some("Item"))
+                .collect();
+            assert_eq!(projected, native);
+        }
+    }
+    #[test]
+    fn test_transitive_target_without_program_prevents_owner_handle() {
+        let projection = grammar::LANGUAGE_DESCRIPTOR_V2.field_projection.unwrap();
+        let item_id = grammar::LANGUAGE_DESCRIPTOR_V2
+            .field_schema
+            .facts
+            .iter()
+            .find(|fact| fact.name == "head")
+            .unwrap()
+            .targets[0];
+        let owners = projection
+            .owners
+            .iter()
+            .copied()
+            .filter(|owner| owner.owner != item_id)
+            .collect::<Vec<_>>();
+        let descriptor = Box::leak(Box::new(
+            adze::generated_schema::GeneratedLanguageDescriptorV2 {
+                field_projection: Some(adze::generated_schema::GeneratedFieldProjectionV1 {
+                    owners: Box::leak(owners.into_boxed_slice()),
+                    ..projection
+                }),
+                ..grammar::LANGUAGE_DESCRIPTOR_V2
+            },
+        ));
+        let document = adze::__private::parse_document_with_descriptor_v2(
+            "<x>",
+            descriptor,
+            "ordinary_optional_origin",
+        )
+        .unwrap();
+        let owner = (0..document.tree().node_count())
+            .map(NodeId::new)
+            .find(|id| document.tree().node(*id).unwrap().kind_name() == Some("Document"))
+            .unwrap();
+        let item = (0..document.tree().node_count())
+            .map(NodeId::new)
+            .find(|id| document.tree().node(*id).unwrap().kind_name() == Some("Item"))
+            .unwrap();
+        assert!(
+            matches!(grammar::syntax::Document::try_cast(&document, owner), Err(FieldProjectionError::Unavailable { node }) if node == item)
+        );
+        assert!(grammar::syntax::Document::cast(&document, owner).is_none());
+    }
+}

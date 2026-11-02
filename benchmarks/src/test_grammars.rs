@@ -48,6 +48,8 @@ pub fn load_arithmetic_grammar() -> (Grammar, ParseTable) {
         lexical_metadata: IndexMap::new(),
         start_symbol: None,
         wrapper_token_relations: IndexMap::new(),
+        optional_origins: IndexMap::new(),
+        optional_field_origins: Vec::new(),
     };
 
     // Add tokens

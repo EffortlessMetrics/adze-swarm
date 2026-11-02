@@ -232,8 +232,8 @@ adze-ir = {{ path = {:?} }}
     let stdout = String::from_utf8_lossy(&output.stdout);
     println!("{stdout}");
     assert!(
-        stdout.contains("2 passed; 0 failed; 0 ignored"),
-        "both present and absent downstream controls must execute: {stdout}"
+        stdout.contains("5 passed; 0 failed; 0 ignored"),
+        "all five selected downstream controls must execute: {stdout}"
     );
     std::fs::remove_dir_all(fixture).unwrap();
 }
@@ -305,8 +305,8 @@ adze-ir = {{ path = {:?} }}
     let stdout = String::from_utf8_lossy(&output.stdout);
     println!("{stdout}");
     assert!(
-        stdout.contains("2 passed; 0 failed; 0 ignored"),
-        "both present and absent downstream controls must execute: {stdout}"
+        stdout.contains("4 passed; 0 failed; 0 ignored"),
+        "all four selected downstream controls must execute: {stdout}"
     );
     std::fs::remove_dir_all(fixture).unwrap();
 }

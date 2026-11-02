@@ -9,6 +9,8 @@ use crate::parser_v4::ParseNode;
 use adze_glr_core::{ParseTable, SymbolMetadata as TableSymbolMetadata};
 
 mod changed_ranges;
+mod field_projection;
+pub use field_projection::{FieldProjectionError, FieldProjectionView, ProjectedTarget};
 mod diagnostics;
 #[cfg(feature = "serialization")]
 mod json_projection;
@@ -87,6 +89,7 @@ impl ParseOutcome {
 #[derive(Clone, Debug)]
 pub struct AdzeDocument {
     source: String,
+    projection: field_projection::ProjectionIndex,
     // No persistent recursive tree: the selected tree lives only as flat
     // records in `syntax`. The `root` construction parameter is consumed
     // once by `SyntaxTree::from_parse_root` and dropped.
@@ -195,6 +198,7 @@ impl AdzeDocument {
         let _ = root;
         Self {
             source: source.to_string(),
+            projection: field_projection::ProjectionIndex::default(),
             syntax,
             language,
             diagnostics,

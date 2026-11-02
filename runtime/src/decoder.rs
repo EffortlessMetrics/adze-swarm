@@ -162,6 +162,8 @@ pub fn decode_grammar_with_patterns(
         lexical_metadata: IndexMap::new(),
         start_symbol: None,
         wrapper_token_relations: IndexMap::new(),
+        optional_origins: IndexMap::new(),
+        optional_field_origins: Vec::new(),
     };
     // Rules and tokens are read from ABI columns; native nodes and parse-table
     // metadata use public grammar symbols. Translate the grammar exactly once

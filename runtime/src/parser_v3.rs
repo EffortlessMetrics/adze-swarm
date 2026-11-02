@@ -690,6 +690,8 @@ mod tests {
             lexical_metadata: indexmap::IndexMap::new(),
             start_symbol: None,
             wrapper_token_relations: indexmap::IndexMap::new(),
+            optional_origins: indexmap::IndexMap::new(),
+            optional_field_origins: Vec::new(),
         };
 
         // Add tokens

@@ -564,6 +564,31 @@ pub fn parse_document_with_descriptor(
     )
 }
 
+/// Parse with the explicitly versioned producer-owned optional projection.
+#[cfg(feature = "pure-rust")]
+pub fn parse_document_with_descriptor_v2(
+    input: &str,
+    descriptor: &'static crate::generated_schema::GeneratedLanguageDescriptorV2,
+    grammar_name: &str,
+) -> core::result::Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
+    descriptor.validate().map_err(|error| {
+        vec![crate::errors::ParseError {
+            reason: crate::errors::ParseErrorReason::UnexpectedToken(error.to_string()),
+            start: 0,
+            end: 0,
+            expected: vec![],
+        }]
+    })?;
+    let mut document = parse_document_with_schema(
+        input,
+        descriptor.language,
+        grammar_name,
+        crate::document::DocumentFieldSchema::Generated(&descriptor.field_schema),
+    )?;
+    document.bind_field_projection(descriptor.field_projection.as_ref());
+    Ok(document)
+}
+
 #[cfg(feature = "pure-rust")]
 fn parse_document_with_schema(
     input: &str,

@@ -34,6 +34,13 @@ fn test_normalized_hidden_target_accessor_returns_exact_document_child() {
         .collect();
     assert_eq!(native.len(), 1);
     assert_eq!(separators[0].node_id(), native[0].node_id());
+    let logical: Vec<_> = document
+        .field_projection_view(root.node_id(), &["value"])
+        .unwrap()
+        .nodes("value")
+        .map(|target| target.node_id())
+        .collect();
+    assert_eq!(logical, vec![items[0].node_id(), separators[0].node_id()]);
     let fact = document
         .language()
         .checked_field_semantics(root.node().unwrap().grammar_id(), "value")
@@ -60,6 +67,13 @@ fn test_absent_optional_keeps_required_item_without_synthetic_separator() {
     assert_eq!(items[0].text(), Some("x"));
     assert_eq!(items[0].byte_range(), Some(0..1));
     assert!(root.value_sep().is_empty());
+    let logical: Vec<_> = document
+        .field_projection_view(root.node_id(), &["value"])
+        .unwrap()
+        .nodes("value")
+        .map(|target| target.node_id())
+        .collect();
+    assert_eq!(logical, vec![items[0].node_id()]);
     assert!((0..document.tree().node_count()).all(|i| {
         document
             .tree()
@@ -80,4 +94,90 @@ fn test_absent_optional_keeps_required_item_without_synthetic_separator() {
         fact.target_kinds.iter().map(|id| id.0).collect::<Vec<_>>(),
         vec![2, 11]
     );
+}
+
+#[test]
+fn test_fact_only_descriptor_does_not_grant_projection_or_fake_empty_getter() {
+    use adze::document::{FieldProjectionError, ParseOutcome};
+    let document =
+        adze::__private::parse_document_with_descriptor("x ", &LANGUAGE_DESCRIPTOR, GRAMMAR_NAME)
+            .unwrap();
+    assert_eq!(document.outcome(), ParseOutcome::Complete);
+    assert!(
+        document
+            .language()
+            .checked_field_semantics(document.tree().root().grammar_id(), "value")
+            .unwrap()
+            .is_some()
+    );
+    let id = document.tree().root_id();
+    assert!(
+        matches!(syntax::SourceFile::try_cast(&document, id), Err(FieldProjectionError::Unavailable { node }) if node == id)
+    );
+    assert!(syntax::SourceFile::cast(&document, id).is_none());
+    let separator = (0..document.tree().node_count())
+        .map(adze::document::NodeId::new)
+        .find(|id| document.tree().node(*id).unwrap().grammar_id().0 == 2)
+        .unwrap();
+    assert!(
+        syntax::SepToken::try_cast(&document, separator)
+            .unwrap()
+            .is_some(),
+        "leaf needs no unrelated field capability"
+    );
+}
+
+#[test]
+fn test_recovered_selected_field_path_reports_incomplete() {
+    use adze::document::{FieldProjectionError, ParseOutcome};
+    let document = parse_document("x?").expect("native recovered document retained");
+    assert_ne!(document.outcome(), ParseOutcome::Complete);
+    let id = document.tree().root_id();
+    assert!(
+        matches!(
+            syntax::SourceFile::try_cast(&document, id),
+            Err(FieldProjectionError::Incomplete { .. })
+        ),
+        "{document:?}"
+    );
+    assert!(syntax::SourceFile::cast(&document, id).is_none());
+}
+
+#[test]
+fn test_projection_transport_rejects_bad_version_slot_and_carrier_alternative() {
+    use adze::generated_schema::{GeneratedLanguageDescriptorV2, GeneratedSchemaError};
+    let projection = LANGUAGE_DESCRIPTOR_V2.field_projection.unwrap();
+    let validate = |program| {
+        GeneratedLanguageDescriptorV2 {
+            field_projection: Some(program),
+            ..LANGUAGE_DESCRIPTOR_V2
+        }
+        .validate()
+    };
+    let mut bad = projection;
+    bad.format_version = 2;
+    assert_eq!(validate(bad), Err(GeneratedSchemaError::InvalidProjection));
+    let mut bad = projection;
+    bad.schema_revision += 1;
+    assert_eq!(validate(bad), Err(GeneratedSchemaError::InvalidProjection));
+    for bad_slot in [false, true] {
+        let mut owners = projection.owners.to_vec();
+        let owner = owners.iter_mut().find(|owner| owner.owner == 10).unwrap();
+        let mut fields = owner.fields.to_vec();
+        let field = fields
+            .iter_mut()
+            .find(|field| field.optional.is_some())
+            .unwrap();
+        if bad_slot {
+            field.position = usize::MAX;
+        } else {
+            field.optional.as_mut().unwrap().present_alternative = usize::MAX;
+        }
+        owner.fields = Box::leak(fields.into_boxed_slice());
+        let bad = adze::generated_schema::GeneratedFieldProjectionV1 {
+            owners: Box::leak(owners.into_boxed_slice()),
+            ..projection
+        };
+        assert_eq!(validate(bad), Err(GeneratedSchemaError::InvalidProjection));
+    }
 }
