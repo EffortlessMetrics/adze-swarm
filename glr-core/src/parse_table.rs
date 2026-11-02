@@ -544,6 +544,21 @@ pub enum Action {
     Fork(Vec<Action>),
 }
 
+impl Action {
+    /// Whether this action licenses an ordinary lexer lookahead candidate.
+    ///
+    /// Reductions and acceptance consume the identity of the current lookahead
+    /// even before a shift. Nested forks license it when any branch can use it;
+    /// errors and recovery-only actions do not admit ordinary grammar tokens.
+    pub fn uses_lookahead(&self) -> bool {
+        match self {
+            Self::Shift(_) | Self::Reduce(_) | Self::Accept => true,
+            Self::Fork(actions) => actions.iter().any(Self::uses_lookahead),
+            _ => false,
+        }
+    }
+}
+
 /// Action cell that can hold multiple actions for GLR
 pub type ActionCell = Vec<Action>;
 

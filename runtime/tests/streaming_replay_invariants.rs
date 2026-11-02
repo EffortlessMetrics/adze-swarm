@@ -1,19 +1,23 @@
 //! Bounded streaming/batch replay invariants (#1071 slice).
 //!
 //! Fixed corpus, fixed seed, no randomness. Proves on replayable inputs:
-//! 1. Batch (fixed pretokenization bridge) and streaming (stack-aware
-//!    driver) routes agree with the production `parse_document` surface on
-//!    accepted outcomes for conflicted grammars; the deterministic grammar
-//!    is covered through its production `parse`/`parse_document` surfaces.
+//! 1. Independently declared token streams exercise the batch GLR core;
+//!    generated streaming and document frontends consume the original source.
+//!    Clean conflicted cases agree on exact root spans across these input
+//!    boundaries. Invalid-byte rows have no batch token stream and are counted
+//!    explicitly as native-frontend-only rejection controls. This is not
+//!    blanket frontend parity; fixed-mode pretokenization is ineligible for
+//!    the contextual grammar and has a focused negative control.
+//!    The deterministic grammar uses production `parse`/`parse_document`.
 //! 2. `validate_structure() == Ok` plus root/parent/edge symmetry and
 //!    bounded spans hold on every replayed document, accepted or rejected.
 //! 3. Multiparse inputs select a deterministic winner across repeated runs.
 //!
-//! Raw bridge/driver invocation is in-contract only for streaming-routed
-//! (conflicted) tables; the deterministic table routes to DeterministicLr
-//! in production, so it is exercised via production surfaces only.
-//! Fixture patterns reuse `glr_route_gate_equivalence.rs` (fixed bridge)
-//! and `engine_convergence_dispatch.rs` (parse/document agreement).
+//! Direct streaming-driver invocation uses streaming-routed conflicted tables.
+//! Batch core replay uses the existing `GLRParser::process_token` interface,
+//! not a new scanner. Deterministic tables are exercised through production
+//! surfaces only. The existing fixed-mode contract audit and generated
+//! parse/document fixtures supply the other adapters.
 
 #![cfg(all(feature = "pure-rust", feature = "glr", feature = "runtime-e2e"))]
 
@@ -58,23 +62,91 @@ fn language_for(id: &str) -> &'static TSLanguage {
     }
 }
 
-/// Batch route: fixed pretokenization bridge (established fixture pattern).
-fn parse_batch(input: &str, language: &'static TSLanguage) -> Result<Arc<Subtree>, String> {
-    let source = input.as_bytes();
+/// Independently declared token boundaries for the fixed batch-core corpus.
+/// This is fixture data, not a scanner: every source row is enumerated and a
+/// new row without a declaration fails instead of silently gaining coverage.
+enum BatchCorpusInput {
+    Tokens(&'static [(&'static str, usize, usize)]),
+    LexicallyInvalid,
+}
+
+fn batch_input(id: &str, source: &str) -> BatchCorpusInput {
+    use BatchCorpusInput::{LexicallyInvalid, Tokens};
+    match (id, source) {
+        ("cnf", "42") => Tokens(&[(r"/\d+/", 0, 2)]),
+        ("cnf", "7 + 2") => Tokens(&[(r"/\d+/", 0, 1), ("_/[-+*/]/", 2, 3), (r"/\d+/", 4, 5)]),
+        ("cnf", "7 + 2 * 3") => Tokens(&[
+            (r"/\d+/", 0, 1),
+            ("_/[-+*/]/", 2, 3),
+            (r"/\d+/", 4, 5),
+            ("_/[-+*/]/", 6, 7),
+            (r"/\d+/", 8, 9),
+        ]),
+        ("rr", "x") => Tokens(&[("x", 0, 1)]),
+        ("cnf", "" | "   ") | ("rr", "") => Tokens(&[]),
+        ("cnf", "7 +") => Tokens(&[(r"/\d+/", 0, 1), ("_/[-+*/]/", 2, 3)]),
+        ("rr", "xx") => Tokens(&[("x", 0, 1), ("x", 1, 2)]),
+        ("cnf", "7 + @" | "7\0+2") | ("rr", "y") => LexicallyInvalid,
+        _ => panic!("missing batch input boundary for {id}:{source:?}"),
+    }
+}
+
+/// Replay the existing GLR core with declared token kinds and byte ranges.
+/// Generated frontend lexing is deliberately outside this input boundary.
+fn parse_batch(
+    id: &str,
+    input: &str,
+    language: &'static TSLanguage,
+) -> Result<Arc<Subtree>, String> {
+    let BatchCorpusInput::Tokens(tokens) = batch_input(id, input) else {
+        panic!("lexically invalid input has no batch-core token stream");
+    };
     let mut parse_table = decode_parse_table(language);
     let grammar = decode_grammar(language);
     adze::__private::align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
-    let mut parser = GLRParser::new(parse_table, grammar);
-    let lex_fn = language
-        .lex_fn
-        .expect("generated grammar should expose lex_fn");
-    let tokens =
-        lex_with_language_fn(language, lex_fn, source).map_err(|errs| format!("lex: {errs:?}"))?;
-    for token in tokens {
-        parser.process_token(token.symbol_id, &token.text, token.byte_offset);
+    let mut parser = GLRParser::new(parse_table.clone(), grammar);
+    for &(kind, start, end) in tokens {
+        let symbol = parse_table
+            .symbol_metadata
+            .iter()
+            .find(|metadata| metadata.is_terminal && metadata.name == kind)
+            .unwrap_or_else(|| panic!("declared terminal {kind:?} missing from {id}"))
+            .symbol_id;
+        let text = input
+            .get(start..end)
+            .expect("declared token span is source-bounded UTF-8");
+        parser.process_token(symbol, text, start);
     }
-    parser.process_eof(source.len());
-    parser.finish().map_err(|message| message)
+    parser.process_eof(input.len());
+    parser.finish()
+}
+
+#[test]
+fn test_contextual_grammar_rejects_ineligible_fixed_mode_bridge() {
+    use adze::glr_streaming_lex_contract::{
+        distinct_internal_lex_states, fixed_mode_bridge_lex_mode,
+    };
+    let language = language_for("cnf");
+    let table = decode_parse_table(language);
+    assert_eq!(
+        adze::__private::engine_dispatch_for_table(language, &table),
+        adze::__private::EngineDispatch::StreamingGlr
+    );
+    assert!(
+        distinct_internal_lex_states(&table).len() > 1,
+        "contextual grammar requires distinct lexer modes"
+    );
+    let bridge_mode = fixed_mode_bridge_lex_mode(language);
+    let first_mode = table.lex_modes.first().unwrap();
+    assert_eq!(
+        (bridge_mode.lex_state, bridge_mode.external_lex_state),
+        (first_mode.lex_state, first_mode.external_lex_state),
+        "legacy bridge chooses state-zero mode for the whole input"
+    );
+    let errors = lex_with_language_fn(language, language.lex_fn.unwrap(), b"7 + 2")
+        .expect_err("state-zero pretokenization cannot supply contextual operator tokens");
+    assert_eq!(errors[0].byte_span(), 2..3);
+    assert_eq!(parse_streaming("7 + 2", language).unwrap(), (0, 5));
 }
 
 /// Streaming route: stack-aware streaming driver; Ok carries the root span.
@@ -139,6 +211,11 @@ fn assert_document_invariants(doc: &AdzeDocument, source: &str, label: &str) {
                 let parent = tree
                     .node(parent_id)
                     .unwrap_or_else(|| panic!("{label}: parent exists"));
+                let parent_span = parent.byte_range();
+                assert!(
+                    parent_span.start <= span.start && span.end <= parent_span.end,
+                    "{label}: child {raw} span {span:?} lies within parent {parent_id:?} span {parent_span:?}"
+                );
                 assert!(
                     (0..parent.child_count())
                         .any(|i| parent.child(i).map(|c| c.node_id()) == Some(id)),
@@ -171,7 +248,7 @@ fn assert_document_invariants(doc: &AdzeDocument, source: &str, label: &str) {
 }
 
 #[test]
-fn replay_seed_is_pinned_and_order_covers_corpus() {
+fn test_replay_seed_fixed_length_has_deterministic_permutation() {
     assert_eq!(REPLAY_SEED, 0x1071_9E37_5EED_42u64);
     let first = replay_order(21);
     assert_eq!(first, replay_order(21), "replay order is deterministic");
@@ -187,7 +264,7 @@ fn replay_seed_is_pinned_and_order_covers_corpus() {
 /// Clean conflicted corpus: batch, streaming and document all accept with
 /// identical exact root spans.
 #[test]
-fn streaming_batch_accept_clean_corpus() {
+fn test_streaming_batch_accept_clean_corpus() {
     let corpus: &[(&str, &str, (usize, usize))] = &[
         ("cnf", "42", (0, 2)),
         ("cnf", "7 + 2", (0, 5)),
@@ -198,8 +275,8 @@ fn streaming_batch_accept_clean_corpus() {
         let (id, source, span) = corpus[index];
         let label = format!("{id}:{source:?}");
         let language = language_for(id);
-        let bridge =
-            parse_batch(source, language).unwrap_or_else(|e| panic!("{label}: batch accepts: {e}"));
+        let bridge = parse_batch(id, source, language)
+            .unwrap_or_else(|e| panic!("{label}: batch accepts: {e}"));
         let driver = parse_streaming(source, language)
             .unwrap_or_else(|e| panic!("{label}: streaming accepts: {e}"));
         assert_eq!(
@@ -223,24 +300,28 @@ fn streaming_batch_accept_clean_corpus() {
     }
 }
 
-/// Hard-malformed corpus: every surface rejects; parse/document agree on the
-/// exact first failure span.
+/// Hard-malformed corpus: native frontends reject with exact first-failure
+/// agreement. Batch-core rejection is checked only for declared token input.
 #[test]
-fn routes_reject_hard_malformed_corpus() {
+fn test_routes_reject_hard_malformed_corpus() {
     let corpus: &[(&str, &str, (usize, usize))] = &[
         ("cnf", "   ", (0, 1)),
         ("cnf", "7 + @", (4, 5)),
         ("cnf", "7\x00+2", (1, 2)),
         ("rr", "y", (0, 1)),
     ];
+    let mut lexical_only_rows = 0;
     for index in replay_order(corpus.len()) {
         let (id, source, span) = corpus[index];
         let label = format!("{id}:{source:?}");
         let language = language_for(id);
-        assert!(
-            parse_batch(source, language).is_err(),
-            "{label}: batch rejects"
-        );
+        match batch_input(id, source) {
+            BatchCorpusInput::Tokens(_) => assert!(
+                parse_batch(id, source, language).is_err(),
+                "{label}: batch core rejects"
+            ),
+            BatchCorpusInput::LexicallyInvalid => lexical_only_rows += 1,
+        }
         assert!(
             parse_streaming(source, language).is_err(),
             "{label}: streaming rejects"
@@ -254,33 +335,44 @@ fn routes_reject_hard_malformed_corpus() {
         assert_eq!(doc.diagnostics()[0].byte_span(), errs[0].0..errs[0].1);
         assert_document_invariants(&doc, source, &label);
     }
+    assert_eq!(
+        lexical_only_rows, 3,
+        "three invalid-byte rows exercise native frontends, not token-input batch core"
+    );
 }
 
 /// Truncated/overlong corpus: acceptance oracle (batch + production) rejects.
-/// The bare driver returns a partial-span Ok; those exact spans are pinned as
-/// observed driver semantics, not as acceptance.
+/// Three bare-driver partial spans remain pinned as observed driver semantics,
+/// not acceptance. The overlong rr:xx row now rejects at its second byte.
 #[test]
-fn truncated_inputs_never_accept_and_pin_bare_driver_spans() {
-    let corpus: &[(&str, &str, (usize, usize), (usize, usize))] = &[
-        ("cnf", "", (0, 0), (0, 0)),
-        ("cnf", "7 +", (0, 3), (3, 3)),
-        ("rr", "", (0, 0), (0, 0)),
-        ("rr", "xx", (1, 2), (1, 2)),
+fn test_truncated_inputs_never_accept_and_pin_bare_driver_spans() {
+    let corpus: &[(&str, &str, Option<(usize, usize)>, (usize, usize))] = &[
+        ("cnf", "", Some((0, 0)), (0, 0)),
+        ("cnf", "7 +", Some((0, 3)), (3, 3)),
+        ("rr", "", Some((0, 0)), (0, 0)),
+        ("rr", "xx", None, (1, 2)),
     ];
     for index in replay_order(corpus.len()) {
         let (id, source, partial, span) = corpus[index];
         let label = format!("{id}:{source:?}");
         let language = language_for(id);
         assert!(
-            parse_batch(source, language).is_err(),
+            parse_batch(id, source, language).is_err(),
             "{label}: batch rejects"
         );
-        assert_eq!(
-            parse_streaming(source, language)
-                .unwrap_or_else(|e| panic!("{label}: bare driver partial Ok: {e}")),
-            partial,
-            "{label}: exact bare-driver partial span"
-        );
+        match partial {
+            Some(partial) => assert_eq!(
+                parse_streaming(source, language)
+                    .unwrap_or_else(|e| panic!("{label}: bare driver partial Ok: {e}")),
+                partial,
+                "{label}: exact bare-driver partial span"
+            ),
+            None => assert_eq!(
+                parse_streaming(source, language).expect_err("second x is invalid at byte 1"),
+                "unexpected token at byte 1",
+                "{label}: exact bare-driver rejection"
+            ),
+        }
         let errs = production_err_spans(id, source);
         assert_eq!((errs[0].0, errs[0].1), span, "{label}: exact parse span");
         let doc = production_document(id, source);
@@ -294,7 +386,7 @@ fn truncated_inputs_never_accept_and_pin_bare_driver_spans() {
 /// clean seeds, exact failure spans (with parse/document agreement) on
 /// malformed seeds.
 #[test]
-fn deterministic_grammar_production_surfaces_agree() {
+fn test_deterministic_grammar_production_surfaces_agree() {
     use adze_example::typed_ast_contract::grammar::{self, Expr};
     for (source, expected, nodes) in [
         ("42", Expr::Number(42), 3),
@@ -340,38 +432,37 @@ fn deterministic_grammar_production_surfaces_agree() {
     }
 }
 
-/// Embedded/trailing NUL on the deterministic route is silently truncated:
-/// production accepts the strict prefix as Complete. This divergence from
-/// the streaming lexer (which rejects NUL as an unexpected token, see
-/// `routes_reject_hard_malformed_corpus`) is explicitly counted here and
-/// locked as observed behavior for #1071 follow-up; it is not blessed as
-/// correct. Owning seam: generated `lex_fn` NUL handling (engine lex seam,
-/// cf. #895/#896/#897) vs the streaming internal lexer.
+/// Embedded/trailing NUL is source data, never an EOF sentinel. Both inputs
+/// retain ordinary expression syntax, but diagnostics prohibit a clean parse
+/// or semantic AST extraction (#1186 complete-source lexer prerequisite).
 #[test]
-fn nul_truncation_divergence_is_explicitly_counted() {
+fn test_nul_inputs_reject_without_prefix_ast() {
     use adze_example::typed_ast_contract::grammar::{self, Expr};
-    let cases: &[(&str, Expr)] = &[
-        ("1\x00+2", Expr::Number(1)),
-        (
-            "1 + 2\x00",
-            Expr::Add(Box::new(Expr::Number(1)), (), Box::new(Expr::Number(2))),
-        ),
-    ];
-    assert_eq!(cases.len(), 2, "divergent NUL cases are counted explicitly");
-    for (source, expected) in cases {
-        assert_eq!(grammar::parse(source).unwrap(), *expected, "{source:?}");
+    let cases = [("1\x00+2", 1..2), ("1 + 2\x00", 5..6)];
+    assert_eq!(cases.len(), 2, "both original NUL inputs remain selected");
+    for (source, offending) in cases {
+        let errors = grammar::parse(source).expect_err("embedded/trailing NUL must reject");
+        assert_eq!(errors[0].byte_span(), offending, "{source:?} offending NUL");
         let doc = grammar::parse_document(source).unwrap();
-        assert_eq!(doc.outcome(), ParseOutcome::Complete, "{source:?}");
-        assert!(doc.diagnostics().is_empty(), "{source:?}");
-        assert_eq!(doc.ast::<Expr>().unwrap(), *expected, "{source:?}");
-        assert_document_invariants(&doc, source, "det:nul");
+        assert_eq!(doc.outcome(), ParseOutcome::Recovered, "{source:?}");
+        assert_eq!(doc.diagnostics()[0].byte_span(), offending, "{source:?}");
+        assert_eq!(
+            doc.diagnostics()[0].found.as_deref(),
+            Some("\0"),
+            "{source:?}"
+        );
+        assert!(
+            doc.ast::<Expr>().is_err(),
+            "{source:?} cannot extract a prefix AST"
+        );
+        assert_document_invariants(&doc, source, "det:nul-reject");
     }
 }
 
 /// Multiparse winners are deterministic across repeated runs, with exact
 /// ambiguity summaries; the unambiguous conflicted seed retains no summary.
 #[test]
-fn multiparse_winners_are_deterministic() {
+fn test_multiparse_winners_are_deterministic() {
     use adze_example::native_failure_facts_1030::grammar as cnf;
     use adze_example::reduce_reduce::grammar as rr;
     let rr_first = rr::parse("x").unwrap();
