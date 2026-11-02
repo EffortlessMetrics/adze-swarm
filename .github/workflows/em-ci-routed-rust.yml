@@ -8,7 +8,7 @@ on:
   # and the entry stays queueable. Full qualification runs once per
   # merge-queue entry. Drafts run nothing and cannot queue.
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: em-ci-routed-rust-${{ github.repository }}-${{ github.ref }}
