@@ -110,6 +110,7 @@ impl IsolatedRegistry {
     ) -> Result<()> {
         let metadata = load_cargo_metadata(workspace_root)?;
         let published_set: BTreeSet<String> = ordered_crates.iter().cloned().collect();
+        let expected_versions = expected_release_versions(&metadata, ordered_crates)?;
         let mut staged = Vec::new();
 
         for crate_name in ordered_crates {
@@ -129,14 +130,11 @@ impl IsolatedRegistry {
             )?;
             inject_registry_deps_into_crate(&crate_path, &published_set)?;
             let manifest = packaged_manifest_text(&crate_path)?;
-            if manifest_contains_path_dependency(&manifest) {
+            let violations = manifest_isolation_violations(&manifest, &expected_versions);
+            if !violations.is_empty() {
                 bail!(
-                    "packaged crate `{crate_name}` still contains a path dependency; local-registry publish blocked"
-                );
-            }
-            if manifest_missing_registry_for_workspace_deps(&manifest, &published_set) {
-                bail!(
-                    "packaged crate `{crate_name}` is missing `{REGISTRY_NAME}` registry pins for workspace dependencies"
+                    "packaged crate `{crate_name}` failed {REGISTRY_NAME} isolation: {}",
+                    violations.join("; ")
                 );
             }
 
@@ -314,6 +312,19 @@ impl IsolatedRegistry {
                     project_dir.join("Cargo.toml").display()
                 )
             })?;
+        }
+        let expected_versions: BTreeMap<String, String> = self
+            .published
+            .iter()
+            .map(|published| (published.name.clone(), published.version.clone()))
+            .collect();
+        let violations = manifest_isolation_violations(&pinned, &expected_versions);
+        if !violations.is_empty() {
+            bail!(
+                "generated starter at {} failed {REGISTRY_NAME} isolation: {}",
+                project_dir.display(),
+                violations.join("; ")
+            );
         }
 
         Ok(StarterProject {
@@ -618,9 +629,9 @@ fn dependency_actual_package_name<'a>(key: &'a str, spec: &'a toml::Value) -> &'
 
 /// Every dependency table in a manifest: the top-level normal/build/dev
 /// tables plus target-specific ones.
-fn dependency_tables<'a>(
-    root: &'a toml::map::Map<String, toml::Value>,
-) -> Vec<&'a toml::map::Map<String, toml::Value>> {
+fn dependency_tables(
+    root: &toml::map::Map<String, toml::Value>,
+) -> Vec<&toml::map::Map<String, toml::Value>> {
     let mut tables = Vec::new();
     for table_name in DEPENDENCY_TABLE_NAMES {
         if let Some(deps) = root.get(table_name).and_then(toml::Value::as_table) {
@@ -660,36 +671,80 @@ fn manifest_contains_path_dependency(manifest: &str) -> bool {
         })
 }
 
-fn manifest_missing_registry_for_workspace_deps(
-    manifest: &str,
-    published_set: &BTreeSet<String>,
-) -> bool {
-    let Ok(value) = manifest.parse::<toml::Value>() else {
-        return true;
-    };
-    let Some(root) = value.as_table() else {
-        return true;
-    };
-    for deps in dependency_tables(root) {
-        for (name, spec) in deps {
-            if !published_set.contains(dependency_actual_package_name(name, spec)) {
-                continue;
-            }
-            if !dependency_spec_has_registry(spec) {
-                return true;
-            }
-        }
-    }
-    false
+/// Expected co-release pins: package name to the exact published version
+/// from the single release graph (via cargo metadata, not a second list).
+fn expected_release_versions(
+    metadata: &CargoMetadata,
+    ordered_crates: &[String],
+) -> Result<BTreeMap<String, String>> {
+    ordered_crates
+        .iter()
+        .map(|crate_name| {
+            let version = metadata
+                .packages
+                .iter()
+                .find(|pkg| pkg.name == *crate_name)
+                .with_context(|| format!("crate `{crate_name}` missing from cargo metadata"))?
+                .version
+                .clone();
+            Ok((crate_name.clone(), version))
+        })
+        .collect()
 }
 
-fn dependency_spec_has_registry(spec: &toml::Value) -> bool {
+/// Structural isolation verdict over a parsed manifest: every dependency
+/// table (normal, build, dev, and target-specific) is inspected. Co-release
+/// edges are resolved by actual package name (`package`, else the TOML key)
+/// and must carry no source-checkout path plus the exact local
+/// version/registry. Unparseable manifests fail closed. Empty means isolated.
+fn manifest_isolation_violations(
+    manifest: &str,
+    expected: &BTreeMap<String, String>,
+) -> Vec<String> {
+    let Ok(value) = manifest.parse::<toml::Value>() else {
+        return vec!["manifest is not parseable TOML; failing closed".to_string()];
+    };
+    let Some(root) = value.as_table() else {
+        return vec!["manifest root is not a TOML table; failing closed".to_string()];
+    };
+    let mut violations = Vec::new();
+    for deps in dependency_tables(root) {
+        for (name, spec) in deps {
+            if spec
+                .as_table()
+                .is_some_and(|table| table.contains_key("path"))
+            {
+                violations.push(format!(
+                    "dependency `{name}` retains a path dependency; expected an `{REGISTRY_NAME}` registry pin"
+                ));
+            }
+            let actual = dependency_actual_package_name(name, spec);
+            let Some(expected_version) = expected.get(actual) else {
+                continue;
+            };
+            let (registry, version) = dependency_registry_and_version(spec);
+            if registry == Some(REGISTRY_NAME) && version == Some(expected_version.as_str()) {
+                continue;
+            }
+            violations.push(format!(
+                "dependency `{name}` (package `{actual}`) must pin version \
+                 \"{expected_version}\" from registry \"{REGISTRY_NAME}\"; found registry {} version {}",
+                registry.map_or("missing".to_string(), |r| format!("\"{r}\"")),
+                version.map_or("missing".to_string(), |v| format!("\"{v}\"")),
+            ));
+        }
+    }
+    violations
+}
+
+fn dependency_registry_and_version(spec: &toml::Value) -> (Option<&str>, Option<&str>) {
     match spec {
-        toml::Value::Table(table) => table
-            .get("registry")
-            .and_then(toml::Value::as_str)
-            .is_some_and(|registry| registry == REGISTRY_NAME),
-        _ => false,
+        toml::Value::String(version) => (None, Some(version.as_str())),
+        toml::Value::Table(table) => (
+            table.get("registry").and_then(toml::Value::as_str),
+            table.get("version").and_then(toml::Value::as_str),
+        ),
+        _ => (None, None),
     }
 }
 
@@ -777,6 +832,9 @@ fn registry_pinned_dependency_spec(spec: &toml::Value) -> Result<toml::Value> {
     {
         return Ok(toml::Value::Table(table));
     }
+    // A registry pin must not carry a source-checkout path: the rewritten
+    // edge resolves from the local registry, never from a relative path.
+    table.remove("path");
     table.insert(
         "registry".to_string(),
         toml::Value::String(REGISTRY_NAME.to_string()),
@@ -1173,32 +1231,83 @@ adze = { path = '../runtime' }
         assert!(manifest_contains_path_dependency(manifest));
     }
 
-    #[test]
-    fn manifest_path_detection_fails_closed_on_malformed_manifest() {
-        assert!(manifest_contains_path_dependency("[dependencies\nadze = {"));
-        assert!(manifest_missing_registry_for_workspace_deps(
-            "[dependencies\nadze = {",
-            &BTreeSet::from(["adze".to_string()])
-        ));
+    fn expected_versions_for(names: &[&str], version: &str) -> BTreeMap<String, String> {
+        names
+            .iter()
+            .map(|name| ((*name).to_string(), version.to_string()))
+            .collect()
     }
 
     #[test]
-    fn manifest_missing_registry_resolves_renamed_dependencies() {
+    fn isolation_violations_fail_closed_on_malformed_manifest() {
+        let expected = expected_versions_for(&["adze"], "0.10.0");
+        assert!(manifest_contains_path_dependency("[dependencies\nadze = {"));
+        assert!(!manifest_isolation_violations("[dependencies\nadze = {", &expected).is_empty());
+    }
+
+    #[test]
+    fn isolation_violations_reject_reproduced_path_fixtures() {
+        // #1000 reproduced fixtures, independent of whitespace/quote style.
+        let expected = expected_versions_for(&["adze"], "0.10.0");
+        for manifest in [
+            "[target.'cfg(windows)'.dependencies]\nadze = { path = '../runtime' }\n",
+            "[dependencies]\nadze = {path='../runtime'}\n",
+        ] {
+            let violations = manifest_isolation_violations(manifest, &expected);
+            assert!(
+                violations.iter().any(|v| v.contains("path")),
+                "{manifest}: {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn isolation_violations_reject_wrong_version_pin() {
+        // #1000: a registry pin at the wrong version must not satisfy
+        // isolation. RED-BEFORE: the registry-only check accepted this.
+        let expected = expected_versions_for(&["adze"], "0.10.0");
+        let manifest = r#"
+[dependencies]
+adze = { version = "0.0.1", registry = "adze-local" }
+"#;
+        let violations = manifest_isolation_violations(manifest, &expected);
+        assert!(
+            violations.iter().any(|v| v.contains("0.0.1")),
+            "{violations:?}"
+        );
+    }
+
+    #[test]
+    fn isolation_violations_reject_wrong_registry_and_missing_pin() {
+        let expected = expected_versions_for(&["adze"], "0.10.0");
+        let wrong_registry = r#"
+[dependencies]
+adze = { version = "0.10.0", registry = "crates-io" }
+"#;
+        let violations = manifest_isolation_violations(wrong_registry, &expected);
+        assert!(!violations.is_empty(), "wrong registry must be rejected");
+        let missing_pin = r#"
+[dependencies]
+adze = "0.10.0"
+"#;
+        assert!(!manifest_isolation_violations(missing_pin, &expected).is_empty());
+    }
+
+    #[test]
+    fn isolation_violations_resolve_renamed_dependencies() {
+        let expected = expected_versions_for(&["adze"], "0.10.0");
         let published = BTreeSet::from(["adze".to_string()]);
         let renamed_unpinned = r#"
 [dependencies]
-adze-alias = { package = "adze", version = "0.9.0" }
+adze-alias = { package = "adze", version = "0.10.0" }
 "#;
-        assert!(manifest_missing_registry_for_workspace_deps(
-            renamed_unpinned,
-            &published
-        ));
+        assert!(!manifest_isolation_violations(renamed_unpinned, &expected).is_empty());
         // Injection pins by actual package and preserves the rename.
         let pinned =
             inject_registry_into_manifest(renamed_unpinned, &published).expect("inject renamed");
         assert!(pinned.contains(r#"package = "adze""#), "{pinned}");
         assert!(
-            !manifest_missing_registry_for_workspace_deps(&pinned, &published),
+            manifest_isolation_violations(&pinned, &expected).is_empty(),
             "{pinned}"
         );
         // A rename to an external package is not a co-release edge.
@@ -1206,27 +1315,65 @@ adze-alias = { package = "adze", version = "0.9.0" }
 [dependencies]
 clap-alias = { package = "clap", version = "4.5" }
 "#;
-        assert!(!manifest_missing_registry_for_workspace_deps(
-            external_rename,
-            &published
-        ));
+        assert!(manifest_isolation_violations(external_rename, &expected).is_empty());
     }
 
     #[test]
-    fn manifest_missing_registry_checks_target_specific_dependencies() {
+    fn isolation_violations_check_target_specific_dependencies() {
+        let expected = expected_versions_for(&["adze"], "0.10.0");
         let published = BTreeSet::from(["adze".to_string()]);
         let target_unpinned = r#"
 [target.'cfg(windows)'.dependencies]
-adze = "0.9.0"
+adze = "0.10.0"
 "#;
-        assert!(manifest_missing_registry_for_workspace_deps(
-            target_unpinned,
-            &published
-        ));
+        assert!(!manifest_isolation_violations(target_unpinned, &expected).is_empty());
         let pinned =
             inject_registry_into_manifest(target_unpinned, &published).expect("inject target");
         assert!(
-            !manifest_missing_registry_for_workspace_deps(&pinned, &published),
+            manifest_isolation_violations(&pinned, &expected).is_empty(),
+            "{pinned}"
+        );
+    }
+
+    #[test]
+    fn isolation_violations_distinguish_leaking_edge_in_graph() {
+        // A complete isolated graph validates clean; one misdirected edge
+        // fails the receipt gate for exactly that manifest.
+        let expected = expected_versions_for(&["adze", "adze-tool"], "0.10.0");
+        let clean = r#"
+[dependencies]
+adze = { version = "0.10.0", registry = "adze-local" }
+clap = "4.5"
+
+[build-dependencies]
+adze-tool = { version = "0.10.0", registry = "adze-local" }
+"#;
+        assert!(manifest_isolation_violations(clean, &expected).is_empty());
+        let leaking = r#"
+[dependencies]
+adze = { version = "0.10.0", registry = "adze-local" }
+clap = "4.5"
+
+[build-dependencies]
+adze-tool = { version = "0.9.0", registry = "adze-local" }
+"#;
+        let violations = manifest_isolation_violations(leaking, &expected);
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(violations[0].contains("adze-tool"), "{violations:?}");
+    }
+
+    #[test]
+    fn injection_strips_path_and_validates_clean() {
+        let expected = expected_versions_for(&["adze"], "0.10.0");
+        let published = BTreeSet::from(["adze".to_string()]);
+        let with_path = r#"
+[dependencies]
+adze = { version = "0.10.0", path = "../runtime" }
+"#;
+        let pinned = inject_registry_into_manifest(with_path, &published).expect("inject");
+        assert!(!pinned.contains("path"), "{pinned}");
+        assert!(
+            manifest_isolation_violations(&pinned, &expected).is_empty(),
             "{pinned}"
         );
     }
@@ -1259,19 +1406,19 @@ clap = "4.5"
     }
 
     #[test]
-    fn manifest_missing_registry_for_workspace_deps_detects_unpinned_workspace_crate() {
+    fn isolation_violations_detect_unpinned_workspace_crate() {
+        let expected = expected_versions_for(&["adze"], "0.10.0");
+        let published = BTreeSet::from(["adze".to_string()]);
         let manifest = r#"
 [dependencies]
-adze = "0.9.0"
+adze = "0.10.0"
 "#;
-        let published = BTreeSet::from(["adze".to_string()]);
-        assert!(manifest_missing_registry_for_workspace_deps(
-            manifest, &published
-        ));
+        assert!(!manifest_isolation_violations(manifest, &expected).is_empty());
         let pinned = inject_registry_into_manifest(manifest, &published).expect("inject");
-        assert!(!manifest_missing_registry_for_workspace_deps(
-            &pinned, &published
-        ));
+        assert!(
+            manifest_isolation_violations(&pinned, &expected).is_empty(),
+            "{pinned}"
+        );
     }
 
     #[test]
