@@ -251,8 +251,8 @@ impl GrammarJsParserV3 {
             if let Some(next_match) = rule_regex.find_at(content, rule_start) {
                 // Back up to find the comma before the next rule.
                 // Byte-oriented scan: ',' is ASCII (0x2C) and can never
-                // appear inside a multi-byte UTF-8 sequence, so every
-                // byte index visited here is a valid split point.
+                // appear inside a multi-byte UTF-8 sequence, so a matching
+                // comma index is always a valid split point.
                 let mut pos = next_match.start();
                 while pos > rule_start {
                     pos -= 1;
@@ -939,7 +939,8 @@ impl GrammarJsParserV3 {
         let mut in_regex = false;
         let mut escape_next = false;
 
-        for (i, ch) in content.chars().enumerate() {
+        // Callers slice the original UTF-8 string at the returned byte offset.
+        for (i, ch) in content.char_indices() {
             if escape_next {
                 escape_next = false;
                 continue;
@@ -1025,6 +1026,12 @@ module.exports = grammar({
             result.is_ok(),
             "non-ASCII precedences input must not panic, got: {result:?}"
         );
+        let grammar = result.expect("Unicode precedence names parse");
+        assert_eq!(
+            grammar.precedences,
+            vec![vec![("élite".to_string(), 0), ("member".to_string(), 0),]],
+            "successful parsing must retain the declared precedence names"
+        );
     }
 
     #[test]
@@ -1052,5 +1059,32 @@ module.exports = grammar({
 
         let grammar = result.unwrap();
         assert_eq!(grammar.rules.len(), 2);
+        assert!(matches!(grammar.rules.get("first"), Some(Rule::String { value }) if value == "€"));
+        assert!(
+            matches!(grammar.rules.get("second"), Some(Rule::String { value }) if value == "hello")
+        );
+    }
+    #[test]
+    fn test_parse_nested_unicode_rule_values_are_preserved() {
+        let content = r#"module.exports = grammar({ name: 'unicode', rules: { program: $ => seq('€', choice('é', 'x')), tail: $ => 'done' } })"#;
+        let grammar = GrammarJsParserV3::new(content.to_string())
+            .parse()
+            .expect("compact nested Unicode grammar parses");
+        assert_eq!(grammar.rules.len(), 2);
+        assert_eq!(
+            serde_json::to_value(&grammar.rules["program"]).unwrap(),
+            serde_json::json!({
+                "type": "SEQ", "members": [
+                    {"type": "STRING", "value": "€"},
+                    {"type": "CHOICE", "members": [
+                        {"type": "STRING", "value": "é"},
+                        {"type": "STRING", "value": "x"}
+                    ]}
+                ]
+            })
+        );
+        assert!(
+            matches!(grammar.rules.get("tail"), Some(Rule::String { value }) if value == "done")
+        );
     }
 }
