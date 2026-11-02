@@ -150,6 +150,8 @@ impl DoctorReport {
     }
 
     /// Render both views from the same ordered rows. No environment or paths are collected here.
+    /// JSON preserves the observed message/action strings (escaped when serialized);
+    /// terminal text renders those strings on one line without control characters.
     pub(crate) fn as_json(&self) -> Value {
         let mut ids = CheckId::ALL;
         ids.sort_by_key(|id| self.status(*id).priority());

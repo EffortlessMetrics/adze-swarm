@@ -28,7 +28,7 @@ fn complete_report() -> DoctorReport {
 }
 
 #[test]
-fn doctor_empty_report_is_incomplete_with_four_visible_checks() {
+fn test_doctor_empty_report_is_incomplete_with_four_visible_checks() {
     let report = DoctorReport::default();
     assert_eq!(report.summary(), Summary::Incomplete);
     assert_eq!(report.summary().exit_code(), 2);
@@ -39,7 +39,7 @@ fn doctor_empty_report_is_incomplete_with_four_visible_checks() {
 }
 
 #[test]
-fn doctor_three_passing_checks_do_not_hide_a_missing_fourth() {
+fn test_doctor_three_passing_checks_do_not_hide_a_missing_fourth() {
     let mut report = DoctorReport::default();
     for id in [CheckId::Project, CheckId::Toolchain, CheckId::Dependencies] {
         report
@@ -51,7 +51,7 @@ fn doctor_three_passing_checks_do_not_hide_a_missing_fourth() {
 }
 
 #[test]
-fn doctor_complete_setup_does_not_claim_parser_or_registry_proof() {
+fn test_doctor_complete_setup_does_not_claim_parser_or_registry_proof() {
     let report = complete_report();
     assert_eq!(report.summary(), Summary::ChecksPassed);
     assert_eq!(report.summary().exit_code(), 0);
@@ -63,7 +63,7 @@ fn doctor_complete_setup_does_not_claim_parser_or_registry_proof() {
 }
 
 #[test]
-fn doctor_unknown_and_not_run_are_distinct_and_never_success() {
+fn test_doctor_unknown_and_not_run_are_distinct_and_never_success() {
     let mut report = DoctorReport::default();
     report
         .record(CheckId::Toolchain, finding(Status::Unknown))
@@ -78,7 +78,7 @@ fn doctor_unknown_and_not_run_are_distinct_and_never_success() {
 }
 
 #[test]
-fn doctor_known_blocker_takes_precedence_over_missing_checks() {
+fn test_doctor_known_blocker_takes_precedence_over_missing_checks() {
     let mut report = DoctorReport::default();
     report
         .record(CheckId::Dependencies, finding(Status::Blocked))
@@ -89,7 +89,7 @@ fn doctor_known_blocker_takes_precedence_over_missing_checks() {
 }
 
 #[test]
-fn doctor_internal_error_is_not_a_user_setup_failure() {
+fn test_doctor_internal_error_is_not_a_user_setup_failure() {
     let mut report = DoctorReport::default();
     report
         .record(CheckId::Project, finding(Status::Blocked))
@@ -103,7 +103,7 @@ fn doctor_internal_error_is_not_a_user_setup_failure() {
 }
 
 #[test]
-fn doctor_duplicate_result_cannot_overwrite_a_blocker() {
+fn test_doctor_duplicate_result_cannot_overwrite_a_blocker() {
     let mut report = DoctorReport::default();
     report
         .record(CheckId::Project, finding(Status::Blocked))
@@ -117,7 +117,7 @@ fn doctor_duplicate_result_cannot_overwrite_a_blocker() {
 }
 
 #[test]
-fn doctor_invalid_finding_is_rejected_before_mutation() {
+fn test_doctor_invalid_finding_is_rejected_before_mutation() {
     let mut report = DoctorReport::default();
     let mut invalid = finding(Status::Passed);
     invalid.message = "  ".into();
@@ -150,7 +150,7 @@ fn test_doctor_control_only_action_is_rejected_without_mutation() {
 }
 
 #[test]
-fn doctor_text_and_json_share_order_status_and_actions() {
+fn test_doctor_text_and_json_share_order_status_and_actions() {
     let mut report = complete_report();
     assert!(
         report
@@ -175,7 +175,7 @@ fn doctor_text_and_json_share_order_status_and_actions() {
 }
 
 #[test]
-fn doctor_human_output_cannot_inject_a_second_check_line() {
+fn test_doctor_human_output_cannot_inject_a_second_check_line() {
     let mut report = DoctorReport::default();
     report
         .record(
@@ -187,6 +187,12 @@ fn doctor_human_output_cannot_inject_a_second_check_line() {
             },
         )
         .expect("finding");
+    let json = report.as_json();
+    assert_eq!(
+        json["checks"][0]["message"],
+        "bad manifest\n[passed] toolchain\u{1b}[32m"
+    );
+    assert_eq!(json["checks"][0]["next_action"], "repair\nthen retry");
     let text = report.render_text();
     assert!(!text.contains("\n[passed] toolchain"));
     assert!(!text.contains('\u{1b}'));
