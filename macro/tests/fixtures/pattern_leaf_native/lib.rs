@@ -74,6 +74,61 @@ pub mod variant_pattern {
     }
 }
 
+#[adze::grammar("no_inline_pattern")]
+pub mod no_inline_pattern {
+    #[adze::language]
+    #[derive(Debug, PartialEq)]
+    pub enum Choice {
+        #[adze::no_inline]
+        Number(#[adze::leaf(pattern = r"\d+", transform = |text| text.parse::<u8>().unwrap())] u8),
+    }
+}
+
+#[adze::grammar("precedence_pattern")]
+pub mod precedence_pattern {
+    #[adze::language]
+    #[derive(Debug, PartialEq)]
+    pub enum Choice {
+        #[adze::prec(1)]
+        Number(#[adze::leaf(pattern = r"\d+", try_transform = |text| text.parse::<u8>())] u8),
+    }
+}
+
+#[adze::grammar("shared_pattern_identity")]
+pub mod shared_pattern_identity {
+    #[adze::language]
+    #[derive(Debug, PartialEq)]
+    pub struct Root {
+        pub seed: ASeed,
+        #[adze::leaf(text = ";")]
+        _separator: (),
+        pub choice: Choice,
+    }
+    #[derive(Debug, PartialEq)]
+    pub struct ASeed {
+        #[adze::leaf(pattern = r"\d+", transform = |text| text.to_owned())]
+        pub value: String,
+    }
+    #[derive(Debug, PartialEq)]
+    pub enum Choice {
+        #[adze::no_inline]
+        Wrapped(#[adze::leaf(pattern = r"\d+", transform = |text| text.to_owned())] String),
+        Inline(#[adze::leaf(pattern = r"\d+", transform = |text| text.to_owned())] String),
+    }
+}
+
+#[adze::grammar("same_regex_wrapped_siblings")]
+pub mod same_regex_wrapped_siblings {
+    #[adze::language]
+    #[derive(Debug, PartialEq)]
+    pub enum Choice {
+        #[adze::no_inline]
+        ZFirst(#[adze::leaf(pattern = r"\d+", transform = |text| format!("z:{text}"))] String),
+        #[adze::no_inline]
+        ASecond(#[adze::leaf(pattern = r"\d+", transform = |text| format!("a:{text}"))] String),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,6 +258,83 @@ mod tests {
         assert_eq!(
             variant_pattern::parse("x").unwrap(),
             variant_pattern::Choice::Word("x".into())
+        );
+    }
+    #[test]
+    fn test_no_inline_regex_keeps_its_named_variant_dispatch() {
+        let document = no_inline_pattern::parse_document("17").unwrap();
+        assert_leaf(&document, "17", r"_/\d+/");
+        assert_eq!(
+            no_inline_pattern::parse("17").unwrap(),
+            no_inline_pattern::Choice::Number(17)
+        );
+        assert!((0..document.tree().node_count()).any(|i| {
+            document
+                .tree()
+                .node(adze::document::NodeId::new(i))
+                .unwrap()
+                .kind_name()
+                == Some("Choice_Number")
+        }));
+    }
+    #[test]
+    fn test_precedence_regex_keeps_its_named_variant_dispatch() {
+        let document = precedence_pattern::parse_document("17").unwrap();
+        assert_leaf(&document, "17", r"_/\d+/");
+        assert_eq!(
+            precedence_pattern::parse("17").unwrap(),
+            precedence_pattern::Choice::Number(17)
+        );
+        assert!((0..document.tree().node_count()).any(|i| {
+            document
+                .tree()
+                .node(adze::document::NodeId::new(i))
+                .unwrap()
+                .kind_name()
+                == Some("Choice_Number")
+        }));
+    }
+    #[test]
+    fn test_shared_regex_inline_token_cannot_dispatch_as_wrapped_sibling() {
+        let document = shared_pattern_identity::parse_document("7;17").unwrap();
+        assert_eq!(document.outcome(), ParseOutcome::Complete);
+        assert!(document.diagnostics().is_empty());
+        let selected = (0..document.tree().node_count())
+            .map(|i| {
+                document
+                    .tree()
+                    .node(adze::document::NodeId::new(i))
+                    .unwrap()
+            })
+            .find(|node| node.flags().is_terminal() && node.byte_range() == (2..4))
+            .unwrap();
+        assert_eq!(selected.kind_name(), Some(r"/\d+/"));
+        assert_eq!(selected.utf8_text().unwrap(), "17");
+        let ast = shared_pattern_identity::parse("7;17").unwrap();
+        assert_eq!(ast.seed.value, "7");
+        assert_eq!(
+            ast.choice,
+            shared_pattern_identity::Choice::Inline("17".into())
+        );
+    }
+    #[test]
+    fn test_shared_regex_wrapped_siblings_keep_selected_second_variant_identity() {
+        let document = same_regex_wrapped_siblings::parse_document("17").unwrap();
+        assert_leaf(&document, "17", r"_/\d+/");
+        let names: Vec<_> = (0..document.tree().node_count())
+            .map(|i| {
+                document
+                    .tree()
+                    .node(adze::document::NodeId::new(i))
+                    .unwrap()
+                    .kind_name()
+            })
+            .collect();
+        assert!(names.contains(&Some("Choice_ASecond")));
+        assert!(!names.contains(&Some("Choice_ZFirst")));
+        assert_eq!(
+            same_regex_wrapped_siblings::parse("17").unwrap(),
+            same_regex_wrapped_siblings::Choice::ASecond("a:17".into())
         );
     }
 }
