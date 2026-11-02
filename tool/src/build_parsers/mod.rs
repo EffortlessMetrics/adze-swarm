@@ -36,7 +36,16 @@ pub fn build_parsers(root_file: &Path) {
 
     c_backend::ensure_tree_sitter_cli_if_required();
 
-    for grammar in generate_grammars(root_file).unwrap() {
+    // Build-script context (`build.rs`): panicking is the established failure
+    // channel since there is no `Result` to return to cargo. Name the root
+    // file and the underlying expansion/validation failure so a malformed
+    // `#[adze::grammar]` module is diagnosable instead of an `unwrap` trap.
+    for grammar in generate_grammars(root_file).unwrap_or_else(|err| {
+        panic!(
+            "adze: failed to generate grammars from {}: {err}",
+            root_file.display()
+        )
+    }) {
         c_backend::compile_grammar(grammar, &options);
     }
 }
