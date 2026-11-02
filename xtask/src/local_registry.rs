@@ -180,10 +180,12 @@ impl IsolatedRegistry {
             .parent()
             .context("missing local registry root")?;
         let (child, port) = start_http_server(registry_root)?;
-        self.http_server = Some(child);
         let index_url = format!("sparse+http://127.0.0.1:{port}/index/");
         let dl_url = format!("http://127.0.0.1:{port}/crates/");
+        // Keep the guard local until all activation steps succeed. A config
+        // write error must stop/reap this child and leave activation retryable.
         write_registry_config(&self.cargo_home, &index_url, &self.index_dir, &dl_url)?;
+        self.http_server = Some(child);
         Ok(index_url)
     }
 
@@ -1835,6 +1837,53 @@ mod tests {
         let mut response = String::new();
         connection.read_to_string(&mut response).unwrap();
         response
+    }
+
+    #[test]
+    fn test_http_server_config_write_failure_allows_successful_retry() {
+        for block_cargo_config in [true, false] {
+            let mut registry = IsolatedRegistry::new().unwrap();
+            let blocker = if block_cargo_config {
+                registry.cargo_home.path().join("config.toml")
+            } else {
+                registry.index_dir.join("config.json")
+            };
+            // A directory cannot be overwritten as a regular file on either
+            // Unix or Windows; this does not depend on permission/root behavior.
+            fs::create_dir(&blocker).unwrap();
+            let error = registry
+                .activate_http_registry()
+                .expect_err("blocked config file must fail");
+            assert!(error.to_string().contains("writing"), "{error:#}");
+            fs::remove_dir(&blocker).unwrap();
+
+            let index_url = registry
+                .activate_http_registry()
+                .expect("failed configuration must not leave an active server blocking retry");
+            let server = registry
+                .http_server
+                .as_ref()
+                .expect("successful activation owns server");
+            let pid = server.child.id();
+            let port = index_url
+                .strip_prefix("sparse+http://127.0.0.1:")
+                .unwrap()
+                .strip_suffix("/index/")
+                .unwrap()
+                .parse::<u16>()
+                .unwrap();
+            let response = registry_http_get(port, "/index/config.json");
+            assert!(response.starts_with("HTTP/1.0 200"), "{response}");
+            assert!(
+                response.contains(&format!("http://127.0.0.1:{port}/crates/")),
+                "{response}"
+            );
+            let cargo_config =
+                fs::read_to_string(registry.cargo_home.path().join("config.toml")).unwrap();
+            assert!(cargo_config.contains(&index_url));
+            drop(registry);
+            assert_child_reaped(pid);
+        }
     }
 
     #[cfg(unix)]
