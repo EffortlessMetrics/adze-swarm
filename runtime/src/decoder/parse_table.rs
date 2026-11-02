@@ -158,7 +158,7 @@ fn empty_goto_table(lang: &TSLanguage, symbol_count: usize) -> Vec<Vec<StateId>>
     vec![vec![StateId(0); symbol_count]; lang.state_count as usize]
 }
 
-fn decode_symbol_maps(
+pub(super) fn decode_symbol_maps(
     lang: &TSLanguage,
     symbol_count: usize,
 ) -> (Vec<SymbolId>, BTreeMap<SymbolId, usize>) {
@@ -208,28 +208,26 @@ fn decode_parse_rules(
     grammar: &adze_ir::Grammar,
     index_to_symbol: &[SymbolId],
 ) -> Vec<ParseRule> {
-    let mut rules_vec = vec![None; lang.rule_count as usize];
-    for rules_for_lhs in grammar.rules.values() {
-        for rule in rules_for_lhs {
-            let idx = rule.production_id.0 as usize;
-            if idx < rules_vec.len() {
-                rules_vec[idx] = Some(ParseRule {
-                    lhs: rule.lhs,
-                    rhs_len: rule.rhs.len() as u16,
-                });
-            }
-        }
-    }
-
-    let mut rules: Vec<_> = rules_vec
-        .into_iter()
-        .map(|opt_rule| {
-            opt_rule.unwrap_or(ParseRule {
-                lhs: SymbolId(0),
-                rhs_len: 0,
+    // Syntax metadata is already dense in RuleId order. ProductionId is a
+    // field/alias slot and must never select or overwrite a syntax rule.
+    let mut rules = if !lang.rules.is_null() {
+        // SAFETY: the native ABI advertises rule_count TSRule records.
+        unsafe { std::slice::from_raw_parts(lang.rules, lang.rule_count as usize) }
+            .iter()
+            .map(|rule| ParseRule {
+                lhs: SymbolId(rule.lhs),
+                rhs_len: rule.rhs_len as u16,
             })
-        })
-        .collect();
+            .collect::<Vec<_>>()
+    } else {
+        grammar
+            .all_rules()
+            .map(|rule| ParseRule {
+                lhs: rule.lhs,
+                rhs_len: rule.rhs.len() as u16,
+            })
+            .collect::<Vec<_>>()
+    };
 
     for rule in &mut rules {
         if (rule.lhs.0 as usize) < index_to_symbol.len() {
@@ -449,9 +447,13 @@ fn decode_small_action(lang: &TSLanguage, action_index: usize, rules_len: usize)
     let action = if action_index == 0xFFFF {
         Action::Accept
     } else if action_index & 0x8000 != 0 {
-        let encoded_rule_id = (action_index & 0x7FFF) - 1;
-        mapped_production_id(lang, encoded_rule_id, rules_len)
-            .map(|production_id| Action::Reduce(RuleId(production_id)))?
+        let encoded_rule_id = (action_index & 0x7FFF).checked_sub(1)?;
+        if encoded_rule_id >= rules_len || encoded_rule_id >= lang.rule_count as usize {
+            return None;
+        }
+        // Validate the relation, but retain syntax identity in reductions.
+        lang.production_for_rule(encoded_rule_id)?;
+        Action::Reduce(RuleId(encoded_rule_id as u16))
     } else {
         Action::Shift(StateId(action_index as u16))
     };
@@ -505,11 +507,9 @@ fn decode_eof_symbol(lang: &TSLanguage, index_to_symbol: &[SymbolId]) -> SymbolI
 
 fn build_field_map(grammar: &adze_ir::Grammar) -> BTreeMap<(RuleId, u16), u16> {
     let mut field_map = BTreeMap::new();
-    for rules_vec in grammar.rules.values() {
-        for rule in rules_vec {
-            for (fid, pos) in &rule.fields {
-                field_map.insert((RuleId(rule.production_id.0), *pos as u16), fid.0);
-            }
+    for (rule_index, rule) in grammar.all_rules().enumerate() {
+        for (fid, pos) in &rule.fields {
+            field_map.insert((RuleId(rule_index as u16), *pos as u16), fid.0);
         }
     }
     field_map
@@ -669,27 +669,5 @@ pub(super) fn decode_action(
             // Unknown action type // Expected: V for Recover
             Action::Error
         }
-    }
-}
-
-fn mapped_production_id(
-    lang: &TSLanguage,
-    encoded_rule_id: usize,
-    production_count: usize,
-) -> Option<u16> {
-    let production_id = if !lang.production_id_map.is_null()
-        && encoded_rule_id < lang.production_id_count as usize
-    {
-        // SAFETY: `encoded_rule_id` is bounded by `production_id_count`, and
-        // TSLanguage production_id_map contains one entry per production slot.
-        unsafe { *lang.production_id_map.add(encoded_rule_id) }
-    } else {
-        u16::try_from(encoded_rule_id).ok()?
-    };
-
-    if production_id == u16::MAX || production_id as usize >= production_count {
-        None
-    } else {
-        Some(production_id)
     }
 }

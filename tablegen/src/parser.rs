@@ -271,7 +271,7 @@ impl Parser {
     }
 
     fn production_id_map_slice(&self) -> Result<&[u16], String> {
-        let len = self.language.production_id_count as usize;
+        let len = self.language.rule_count as usize;
         if len == 0 {
             return Ok(&[]);
         }
@@ -353,7 +353,21 @@ mod tests {
             production_lhs_index: std::ptr::null(),
             production_count: 0,
             eof_symbol: 0,
+            rules: std::ptr::null(),
+            rule_count: 0,
         }
+    }
+
+    #[test]
+    fn test_production_map_slice_uses_rule_count_for_sparse_and_shared_metadata() {
+        static MAP: [u16; 6] = [5, 0, 0, 99, 99, 99];
+        let mut language = null_language();
+        language.production_id_count = 6;
+        language.production_id_map = MAP.as_ptr();
+        language.rule_count = 3;
+        let language = Box::leak(Box::new(language));
+        let parser = Parser::new(language);
+        assert_eq!(parser.production_id_map_slice().unwrap(), &[5, 0, 0]);
     }
 
     #[test]
