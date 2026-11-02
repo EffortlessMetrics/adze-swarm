@@ -850,8 +850,10 @@ mod tests2 {
     fn test_suggest_recovery_stale_column_index_is_skipped() {
         // Corrupt table: column index in the symbol map exceeds the row width.
         // The stale entry is skipped instead of panicking.
-        let mut table = ParseTable::default();
-        table.action_table = vec![vec![]];
+        let mut table = ParseTable {
+            action_table: vec![vec![]],
+            ..ParseTable::default()
+        };
         table.symbol_to_index.insert(SymbolId(1), 3);
         let grammar = Grammar::new("test".to_string());
         let mut state = ErrorRecoveryState::new(ErrorRecoveryConfig::default());
