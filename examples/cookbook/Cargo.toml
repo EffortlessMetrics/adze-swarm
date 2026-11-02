@@ -1,0 +1,21 @@
+[package]
+name = "adze-cookbook"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95.0"
+publish = false
+
+# Detached from the parent workspace (same pattern as test-example/):
+# this keeps the cookbook runnable without touching workspace manifests.
+[workspace]
+
+[dependencies]
+adze = { path = "../../runtime", default-features = false }
+
+[build-dependencies]
+adze-tool = { path = "../../tool" }
+
+[features]
+default = ["pure-rust"]
+pure-rust = ["adze/pure-rust"]
+serialization = ["adze/serialization"]
