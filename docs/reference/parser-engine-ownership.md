@@ -54,7 +54,7 @@ Rules:
 | `glr_streaming_runtime` | canonical adapter | Lex-mode preparation, forest materialization, native error projection for the streaming driver. |
 | `glr_parser::GLRParser` + `glr_lexer` | legacy adapter | Only the `LegacyGlrWithoutLexFn` route (synthetic languages without a generated lexer). Not a generated production route; retirement owner #897 once lex-fn-less callers are gone or explicitly gated. |
 | `parser_v4` (`parser` alias) | adapter / document-tree substrate | Supplies `ParseNode` conversion and document materialization. Its conflict path already refuses ordered first-success fallback; it does not own generated dispatch. The "main GLR parser" wording for it is retired. |
-| `parser_v2`, `parser_v3`, `glr` (legacy), `incremental`, `incremental_v2`, `incremental_v3` | deleted (see #897) | Modules removed by the #897 legacy deletion; they had no production generated caller. Non-claim: not supported engines. |
+| `parser_v2`, `parser_v3`, `glr` (legacy), `incremental`, `incremental_v2`, `incremental_v3`, `parallel_parser` | deleted (see #897) | Modules and the former `legacy-parsers` feature were removed by the #897 retirement. These are historical entries, not available engines. |
 | `pure_incremental`, `glr_incremental`, `unified_parser` | experimental adapters | Incremental/reparse helpers; not selected by the generated dispatch. |
 | `parser_selection` / `adze_bdd_governance_core::ParserBackend` | governance/reporting shim | Describes feature profiles for BDD governance. It no longer selects the generated engine; the table-derived dispatch above does. |
 | `runtime2/` | experimental, dev-only | Proving ground. Non-claim: not a production runtime, not promoted by this map. |
@@ -63,14 +63,18 @@ Rules:
 
 ## Remaining retirement debt (#897)
 
+The legacy modules listed as deleted above, including `parallel_parser`, and
+the `legacy-parsers` feature have been removed. They are no longer remaining
+retirement work. The following boundaries remain:
+
 - `LegacyGlrWithoutLexFn` (`glr_parser`/`glr_lexer`) remains for
   lex-fn-less synthetic languages. It is explicitly dispatched, never
   a silent fallback, but it is a second GLR implementation: #897 owns
   deleting or feature-gating it when its callers are migrated.
 - `parser_v4` remains as the document/`ParseNode` substrate. Deleting
   it is not dispatch work; #897 owns any further consolidation.
-- Legacy feature-gated parsers and `runtime2` keep their non-claims
-  above; nothing here promotes them.
+- `runtime2` remains an experimental, dev-only proving ground. Its non-claim
+  above remains in effect; this retirement does not promote it.
 
 ## Proof
 
