@@ -2,8 +2,18 @@ schema_version = "0.3"
 
 # Semantic allowlist for panic-family debt.
 #
-# Identity = (path, family, selector).
-# `last_seen` is advisory only and updated by `cargo xtask no-panic-propose`.
+# Identity = full key (path, family, kind, container, callee,
+# receiver_fingerprint). Line/column drift does not invalidate an entry;
+# every other field does. A receipt for one call shape never authorizes a
+# second distinct call.
+#
+# Mode contract (enforced by `cargo xtask check-no-panic-family --mode ..`):
+#   advisory          — report everything, fail only on unreadable/unparseable
+#                       files or an empty production denominator.
+#   blocking-allowlist— fail on unallowlisted findings; stale/expired entries
+#                       are REPORTED ONLY, not enforced.
+#   blocking-strict   — fail on unallowlisted, stale, or expired entries.
+# Scan-integrity failures (failed files, empty denominator) fail every mode.
 #
 # Every entry must specify:
 #   * `id`             — stable identifier (`panic-NNNN`)
@@ -18,10 +28,16 @@ schema_version = "0.3"
 #   * `expires`        — ISO date; the checker fails on expired entries
 #
 # The selector identifies the *call shape* and survives line/column drift.
-#   selector.kind = "method_call" | "macro_call" | "index_expr" | "slice_expr"
+#   selector.kind = "method_call" | "qualified_call" | "macro_call" |
+#                   "index_expr" | "slice_expr"
 #   selector.container = enclosing fn / impl / mod path
-#   selector.callee = method name or macro name
-#   selector.receiver_fingerprint = optional textual fingerprint (advisory)
+#   selector.callee = method or macro name ("[]" for index/slice)
+#   selector.receiver_fingerprint = textual receiver fingerprint for method
+#                   calls (load-bearing: None never matches Some(..)).
+#
+# Known false-positive class (classify, do not suppress): `[]` on
+# `serde_json::Value` never panics (missing key yields Null); the scanner
+# has no type info and still reports it as `indexing`.
 #
 # Add new exceptions only via `cargo xtask no-panic-propose` and review.
 
