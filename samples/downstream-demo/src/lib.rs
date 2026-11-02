@@ -517,6 +517,7 @@ mod child_edge_bounds_tests {
         assert_eq!(child.utf8_text().unwrap(), "17");
         assert_eq!(child.parent().unwrap().node_id(), root.node_id());
         assert!(root.child_edge(root.child_count()).is_none());
+        assert!(root.child_edge(usize::MAX).is_none());
     }
 
     #[test]
@@ -525,11 +526,15 @@ mod child_edge_bounds_tests {
         assert_eq!(document.outcome(), adze::document::ParseOutcome::Complete);
         assert!(document.diagnostics().is_empty());
         let leaf = (1..document.tree().node_count())
-            .map(|index| document.tree().node(adze::document::NodeId::new(index)).unwrap())
+            .map(|index| {
+                document
+                    .tree()
+                    .node(adze::document::NodeId::new(index))
+                    .unwrap()
+            })
             .find(|node| node.child_count() == 0 && node.byte_range() == (0..2))
             .expect("real non-root lexical leaf");
         assert!(leaf.child_edge(leaf.child_count()).is_none());
         assert!(leaf.child_edge(usize::MAX).is_none());
     }
 }
-
