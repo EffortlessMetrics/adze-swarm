@@ -79,11 +79,10 @@ First `adze parse` compiles a temporary runner and may look hung on Windows;
 wait for the `compiling temporary parse runner` line. Color/emoji output may
 render as boxes in older consoles. Grammar discovery matches `*grammar*.rs`.
 
-Dynamic parse mode is a separate experimental boundary. `adze parse --dynamic`
-requires building `adze-cli` with `--features dynamic`; with that feature it can
-attempt to load a shared-library symbol, but dynamic parse output is not
-implemented or supported yet. See the dynamic-loading guide for the current
-non-claim boundary.
+Dynamic parse mode is unavailable in 0.10.0. `adze parse --dynamic` fails
+immediately without loading any shared library; parse statically with
+`adze parse <grammar.rs> <input>` instead. See the dynamic-loading guide for
+the current non-claim boundary.
 
 ## License
 

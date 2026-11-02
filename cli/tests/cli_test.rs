@@ -1602,15 +1602,19 @@ fn test_parse_help_documents_available_modes() {
         .stdout(predicate::str::contains("tree-json"))
         .stdout(predicate::str::contains("diagnostics-json"))
         .stdout(predicate::str::contains("ambiguity-json"))
-        .stdout(predicate::str::contains("experimental"));
+        .stdout(predicate::str::contains("unavailable"))
+        .stdout(predicate::str::contains("experimental load-check").not());
 }
 
-#[cfg(not(feature = "dynamic"))]
 #[test]
-fn test_parse_dynamic_without_feature_reports_feature_gate() {
+fn test_parse_dynamic_rejected_before_loading_any_library() {
+    // Both files exist, so the failure must be the capability rejection
+    // itself: no library is loaded and no resolved symbol is ever called,
+    // with or without the `dynamic` feature enabled.
     let temp = tempfile::tempdir().expect("tempdir");
     let grammar = temp.path().join("grammar.so");
     let input = temp.path().join("input.txt");
+    std::fs::write(&grammar, "not a shared library").expect("write grammar");
     std::fs::write(&input, "1").expect("write input");
 
     let mut cmd = cargo_bin_cmd!("adze");
@@ -1621,28 +1625,11 @@ fn test_parse_dynamic_without_feature_reports_feature_gate() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "requires building adze-cli with --features dynamic",
+            "Dynamic parse mode is unavailable",
         ))
-        .stderr(predicate::str::contains("currently unimplemented").not());
-}
-
-#[cfg(feature = "dynamic")]
-#[test]
-fn test_parse_dynamic_with_feature_reports_missing_grammar_before_output_boundary() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    let grammar = temp.path().join("missing-grammar.so");
-    let input = temp.path().join("input.txt");
-    std::fs::write(&input, "1").expect("write input");
-
-    let mut cmd = cargo_bin_cmd!("adze");
-    cmd.arg("parse")
-        .arg(&grammar)
-        .arg(&input)
-        .arg("--dynamic")
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("dynamic grammar not found"))
-        .stderr(predicate::str::contains("currently unimplemented").not());
+        .stderr(predicate::str::contains("no grammar library was loaded"))
+        .stderr(predicate::str::contains("currently unimplemented").not())
+        .stderr(predicate::str::contains("dynamic grammar not found").not());
 }
 
 #[test]
