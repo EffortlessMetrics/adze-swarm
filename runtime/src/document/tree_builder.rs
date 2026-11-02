@@ -191,6 +191,7 @@ mod tests {
             name: "index-test".to_string(),
             symbols: Vec::new(),
             fields: fields.iter().map(ToString::to_string).collect(),
+            field_semantics: Default::default(),
         }
     }
 
