@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(dirname "${BASH_SOURCE[0]}")/lib/required-test-output.sh"
 DRY_RUN=false
 if [[ "${1:-}" == "--dry-run" ]]; then
   DRY_RUN=true
+fi
+
+if [[ "$DRY_RUN" != true ]]; then
+  canary_stderr="$(mktemp "${TMPDIR:-/tmp}/adze-stable-stderr.XXXXXX")"
+  trap 'rm -f -- "$canary_stderr"' EXIT
 fi
 
 # Stable product canaries map to README Stable claims only.
@@ -42,15 +48,14 @@ for entry in "${CANARIES[@]}"; do
     continue
   fi
 
-  # Capture each canary's output (#995 G1b): a filter that matches
-  # nothing still exits 0 ("running 0 tests"), which must not count
-  # as proof. Tolerate auxiliary zero-test targets inside healthy
-  # multi-target canaries; fail only when nothing executed at all.
+  # Preserve the process exit status and keep stdout separate: stderr
+  # alone cannot satisfy the downstream binary's stdout contract.
   set +e
-  canary_output="$(eval "$cmd" 2>&1)"
+  canary_output="$(eval "$cmd" 2>"$canary_stderr")"
   canary_status=$?
   set -e
   printf '%s\n' "$canary_output"
+  cat "$canary_stderr" >&2
   if [[ $canary_status -ne 0 ]]; then
     printf '  -> FAIL (exit %s)\n' "$canary_status"
     exit 1
@@ -61,14 +66,7 @@ for entry in "${CANARIES[@]}"; do
       exit 1
     fi
   else
-    if ! grep -q "test result: ok" <<<"$canary_output"; then
-      printf '  -> FAIL (missing "test result: ok")\n'
-      exit 1
-    fi
-    if ! grep -Eq "running [1-9][0-9]* tests?" <<<"$canary_output"; then
-      printf '  -> FAIL (canary executed 0 tests)\n'
-      exit 1
-    fi
+    required_test_output "$canary_output" "$label"
   fi
   printf '  -> PASS\n'
 done

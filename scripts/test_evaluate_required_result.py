@@ -149,12 +149,42 @@ class WorkflowWiring(unittest.TestCase):
         match = re.search(r"\n  (?=\S)", rest[5:])
         return rest if match is None else rest[: match.start() + 5]
 
-    def test_zero_test_guards_present(self) -> None:
-        for name in ("scripts/ci-product-stable.sh", "scripts/ci-supported.sh"):
-            with self.subTest(script=name):
-                text = (ROOT / name).read_text(encoding="utf-8")
-                self.assertIn("test result: ok", text)
-                self.assertIn("running [1-9]", text)
+    def test_shared_guard_change_selects_stable_product_lane(self) -> None:
+        import tempfile
+        import textwrap
+
+        text = (ROOT / ".github/workflows/product-proof.yml").read_text(encoding="utf-8")
+        paths = text.split("  STABLE_PRODUCT_PATHS: |\n", 1)[1].split("\nconcurrency:", 1)[0]
+        block = self._job_block(".github/workflows/product-proof.yml", "detect-stable-product-paths")
+        detector = textwrap.dedent(block.split("        run: |\n", 1)[1])
+        with tempfile.TemporaryDirectory(prefix="adze-required-detector-") as directory:
+            repo = Path(directory)
+            def git(*args: str) -> str:
+                return subprocess.check_output(
+                    ["git", "-c", "user.name=Guard fixture", "-c", "user.email=fixture@example.invalid", *args],
+                    cwd=repo, text=True, stderr=subprocess.PIPE,
+                ).strip()
+            git("init", "--quiet")
+            (repo / "README.md").write_text("fixture\n", encoding="utf-8")
+            git("add", ".")
+            git("commit", "--quiet", "-m", "base")
+            base = git("rev-parse", "HEAD")
+            helper = repo / "scripts/lib/required-test-output.sh"
+            helper.parent.mkdir(parents=True)
+            helper.write_text("# changed guard\n", encoding="utf-8")
+            git("add", ".")
+            git("commit", "--quiet", "-m", "helper-only change")
+            output = repo / "outputs"
+            result = subprocess.run(
+                ["bash", "-euo", "pipefail", "-c", detector], cwd=repo,
+                env={**os.environ, "EVENT_NAME": "merge_group", "MERGE_GROUP_BASE_SHA": base,
+                     "MERGE_GROUP_HEAD_SHA": git("rev-parse", "HEAD"), "PR_BASE_SHA": "", "PR_HEAD_SHA": "",
+                     "STABLE_PRODUCT_PATHS": textwrap.dedent(paths), "GITHUB_OUTPUT": str(output)},
+                capture_output=True, text=True,
+            )
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertIn("run_stable=true", output.read_text(encoding="utf-8"))
+            self.assertIn("reason=stable_surface:scripts/lib/required-test-output.sh", output.read_text(encoding="utf-8"))
 
     def test_ready_for_review_triggers_both_workflows(self) -> None:
         import re
