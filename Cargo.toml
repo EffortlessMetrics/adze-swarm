@@ -86,6 +86,7 @@ rayon = "1.10"
 rustc-hash = "2.1"
 smallvec = "1.13"
 regex = "1.11"
+sha2 = "0.10"
 
 [profile.ci]
 inherits = "dev"

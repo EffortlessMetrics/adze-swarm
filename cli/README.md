@@ -73,6 +73,41 @@ Format map: `tree` renders the document tree; `json` prints the full
 selected tree; `document-json`/`tree-json`/`diagnostics-json`/`ambiguity-json`
 emit the named projection verbatim. `--format` and `--output` are aliases.
 
+## Static runner cache
+
+The first parse of a grammar compiles a dedicated runner; later parses of
+the same build reuse the cached binary directly with no Cargo invocation,
+and different input text always parses fresh. Only compiled runners are
+cached, never parse results, and cached output is byte-identical to an
+uncached build (progress chatter goes to stderr; document output owns
+stdout).
+
+The cache key is a content hash over the full build identity: grammar bytes
+plus reachable sibling modules/includes, the rendered runner project,
+dependency sources (in-workspace `path =` trees are hashed recursively;
+published installs key version requirements and expire), the toolchain and
+target, profile, feature set, and relevant build environment. Grammar mtime
+alone never identifies an executable. Anything outside that envelope —
+dynamic `include!` arguments, unresolvable modules, unreadable inputs, or an
+unusable toolchain fingerprint — falls back to a fresh temporary build with
+correct output instead of a silent stale reuse. The private runner transport
+contract is still the current document-projection shape; issue #1066 owns
+its versioning, and the cache records a protocol version that a future #1066
+contract must bump.
+
+```bash
+adze parse src/grammar.rs input.txt          # cold: builds once, then reuses
+ADZE_RUNNER_CACHE=off adze parse src/grammar.rs input.txt   # always rebuild
+ADZE_RUNNER_CACHE_DIR=/path/to/dir adze parse src/grammar.rs input.txt
+```
+
+Entries live under `ADZE_RUNNER_CACHE_DIR` (default: a per-user temp
+directory), are published atomically so concurrent parses never observe
+partial artifacts, expire after 7 days, and are bounded to 32 entries by
+default (`ADZE_RUNNER_CACHE_MAX_ENTRIES`). Cleanup only removes
+cache-owned entries and never touches another invocation's staging or
+unrelated files.
+
 ## Windows notes
 
 First `adze parse` compiles a temporary runner and may look hung on Windows;

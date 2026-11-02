@@ -26,7 +26,7 @@ dynamic = ["libloading"]
 clap.workspace = true
 adze-tool = { version = "0.10.0", path = "../tool" }
 serde_json.workspace = true
-syn.workspace = true
+syn = { workspace = true, features = ["visit"] }
 colored = "3.0"
 anyhow.workspace = true
 env_logger = "0.11"
@@ -34,6 +34,7 @@ log = "0.4"
 walkdir = "2.5"
 notify = "8"
 tempfile.workspace = true
+sha2.workspace = true
 libloading = { version = "0.8", optional = true }
 
 [dev-dependencies]

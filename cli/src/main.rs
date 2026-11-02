@@ -8,6 +8,7 @@ use std::process::Command;
 use walkdir::WalkDir;
 
 mod grammar_analysis;
+mod runner_cache;
 
 use grammar_analysis::analyze_grammar_file;
 
@@ -938,43 +939,116 @@ fn run_static_parse_runner(grammar: &Path, input: &Path, output_format: &str) ->
     }
 
     let module = single_top_level_grammar_module(&grammar)?;
+    let spec = runner_cache::RunnerSpec {
+        grammar: &grammar,
+        module: &module,
+        cargo_toml: parse_runner_cargo_toml()?,
+        build_rs: parse_runner_build_rs(&grammar),
+        main_rs: parse_runner_main_rs(&grammar, &module),
+    };
+
+    // A verified hit executes the cached binary directly: no Cargo
+    // invocation, and different input text still parses fresh.
+    if let Some(executable) = runner_cache::lookup(&spec) {
+        let started = std::time::Instant::now();
+        let output = run_runner_executable(&executable, &input, output_format, &grammar)?;
+        log::debug!(
+            "cached parse runner hit {} in {:?}",
+            executable.display(),
+            started.elapsed()
+        );
+        return Ok(output);
+    }
+
+    eprintln!("compiling parse runner (first run may take a while; cached afterwards)...");
+    let started = std::time::Instant::now();
+    let executable = match runner_cache::build_cached(&spec) {
+        Ok(runner_cache::CachedBuild::Ready(executable)) => executable,
+        Ok(runner_cache::CachedBuild::Unavailable) => {
+            return run_static_parse_runner_uncached(&spec, &input, output_format);
+        }
+        Err(error) => {
+            if let Some(failed) = error.downcast_ref::<runner_cache::CargoFailed>() {
+                return Err(static_parse_runner_error(
+                    &grammar,
+                    failed.status,
+                    &failed.stdout,
+                    &failed.stderr,
+                ));
+            }
+            return Err(error);
+        }
+    };
+    log::debug!("parse runner build finished in {:?}", started.elapsed());
+    run_runner_executable(&executable, &input, output_format, &grammar)
+}
+
+/// Execute an already-built runner binary with the requested input.
+///
+/// The argv/env contract matches the legacy `cargo run` path exactly (input
+/// path, output format, `ADZE_USE_PURE_RUST=1`), so cached and uncached runs
+/// produce identical results; only the build step is skipped.
+fn run_runner_executable(
+    executable: &Path,
+    input: &Path,
+    output_format: &str,
+    grammar: &Path,
+) -> Result<String> {
+    let output = Command::new(executable)
+        .arg(input)
+        .arg(output_format)
+        .env("ADZE_USE_PURE_RUST", "1")
+        .output()?;
+    interpret_runner_output(grammar, output.status, &output.stdout, &output.stderr)
+}
+
+/// Interpret a finished runner process, cached or freshly built.
+fn interpret_runner_output(
+    grammar: &Path,
+    status: std::process::ExitStatus,
+    stdout: &[u8],
+    stderr: &[u8],
+) -> Result<String> {
+    if !status.success() {
+        return Err(static_parse_runner_error(grammar, status, stdout, stderr));
+    }
+
+    Ok(String::from_utf8_lossy(stdout).into_owned())
+}
+
+/// Legacy path: fresh temporary Cargo project plus `cargo run`.
+///
+/// Used when the runner cache is disabled, the grammar falls outside the
+/// safe reuse envelope, or a cache race is lost. Output and diagnostics are
+/// identical to the cached path; only the build is never reused.
+fn run_static_parse_runner_uncached(
+    spec: &runner_cache::RunnerSpec<'_>,
+    input: &Path,
+    output_format: &str,
+) -> Result<String> {
     let runner = tempfile::tempdir()?;
     let src_dir = runner.path().join("src");
     fs::create_dir_all(&src_dir)?;
-    fs::write(runner.path().join("Cargo.toml"), parse_runner_cargo_toml()?)?;
-    fs::write(
-        runner.path().join("build.rs"),
-        parse_runner_build_rs(&grammar),
-    )?;
-    fs::write(
-        src_dir.join("main.rs"),
-        parse_runner_main_rs(&grammar, &module),
-    )?;
+    fs::write(runner.path().join("Cargo.toml"), &spec.cargo_toml)?;
+    fs::write(runner.path().join("build.rs"), &spec.build_rs)?;
+    fs::write(src_dir.join("main.rs"), &spec.main_rs)?;
 
     let output = {
-        println!("compiling temporary parse runner (first run may take a while)...");
+        eprintln!("compiling temporary parse runner (first run may take a while)...");
+        runner_cache::note_cargo_spawn();
         Command::new("cargo")
             .arg("run")
             .arg("--quiet")
             .arg("--manifest-path")
             .arg(runner.path().join("Cargo.toml"))
             .arg("--")
-            .arg(&input)
+            .arg(input)
             .arg(output_format)
             .env("ADZE_USE_PURE_RUST", "1")
             .output()?
     };
 
-    if !output.status.success() {
-        return Err(static_parse_runner_error(
-            &grammar,
-            output.status,
-            &output.stdout,
-            &output.stderr,
-        ));
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    interpret_runner_output(spec.grammar, output.status, &output.stdout, &output.stderr)
 }
 
 /// Build the top-level error for a failed temporary parse runner.
