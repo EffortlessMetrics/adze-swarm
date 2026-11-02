@@ -143,6 +143,43 @@ fn test_recovered_selected_field_path_reports_incomplete() {
     assert!(syntax::SourceFile::cast(&document, id).is_none());
 }
 
+mod aliased {
+    const GRAMMAR_NAME: &str = "schema_hidden_alias_consumer";
+    include!(concat!(env!("OUT_DIR"), "/generated_alias.rs"));
+}
+#[test]
+fn test_optional_target_keeps_grammar_identity_under_visible_alias() {
+    use adze::document::SyntaxNode;
+    let document = aliased::parse_document("x ").unwrap();
+    let root = aliased::syntax::source_file(&document).unwrap();
+    let separators = root.value_sep();
+    assert_eq!(separators.len(), 1);
+    let separator = separators[0].node().unwrap();
+    assert_eq!(separator.grammar_id().0, 2);
+    eprintln!(
+        "native LR alias witness: visible={:?} grammar={:?} visible_name={:?}; registered alias={:?}",
+        separator.kind_id(),
+        separator.grammar_id(),
+        separator.kind_name(),
+        document
+            .language()
+            .symbols()
+            .iter()
+            .find(|kind| kind.symbol_id().0 == 3)
+            .map(|kind| kind.name())
+    );
+    assert_eq!(separator.kind_name(), Some("gap"));
+    assert_ne!(separator.kind_id(), separator.grammar_id());
+    assert_eq!(separators[0].text(), Some(" "));
+    assert_eq!(separators[0].byte_range(), Some(1..2));
+    let selected = document
+        .field_projection_view(root.node_id(), &["value"])
+        .unwrap()
+        .nodes("value")
+        .find(|target| target.grammar_id().map(|id| id.0) == Some(2))
+        .unwrap();
+    assert_eq!(selected.node_id(), separators[0].node_id());
+}
 #[test]
 fn test_projection_transport_rejects_bad_version_slot_and_carrier_alternative() {
     use adze::generated_schema::{GeneratedLanguageDescriptorV2, GeneratedSchemaError};

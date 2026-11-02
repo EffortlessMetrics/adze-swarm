@@ -41,6 +41,37 @@ fn main() {
     });
     // Exercise the helper-mediated target that the old raw-RHS walk missed.
     grammar.normalize();
+    let mut aliased = grammar.clone();
+    aliased.name = "schema_hidden_alias_consumer".into();
+    // The current native alias ABI refers to a registered symbol identity.
+    // This token is never licensed by a parser action; it supplies only the
+    // independently declared visible alias kind.
+    aliased.tokens.insert(
+        SymbolId(3),
+        Token {
+            name: "gap".into(),
+            pattern: TokenPattern::String("unused_alias".into()),
+            fragile: false,
+        },
+    );
+    let (&helper, origin) = aliased.optional_origins.iter().next().unwrap();
+    let present_production = aliased.rules[&helper][origin.present_alternative].production_id;
+    aliased.alias_sequences.insert(
+        present_production,
+        adze_ir::AliasSequence {
+            aliases: vec![Some("gap".into())],
+        },
+    );
+    let alias_result = adze_tool::pure_rust_builder::build_parser(
+        aliased,
+        adze_tool::pure_rust_builder::BuildOptions::default(),
+    )
+    .expect("same canonical optional origin with a visible alias");
+    std::fs::write(
+        std::path::Path::new(&std::env::var("OUT_DIR").unwrap()).join("generated_alias.rs"),
+        alias_result.parser_code,
+    )
+    .unwrap();
     let result = adze_tool::pure_rust_builder::build_parser(
         grammar,
         adze_tool::pure_rust_builder::BuildOptions::default(),
