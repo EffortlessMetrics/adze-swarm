@@ -2442,19 +2442,13 @@ mod tests {
         assert_eq!(stack.version.dynamic_prec, 5); // 3 + 2
     }
 
-    /// Determinism probe for #1031: repeated ambiguous parses through the
-    /// runtime consumer route must select the identical winner and expose
-    /// identical alternative identities.
-    ///
-    /// The `glr-core` tie-break rules are owned by another lane; this probe
-    /// covers only the `glr_parser.rs` consumer side (`finish`,
-    /// `finish_all_alternatives`, `finish_ambiguity_summary`): pointer-keyed
-    /// worklist/dedup maps, first-writer-wins retention and iteration order
-    /// must not surface allocation- or hash-dependent facts to callers.
-    /// Identity is compared structurally (never by pointer), so any
-    /// address-allocation or cross-run variation fails this test.
+    /// #1031 regression for one manually tokenized ambiguous arithmetic fixture.
+    /// Pin both exact trees and the selected summary before comparing 25 fresh
+    /// parses. This exercises GLRParser's finish APIs; generated lexing,
+    /// document/streaming projections and clean-after-failure remain separate
+    /// acceptance rows rather than claims established by this probe.
     #[test]
-    fn glr_consumer_selection_stable_across_repeated_ambiguous_parses() {
+    fn test_glr_consumer_selection_repeated_ambiguous_parses_stable() {
         use adze_glr_core::{FirstFollowSets, build_lr1_automaton};
         use adze_ir::{ProductionId, Rule, Symbol, Token, TokenPattern};
 
@@ -2516,8 +2510,94 @@ mod tests {
         ];
         let input_len = 5;
 
-        let mut fingerprints = Vec::new();
-        for _ in 0..25 {
+        // Build the two mathematical parses independently of parser output.
+        fn node(
+            symbol: u16,
+            start: usize,
+            end: usize,
+            children: Vec<Arc<Subtree>>,
+        ) -> Arc<Subtree> {
+            Arc::new(Subtree::new(
+                SubtreeNode {
+                    symbol_id: SymbolId(symbol),
+                    is_error: false,
+                    byte_range: start..end,
+                },
+                children,
+            ))
+        }
+        fn number(start: usize) -> Arc<Subtree> {
+            node(
+                10,
+                start,
+                start + 1,
+                vec![node(1, start, start + 1, vec![])],
+            )
+        }
+        fn plus(start: usize) -> Arc<Subtree> {
+            node(2, start, start + 1, vec![])
+        }
+        fn assert_tree(actual: &Subtree, expected: &Subtree) {
+            assert_eq!(actual.node.symbol_id, expected.node.symbol_id);
+            assert_eq!(actual.node.byte_range, expected.node.byte_range);
+            assert!(!actual.node.is_error);
+            assert_eq!(actual.dynamic_prec, 0);
+            assert_eq!(actual.children.len(), expected.children.len());
+            for (actual, expected) in actual.children.iter().zip(&expected.children) {
+                assert_eq!(actual.field_id, crate::subtree::FIELD_NONE);
+                assert_tree(&actual.subtree, &expected.subtree);
+            }
+        }
+        let right_associated = node(
+            10,
+            0,
+            5,
+            vec![
+                number(0),
+                plus(1),
+                node(10, 2, 5, vec![number(2), plus(3), number(4)]),
+            ],
+        );
+        let left_associated = node(
+            10,
+            0,
+            5,
+            vec![
+                node(10, 0, 3, vec![number(0), plus(1), number(2)]),
+                plus(3),
+                number(4),
+            ],
+        );
+        // Structural order compares the first expression child's end: 1 < 3.
+        // This pins a fixture's stable tie-break, not a language associativity rule.
+        let expected_trees = [right_associated, left_associated];
+        let expected_keys: Vec<_> = expected_trees
+            .iter()
+            .map(|tree| subtree_selection_key(tree))
+            .collect();
+        assert!(
+            expected_keys[0] < expected_keys[1],
+            "the two exact trees must remain distinct"
+        );
+        // Three number/token pairs, two operator leaves and two additions: ten nodes.
+        let expected_summary = AmbiguitySummary {
+            span: 0..5,
+            selected: Some(0),
+            selection_reason: SelectionReason::StableStructuralTieBreak,
+            alternatives: (0..2)
+                .map(|index| AlternativeSummary {
+                    index,
+                    root_symbol: SymbolId(10),
+                    span: 0..5,
+                    dynamic_precedence: 0,
+                    in_error: false,
+                    cost: 0,
+                    node_count: 10,
+                })
+                .collect(),
+        };
+
+        for run in 0..25 {
             let grammar = ambiguous_grammar();
             let first_follow = FirstFollowSets::compute(&grammar).expect("fixture FIRST/FOLLOW");
             let parse_table =
@@ -2527,12 +2607,11 @@ mod tests {
                 parser.process_token(*symbol, text, *offset);
             }
             parser.process_eof(input_len);
-
             let winner = parser.finish().expect("ambiguous parse should succeed");
             let winner_key = subtree_selection_key(&winner);
             let alternatives = parser
                 .finish_all_alternatives()
-                .expect("ambiguous parse should retain alternatives");
+                .expect("retain both arithmetic parses");
             let alternative_keys: Vec<_> = alternatives
                 .iter()
                 .map(|tree| subtree_selection_key(tree))
@@ -2540,31 +2619,31 @@ mod tests {
             let summary = parser
                 .finish_ambiguity_summary()
                 .expect("ambiguity summary should not error");
-            fingerprints.push((winner_key, alternative_keys, summary));
-        }
 
-        let (first_winner, first_alternatives, first_summary) = &fingerprints[0];
-        assert!(
-            first_alternatives.len() > 1,
-            "probe requires a genuinely ambiguous parse, got {} alternative(s)",
-            first_alternatives.len()
-        );
-        assert!(
-            first_summary.is_some(),
-            "probe requires an ambiguity summary, got None"
-        );
-        for (run, (winner, alternatives, summary)) in fingerprints.iter().enumerate() {
             assert_eq!(
-                winner, first_winner,
-                "run {run} selected a structurally different winner"
+                alternative_keys, expected_keys,
+                "run {run}: exact canonical alternatives"
+            );
+            for (actual, expected) in alternatives.iter().zip(&expected_trees) {
+                assert_tree(actual, expected);
+            }
+            assert_tree(&winner, &expected_trees[0]);
+            assert_eq!(
+                winner_key, expected_keys[0],
+                "run {run}: independent winner"
             );
             assert_eq!(
-                alternatives, first_alternatives,
-                "run {run} retained different alternative identities"
+                summary.as_ref(),
+                Some(&expected_summary),
+                "run {run}: exact ambiguity metadata"
             );
+            let selected = summary
+                .unwrap()
+                .selected
+                .expect("selected alternative is known");
             assert_eq!(
-                summary, first_summary,
-                "run {run} reported a different ambiguity summary"
+                winner_key, alternative_keys[selected],
+                "run {run}: selected index identifies winner"
             );
         }
     }
