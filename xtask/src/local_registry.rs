@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs::{self, File};
-use std::io::{BufRead, Read, Write};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
@@ -56,7 +56,7 @@ pub struct IsolatedRegistry {
     index_dir: PathBuf,
     crate_dir: PathBuf,
     published: Vec<PublishedCrate>,
-    http_server: Option<Child>,
+    http_server: Option<HttpServer>,
 }
 
 impl IsolatedRegistry {
@@ -408,59 +408,475 @@ fn registry_config_json(dl_url: &str) -> String {
     format!("{{\"dl\":\"{dl_url}\",\"api\":null}}\n")
 }
 
-fn start_http_server(registry_root: &Path) -> Result<(Child, u16)> {
+const HTTP_STARTUP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const HTTP_READER_SETTLE: std::time::Duration = std::time::Duration::from_millis(100);
+const HTTP_PORT_LINE_LIMIT: usize = 64;
+const HTTP_STDERR_LIMIT: usize = 8192;
+
+#[derive(Clone, Copy)]
+struct ServerStartupLimits {
+    timeout: std::time::Duration,
+    port_line_bytes: usize,
+    stderr_bytes: usize,
+}
+
+impl Default for ServerStartupLimits {
+    fn default() -> Self {
+        Self {
+            timeout: HTTP_STARTUP_TIMEOUT,
+            port_line_bytes: HTTP_PORT_LINE_LIMIT,
+            stderr_bytes: HTTP_STDERR_LIMIT,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+struct ServerStderr {
+    bytes: Vec<u8>,
+    truncated: bool,
+    complete: bool,
+    read_error: Option<String>,
+}
+
+/// Owns the direct child from spawn through every startup/teardown path.
+/// Reader threads retain bounded storage and are never joined while blocked on
+/// pipes inherited by another process; cleanup owns only this child.
+struct HttpServer {
+    child: Child,
+    stderr: std::sync::Arc<std::sync::Mutex<ServerStderr>>,
+    readers: Vec<std::thread::JoinHandle<()>>,
+    stopped: bool,
+}
+
+#[derive(Debug)]
+enum ServerHandshake {
+    Line(Vec<u8>),
+    Oversized,
+    Eof,
+    ReadError(String),
+}
+
+#[derive(Debug)]
+enum ServerStartupProblem {
+    Exited,
+    PrematureEof,
+    Timeout,
+    MalformedPort(Vec<u8>),
+    OversizedPort,
+    ReadError(String),
+}
+
+impl std::fmt::Display for ServerStartupProblem {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Exited => formatter.write_str("child exited before startup completed"),
+            Self::PrematureEof => formatter.write_str("premature EOF before port line"),
+            Self::Timeout => formatter.write_str("timed out awaiting port line"),
+            Self::MalformedPort(line) => write!(
+                formatter,
+                "malformed port line {:?}",
+                String::from_utf8_lossy(line)
+            ),
+            Self::OversizedPort => formatter.write_str("oversized port line"),
+            Self::ReadError(error) => write!(formatter, "reading port line failed: {error}"),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ServerStartupError {
+    program: std::ffi::OsString,
+    pid: u32,
+    problem: ServerStartupProblem,
+    status: Option<std::process::ExitStatus>,
+    stderr: ServerStderr,
+    cleanup_error: Option<String>,
+}
+
+impl std::fmt::Display for ServerStartupError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "local registry server {:?} (pid {}) startup failed: {}; exit status: {:?}; stderr{}{}: {}",
+            self.program,
+            self.pid,
+            self.problem,
+            self.status,
+            if self.stderr.truncated {
+                " [truncated]"
+            } else {
+                ""
+            },
+            if !self.stderr.complete {
+                " [incomplete]"
+            } else {
+                ""
+            },
+            String::from_utf8_lossy(&self.stderr.bytes)
+        )?;
+        if let Some(error) = &self.stderr.read_error {
+            write!(formatter, "; stderr read error: {error}")?;
+        }
+        if let Some(error) = &self.cleanup_error {
+            write!(formatter, "; child cleanup error: {error}")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for ServerStartupError {}
+
+impl HttpServer {
+    fn new(
+        child: Child,
+        limits: ServerStartupLimits,
+    ) -> Result<(Self, std::sync::mpsc::Receiver<ServerHandshake>)> {
+        let mut server = Self {
+            child,
+            stderr: Default::default(),
+            readers: Vec::new(),
+            stopped: false,
+        };
+        let stdout = server
+            .child
+            .stdout
+            .take()
+            .context("missing registry child stdout pipe")?;
+        let stderr = server
+            .child
+            .stderr
+            .take()
+            .context("missing registry child stderr pipe")?;
+        let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+        server.readers.push(
+            std::thread::Builder::new()
+                .name("registry-stdout".into())
+                .spawn(move || {
+                    drain_server_stdout(stdout, sender, limits.port_line_bytes);
+                })
+                .context("starting registry stdout reader")?,
+        );
+        let captured = server.stderr.clone();
+        server.readers.push(
+            std::thread::Builder::new()
+                .name("registry-stderr".into())
+                .spawn(move || {
+                    drain_server_stderr(stderr, captured, limits.stderr_bytes);
+                })
+                .context("starting registry stderr reader")?,
+        );
+        Ok((server, receiver))
+    }
+
+    fn stop_and_reap(&mut self) -> (Option<std::process::ExitStatus>, Option<String>) {
+        if self.stopped {
+            return (None, None);
+        }
+        let mut errors = Vec::new();
+        match self.child.try_wait() {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                if let Err(error) = self.child.kill() {
+                    errors.push(format!("kill: {error}"));
+                }
+            }
+            Err(error) => {
+                errors.push(format!("try_wait: {error}"));
+                if let Err(error) = self.child.kill() {
+                    errors.push(format!("kill: {error}"));
+                }
+            }
+        }
+        let status = match self.child.wait() {
+            Ok(status) => Some(status),
+            Err(error) => {
+                errors.push(format!("wait: {error}"));
+                None
+            }
+        };
+        self.stopped = true;
+        // A descendant could hold either pipe open. Never turn bounded startup
+        // into an unbounded join; unfinished readers own no unbounded buffers.
+        let deadline = std::time::Instant::now() + HTTP_READER_SETTLE;
+        while self.readers.iter().any(|reader| !reader.is_finished())
+            && std::time::Instant::now() < deadline
+        {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        for reader in self.readers.drain(..) {
+            if reader.is_finished() {
+                let _ = reader.join();
+            }
+        }
+        (status, (!errors.is_empty()).then(|| errors.join("; ")))
+    }
+
+    fn startup_failure(
+        &mut self,
+        program: std::ffi::OsString,
+        problem: ServerStartupProblem,
+    ) -> anyhow::Error {
+        let pid = self.child.id();
+        let (status, cleanup_error) = self.stop_and_reap();
+        let stderr = self
+            .stderr
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .clone();
+        ServerStartupError {
+            program,
+            pid,
+            problem,
+            status,
+            stderr,
+            cleanup_error,
+        }
+        .into()
+    }
+}
+
+impl Drop for HttpServer {
+    fn drop(&mut self) {
+        self.stop_and_reap();
+    }
+}
+
+fn drain_server_stdout(
+    mut stdout: impl Read,
+    sender: std::sync::mpsc::SyncSender<ServerHandshake>,
+    limit: usize,
+) {
+    let mut line = Vec::new();
+    let mut pending = true;
+    let mut buffer = [0u8; 1024];
+    loop {
+        match stdout.read(&mut buffer) {
+            Ok(0) => {
+                if pending {
+                    let _ = sender.try_send(ServerHandshake::Eof);
+                }
+                return;
+            }
+            Ok(count) if pending => {
+                for byte in &buffer[..count] {
+                    if *byte == b'\n' {
+                        let _ = sender.try_send(ServerHandshake::Line(std::mem::take(&mut line)));
+                        pending = false;
+                        break;
+                    }
+                    if line.len() == limit {
+                        let _ = sender.try_send(ServerHandshake::Oversized);
+                        pending = false;
+                        line.clear();
+                        break;
+                    }
+                    line.push(*byte);
+                }
+            }
+            Ok(_) => {} // Keep draining without retaining post-handshake stdout.
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => {
+                if pending {
+                    let _ = sender.try_send(ServerHandshake::ReadError(error.to_string()));
+                }
+                return;
+            }
+        }
+    }
+}
+
+fn drain_server_stderr(
+    mut stderr: impl Read,
+    captured: std::sync::Arc<std::sync::Mutex<ServerStderr>>,
+    limit: usize,
+) {
+    let mut buffer = [0u8; 4096];
+    loop {
+        match stderr.read(&mut buffer) {
+            Ok(0) => {
+                captured
+                    .lock()
+                    .unwrap_or_else(|poison| poison.into_inner())
+                    .complete = true;
+                return;
+            }
+            Ok(count) => {
+                let mut output = captured.lock().unwrap_or_else(|poison| poison.into_inner());
+                let retain = count.min(limit.saturating_sub(output.bytes.len()));
+                output.bytes.extend_from_slice(&buffer[..retain]);
+                output.truncated |= retain != count;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => {
+                captured
+                    .lock()
+                    .unwrap_or_else(|poison| poison.into_inner())
+                    .read_error = Some(error.to_string());
+                return;
+            }
+        }
+    }
+}
+
+fn wait_for_server(
+    mut server: HttpServer,
+    receiver: std::sync::mpsc::Receiver<ServerHandshake>,
+    program: std::ffi::OsString,
+    limits: ServerStartupLimits,
+) -> Result<(HttpServer, u16)> {
+    let deadline = std::time::Instant::now() + limits.timeout;
+    loop {
+        match server.child.try_wait() {
+            Ok(Some(_)) => {
+                return Err(server.startup_failure(program, ServerStartupProblem::Exited));
+            }
+            Err(error) => {
+                return Err(server
+                    .startup_failure(program, ServerStartupProblem::ReadError(error.to_string())));
+            }
+            Ok(None) => {}
+        }
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
+            return Err(server.startup_failure(program, ServerStartupProblem::Timeout));
+        }
+        match receiver.recv_timeout(remaining.min(std::time::Duration::from_millis(10))) {
+            Ok(ServerHandshake::Line(mut line)) => {
+                if line.last() == Some(&b'\r') {
+                    line.pop();
+                }
+                let port = if !line.is_empty() && line.iter().all(u8::is_ascii_digit) {
+                    std::str::from_utf8(&line)
+                        .ok()
+                        .and_then(|text| text.parse::<u16>().ok())
+                        .filter(|port| *port != 0)
+                } else {
+                    None
+                };
+                let Some(port) = port else {
+                    return Err(
+                        server.startup_failure(program, ServerStartupProblem::MalformedPort(line))
+                    );
+                };
+                match server.child.try_wait() {
+                    Ok(None) => return Ok((server, port)),
+                    Ok(Some(_)) => {
+                        return Err(server.startup_failure(program, ServerStartupProblem::Exited));
+                    }
+                    Err(error) => {
+                        return Err(server.startup_failure(
+                            program,
+                            ServerStartupProblem::ReadError(error.to_string()),
+                        ));
+                    }
+                }
+            }
+            Ok(handshake) => {
+                // EOF can race the child's exit notification. Give a process
+                // that just closed stdout a short, bounded chance to expose
+                // its real exit status before deciding it is still running.
+                if matches!(handshake, ServerHandshake::Eof) {
+                    let settle = std::time::Instant::now() + std::time::Duration::from_millis(50);
+                    loop {
+                        match server.child.try_wait() {
+                            Ok(Some(status)) if !status.success() => {
+                                return Err(
+                                    server.startup_failure(program, ServerStartupProblem::Exited)
+                                );
+                            }
+                            Ok(Some(_)) => break,
+                            Err(error) => {
+                                return Err(server.startup_failure(
+                                    program,
+                                    ServerStartupProblem::ReadError(error.to_string()),
+                                ));
+                            }
+                            Ok(None) if std::time::Instant::now() < settle => {
+                                std::thread::sleep(std::time::Duration::from_millis(1));
+                            }
+                            Ok(None) => break,
+                        }
+                    }
+                }
+                let problem = match handshake {
+                    ServerHandshake::Eof => ServerStartupProblem::PrematureEof,
+                    ServerHandshake::Oversized => ServerStartupProblem::OversizedPort,
+                    ServerHandshake::ReadError(error) => ServerStartupProblem::ReadError(error),
+                    ServerHandshake::Line(_) => unreachable!(),
+                };
+                return Err(server.startup_failure(program, problem));
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(server.startup_failure(program, ServerStartupProblem::PrematureEof));
+            }
+        }
+    }
+}
+
+fn start_server_commands(
+    commands: impl IntoIterator<Item = Command>,
+    limits: ServerStartupLimits,
+) -> Result<(HttpServer, u16)> {
+    let mut absent = Vec::new();
+    for mut command in commands {
+        let program = command.get_program().to_owned();
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let child = match command.spawn() {
+            Ok(child) => child,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if let Some(root) = command.get_current_dir()
+                    && !root.is_dir()
+                {
+                    return Err(error).with_context(|| {
+                        format!("registry directory {} unavailable", root.display())
+                    });
+                }
+                absent.push(program);
+                continue;
+            }
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("spawning local registry interpreter {program:?}"));
+            }
+        };
+        let (server, receiver) = HttpServer::new(child, limits)?;
+        return wait_for_server(server, receiver, program, limits);
+    }
+    bail!("local registry interpreter not found; tried {absent:?} (python3 or python required)")
+}
+
+fn start_http_server(registry_root: &Path) -> Result<(HttpServer, u16)> {
     let registry_root = fs::canonicalize(registry_root)
         .with_context(|| format!("canonicalizing {}", registry_root.display()))?;
-    let mut registry_root = registry_root.display().to_string().replace('\\', "/");
-    if let Some(stripped) = registry_root.strip_prefix("//?/") {
-        registry_root = stripped.to_string();
-    }
-    let script = format!(
-        r#"import http.server, socketserver, os
-os.chdir(r"{registry_root}")
+    // The root stays filesystem data. No display/lossy conversion or source
+    // interpolation; current_dir preserves native platform path boundaries.
+    const SCRIPT: &str = r#"import http.server, socketserver
 with socketserver.TCPServer(("127.0.0.1", 0), http.server.SimpleHTTPRequestHandler) as httpd:
     print(httpd.server_address[1], flush=True)
     httpd.serve_forever()
-"#
-    );
-    for python in ["python3", "python"] {
-        let mut command = Command::new(python);
-        command
-            .arg("-c")
-            .arg(&script)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null());
-        let mut child = match command.spawn() {
-            Ok(child) => child,
-            Err(_) => continue,
-        };
-        let Some(mut stdout) = child.stdout.take() else {
-            let _ = child.kill();
-            continue;
-        };
-        let mut reader = std::io::BufReader::new(&mut stdout);
-        let mut port_line = String::new();
-        if reader.read_line(&mut port_line).is_err() {
-            let _ = child.kill();
-            let _ = child.wait();
-            continue;
-        }
-        let Ok(port) = port_line.trim().parse::<u16>() else {
-            let _ = child.kill();
-            let _ = child.wait();
-            continue;
-        };
-        return Ok((child, port));
-    }
-    bail!("python3 or python is required to serve the isolated local registry")
+"#;
+    start_server_commands(
+        ["python3", "python"].map(|python| {
+            let mut command = Command::new(python);
+            command
+                .arg("-u")
+                .arg("-c")
+                .arg(SCRIPT)
+                .current_dir(&registry_root);
+            command
+        }),
+        ServerStartupLimits::default(),
+    )
 }
 
 impl Drop for IsolatedRegistry {
     fn drop(&mut self) {
-        if let Some(mut child) = self.http_server.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
+        // Stop the server before the registry directories are removed.
+        self.http_server.take();
     }
 }
 
@@ -1136,6 +1552,307 @@ fn index_dependency(dep: &CargoDependency, published_set: &BTreeSet<String>) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn fake_server_command(script: &str) -> Command {
+        for python in ["python3", "python"] {
+            match Command::new(python).arg("--version").output() {
+                Ok(output) if output.status.success() => {
+                    let mut command = Command::new(python);
+                    command.args(["-u", "-c", script]);
+                    return command;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                outcome => panic!("Python probe failed: {outcome:?}"),
+            }
+        }
+        panic!("Python is required for registry process controls");
+    }
+
+    fn server_test_limits() -> ServerStartupLimits {
+        ServerStartupLimits {
+            timeout: std::time::Duration::from_secs(2),
+            port_line_bytes: 16,
+            stderr_bytes: 1024,
+        }
+    }
+
+    fn failed_server(script: &str) -> ServerStartupError {
+        failed_server_with_limits(script, server_test_limits())
+    }
+
+    fn failed_server_with_limits(script: &str, limits: ServerStartupLimits) -> ServerStartupError {
+        let error = match start_server_commands([fake_server_command(script)], limits) {
+            Ok(_) => panic!("fake startup unexpectedly succeeded"),
+            Err(error) => error,
+        };
+        let error = error
+            .downcast::<ServerStartupError>()
+            .expect("structured started-child failure");
+        assert_child_reaped(error.pid);
+        error
+    }
+
+    fn assert_child_reaped(pid: u32) {
+        #[cfg(target_os = "linux")]
+        {
+            // Query the child relationship through the same process API as
+            // Child::wait. /proc may describe a different PID namespace.
+            unsafe extern "C" {
+                fn waitpid(pid: i32, status: *mut i32, options: i32) -> i32;
+            }
+            let mut status = 0;
+            // SAFETY: status is writable; WNOHANG (1 on Linux) never blocks.
+            let result = unsafe { waitpid(pid as i32, &mut status, 1) };
+            assert_eq!(result, -1, "owned child {pid} was not already reaped");
+            assert_eq!(
+                std::io::Error::last_os_error().raw_os_error(),
+                Some(10),
+                "ECHILD establishes the child was already reaped"
+            );
+        }
+        #[cfg(not(target_os = "linux"))]
+        let _ = pid;
+    }
+
+    #[test]
+    fn test_http_server_nonzero_exit_retains_real_status_and_stderr() {
+        let error = failed_server(
+            "import sys; sys.stderr.write('startup exploded'); sys.stderr.flush(); sys.exit(73)",
+        );
+        assert!(matches!(error.problem, ServerStartupProblem::Exited));
+        assert_eq!(error.status.unwrap().code(), Some(73));
+        assert_eq!(error.stderr.bytes, b"startup exploded");
+        assert!(error.stderr.complete);
+        let rendered = error.to_string();
+        assert!(rendered.contains("startup exploded"));
+        assert!(rendered.contains("exit status"));
+        assert!(!rendered.contains("interpreter not found"));
+    }
+
+    #[test]
+    fn test_http_server_malformed_and_zero_ports_fail_closed() {
+        for port in ["not-a-port", "0", "65536", "+123", " 123", "12 34"] {
+            let script = format!("import time; print({port:?}, flush=True); time.sleep(10)");
+            let error = failed_server(&script);
+            assert!(
+                matches!(error.problem, ServerStartupProblem::MalformedPort(_)),
+                "{error}"
+            );
+            assert!(error.status.is_some());
+        }
+    }
+
+    #[test]
+    fn test_http_server_oversized_unterminated_port_line_is_bounded() {
+        let started = std::time::Instant::now();
+        let error = failed_server(
+            "import sys,time; sys.stdout.write('1'*100000); sys.stdout.flush(); time.sleep(10)",
+        );
+        assert!(matches!(error.problem, ServerStartupProblem::OversizedPort));
+        assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    }
+
+    #[test]
+    fn test_http_server_premature_eof_is_distinct_from_timeout_and_nonzero() {
+        let error = failed_server("import os,time; os.close(1); time.sleep(10)");
+        assert!(matches!(error.problem, ServerStartupProblem::PrematureEof));
+        let error = failed_server("pass");
+        assert!(matches!(
+            error.problem,
+            ServerStartupProblem::Exited | ServerStartupProblem::PrematureEof
+        ));
+        assert_eq!(error.status.unwrap().code(), Some(0));
+    }
+
+    #[test]
+    fn test_http_server_no_handshake_timeout_is_bounded() {
+        let started = std::time::Instant::now();
+        let limits = ServerStartupLimits {
+            timeout: std::time::Duration::from_millis(150),
+            ..server_test_limits()
+        };
+        let error = failed_server_with_limits("import time; time.sleep(10)", limits);
+        assert!(matches!(error.problem, ServerStartupProblem::Timeout));
+        assert!(started.elapsed() < std::time::Duration::from_secs(2));
+    }
+
+    #[test]
+    fn test_http_server_drains_and_caps_stderr_before_protocol_failure() {
+        let error = failed_server(
+            "import sys,time; sys.stderr.write('diagnostic-'+'e'*200000); sys.stderr.flush(); print('invalid',flush=True); time.sleep(10)",
+        );
+        assert!(matches!(
+            error.problem,
+            ServerStartupProblem::MalformedPort(_)
+        ));
+        assert_eq!(error.stderr.bytes.len(), server_test_limits().stderr_bytes);
+        assert!(error.stderr.bytes.starts_with(b"diagnostic-"));
+        assert!(error.stderr.truncated);
+        assert!(error.stderr.complete);
+        assert!(error.to_string().contains("truncated"));
+    }
+
+    #[test]
+    fn test_http_server_only_missing_executable_uses_fallback() {
+        let directory = tempfile::tempdir().unwrap();
+        let absent = directory.path().join("no-such-interpreter");
+        let error = match start_server_commands([Command::new(&absent)], server_test_limits()) {
+            Ok(_) => panic!("missing interpreter succeeded"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("interpreter not found"));
+        let (server, port) = start_server_commands(
+            [
+                Command::new(&absent),
+                fake_server_command("import time; print(12345,flush=True); time.sleep(10)"),
+            ],
+            server_test_limits(),
+        )
+        .unwrap();
+        assert_eq!(port, 12345);
+        let pid = server.child.id();
+        drop(server);
+        assert_child_reaped(pid);
+    }
+
+    #[test]
+    fn test_http_server_started_failure_never_tries_fallback() {
+        let directory = tempfile::tempdir().unwrap();
+        let marker = directory.path().join("fallback-ran");
+        let mut fallback = fake_server_command(
+            "import pathlib,sys,time; pathlib.Path(sys.argv[1]).write_text('wrong'); print(12345,flush=True); time.sleep(10)",
+        );
+        fallback.arg(&marker);
+        let result = start_server_commands(
+            [
+                fake_server_command("import sys; sys.stderr.write('primary failed'); sys.exit(19)"),
+                fallback,
+            ],
+            server_test_limits(),
+        );
+        let error = match result {
+            Ok(_) => panic!("started failure used fallback"),
+            Err(error) => error,
+        };
+        let error = error.downcast::<ServerStartupError>().unwrap();
+        assert_eq!(error.status.unwrap().code(), Some(19));
+        assert_eq!(error.stderr.bytes, b"primary failed");
+        assert!(!marker.exists());
+        assert_child_reaped(error.pid);
+    }
+
+    #[test]
+    fn test_http_server_success_and_early_guard_drop_reap_owned_child() {
+        let mut command =
+            fake_server_command("import time; print(12345,flush=True); time.sleep(10)");
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let child = command.spawn().unwrap();
+        let pid = child.id();
+        let (server, receiver) = HttpServer::new(child, server_test_limits()).unwrap();
+        drop(receiver); // Startup cancellation while the owner is still live.
+        drop(server);
+        assert_child_reaped(pid);
+
+        let (server, port) = start_server_commands([
+            fake_server_command("import sys,time; print(12345,flush=True); sys.stdout.write('x'*200000); sys.stdout.flush(); sys.stderr.write('stdout drained'); sys.stderr.flush(); time.sleep(10)"),
+        ], server_test_limits()).unwrap();
+        assert_eq!(port, 12345);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            if server.stderr.lock().unwrap().bytes == b"stdout drained" {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "post-handshake stdout was not drained"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        let pid = server.child.id();
+        drop(server);
+        assert_child_reaped(pid);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_http_server_permission_failure_does_not_try_fallback() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory = tempfile::tempdir().unwrap();
+        let denied = directory.path().join("not-executable");
+        fs::write(&denied, b"not an executable").unwrap();
+        fs::set_permissions(&denied, fs::Permissions::from_mode(0o600)).unwrap();
+        let error = match start_server_commands(
+            [
+                Command::new(&denied),
+                fake_server_command("import time; print(12345,flush=True); time.sleep(10)"),
+            ],
+            server_test_limits(),
+        ) {
+            Ok(_) => panic!("permission failure used fallback"),
+            Err(error) => error,
+        };
+        assert_eq!(
+            error.downcast_ref::<std::io::Error>().unwrap().kind(),
+            std::io::ErrorKind::PermissionDenied
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_http_server_non_utf8_path_preserves_selected_directory() {
+        use std::os::unix::ffi::OsStringExt;
+        let parent = tempfile::tempdir().unwrap();
+        let root = parent
+            .path()
+            .join(std::ffi::OsString::from_vec(b"native-\xff-root".to_vec()));
+        fs::create_dir(&root).unwrap();
+        fs::write(root.join("sentinel.txt"), b"native selected root").unwrap();
+        let (server, port) = start_http_server(&root).unwrap();
+        let pid = server.child.id();
+        let response = registry_http_get(port, "/sentinel.txt");
+        assert!(response.starts_with("HTTP/1.0 200"), "{response}");
+        assert!(response.ends_with("native selected root"), "{response}");
+        drop(server);
+        assert_child_reaped(pid);
+    }
+
+    fn registry_http_get(port: u16, path: &str) -> String {
+        let mut connection = std::net::TcpStream::connect_timeout(
+            &std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, port)),
+            std::time::Duration::from_secs(2),
+        )
+        .expect("loopback registry connection");
+        connection
+            .set_read_timeout(Some(std::time::Duration::from_secs(2)))
+            .unwrap();
+        connection
+            .set_write_timeout(Some(std::time::Duration::from_secs(2)))
+            .unwrap();
+        write!(connection, "GET {path} HTTP/1.0\r\nHost: localhost\r\n\r\n").unwrap();
+        let mut response = String::new();
+        connection.read_to_string(&mut response).unwrap();
+        response
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_http_server_quote_unicode_path_serves_selected_root() {
+        let parent = tempfile::tempdir().expect("temporary registry parent");
+        let root = parent.path().join("registry \"quoted\" été");
+        fs::create_dir(&root).expect("legal Unix path");
+        fs::write(root.join("sentinel.txt"), b"selected registry root").expect("registry sentinel");
+
+        let (child, port) = start_http_server(&root).expect("path is data, not Python source");
+        let pid = child.child.id();
+        let response = registry_http_get(port, "/sentinel.txt");
+        assert!(response.starts_with("HTTP/1.0 200"), "{response}");
+        assert!(response.ends_with("selected registry root"), "{response}");
+        drop(child);
+        assert_child_reaped(pid);
+    }
 
     #[test]
     fn manifest_path_detection_flags_workspace_paths() {
