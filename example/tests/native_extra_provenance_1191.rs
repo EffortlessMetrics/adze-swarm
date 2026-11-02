@@ -303,3 +303,43 @@ fn test_recovery_attachments_retain_diagnostics_and_parser_reuse_clears_pending_
         adze::errors::ParseErrorReason::ConversionFailed { .. }
     ));
 }
+
+fn repeat_with_interleaved_extras() -> ParsedNode {
+    let first = ParsedNode::builder(1, vec![], 0, 1).build();
+    let base = ParsedNode::builder(10, vec![first], 0, 1).build();
+    let gap = ParsedNode::builder(2, vec![], 1, 2).is_extra(true).build();
+    let second = ParsedNode::builder(1, vec![], 2, 3).build();
+    let recursive = ParsedNode::builder(10, vec![base, gap, second], 0, 3).build();
+    let gap = ParsedNode::builder(2, vec![], 3, 4).is_extra(true).build();
+    let third = ParsedNode::builder(1, vec![], 4, 5).build();
+    ParsedNode::builder(10, vec![recursive, gap, third], 0, 5).build()
+}
+
+#[test]
+fn test_fallible_repeat_binary_shape_ignores_direct_extra_children() {
+    use adze::Extract;
+    let root = repeat_with_interleaved_extras();
+    let leaf = |text: &str| text.parse::<i32>().map_err(|error| error.to_string());
+    let values = <Vec<adze::WithTryLeaf<i32>> as Extract<Vec<i32>>>::try_extract(
+        Some(&root),
+        b"1 2 3",
+        0,
+        Some(&leaf),
+    )
+    .unwrap();
+    assert_eq!(values, vec![1, 2, 3]);
+}
+
+#[test]
+fn test_infallible_repeat_binary_shape_ignores_direct_extra_children() {
+    use adze::Extract;
+    let root = repeat_with_interleaved_extras();
+    let leaf = |text: &str| text.parse::<i32>().map_err(|error| error.to_string());
+    let values = <Vec<adze::WithTryLeaf<i32>> as Extract<Vec<i32>>>::extract(
+        Some(&root),
+        b"1 2 3",
+        0,
+        Some(&leaf),
+    );
+    assert_eq!(values, vec![1, 2, 3]);
+}
