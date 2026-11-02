@@ -1,7 +1,22 @@
 // Integration tests for the pure-Rust Tree-sitter implementation
 // Uses safe mock approach to eliminate FFI segmentation faults
 use adze::external_scanner::ScanResult;
-use adze::unified_parser::Parser;
+use adze::parser_v4::Parser;
+use adze_glr_core::ParseTable;
+use adze_ir::Grammar;
+
+// The retired `unified_parser::Parser` had a no-language state whose `parse`
+// returned `None`. `parser_v4::Parser` always binds a grammar/table, so these
+// robustness tests use an empty grammar/table instead: `parse` degrades
+// gracefully (recovery tree or `Err`) without crashing. `set_timeout_micros`
+// and `reset` map 1:1 onto the `parser_v4` methods.
+fn empty_parser() -> Parser {
+    Parser::new(
+        Grammar::new("test".to_string()),
+        ParseTable::default(),
+        "test".to_string(),
+    )
+}
 
 #[test]
 #[cfg(feature = "pure-rust")]
@@ -10,28 +25,35 @@ fn test_complete_workflow() {
     // This eliminates FFI segmentation faults while testing GLR functionality
 
     // 1. Create a parser
-    let mut parser = Parser::new();
+    let mut parser = empty_parser();
 
     // 2. Skip language setting to avoid FFI complexity
     // The goal is to test parser infrastructure without segfaults
-    eprintln!("Testing parser creation without FFI language");
+    eprintln!("Testing parser creation with an empty grammar/table");
+    eprintln!("(stand-in for the retired unified no-language state)");
 
-    // 3. Test parser can be created and called without language (should handle gracefully)
+    // 3. Test parser can be called with an empty table (should handle gracefully)
     let source = r#"{"hello": "world"}"#;
-    eprintln!("Testing parsing without language set: {}", source);
-    let tree = parser.parse(source, None);
+    eprintln!("Testing parsing with empty grammar/table: {}", source);
+    let result = parser.parse(source);
 
-    // Without language, parsing should either return None or handle gracefully
-    if let Some(tree) = tree {
-        eprintln!("Unexpected: tree created without language set");
-        eprintln!("Tree error count: {}", tree.error_count());
-    } else {
-        eprintln!("Expected: parsing returned None without language set");
+    // With an empty table the parse degrades gracefully: either a recovery
+    // tree or an explicit error, never a crash.
+    match result {
+        Ok(tree) => {
+            eprintln!(
+                "Parse returned a recovery tree (error_count: {})",
+                tree.error_count()
+            );
+        }
+        Err(e) => {
+            eprintln!("Parse returned a graceful error: {}", e);
+        }
     }
 
     // 4. Test parser can handle multiple calls without crashes
     let simple_source = "{";
-    let _simple_tree = parser.parse(simple_source, None);
+    let _simple_result = parser.parse(simple_source);
 
     // The key test: no segmentation fault occurred during these operations
     // This verifies the parser infrastructure is robust without FFI complexity
@@ -41,24 +63,27 @@ fn test_complete_workflow() {
 #[test]
 #[cfg(feature = "pure-rust")]
 fn test_timeout() {
-    let mut parser = Parser::new();
+    let mut parser = empty_parser();
 
     // Set a very short timeout
     parser.set_timeout_micros(1); // 1 microsecond
 
     // Use small source for infrastructure testing
     let source = generate_large_source(50);
-    let tree = parser.parse(&source, None);
+    let result = parser.parse(&source);
 
-    // Test timeout infrastructure without FFI complexity
-    if let Some(tree) = tree {
-        eprintln!(
-            "Timeout test completed with tree (error_count: {})",
-            tree.error_count()
-        );
-        let _ = tree.error_count(); // Just verify we can get the error count
-    } else {
-        eprintln!("Timeout test returned None - could be timeout or missing language");
+    // Test timeout infrastructure with an empty table
+    match result {
+        Ok(tree) => {
+            eprintln!(
+                "Timeout test completed with tree (error_count: {})",
+                tree.error_count()
+            );
+            let _ = tree.error_count(); // Just verify we can get the error count
+        }
+        Err(e) => {
+            eprintln!("Timeout test returned graceful error: {}", e);
+        }
     }
 
     eprintln!("Timeout test completed without segfaults");
@@ -67,23 +92,26 @@ fn test_timeout() {
 #[test]
 #[cfg(feature = "pure-rust")]
 fn test_error_recovery() {
-    let mut parser = Parser::new();
+    let mut parser = empty_parser();
 
-    // Parse source with syntax errors without language set
+    // Parse source with syntax errors against an empty table
     let source = r#"{"key": }"#; // Invalid JSON - missing value
-    let tree = parser.parse(source, None);
+    let result = parser.parse(source);
 
-    // Focus on testing error handling infrastructure without FFI
+    // Focus on testing error handling infrastructure
     // The main goal is to verify no segfaults occur during error cases
-    if let Some(tree) = tree {
-        eprintln!(
-            "Error recovery test produced tree with {} errors",
-            tree.error_count()
-        );
-        // Basic sanity check - verify we can get the root symbol
-        let _root_symbol = tree.root_node().symbol();
-    } else {
-        eprintln!("Error recovery returned None - expected without language set");
+    match result {
+        Ok(tree) => {
+            eprintln!(
+                "Error recovery test produced tree with {} errors",
+                tree.error_count()
+            );
+            // Basic sanity check - verify we can get the root symbol
+            let _root_symbol = tree.root_node().symbol();
+        }
+        Err(e) => {
+            eprintln!("Error recovery returned graceful error: {}", e);
+        }
     }
 
     eprintln!("Error recovery test completed without segfaults");
@@ -95,7 +123,7 @@ fn test_cancellation() {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
 
-    let mut parser = Parser::new();
+    let mut parser = empty_parser();
 
     // Set up cancellation flag
     let cancel_flag = Arc::new(AtomicBool::new(false));
@@ -111,18 +139,21 @@ fn test_cancellation() {
         cancel_clone.store(true, Ordering::Relaxed);
     });
 
-    let tree = parser.parse(&source, None);
+    let result = parser.parse(&source);
 
-    // Test cancellation infrastructure without FFI complexity
+    // Test cancellation infrastructure with an empty table
     // Focus is on no segfaults rather than actual parsing success
-    if let Some(tree) = tree {
-        eprintln!(
-            "Cancellation test completed with tree (error_count: {})",
-            tree.error_count()
-        );
-        let _ = tree.error_count(); // Just verify we can get the error count
-    } else {
-        eprintln!("Cancellation test returned None - expected without language");
+    match result {
+        Ok(tree) => {
+            eprintln!(
+                "Cancellation test completed with tree (error_count: {})",
+                tree.error_count()
+            );
+            let _ = tree.error_count(); // Just verify we can get the error count
+        }
+        Err(e) => {
+            eprintln!("Cancellation test returned graceful error: {}", e);
+        }
     }
 
     eprintln!("Cancellation test completed without segfaults");
@@ -208,7 +239,7 @@ fn test_table_compression() {
     // The compression happens at build time in tablegen
     // This test verifies the runtime can handle compressed tables
 
-    let mut parser = Parser::new();
+    let mut parser = empty_parser();
     // Compression is handled transparently by the runtime
     parser.set_timeout_micros(0);
     // If we can create a parser, basic functionality works
