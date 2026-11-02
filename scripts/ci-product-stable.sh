@@ -42,7 +42,34 @@ for entry in "${CANARIES[@]}"; do
     continue
   fi
 
-  eval "$cmd"
+  # Capture each canary's output (#995 G1b): a filter that matches
+  # nothing still exits 0 ("running 0 tests"), which must not count
+  # as proof. Tolerate auxiliary zero-test targets inside healthy
+  # multi-target canaries; fail only when nothing executed at all.
+  set +e
+  canary_output="$(eval "$cmd" 2>&1)"
+  canary_status=$?
+  set -e
+  printf '%s\n' "$canary_output"
+  if [[ $canary_status -ne 0 ]]; then
+    printf '  -> FAIL (exit %s)\n' "$canary_status"
+    exit 1
+  fi
+  if [[ "$cmd" == "cargo run "* ]]; then
+    if [[ -z "${canary_output//[[:space:]]/}" ]]; then
+      printf '  -> FAIL (empty stdout)\n'
+      exit 1
+    fi
+  else
+    if ! grep -q "test result: ok" <<<"$canary_output"; then
+      printf '  -> FAIL (missing "test result: ok")\n'
+      exit 1
+    fi
+    if ! grep -Eq "running [1-9][0-9]* tests?" <<<"$canary_output"; then
+      printf '  -> FAIL (canary executed 0 tests)\n'
+      exit 1
+    fi
+  fi
   printf '  -> PASS\n'
 done
 

@@ -149,6 +149,27 @@ class WorkflowWiring(unittest.TestCase):
         match = re.search(r"\n  (?=\S)", rest[5:])
         return rest if match is None else rest[: match.start() + 5]
 
+    def test_zero_test_guards_present(self) -> None:
+        for name in ("scripts/ci-product-stable.sh", "scripts/ci-supported.sh"):
+            with self.subTest(script=name):
+                text = (ROOT / name).read_text(encoding="utf-8")
+                self.assertIn("test result: ok", text)
+                self.assertIn("running [1-9]", text)
+
+    def test_ready_for_review_triggers_both_workflows(self) -> None:
+        import re
+
+        for path in (
+            ".github/workflows/product-proof.yml",
+            ".github/workflows/em-ci-routed-rust.yml",
+        ):
+            with self.subTest(workflow=path):
+                text = (ROOT / path).read_text(encoding="utf-8")
+                match = re.search(r"pull_request:\s*\n\s*types:\s*\[([^\]]*)\]", text)
+                self.assertIsNotNone(match, f"pull_request types not found in {path}")
+                assert match is not None
+                self.assertIn("ready_for_review", match.group(1))
+
     def test_result_jobs_always_run_and_delegate_to_evaluator(self) -> None:
         cases = [
             (".github/workflows/product-proof.yml", "product-proof-result", "product"),
