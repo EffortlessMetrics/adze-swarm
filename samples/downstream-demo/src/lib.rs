@@ -501,3 +501,35 @@ mod open_extract_contract_tests {
         assert_eq!(<DownstreamLeaf as Extract<u32>>::GRAMMAR_JSON, "{}");
     }
 }
+#[cfg(all(test, feature = "pure-rust"))]
+mod child_edge_bounds_tests {
+    use super::grammar;
+
+    #[test]
+    fn test_document_child_edge_valid_index_and_boundary_return_expected_nodes() {
+        let document = grammar::parse_document("17").expect("valid generated document");
+        assert_eq!(document.outcome(), adze::document::ParseOutcome::Complete);
+        assert!(document.diagnostics().is_empty());
+        let root = document.tree().root();
+        let edge = root.child_edge(0).expect("root has a semantic child");
+        let child = edge.child().expect("edge references a real document node");
+        assert_eq!(child.byte_range(), 0..2);
+        assert_eq!(child.utf8_text().unwrap(), "17");
+        assert_eq!(child.parent().unwrap().node_id(), root.node_id());
+        assert!(root.child_edge(root.child_count()).is_none());
+    }
+
+    #[test]
+    fn test_document_leaf_child_edge_max_index_returns_none() {
+        let document = grammar::parse_document("17").expect("valid generated document");
+        assert_eq!(document.outcome(), adze::document::ParseOutcome::Complete);
+        assert!(document.diagnostics().is_empty());
+        let leaf = (1..document.tree().node_count())
+            .map(|index| document.tree().node(adze::document::NodeId::new(index)).unwrap())
+            .find(|node| node.child_count() == 0 && node.byte_range() == (0..2))
+            .expect("real non-root lexical leaf");
+        assert!(leaf.child_edge(leaf.child_count()).is_none());
+        assert!(leaf.child_edge(usize::MAX).is_none());
+    }
+}
+
