@@ -668,13 +668,13 @@ fn compressed_map_matches_uncompressed() {
 fn edge_nonzero_start_id() {
     let table = empty_table(1, 1, 1, 0);
     let (mut g, start, t) = base_grammar("nonzero", &table);
-    // Start at production ID 5 – leaves gaps 0..4 filled with sentinel
+    // RuleId(0) refers to sparse metadata slot 5.
     g.add_rule(rule(start, vec![Symbol::Terminal(t)], 5));
 
     let code = gen_code(&g, &table);
     let map = extract_production_id_map(&code);
-    // Map should have 6 entries (0..=5), with the first 5 being sentinel or identity
-    assert!(map.len() >= 6, "map must cover up to production ID 5");
+    assert_eq!(map, vec![5], "only syntax rule 0 belongs in the map");
+    assert_eq!(extract_production_id_count(&code), Some(6));
     // The entry at position 0 (the only rule) maps to production 5
     assert_eq!(map[0], 5);
 }
@@ -695,13 +695,9 @@ fn edge_sparse_production_ids_emit_dense_production_lhs_index() {
     let lhs_index = extract_production_lhs_index(&code);
 
     assert_eq!(count, 8);
-    assert_eq!(map.len(), count as usize);
+    assert_eq!(map.len(), 2, "map has one entry per syntax rule");
     assert_eq!(map[0], 0);
     assert_eq!(map[1], 7);
-    assert!(
-        map[2..].iter().all(|id| *id == u16::MAX),
-        "unused rule-id slots should be explicit sentinels"
-    );
     assert_eq!(lhs_index.len(), count as usize);
     assert_eq!(lhs_index[0], table.symbol_to_index[&start] as u16);
     assert_eq!(lhs_index[7], table.symbol_to_index[&other] as u16);
@@ -730,7 +726,7 @@ fn edge_sparse_production_ids_preserve_rule_id_order_in_map() {
     let lhs_index = extract_production_lhs_index(&code);
 
     assert_eq!(count, 8);
-    assert_eq!(map.len(), count as usize);
+    assert_eq!(map.len(), 2, "map has one entry per syntax rule");
     assert_eq!(
         map[0], 7,
         "rule ID 0 should map to the first inserted rule's production ID"
@@ -738,10 +734,6 @@ fn edge_sparse_production_ids_preserve_rule_id_order_in_map() {
     assert_eq!(
         map[1], 0,
         "rule ID 1 should map to the second inserted rule's production ID"
-    );
-    assert!(
-        map[2..].iter().all(|id| *id == u16::MAX),
-        "unused rule-id slots should be explicit sentinels"
     );
     assert_eq!(lhs_index.len(), count as usize);
     assert_eq!(lhs_index[7], table.symbol_to_index[&start] as u16);

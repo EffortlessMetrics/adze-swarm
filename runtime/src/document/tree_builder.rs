@@ -75,14 +75,20 @@ pub(in crate::document) fn build_flat_tree(
         let edge_start = edges.len();
         for (child_index, child) in node.children.iter().enumerate() {
             let child_id = child_ids[node_id][child_index];
+            let field_id = child
+                .field_name
+                .as_deref()
+                .and_then(|field_name| language.field_id_for_name(field_name));
             edges.push(EdgeRecord {
                 parent_id: NodeId::new(node_id),
                 child_id,
                 child_index,
-                field_id: child
+                field_id,
+                unresolved_field_name: child
                     .field_name
                     .as_deref()
-                    .and_then(|field_name| language.field_id_for_name(field_name)),
+                    .filter(|_| field_id.is_none())
+                    .map(Box::from),
             });
         }
         let edge_len = edges.len() - edge_start;

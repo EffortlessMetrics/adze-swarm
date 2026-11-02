@@ -814,16 +814,29 @@ impl SyntaxTree {
     /// [`LanguageMetadata::field_semantics`]: each edge with a field id
     /// resolves to a field name through the language field table, and that
     /// name must carry recorded schema facts for the parent node's grammar
-    /// kind. Edges without a field id are plain positional children and are
-    /// skipped. Structural symmetry is out of scope here; run [`validate`](Self::validate)
+    /// kind. Names absent from the language field table are rejected as unknown
+    /// fields. Genuinely positional children (no field name or id) are skipped.
+    /// Structural symmetry is out of scope here; run [`validate`](Self::validate)
     /// for the node/edge/parent diagnosis.
     pub fn validate_fields(&self, language: &LanguageMetadata) -> Result<(), FieldValidationError> {
         for (edge_index, edge) in self.edges.iter().enumerate() {
+            let parent = edge.parent_id;
+            let child = edge.child_id;
+            if let Some(field_name) = edge.unresolved_field_name.as_deref() {
+                let Some(owner_record) = self.node_record(parent) else {
+                    return Err(FieldValidationError::UnknownParent { edge_index, parent });
+                };
+                return Err(FieldValidationError::UnknownField {
+                    edge_index,
+                    parent,
+                    child,
+                    owner: owner_record.grammar_id(),
+                    field_name: field_name.to_string(),
+                });
+            }
             let Some(field_id) = edge.field_id else {
                 continue;
             };
-            let parent = edge.parent_id;
-            let child = edge.child_id;
             let Some(field_name) = language.field_name_for_id(field_id.get()) else {
                 return Err(FieldValidationError::UnknownFieldId {
                     edge_index,
@@ -959,6 +972,9 @@ pub struct EdgeRecord {
     child_id: NodeId,
     child_index: usize,
     field_id: Option<FieldId>,
+    // Preserve names absent from the language table instead of turning them
+    // into positional edges. Resolved names remain interned in the language.
+    unresolved_field_name: Option<Box<str>>,
 }
 
 impl EdgeRecord {
@@ -1014,8 +1030,8 @@ pub struct FieldSemantics {
 ///
 /// [`SyntaxTree::validate_fields`] and [`AdzeDocument::validate_fields`] walk
 /// the flat selected tree and resolve every edge carrying a field id against
-/// [`LanguageMetadata::field_semantics`]. Edges without a field id are plain
-/// positional children and are skipped; every other edge must resolve, so a
+/// [`LanguageMetadata::field_semantics`]. Positional children without a field
+/// name or id are skipped; every other edge must resolve, so a
 /// mismatch surfaces here instead of degrading into a silent empty query or
 /// projection result downstream.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -1034,7 +1050,8 @@ pub enum FieldValidationError {
         /// Raw field id that resolved to no field name.
         field_id: u16,
     },
-    /// The resolved field name is granted to no node kind in the schema.
+    /// The field name is absent from the language field table or granted to no
+    /// node kind in the schema.
     #[error("node {parent:?} ({owner}) carries unknown field {field_name:?} to node {child:?}")]
     UnknownField {
         /// Index of the offending edge in the flat edge table.
@@ -1045,7 +1062,7 @@ pub enum FieldValidationError {
         child: NodeId,
         /// Grammar symbol id of the owning parent node.
         owner: SymbolId,
-        /// Resolved field name with no schema facts anywhere.
+        /// Field name absent from the language table or from all schema facts.
         field_name: String,
     },
     /// The field exists in the schema but was never granted to this owner.
@@ -1944,9 +1961,11 @@ impl<'doc> AdzeEdge<'doc> {
 
     /// Return the field name attached to this edge, if any.
     pub fn field_name(&self) -> Option<&'doc str> {
-        self.record
-            .field_id()
-            .and_then(|field_id| self.document.language().field_name_for_id(field_id.get()))
+        self.record.unresolved_field_name.as_deref().or_else(|| {
+            self.record
+                .field_id()
+                .and_then(|field_id| self.document.language().field_name_for_id(field_id.get()))
+        })
     }
 
     /// Return the public field id attached to this edge, if any.
@@ -2938,6 +2957,30 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_fields_when_field_name_unknown_to_table_fails() {
+        let document = schema_field_document("value", "typo");
+
+        assert_eq!(
+            document.tree().node(NodeId::new(5)).unwrap().field_name(),
+            Some("typo")
+        );
+        assert_eq!(
+            document.tree().node(NodeId::new(5)).unwrap().field_id(),
+            None
+        );
+        assert_eq!(
+            document.validate_fields(),
+            Err(FieldValidationError::UnknownField {
+                edge_index: 4,
+                parent: NodeId::new(4),
+                child: NodeId::new(5),
+                owner: SymbolId(11),
+                field_name: "typo".to_string(),
+            })
+        );
+    }
+
+    #[test]
     fn test_validate_fields_when_field_not_granted_to_owner_fails() {
         // "items" is a real schema field, but only group (12) is granted it;
         // item (11) carrying it must fail rather than validate silently.
@@ -2951,6 +2994,27 @@ mod tests {
                 child: NodeId::new(2),
                 owner: SymbolId(11),
                 field_name: "items".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_validate_fields_uses_grammar_owner_despite_visible_alias() {
+        let mut document = schema_field_document("value", "value");
+        document.syntax.nodes[1].visible_id = SymbolId(999);
+        document.syntax.nodes[1].alias_symbol_id = Some(SymbolId(999));
+        assert_eq!(document.validate_fields(), Ok(()));
+    }
+
+    #[test]
+    fn test_validate_fields_when_field_parent_unknown_fails() {
+        let mut document = schema_field_document("value", "value");
+        document.syntax.edges[0].parent_id = NodeId::new(999);
+        assert_eq!(
+            document.validate_fields(),
+            Err(FieldValidationError::UnknownParent {
+                edge_index: 0,
+                parent: NodeId::new(999),
             })
         );
     }
