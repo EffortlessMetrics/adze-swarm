@@ -277,8 +277,11 @@ mod tests {
         Ok(())
     }
 
+    // Creating an invalid-byte filename requires filesystem support. This
+    // positive fixture is qualified on Linux; the rejection controls above
+    // only construct paths and remain available on Unix and Windows.
     #[test]
-    #[cfg(any(unix, windows))]
+    #[cfg(target_os = "linux")]
     fn test_run_generate_native_non_utf8_input_with_utf8_output_succeeds() -> Result<()> {
         let directory = tempfile::tempdir()?;
         let grammar = non_utf8_path(directory.path());
