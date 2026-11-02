@@ -765,10 +765,12 @@ impl GrammarJsParserV3 {
             // Parse nested arrays
             let mut conflicts = Vec::new();
             let mut i = 0;
-            let chars: Vec<char> = conflicts_content.chars().collect();
+            // Bracket matching and slicing both use byte offsets. ASCII '['
+            // cannot occur inside a multibyte UTF-8 character.
+            let bytes = conflicts_content.as_bytes();
 
-            while i < chars.len() {
-                if chars[i] == '[' {
+            while i < bytes.len() {
+                if bytes[i] == b'[' {
                     // Find the matching bracket
                     let sub_end =
                         self.find_matching_bracket(&conflicts_content[i + 1..], '[', ']')?;
@@ -1086,5 +1088,22 @@ module.exports = grammar({
         assert!(
             matches!(grammar.rules.get("tail"), Some(Rule::String { value }) if value == "done")
         );
+    }
+
+    #[test]
+    fn test_parse_unicode_conflicts_preserve_following_group() {
+        let content = r#"module.exports = grammar({ name: 'unicode_conflicts', conflicts: $ => [[$.été,$.b],[$.b,$.c]], rules: { été: $ => 'a', b: $ => 'b', c: $ => 'c' } })"#;
+        let grammar = GrammarJsParserV3::new(content.to_string())
+            .parse()
+            .expect("Unicode conflict names parse");
+        assert_eq!(
+            grammar.conflicts,
+            vec![
+                vec!["été".to_string(), "b".to_string()],
+                vec!["b".to_string(), "c".to_string()],
+            ],
+            "a multibyte name must not advance past the following group"
+        );
+        assert_eq!(grammar.rules.len(), 3);
     }
 }
