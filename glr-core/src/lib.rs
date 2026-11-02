@@ -320,8 +320,20 @@ pub use parse_table::{
     Action, ActionCell, GotoIndexing, LexMode, ParseRule, ParseTable, SymbolMetadata,
 };
 
-/// Assign lex modes from shiftable-terminal signatures (contract helper for #857 fixtures).
+/// Assign modes from direct Shift columns (the retained shift-specific fixture contract).
 pub fn build_lex_modes_from_shiftable_terminals(
+    action_table: &[Vec<Vec<Action>>],
+    external_scanner_states: &[Vec<bool>],
+) -> Vec<LexMode> {
+    crate::automaton::lex_modes::build_shift_lex_modes(action_table, external_scanner_states)
+}
+
+/// Assign canonical lexer modes from all usable lookahead columns.
+///
+/// Signatures include Shift, Reduce, Accept and recursively usable Fork actions,
+/// excluding Error and recovery-only cells. The generated lexer and streaming
+/// tables must use this same contract to keep state-specific candidates aligned.
+pub fn build_lex_modes_from_usable_lookahead(
     action_table: &[Vec<Vec<Action>>],
     external_scanner_states: &[Vec<bool>],
 ) -> Vec<LexMode> {
