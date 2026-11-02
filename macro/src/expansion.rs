@@ -50,24 +50,39 @@ fn leaf_transforms(attrs: &[Attribute]) -> Result<LeafTransforms> {
     })
 }
 
-/// The `text = "..."` literal of an `#[adze::leaf]` attribute, if present.
-fn leaf_text(attrs: &[Attribute]) -> Option<String> {
+/// Canonical token kind declared by a literal text or regex leaf.
+fn leaf_token_kind(attrs: &[Attribute]) -> Option<String> {
     let leaf_attr = attrs
         .iter()
         .find(|attr| attr.path() == &syn::parse_quote!(adze::leaf))?;
     let params = leaf_attr
         .parse_args_with(Punctuated::<NameValueExpr, Token![,]>::parse_terminated)
         .ok()?;
-    params.iter().find_map(|param| {
-        if param.path == "text"
-            && let Expr::Lit(ExprLit {
-                lit: Lit::Str(s), ..
-            }) = &param.expr
-        {
-            return Some(s.value());
-        }
-        None
-    })
+    let literal_param = |name: &str| {
+        params.iter().find_map(|param| {
+            if param.path == name
+                && let Expr::Lit(ExprLit {
+                    lit: Lit::Str(value),
+                    ..
+                }) = &param.expr
+            {
+                Some(value.value())
+            } else {
+                None
+            }
+        })
+    };
+    literal_param("text")
+        .map(|text| format!("\"{text}\""))
+        .or_else(|| {
+            // Regex kind spelling is supplied by the pure-Rust converter.
+            // The legacy C backend retains its existing wrapper dispatch.
+            if cfg!(feature = "pure-rust") {
+                literal_param("pattern").map(|pattern| pattern_token_name(&pattern))
+            } else {
+                None
+            }
+        })
 }
 
 fn attrs_have_try_transform(attrs: &[Attribute]) -> bool {
@@ -589,6 +604,12 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                     }).collect::<Vec<_>>();
 
                     let leaf_variant_detection = e.variants.iter().filter_map(|v| {
+                        // Pure-Rust wrapped variants use their named identity,
+                        // never a sibling's inline token. Keep the legacy C
+                        // backend's existing extraction output unchanged.
+                        if cfg!(feature = "pure-rust") && variant_has_explicit_wrapper(&v.attrs) {
+                            return None;
+                        }
                         let leaf_attr_source = if let Fields::Unnamed(ref unnamed) = v.fields {
                             if unnamed.unnamed.len() == 1 && unnamed.unnamed[0]
                                 .attrs
@@ -619,12 +640,11 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                             extraction_mode,
                         ).ok()?;
 
-                        // A `text = "..."` leaf names its token kind (`"true"`),
-                        // which discriminates sibling leaf variants; a pattern
-                        // leaf keeps the historical unconditional fallback.
-                        match leaf_text(leaf_attr_source) {
-                            Some(text) => {
-                                let expected_kind = format!("\"{text}\"");
+                        // Dispatch from the selected native identity for both
+                        // literal and regex leaves. Never replay a regex or
+                        // try another variant after a selected conversion fails.
+                        match leaf_token_kind(leaf_attr_source) {
+                            Some(expected_kind) => {
                                 Some(quote! {
                                     if unwrapped_node.kind() == #expected_kind {
                                         return #extract_expr;
