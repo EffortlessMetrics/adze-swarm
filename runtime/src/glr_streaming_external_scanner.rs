@@ -195,8 +195,10 @@ impl<'a> GeneratedExternalStreamingScanner<'a> {
     /// Roll the scanner back to a previously captured branch snapshot.
     ///
     /// Always invokes a present deserialize hook, including for empty snapshots
-    /// that reset state. Rejects excessive lengths and unavailable restoration;
-    /// only the hookless, unallocated empty-state convention is a no-op.
+    /// that reset state. Empty snapshots use the `(null, 0)` initial-state
+    /// convention; nonempty snapshots borrow their original buffer. Rejects
+    /// excessive lengths and unavailable restoration; only the hookless,
+    /// unallocated empty-state convention is a no-op.
     pub fn restore(&mut self, snapshot: &[u8]) -> Result<(), StreamingExternalScanError> {
         if snapshot.len() > MAX_GENERATED_SCANNER_SNAPSHOT_BYTES {
             return Err(StreamingExternalScanError::SnapshotTooLarge {
@@ -214,15 +216,17 @@ impl<'a> GeneratedExternalStreamingScanner<'a> {
             }
             return Err(StreamingExternalScanError::RestoreUnsupported);
         };
+        let buffer = if snapshot.is_empty() {
+            core::ptr::null()
+        } else {
+            snapshot.as_ptr()
+        };
         // SAFETY: The callback accepts its original instance pointer (possibly
-        // null). The snapshot outlives the call and the hook contract bounds
-        // reads by the passed length, including zero for a reset.
+        // null). Empty snapshots use the null-buffer, zero-length reset
+        // convention. Otherwise the original snapshot outlives the call and
+        // the hook contract bounds reads by the passed length.
         unsafe {
-            deserialize(
-                self.scanner_instance,
-                snapshot.as_ptr(),
-                snapshot.len() as u32,
-            );
+            deserialize(self.scanner_instance, buffer, snapshot.len() as u32);
         }
         Ok(())
     }
