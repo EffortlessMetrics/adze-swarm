@@ -15,7 +15,7 @@ With Adze, you can define your entire grammar with annotations on idiomatic Rust
 - **Structured Diagnostics**: Use supported parser errors and document diagnostics for bad input.
 - **GLR Ambiguity Handling**: Use documented GLR conflict-routing and ambiguity-summary surfaces.
 - **Document Projections**: Inspect `AdzeDocument`, typed views, Tree-sitter-shaped selected trees, and JSON according to support tiers.
-- **Static CLI Output**: Render a generated document as a tree, S-expression, DOT graph, or JSON projection. The CLI is Stabilizing and public JSON is Experimental; see [Support Tiers](../../docs/status/SUPPORT_TIERS.md).
+- **Static CLI Output**: Render a generated document as a tree, S-expression, DOT graph, or JSON projection. The CLI is Stabilizing and public JSON is Experimental; see [Support Tiers](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/status/SUPPORT_TIERS.md).
 - **Proof-Tracked Surfaces**: Support tiers, proof commands, known gaps, and release receipts are tracked in repo docs.
 
 ## Quick Example
