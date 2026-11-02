@@ -31,13 +31,13 @@ fn error_on_line(source: &str, line: usize) -> syn::Error {
 }
 
 #[test]
-fn authoring_malformed_fallible_field_reports_its_source() {
+fn test_authoring_malformed_fallible_field_reports_its_source() {
     let source = numeric_field(r##"#[adze::leaf(pattern = "[0-9]+", try_transform =)]"##);
     error_on_line(&source, 5);
 }
 
 #[test]
-fn authoring_missing_comma_is_not_silently_ignored() {
+fn test_authoring_missing_comma_is_not_silently_ignored() {
     let source = numeric_field(
         r##"#[adze::leaf(pattern = "[0-9]+" try_transform = |s| s.parse::<u16>())]"##,
     );
@@ -45,7 +45,7 @@ fn authoring_missing_comma_is_not_silently_ignored() {
 }
 
 #[test]
-fn authoring_conflicting_transforms_report_the_leaf_not_call_site() {
+fn test_authoring_conflicting_transforms_report_the_leaf_not_call_site() {
     let source = numeric_field(
         r##"#[adze::leaf(pattern = "[0-9]+", transform = |s: &str| s.len() as u16, try_transform = |s| s.parse::<u16>())]"##,
     );
@@ -55,25 +55,25 @@ fn authoring_conflicting_transforms_report_the_leaf_not_call_site() {
 }
 
 #[test]
-fn authoring_malformed_unit_struct_leaf_reports_its_source() {
+fn test_authoring_malformed_unit_struct_leaf_reports_its_source() {
     let source = "#[adze::grammar(\"unit_diag\")]\nmod grammar {\n    #[adze::language]\n    #[adze::leaf(text = \"ok\", try_transform =)]\n    pub struct Token;\n}";
     error_on_line(source, 4);
 }
 
 #[test]
-fn authoring_malformed_unit_variant_leaf_reports_its_source() {
+fn test_authoring_malformed_unit_variant_leaf_reports_its_source() {
     let source = "#[adze::grammar(\"variant_diag\")]\nmod grammar {\n    #[adze::language]\n    pub enum Token {\n        #[adze::leaf(text = \"ok\", try_transform =)]\n        Ok,\n    }\n}";
     error_on_line(source, 5);
 }
 
 #[test]
-fn authoring_malformed_single_field_variant_leaf_reports_its_source() {
+fn test_authoring_malformed_single_field_variant_leaf_reports_its_source() {
     let source = "#[adze::grammar(\"variant_value_diag\")]\nmod grammar {\n    #[adze::language]\n    pub enum Number {\n        #[adze::leaf(pattern = \"[0-9]+\", try_transform =)]\n        Value(u16),\n    }\n}";
     error_on_line(source, 5);
 }
 
 #[test]
-fn authoring_valid_conversion_forms_still_expand() {
+fn test_authoring_valid_conversion_forms_still_expand() {
     let fallible = numeric_field(
         r##"#[adze::leaf(pattern = "[0-9]+", try_transform = |s| s.parse::<u16>())]"##,
     );
@@ -93,7 +93,7 @@ fn authoring_valid_conversion_forms_still_expand() {
 }
 
 #[test]
-fn authoring_valid_literal_unit_leaf_still_expands() {
+fn test_authoring_valid_literal_unit_leaf_still_expands() {
     let source = r##"
 #[adze::grammar("literal_control")]
 mod grammar {
