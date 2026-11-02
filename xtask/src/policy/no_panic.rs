@@ -12,7 +12,7 @@
 //! | family | syntax detected |
 //! |---|---|
 //! | `unwrap` | `recv.unwrap()` outside `Result`-returning fns; qualified `Option::unwrap(x)` |
-//! | `unwrap_in_result` | `recv.unwrap()` inside a fn whose return type mentions `Result` |
+//! | `unwrap_in_result` | `recv.unwrap()` in a function or closure with an explicit return type mentioning `Result` |
 //! | `expect` | `recv.expect(..)` and qualified `Result::expect(..)` |
 //! | `panic_macro`, `todo`, `unimplemented`, `unreachable` | macro calls, matched by last path segment |
 //! | `indexing` | `base[expr]` with a non-range index |
@@ -40,6 +40,8 @@
 //! `tests.rs` / `*_test.rs` / `*_tests.rs` file inside a production prefix),
 //! or `out_of_scope` (dev-only packages). Test-only findings stay visible
 //! under their own scope and are never counted in the production denominator.
+//! Scope is file-level: inline `#[cfg(test)]` modules in an ordinary source
+//! file retain that file's scope. Counts do not classify individual items.
 //!
 //! ## Exit-mode contract (blocking-allowlist does NOT enforce freshness)
 //!
@@ -51,7 +53,8 @@
 //!
 //! Scan-integrity failures (unreadable/unparseable inputs, an empty
 //! production denominator) fail in every mode so a broken scan can never
-//! report a successful complete scan.
+//! report a successful complete scan. Proposal generation applies the same
+//! integrity checks before writing a proposal; it never adopts exceptions.
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -234,17 +237,7 @@ pub fn run_check(mode: Mode) -> Result<()> {
 
     // Scan-integrity failures are hard in every mode (see module docs): a
     // broken scan must never report a successful complete scan (#867).
-    if !report.failed_details.is_empty() {
-        anyhow::bail!(
-            "no-panic check failed: {} unreadable/unparseable file(s); see failed_details",
-            report.failed_files
-        );
-    }
-    if report.production_files == 0 {
-        anyhow::bail!(
-            "no-panic check failed: empty production denominator (no scanned production-scope files)"
-        );
-    }
+    ensure_scan_integrity(&report.failed_details, report.production_files)?;
 
     match mode {
         Mode::Advisory => Ok(()),
@@ -277,11 +270,32 @@ pub fn run_check(mode: Mode) -> Result<()> {
     }
 }
 
+fn ensure_scan_integrity(failed: &[FailedFile], production_files: usize) -> Result<()> {
+    if !failed.is_empty() {
+        anyhow::bail!(
+            "no-panic scan failed: {} unreadable/unparseable input(s): {}",
+            failed.len(),
+            failed
+                .iter()
+                .map(|file| format!("{}: {}", file.path, file.reason))
+                .collect::<Vec<_>>()
+                .join("; ")
+        );
+    }
+    if production_files == 0 {
+        anyhow::bail!(
+            "no-panic scan failed: empty production denominator (no scanned production-scope files)"
+        );
+    }
+    Ok(())
+}
+
 pub fn run_propose(baseline: bool) -> Result<()> {
     let root = workspace_root()?;
     let report_dir = ensure_report_dir(&root)?;
     let prefixes = production_prefixes(&root)?;
-    let (findings, _stats) = scan_workspace(&root, &prefixes)?;
+    let (findings, stats) = scan_workspace(&root, &prefixes)?;
+    ensure_scan_integrity(&stats.failed, stats.production_files)?;
 
     let allowlist = load_allowlist(&root)?;
     let mut entries = Vec::new();
@@ -846,6 +860,16 @@ impl<'ast, 'a> syn::visit::Visit<'ast> for Visitor<'a> {
         self.pop_fn();
     }
 
+    fn visit_expr_closure(&mut self, node: &'ast syn::ExprClosure) {
+        // A closure owns its return context. Inferred output is unknown;
+        // never borrow a Result classification from the enclosing function.
+        // Keep the established function/impl/module selector identity;
+        // only the return-context classification changes at this boundary.
+        self.result_stack.push(returns_result(&node.output));
+        syn::visit::visit_expr_closure(self, node);
+        self.result_stack.pop();
+    }
+
     fn visit_item_mod(&mut self, node: &'ast syn::ItemMod) {
         self.container_stack.push(node.ident.to_string());
         syn::visit::visit_item_mod(self, node);
@@ -990,7 +1014,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn family_string_round_trips() {
+    fn test_family_string_round_trips() {
         for f in [
             Family::Unwrap,
             Family::Expect,
@@ -1008,7 +1032,7 @@ mod tests {
     }
 
     #[test]
-    fn fingerprint_truncation_is_utf8_safe() {
+    fn test_fingerprint_truncation_is_utf8_safe() {
         // Long UTF-8 string with multi-byte characters; truncation must not
         // panic on a byte boundary mid-char.
         let s = "α".repeat(200);
@@ -1021,7 +1045,7 @@ mod tests {
     }
 
     #[test]
-    fn mode_parse_round_trips() {
+    fn test_mode_parse_round_trips() {
         assert!(matches!(Mode::parse("advisory"), Ok(Mode::Advisory)));
         assert!(matches!(
             Mode::parse("blocking-allowlist"),
@@ -1035,7 +1059,7 @@ mod tests {
     }
 
     #[test]
-    fn expiry_is_six_months_out() {
+    fn test_expiry_is_six_months_out() {
         let s = default_expiry();
         let parsed = chrono::NaiveDate::parse_from_str(&s, "%Y-%m-%d").unwrap();
         let today = chrono::Utc::now().date_naive();
@@ -1043,7 +1067,7 @@ mod tests {
     }
 
     #[test]
-    fn allowlist_match_requires_full_key() {
+    fn test_allowlist_match_requires_full_key() {
         let entry = AllowEntry {
             id: "panic-0001".into(),
             path: "foo.rs".into(),
@@ -1097,7 +1121,7 @@ mod tests {
     }
 
     #[test]
-    fn propose_key_distinguishes_distinct_calls() {
+    fn test_propose_key_distinguishes_distinct_calls() {
         let mut first = Finding {
             path: "foo.rs".into(),
             family: Family::Unwrap,
@@ -1121,7 +1145,7 @@ mod tests {
     }
 
     #[test]
-    fn visitors_cover_all_claimed_families() {
+    fn test_visitors_cover_all_claimed_families() {
         let src = r#"
 fn plain(x: Option<i32>) -> i32 { x.unwrap() }
 fn fallible(x: Option<i32>) -> Result<i32, String> { Ok(x.unwrap()) }
@@ -1159,7 +1183,7 @@ fn expecting(x: Option<i32>) -> i32 { x.expect("boom") }
     }
 
     #[test]
-    fn slice_expr_split_from_plain_index() {
+    fn test_slice_expr_split_from_plain_index() {
         let src = "fn f(a: &[i32], s: &str) { let _ = a[0]; let _ = &s[..]; }\n";
         let findings = scan_source("demo.rs", src, Scope::Production).expect("fixture parses");
         assert!(
@@ -1175,7 +1199,7 @@ fn expecting(x: Option<i32>) -> i32 { x.expect("boom") }
     }
 
     #[test]
-    fn scope_derivation_splits_test_only_from_production() {
+    fn test_scope_derivation_splits_test_only_from_production() {
         let prefixes = vec!["runtime/".to_string(), "cli/".to_string()];
         assert_eq!(
             classify_file("runtime/src/lib.rs", &prefixes),
@@ -1200,7 +1224,7 @@ fn expecting(x: Option<i32>) -> i32 { x.expect("boom") }
     }
 
     #[test]
-    fn serde_json_value_index_is_reported_fp() {
+    fn test_serde_json_value_index_is_reported_fp() {
         // `v["k"]` on `serde_json::Value` never panics (missing key -> Null),
         // but without type info the scanner still reports it: an explicit,
         // classified FP — never a silent suppression.

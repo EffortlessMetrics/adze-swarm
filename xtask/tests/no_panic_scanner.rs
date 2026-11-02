@@ -91,7 +91,7 @@ receiver_fingerprint = "{fingerprint}"
 }
 
 #[test]
-fn advisory_reports_counts_scopes_and_all_families() {
+fn test_advisory_reports_counts_scopes_and_all_families() {
     let dir = fixture_root("counts");
     write_file(
         &dir,
@@ -118,7 +118,7 @@ pub fn fallible(x: Option<i32>) -> Result<i32, String> { Ok(x.unwrap()) }
     write_file(
         &dir,
         "runtime/tests/it.rs",
-        "#[test]\nfn t() { let x: Option<i32> = None; let _ = x.unwrap(); }\n",
+        "#[test]\nfn test_fixture() { let x: Option<i32> = None; let _ = x.unwrap(); }\n",
     );
     write_file(
         &dir,
@@ -185,7 +185,7 @@ pub fn fallible(x: Option<i32>) -> Result<i32, String> { Ok(x.unwrap()) }
 }
 
 #[test]
-fn unparseable_file_fails_every_mode() {
+fn test_unparseable_file_fails_every_mode() {
     let dir = fixture_root("unparseable");
     write_file(
         &dir,
@@ -209,7 +209,7 @@ fn unparseable_file_fails_every_mode() {
 }
 
 #[test]
-fn empty_production_denominator_fails() {
+fn test_empty_production_denominator_fails() {
     let dir = fixture_root("empty-denominator");
     write_file(&dir, "tooling/src/main.rs", "fn main() {}\n");
 
@@ -224,7 +224,7 @@ fn empty_production_denominator_fails() {
 }
 
 #[test]
-fn blocking_allowlist_enforces_full_key_and_second_call() {
+fn test_blocking_allowlist_enforces_full_key_and_second_call() {
     let dir = fixture_root("full-key");
     write_file(
         &dir,
@@ -288,7 +288,7 @@ fn blocking_allowlist_enforces_full_key_and_second_call() {
 }
 
 #[test]
-fn stale_and_expired_reported_but_not_enforced_in_allowlist_mode() {
+fn test_stale_and_expired_reported_but_not_enforced_in_allowlist_mode() {
     let dir = fixture_root("freshness");
     write_file(
         &dir,
@@ -328,4 +328,129 @@ fn stale_and_expired_reported_but_not_enforced_in_allowlist_mode() {
         !output.status.success(),
         "strict must fail on stale+expired"
     );
+}
+
+#[test]
+fn test_proposal_refuses_invalid_scan_and_empty_production_denominator() {
+    for (name, source, diagnostic) in [
+        (
+            "proposal-broken",
+            Some("pub fn broken( {"),
+            "unreadable/unparseable",
+        ),
+        ("proposal-empty", None, "empty production denominator"),
+    ] {
+        let dir = fixture_root(name);
+        if let Some(source) = source {
+            write_file(&dir, "runtime/src/lib.rs", source);
+        }
+        for args in [
+            vec!["no-panic-propose"],
+            vec!["no-panic-propose", "--baseline"],
+        ] {
+            let output = Command::new(env!("CARGO_BIN_EXE_xtask"))
+                .args(&args)
+                .current_dir(&dir)
+                .output()
+                .unwrap();
+            assert!(!output.status.success(), "{args:?}: {}", combined(&output));
+            assert!(
+                combined(&output).contains(diagnostic),
+                "{}",
+                combined(&output)
+            );
+            assert!(!dir.join("target/policy/no-panic-proposed.toml").exists());
+        }
+    }
+    let dir = fixture_root("proposal-complete");
+    write_file(
+        &dir,
+        "runtime/src/lib.rs",
+        "pub fn plain(x: Option<i32>) -> i32 { x.unwrap() }",
+    );
+    let output = Command::new(env!("CARGO_BIN_EXE_xtask"))
+        .arg("no-panic-propose")
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", combined(&output));
+    let proposal =
+        std::fs::read_to_string(dir.join("target/policy/no-panic-proposed.toml")).unwrap();
+    assert_eq!(proposal.matches("[[allow]]").count(), 1);
+    assert_eq!(
+        std::fs::read_to_string(dir.join("policy/no-panic-allowlist.toml")).unwrap(),
+        EMPTY_ALLOWLIST
+    );
+}
+
+#[test]
+fn test_closure_return_context_does_not_inherit_outer_function() {
+    let dir = fixture_root("closures");
+    write_file(
+        &dir,
+        "runtime/src/lib.rs",
+        r#"
+pub fn fallible(x: Option<i32>) -> Result<i32, ()> {
+    let explicit = || -> i32 { x.unwrap() };
+    let inferred = || { x.unwrap() };
+    Ok(x.unwrap() + explicit() + inferred())
+}
+pub fn plain(x: Option<i32>) -> i32 {
+    let explicit = || -> Result<i32, ()> { Ok(x.unwrap()) };
+    1
+}
+"#,
+    );
+    let output = run(&dir, "advisory");
+    assert!(output.status.success(), "{}", combined(&output));
+    let report = report_json(&dir);
+    let findings = report["unallowlisted"].as_array().unwrap();
+    assert_eq!(findings.len(), 4);
+    let counts = |container: &str, family: &str| {
+        findings
+            .iter()
+            .filter(|finding| {
+                finding["selector"]["container"] == container && finding["family"] == family
+            })
+            .count()
+    };
+    assert_eq!(counts("fallible", "unwrap"), 2);
+    assert_eq!(counts("fallible", "unwrap_in_result"), 1);
+    assert_eq!(counts("plain", "unwrap_in_result"), 1);
+}
+
+#[test]
+fn test_reviewed_legacy_build_receipt_still_matches_its_actual_source() {
+    let dir = fixture_root("reviewed-build-receipt");
+    let ledger: toml::Value = include_str!("../../policy/no-panic-allowlist.toml")
+        .parse()
+        .unwrap();
+    let entry = ledger["allow"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["id"].as_str() == Some("panic-3452"))
+        .unwrap()
+        .clone();
+    let mut selected = toml::map::Map::new();
+    selected.insert("schema_version".into(), toml::Value::String("0.3".into()));
+    selected.insert("allow".into(), toml::Value::Array(vec![entry]));
+    write_allowlist(&dir, &toml::to_string(&selected).unwrap());
+    // Preserve both the reviewed source path and the full selector identity.
+    write_file(
+        &dir,
+        "tool/src/build_parsers/mod.rs",
+        include_str!("../../tool/src/build_parsers/mod.rs"),
+    );
+    write_file(
+        &dir,
+        "runtime/src/lib.rs",
+        "pub fn production_denominator() {}",
+    );
+    let output = run(&dir, "advisory");
+    assert!(output.status.success(), "{}", combined(&output));
+    let report = report_json(&dir);
+    assert_eq!(report["allowlist_size"], 1);
+    assert_eq!(report["matched"], 1);
+    assert_eq!(report["stale_entries"].as_array().unwrap().len(), 0);
 }
