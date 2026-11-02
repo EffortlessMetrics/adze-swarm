@@ -53,14 +53,14 @@ pub(crate) enum Commands {
 
     /// Parse a file using the grammar
     Parse {
-        /// Grammar file (or .so/.dylib path when using --dynamic)
+        /// Grammar file to parse with (shared-library grammars are not supported)
         grammar: PathBuf,
         /// Input file to parse
         input: PathBuf,
         /// Output format (alias --output). One of: tree (default), json, sexp, dot, document-json, tree-json, diagnostics-json, ambiguity-json. Note: json prints the full document envelope.
         #[arg(short, long, visible_alias = "output", default_value = "tree")]
         format: OutputFormat,
-        /// Use dynamic loader to load compiled grammar from shared library (experimental load-check only; parse output not implemented, requires --features dynamic)
+        /// Dynamic parsing is unavailable and fails without loading anything (not implemented)
         #[arg(long)]
         dynamic: bool,
         /// Optional exported symbol (default: "language")
@@ -788,18 +788,10 @@ fn parse_file(
     _symbol: &str,
 ) -> Result<()> {
     if dynamic {
-        #[cfg(feature = "dynamic")]
-        {
-            return parse_file_dynamic(grammar, input, format, _symbol);
-        }
-        #[cfg(not(feature = "dynamic"))]
-        {
-            anyhow::bail!(
-                "{}",
-                "Dynamic parse mode is experimental and requires building adze-cli with --features dynamic."
-                    .red()
-            );
-        }
+        anyhow::bail!(
+            "{}",
+            "Dynamic parse mode is unavailable: `adze parse --dynamic` is not implemented and no grammar library was loaded. Parse statically with `adze parse <grammar.rs> <input>` instead.".red()
+        );
     }
 
     if matches!(format, OutputFormat::Tree) {
@@ -841,9 +833,7 @@ fn parse_file(
         "   To parse files from Rust code, use `adze build` + `cargo test` in your grammar project."
     );
     println!("   To validate a grammar without parsing, use `adze check <grammar.rs>`.");
-    println!(
-        "   To load a compiled grammar at runtime, pass --dynamic (experimental; requires --features dynamic)."
-    );
+    println!("   Dynamic grammar loading (--dynamic) is unavailable in this version.");
 
     anyhow::bail!(
         "static parse output format `{}` is currently unimplemented — use `tree` or a document projection mode instead",
@@ -1393,85 +1383,6 @@ fn rust_string_literal(value: &str) -> String {
     format!("{value:?}")
 }
 
-#[cfg(feature = "dynamic")]
-fn parse_file_dynamic(
-    grammar: &Path,
-    input: &Path,
-    format: OutputFormat,
-    symbol: &str,
-) -> Result<()> {
-    use libloading::Library;
-
-    log_dynamic_grammar_load(grammar);
-    let input_content = read_dynamic_input(input)?;
-
-    unsafe {
-        ensure_dynamic_grammar_exists(grammar)?;
-
-        let lib = Library::new(grammar)?;
-        let sym_name = symbol_name_with_null_terminator(symbol);
-        let get_language: libloading::Symbol<unsafe extern "C" fn() -> *const u8> =
-            lib.get(&sym_name)?;
-        let _lang_ptr = get_language();
-
-        log_dynamic_parse_mode_status(grammar, input_content.len(), format);
-    }
-
-    anyhow::bail!("dynamic parse mode is currently unimplemented")
-}
-
-#[cfg(feature = "dynamic")]
-fn log_dynamic_grammar_load(grammar: &Path) {
-    println!(
-        "{} Loading dynamic grammar: {}",
-        "🔧".blue(),
-        grammar.display()
-    );
-}
-
-#[cfg(feature = "dynamic")]
-fn read_dynamic_input(input: &Path) -> Result<String> {
-    Ok(fs::read_to_string(input)?)
-}
-
-#[cfg(feature = "dynamic")]
-fn ensure_dynamic_grammar_exists(grammar: &Path) -> Result<()> {
-    if !grammar.exists() {
-        anyhow::bail!("dynamic grammar not found: {}", grammar.display());
-    }
-    Ok(())
-}
-
-#[cfg(feature = "dynamic")]
-fn symbol_name_with_null_terminator(symbol: &str) -> Vec<u8> {
-    let mut bytes = symbol.as_bytes().to_vec();
-    if !bytes.ends_with(b"\0") {
-        bytes.push(0);
-    }
-    bytes
-}
-
-#[cfg(feature = "dynamic")]
-fn log_dynamic_parse_mode_status(grammar: &Path, input_len: usize, format: OutputFormat) {
-    println!(
-        "{} Loaded language symbol from: {}",
-        "✓".green(),
-        grammar.display()
-    );
-    println!("Input size: {input_len} bytes");
-    println!("Requested output: {}", format.cli_name());
-    if format.is_document_projection() {
-        println!(
-            "{} Document projection output is reserved but not implemented for dynamic parse mode yet.",
-            "⚠️ ".yellow()
-        );
-    }
-    println!(
-        "{} Dynamic parse mode is experimental: loading works, but AST/output parsing is not implemented yet.",
-        "⚠️ ".yellow()
-    );
-}
-
 /// Render a canonicalized path for a generated `Cargo.toml`.
 ///
 /// Windows `canonicalize()` returns verbatim paths (`\\?\C:\...` or
@@ -1893,34 +1804,38 @@ mod tests {
         assert_eq!(literal, r#""\\\\?\\D:\\repo\\adze\\runtime""#);
     }
 
-    #[cfg(feature = "dynamic")]
     #[test]
-    fn dynamic_symbol_name_appends_null_terminator() {
-        let symbol = super::symbol_name_with_null_terminator("tree_sitter_json");
-
-        assert_eq!(symbol, b"tree_sitter_json\0");
-    }
-
-    #[cfg(feature = "dynamic")]
-    #[test]
-    fn dynamic_symbol_name_keeps_existing_null_terminator() {
-        let symbol = super::symbol_name_with_null_terminator("tree_sitter_json\0");
-
-        assert_eq!(symbol, b"tree_sitter_json\0");
-    }
-
-    #[cfg(feature = "dynamic")]
-    #[test]
-    fn dynamic_missing_grammar_error_is_bounded() {
+    fn dynamic_parse_rejected_before_any_filesystem_or_loader_work() {
+        // Both paths exist, so any failure must come from the capability
+        // rejection itself — not from grammar/input validation, and never
+        // from loading a shared library or calling a resolved symbol.
         let temp = tempfile::tempdir().expect("tempdir");
-        let missing = temp.path().join("missing-grammar.so");
+        let grammar = temp.path().join("grammar.so");
+        let input = temp.path().join("input.txt");
+        std::fs::write(&grammar, "not a shared library").expect("write grammar");
+        std::fs::write(&input, "1").expect("write input");
 
-        let err = super::ensure_dynamic_grammar_exists(&missing)
-            .expect_err("missing dynamic grammar should fail");
+        let err = super::parse_file(
+            &grammar,
+            &input,
+            super::OutputFormat::Tree,
+            true,
+            "language",
+        )
+        .expect_err("dynamic parse must fail");
 
         assert!(
-            err.to_string().contains("dynamic grammar not found"),
-            "missing grammar error should be explicit: {err}"
+            err.to_string()
+                .contains("Dynamic parse mode is unavailable"),
+            "dynamic rejection should be explicit: {err}"
+        );
+        assert!(
+            err.to_string().contains("no grammar library was loaded"),
+            "dynamic rejection should state nothing was loaded: {err}"
+        );
+        assert!(
+            !err.to_string().contains("currently unimplemented"),
+            "dynamic rejection must not fall through to the old partial path: {err}"
         );
     }
 }
