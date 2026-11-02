@@ -494,7 +494,15 @@ impl Parser {
             // Track parsing progress
 
             // Get action for current state and token
-            let action = self.get_action(language, current_state, token.symbol);
+            // Lexical failure and an EOF column returned before physical EOF
+            // must never reduce/accept an otherwise valid source prefix (#1174).
+            let action = if token.is_invalid
+                || (token.symbol == language.eof_symbol && position < source.len())
+            {
+                Action::Error
+            } else {
+                self.get_action(language, current_state, token.symbol)
+            };
             // Debug logging for arithmetic parsing
             if source.len() < 20 {
                 //if current_state == 0 && position == 0 {
@@ -683,10 +691,17 @@ impl Parser {
                         error_nodes.push(error_node);
                     }
 
-                    // Simple error recovery: skip token
+                    // Invalid generated tokens consume one complete UTF-8
+                    // scalar (or one raw invalid byte), never half a character.
                     if position < source.len() {
-                        position += 1;
-                        point = advance_point(point, &source[position - 1..position]);
+                        let start = position;
+                        let width = if token.is_invalid {
+                            token.length.max(1)
+                        } else {
+                            1
+                        };
+                        position = position.saturating_add(width).min(source.len());
+                        point = advance_point(point, &source[start..position]);
                     } else {
                         break;
                     }
@@ -718,6 +733,7 @@ impl Parser {
                     symbol: language.eof_symbol,
                     length: 0,
                     is_extra: false,
+                    is_invalid: false,
                 };
             }
         };
@@ -734,6 +750,7 @@ impl Parser {
                 symbol: language.eof_symbol,
                 length: 0,
                 is_extra: false,
+                is_invalid: false,
             }; // EOF
         }
 
@@ -815,6 +832,7 @@ impl Parser {
                         symbol,
                         length: ext_lexer.token_end,
                         is_extra: false,
+                        is_invalid: false,
                     };
                 }
             }
@@ -889,11 +907,14 @@ impl Parser {
                         symbol: language.eof_symbol,
                         length: 0,
                         is_extra: false,
+                        is_invalid: false,
                     };
                 }
 
                 let mut backing = Backing {
-                    input: &lexer.input,
+                    // The appended sentinel belongs to the parser, not the
+                    // generated lexer's logical source (including comments).
+                    input: &lexer.input[..lexer.input.len() - 1],
                     pos: position,
                     mark: position,
                     tok_len: 0,
@@ -916,19 +937,26 @@ impl Parser {
                         backing.pos
                     };
                     let symbol = ts.result_symbol;
+                    if symbol == language.eof_symbol
+                        || end <= position
+                        || end > lexer.input.len() - 1
+                    {
+                        return Token::invalid(
+                            language.eof_symbol,
+                            &lexer.input[position..lexer.input.len() - 1],
+                        );
+                    }
                     return Token {
                         symbol,
                         length: end - position,
                         is_extra: self.is_extra_symbol(language, symbol),
+                        is_invalid: false,
                     };
                 } else {
-                    let at_eof = position >= lexer.input.len() - 1;
-                    let symbol = if at_eof { language.eof_symbol } else { 0 };
-                    return Token {
-                        symbol,
-                        length: 0,
-                        is_extra: false,
-                    };
+                    return Token::invalid(
+                        language.eof_symbol,
+                        &lexer.input[position..lexer.input.len() - 1],
+                    );
                 }
             }
         }
@@ -947,6 +975,7 @@ impl Parser {
                 symbol: language.eof_symbol, // EOF column index from language
                 length: 0,
                 is_extra: false,
+                is_invalid: false,
             };
         }
 
@@ -965,6 +994,7 @@ impl Parser {
                 symbol: 1,
                 length: len,
                 is_extra: true,
+                is_invalid: false,
             };
         }
 
@@ -973,6 +1003,7 @@ impl Parser {
             symbol: ch as u16,
             length: 1,
             is_extra: false,
+            is_invalid: false,
         }
     }
 
@@ -1693,6 +1724,36 @@ struct Token {
     symbol: TSSymbol,
     length: usize,
     is_extra: bool,
+    is_invalid: bool,
+}
+
+impl Token {
+    fn invalid(eof_symbol: TSSymbol, source: &[u8]) -> Self {
+        let width = match source.first() {
+            Some(0xC2..=0xDF) => 2,
+            Some(0xE0..=0xEF) => 3,
+            Some(0xF0..=0xF4) => 4,
+            Some(_) => 1,
+            None => 0,
+        };
+        let length = if source
+            .get(..width)
+            .is_some_and(|head| std::str::from_utf8(head).is_ok())
+        {
+            width
+        } else {
+            1
+        };
+        Self {
+            // The public diagnostic adapter already resolves a non-EOF source
+            // position to its actual character. The invalid flag prevents this
+            // diagnostic symbol from entering grammar ACTION lookup.
+            symbol: eof_symbol,
+            length,
+            is_extra: false,
+            is_invalid: true,
+        }
+    }
 }
 
 /// Parse action
@@ -2057,6 +2118,94 @@ fn create_ts_lexer(ext_lexer: &mut ExternalLexer) -> crate::lex::TsLexer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_failed_generated_lexer_is_not_eof_for_either_eof_column() {
+        static OBSERVED_LEN: std::sync::atomic::AtomicUsize =
+            std::sync::atomic::AtomicUsize::new(0);
+        unsafe extern "C" fn cannot_lex(state: *mut c_void, _: TSLexState) -> bool {
+            let lexer = state.cast::<crate::lex::TsLexer>();
+            #[repr(C)]
+            struct View {
+                input: *const u8,
+                input_len: usize,
+                pos: usize,
+            }
+            // SAFETY: the parser supplies its repr(C) input/position backing.
+            let view = unsafe { &*((*lexer).data as *const View) };
+            OBSERVED_LEN.store(view.input_len, std::sync::atomic::Ordering::SeqCst);
+            false
+        }
+        static TABLE: [u16; 2] = [u16::MAX, u16::MAX];
+        static METADATA: [u8; 2] = [0, 0];
+        static ACTIONS: [TSParseAction; 1] = [TSParseAction {
+            action_type: 0,
+            extra: 0,
+            child_count: 0,
+            dynamic_precedence: 0,
+            symbol: 0,
+        }];
+        for eof_symbol in [0, 1] {
+            let names = Box::leak(Box::new([
+                c"token".as_ptr().cast::<u8>(),
+                c"end".as_ptr().cast::<u8>(),
+            ]));
+            let language = Box::leak(Box::new(TSLanguage {
+                version: TREE_SITTER_LANGUAGE_VERSION,
+                symbol_count: 2,
+                alias_count: 0,
+                token_count: 2,
+                external_token_count: 0,
+                state_count: 1,
+                large_state_count: 1,
+                production_id_count: 0,
+                field_count: 0,
+                max_alias_sequence_length: 0,
+                production_id_map: std::ptr::null(),
+                parse_table: TABLE.as_ptr(),
+                small_parse_table: std::ptr::null(),
+                small_parse_table_map: std::ptr::null(),
+                parse_actions: ACTIONS.as_ptr(),
+                symbol_names: names.as_ptr(),
+                field_names: std::ptr::null(),
+                field_map_slices: std::ptr::null(),
+                field_map_entries: std::ptr::null(),
+                symbol_metadata: METADATA.as_ptr(),
+                public_symbol_map: std::ptr::null(),
+                alias_map: std::ptr::null(),
+                alias_sequences: std::ptr::null(),
+                lex_modes: std::ptr::null(),
+                lex_fn: Some(cannot_lex),
+                keyword_lex_fn: None,
+                keyword_capture_token: 0,
+                external_scanner: ExternalScanner::default(),
+                primary_state_ids: std::ptr::null(),
+                production_lhs_index: std::ptr::null(),
+                production_count: 0,
+                eof_symbol,
+                rules: std::ptr::null(),
+                rule_count: 0,
+            }));
+            let mut parser = Parser::new();
+            parser.set_language(language).unwrap();
+            let result = parser.parse_string("λ");
+            assert_eq!(
+                result.errors.len(),
+                1,
+                "unlexable source cannot accept either column"
+            );
+            assert_eq!(result.errors[0].position, 0);
+            assert_eq!(
+                OBSERVED_LEN.load(std::sync::atomic::Ordering::SeqCst),
+                2,
+                "callback sees two source bytes, not an appended sentinel"
+            );
+            assert!(
+                parser.parse_string("").errors.is_empty(),
+                "physical EOF remains EOF"
+            );
+        }
+    }
 
     fn pack_field_map_entry(field_id: u16, child_index: u8, inherited: u8) -> [u16; 2] {
         let packed = (field_id as u32) | ((child_index as u32) << 16) | ((inherited as u32) << 24);
