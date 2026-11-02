@@ -185,9 +185,8 @@ impl BuildPipeline {
         parse_table: &ParseTable,
         node_types_json: &str,
     ) -> Result<()> {
-        if grammar_dir.exists() {
-            fs::remove_dir_all(grammar_dir).context("Failed to remove old grammar directory")?;
-        }
+        // C artifacts and authored scanner files may already live here.
+        // Refresh the Rust-owned files without deleting their neighbours.
         fs::create_dir_all(grammar_dir).context("Failed to create grammar directory")?;
 
         let grammar_ir_path = grammar_dir.join("grammar.ir.json");

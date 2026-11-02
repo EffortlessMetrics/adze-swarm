@@ -26,9 +26,8 @@ impl GrammarArtifacts {
         let (dir, _tempdir) = if options.emit_artifacts {
             let grammar_dir =
                 PathBuf::from(options.out_dir.as_str()).join(format!("grammar_{grammar_name}"));
-            if grammar_dir.is_dir() {
-                std::fs::remove_dir_all(&grammar_dir).expect("Couldn't clear old artifacts");
-            }
+            // The Rust generator and authored scanners share this directory.
+            // Materialize only our owned files; never clear other producers.
             std::fs::DirBuilder::new()
                 .recursive(true)
                 .create(grammar_dir.clone())
@@ -65,7 +64,7 @@ fn write_grammar_json(dir: &std::path::Path, grammar_name: &str, grammar: &Value
 
 fn write_parser_header(dir: &std::path::Path) {
     let header_dir = dir.join("tree_sitter");
-    std::fs::create_dir(&header_dir).unwrap();
+    std::fs::create_dir_all(&header_dir).unwrap();
     let mut parser_file = std::fs::File::create(header_dir.join("parser.h")).unwrap();
     parser_file
         .write_all(tree_sitter::PARSER_HEADER.as_bytes())
