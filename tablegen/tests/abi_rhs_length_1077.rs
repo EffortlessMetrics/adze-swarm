@@ -134,3 +134,26 @@ fn test_generate_compat_wrapper_does_not_silently_truncate() {
     let g = grammar_with_rhs(256);
     let _ = AbiLanguageBuilder::new(&g, &t).generate();
 }
+
+#[test]
+fn test_empty_and_epsilon_rhs_emit_zero_abi_child_count() {
+    let t = table();
+    for rhs in [vec![], vec![Symbol::Epsilon]] {
+        let mut grammar = grammar_with_rhs(0);
+        grammar.rules.values_mut().next().unwrap()[0].rhs = rhs;
+        let code = AbiLanguageBuilder::new(&grammar, &t)
+            .try_generate()
+            .expect("both admitted empty production representations must emit")
+            .to_string();
+        assert!(
+            code.contains("rhs_len : 0u8"),
+            "TS_RULES must consume no child"
+        );
+        assert!(
+            code.contains("child_count : 0u8"),
+            "PARSE_ACTIONS must consume no child"
+        );
+        assert!(!code.contains("rhs_len : 1u8"));
+        assert!(!code.contains("child_count : 1u8"));
+    }
+}
