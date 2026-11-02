@@ -130,15 +130,6 @@ The main user-facing crate. Re-exports `adze-macro` proc-macros at the top level
 | `tree_sitter` (external crate) | Deprecated | `tree-sitter-standard` | — |
 | `tree_sitter_c2rust` | Deprecated | `tree-sitter-c2rust` | — |
 
-### Deprecated Modules
-
-| Module | Stability | Feature | Replacement |
-|--------|-----------|---------|-------------|
-| `incremental` | Deprecated | `legacy-parsers` | `glr_incremental` |
-| `incremental_v2` | Deprecated | `legacy-parsers` | `glr_incremental` |
-| `incremental_v3` | Deprecated | `legacy-parsers` | `glr_incremental` |
-| `glr` (legacy) | Deprecated | `legacy-parsers` | `glr_parser` |
-
 ### Feature Flags
 
 | Flag | Default | Description |
@@ -149,7 +140,6 @@ The main user-facing crate. Re-exports `adze-macro` proc-macros at the top level
 | `simd` | — | SIMD-accelerated lexer |
 | `wasm` | — | WASM build support |
 | `ts-compat` | — | Tree-sitter compatibility API |
-| `legacy-parsers` | — | Access deprecated parser_v2/v3 modules |
 | `incremental_glr` | — | GLR incremental parsing support |
 | `external_scanners` | — | External scanner support |
 | `query` | — | Query predicates support |
