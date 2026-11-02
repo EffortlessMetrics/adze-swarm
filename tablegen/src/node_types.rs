@@ -28,23 +28,6 @@ pub struct NodeTypesGenerator<'a> {
     grammar: &'a Grammar,
 }
 
-/// Accumulated facts for one field across a node kind's alternatives.
-#[derive(Debug, Default)]
-struct FieldFacts {
-    present_in_alternatives: usize,
-    optional: bool,
-    multiple: bool,
-    types: Vec<TypeRef>,
-}
-
-/// Cardinality and target types derived from one field position's symbol.
-#[derive(Debug, Default)]
-struct FieldCardinality {
-    optional: bool,
-    multiple: bool,
-    types: Vec<TypeRef>,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 struct NodeType {
     #[serde(rename = "type")]
@@ -122,6 +105,10 @@ impl<'a> NodeTypesGenerator<'a> {
         // Process rules to create node types
         let mut processed = HashSet::new();
 
+        // Canonical field facts, resolved once per grammar (including
+        // through normalization helpers) so every consumer agrees.
+        let schema = crate::field_schema::field_semantics_for_grammar(self.grammar);
+
         debug_trace!(
             "Debug: Processing {} rules for node types",
             self.grammar.rules.len()
@@ -146,82 +133,50 @@ impl<'a> NodeTypesGenerator<'a> {
             if let Some(name) = self.get_rule_name(*symbol_id) {
                 // Skip internal rules (starting with _)
                 let is_internal = name.starts_with('_');
+                // Skip anonymous helpers whose fields were resolved through
+                // the canonical schema: they own no node type.
+                let is_resolved_helper = !self.grammar.rule_names.contains_key(symbol_id)
+                    && !matches!(
+                        crate::field_schema::aux_shape(self.grammar, *symbol_id),
+                        crate::field_schema::AuxShape::Opaque
+                    );
+                if is_resolved_helper {
+                    processed.insert(*symbol_id);
+                    continue;
+                }
 
-                // Collect fields from all rules (production alternatives)
-                // for this symbol. Cardinality is derived from the grammar
-                // structure: a field is required only when every alternative
+                // Field facts come from the canonical schema, which resolves
+                // helper wrappers and composes per-alternative occurrence
+                // facts: a field is required only when every alternative
                 // provides it in a non-optional position, and it is multiple
                 // when any occurrence repeats or a single alternative binds
                 // it more than once. Type sets are the deterministic union
                 // across alternatives and choice targets.
-                let mut field_facts: BTreeMap<String, FieldFacts> = BTreeMap::new();
-                for rule in rules {
-                    // Count bindings per field within this one alternative so
-                    // a field bound twice here is multiple even without a
-                    // repeat wrapper.
-                    let mut bound_in_rule: HashMap<&str, usize> = HashMap::new();
-                    for (field_id, position) in &rule.fields {
-                        // A field whose position is out of bounds binds
-                        // nothing and is skipped entirely.
-                        if rule.rhs.get(*position).is_some()
-                            && let Some(field_name) = self.grammar.fields.get(field_id)
-                        {
-                            *bound_in_rule.entry(field_name.as_str()).or_default() += 1;
-                        }
-                    }
-                    // Combine occurrences within this one alternative before
-                    // combining alternatives: a mandatory plus an optional
-                    // occurrence in the same rule still guarantees presence,
-                    // so per-rule optionality is AND, not OR.
-                    let mut per_rule: HashMap<String, Vec<FieldCardinality>> = HashMap::new();
-                    for (field_id, position) in &rule.fields {
-                        if let Some(field_name) = self.grammar.fields.get(field_id)
-                            && let Some(symbol) = rule.rhs.get(*position)
-                        {
-                            let cardinality = self.symbol_cardinality(symbol, &symbol_names);
-                            per_rule
-                                .entry(field_name.clone())
-                                .or_default()
-                                .push(cardinality);
-                        }
-                    }
-                    for (field_name, cards) in per_rule {
-                        let rule_optional = cards.iter().all(|c| c.optional);
-                        let rule_multiple = cards.len() > 1 || cards.iter().any(|c| c.multiple);
-                        let facts = field_facts.entry(field_name.clone()).or_default();
-                        facts.multiple |= rule_multiple;
-                        facts.optional |= rule_optional;
-                        for card in &cards {
-                            for type_ref in &card.types {
-                                if !facts.types.contains(type_ref) {
-                                    facts.types.push(type_ref.clone());
-                                }
-                            }
-                        }
-                    }
-                    for field_name in bound_in_rule.into_keys() {
-                        field_facts
-                            .entry(field_name.to_string())
-                            .or_default()
-                            .present_in_alternatives += 1;
-                    }
-                }
-                let fields: BTreeMap<String, FieldInfo> = field_facts
-                    .into_iter()
-                    .map(|(field_name, mut facts)| {
-                        facts.types.sort();
-                        let required =
-                            facts.present_in_alternatives == rules.len() && !facts.optional;
-                        (
-                            field_name,
-                            FieldInfo {
-                                multiple: facts.multiple,
-                                required,
-                                types: facts.types,
-                            },
-                        )
+                let fields: BTreeMap<String, FieldInfo> = schema
+                    .get(symbol_id)
+                    .map(|field_map| {
+                        field_map
+                            .iter()
+                            .map(|(field_name, semantics)| {
+                                let mut types: Vec<TypeRef> = semantics
+                                    .targets
+                                    .iter()
+                                    .map(|target| self.symbol_to_type_ref(target, &symbol_names))
+                                    .collect();
+                                types.sort();
+                                types.dedup();
+                                (
+                                    field_name.clone(),
+                                    FieldInfo {
+                                        multiple: semantics.multiple,
+                                        required: semantics.required,
+                                        types,
+                                    },
+                                )
+                            })
+                            .collect()
                     })
-                    .collect();
+                    .unwrap_or_default();
 
                 // Add the node type if it's not internal
                 if !is_internal {
@@ -281,140 +236,6 @@ impl<'a> NodeTypesGenerator<'a> {
 
         // Fallback
         Some(format!("rule_{}", symbol_id.0))
-    }
-
-    /// Derive cardinality and the complete target type set for one field
-    /// position from its grammar symbol structure.
-    ///
-    /// Epsilon and empty alternatives contribute no real child: they yield no
-    /// types and are optional. Sequences contribute every admitted member, not
-    /// just the first.
-    fn symbol_cardinality(
-        &self,
-        symbol: &Symbol,
-        symbol_names: &HashMap<adze_ir::SymbolId, String>,
-    ) -> FieldCardinality {
-        match symbol {
-            Symbol::Epsilon => FieldCardinality {
-                optional: true,
-                multiple: false,
-                types: Vec::new(),
-            },
-            Symbol::Optional(inner) => {
-                let mut cardinality = self.symbol_cardinality(inner, symbol_names);
-                cardinality.optional = true;
-                cardinality
-            }
-            Symbol::Repeat(inner) => {
-                let cardinality = self.symbol_cardinality(inner, symbol_names);
-                if cardinality.types.is_empty() {
-                    // Repeating nothing still yields nothing.
-                    return FieldCardinality {
-                        optional: true,
-                        multiple: false,
-                        types: Vec::new(),
-                    };
-                }
-                FieldCardinality {
-                    optional: true,
-                    multiple: true,
-                    types: cardinality.types,
-                }
-            }
-            Symbol::RepeatOne(inner) => {
-                let cardinality = self.symbol_cardinality(inner, symbol_names);
-                if cardinality.types.is_empty() {
-                    return FieldCardinality {
-                        optional: true,
-                        multiple: false,
-                        types: Vec::new(),
-                    };
-                }
-                FieldCardinality {
-                    optional: cardinality.optional,
-                    multiple: true,
-                    types: cardinality.types,
-                }
-            }
-            Symbol::Choice(choices) => {
-                let mut combined = FieldCardinality {
-                    optional: false,
-                    multiple: false,
-                    types: Vec::new(),
-                };
-                if choices.is_empty() {
-                    combined.optional = true;
-                    return combined;
-                }
-                let mut any_branch = false;
-                for choice in choices {
-                    any_branch = true;
-                    let cardinality = self.symbol_cardinality(choice, symbol_names);
-                    combined.optional |= cardinality.optional;
-                    combined.multiple |= cardinality.multiple;
-                    for type_ref in cardinality.types {
-                        if !combined.types.contains(&type_ref) {
-                            combined.types.push(type_ref);
-                        }
-                    }
-                }
-                if !any_branch {
-                    combined.optional = true;
-                }
-                combined
-            }
-            Symbol::Sequence(seq) => {
-                if seq.is_empty() {
-                    return FieldCardinality {
-                        optional: true,
-                        multiple: false,
-                        types: Vec::new(),
-                    };
-                }
-                let mut combined = FieldCardinality {
-                    // A sequence is absent only when every member is absent.
-                    optional: true,
-                    multiple: false,
-                    types: Vec::new(),
-                };
-                let mut presentable = 0usize;
-                for member in seq {
-                    let cardinality = self.symbol_cardinality(member, symbol_names);
-                    // Epsilon members contribute no child; they do not make a
-                    // sequence multiple nor affect its type set.
-                    if cardinality.types.is_empty() {
-                        // An epsilon-only member is vacuously optional; a
-                        // non-optional empty is treated as absent as well so
-                        // empty alternatives never become required children.
-                        continue;
-                    }
-                    presentable += 1;
-                    combined.optional &= cardinality.optional;
-                    combined.multiple |= cardinality.multiple;
-                    for type_ref in cardinality.types {
-                        if !combined.types.contains(&type_ref) {
-                            combined.types.push(type_ref);
-                        }
-                    }
-                }
-                if presentable == 0 {
-                    return FieldCardinality {
-                        optional: true,
-                        multiple: false,
-                        types: Vec::new(),
-                    };
-                }
-                if presentable > 1 {
-                    combined.multiple = true;
-                }
-                combined
-            }
-            _ => FieldCardinality {
-                optional: false,
-                multiple: false,
-                types: vec![self.symbol_to_type_ref(symbol, symbol_names)],
-            },
-        }
     }
 
     fn symbol_to_type_ref(
