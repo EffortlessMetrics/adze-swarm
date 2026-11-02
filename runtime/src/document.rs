@@ -836,7 +836,10 @@ impl EdgeRange {
     }
 
     fn get(self, child_index: usize) -> Option<usize> {
-        (child_index < self.len).then_some(self.start + child_index)
+        if child_index >= self.len {
+            return None;
+        }
+        self.start.checked_add(child_index)
     }
 }
 
