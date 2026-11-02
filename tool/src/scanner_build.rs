@@ -103,7 +103,11 @@ impl ScannerBuilder {
         Ok(None)
     }
 
-    /// Build the scanner and generate integration code
+    /// Build the scanner and generate integration code.
+    ///
+    /// C/C++ compilation requires the `build_parsers` feature. Without it,
+    /// such a request returns an error before writing bindings. Discovery,
+    /// Rust registration, and the no-scanner case remain available.
     pub fn build(&self) -> Result<()> {
         let scanner = match self.find_scanner()? {
             Some(scanner) => scanner,
@@ -113,22 +117,19 @@ impl ScannerBuilder {
             }
         };
 
-        println!("cargo:rerun-if-changed={}", scanner.path.display());
-
         match scanner.language {
-            ScannerLanguage::C | ScannerLanguage::Cpp => {
-                self.build_c_scanner(&scanner)?;
-            }
+            ScannerLanguage::C | ScannerLanguage::Cpp => self.build_c_scanner(&scanner),
             ScannerLanguage::Rust => {
-                self.build_rust_scanner(&scanner)?;
+                println!("cargo:rerun-if-changed={}", scanner.path.display());
+                self.build_rust_scanner(&scanner)
             }
         }
-
-        Ok(())
     }
 
-    /// Build a C/C++ scanner
+    /// Build a C/C++ scanner.
+    #[cfg(feature = "build_parsers")]
     fn build_c_scanner(&self, scanner: &ScannerSource) -> Result<()> {
+        println!("cargo:rerun-if-changed={}", scanner.path.display());
         // Use cc crate to compile the scanner
         let mut build = cc::Build::new();
 
@@ -151,7 +152,16 @@ impl ScannerBuilder {
         Ok(())
     }
 
-    /// Generate Rust bindings for C scanner
+    #[cfg(not(feature = "build_parsers"))]
+    fn build_c_scanner(&self, scanner: &ScannerSource) -> Result<()> {
+        bail!(
+            "C/C++ scanner compilation for {} requires the adze-tool `build_parsers` feature",
+            scanner.path.display()
+        )
+    }
+
+    /// Generate Rust bindings for C scanner.
+    #[cfg(feature = "build_parsers")]
     fn generate_c_bindings(&self, _scanner: &ScannerSource) -> Result<()> {
         let bindings_path = self
             .out_dir
