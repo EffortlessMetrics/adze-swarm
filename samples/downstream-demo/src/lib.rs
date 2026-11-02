@@ -464,20 +464,20 @@ mod open_extract_contract_tests {
     }
 
     #[test]
-    fn downstream_hand_written_extract_compiles_and_defaults() {
+    fn test_downstream_hand_written_extract_compiles_and_defaults() {
         // Compiling at all is the assertion; calling it keeps the impl live.
         assert_eq!(DownstreamLeaf::extract(None, b"", 0, None), 0);
     }
 
     #[test]
-    fn downstream_hand_written_extract_returns_exact_value() {
+    fn test_downstream_hand_written_extract_returns_exact_value() {
         let source = b"42";
         let node = number_node("42");
         assert_eq!(DownstreamLeaf::extract(Some(&node), source, 0, None), 42);
     }
 
     #[test]
-    fn downstream_hand_written_extract_reads_exact_span() {
+    fn test_downstream_hand_written_extract_reads_exact_span() {
         // The impl slices the node's own byte span, not the whole source.
         let source = b"1 + 42";
         let node = ParsedNodeBuilder::new(1, Vec::new(), 4, 6).build();
@@ -485,7 +485,7 @@ mod open_extract_contract_tests {
     }
 
     #[test]
-    fn downstream_extract_bound_alone_admits_downstream_type() {
+    fn test_downstream_extract_bound_alone_admits_downstream_type() {
         // `Extract` alone is a sufficient bound: satisfying it requires no
         // separate marker implementation from the downstream crate.
         fn accepts_any_extractor<T: Extract<u32>>() {}
@@ -493,7 +493,7 @@ mod open_extract_contract_tests {
     }
 
     #[test]
-    fn downstream_extract_added_items_default_for_downstream_impl() {
+    fn test_downstream_extract_added_items_default_for_downstream_impl() {
         // The evolution rule in ADZE-ADR-0008: items added to `Extract` carry
         // defaults, so a downstream impl that names none of them still compiles.
         const { assert!(!<DownstreamLeaf as Extract<u32>>::HAS_CONFLICTS) };

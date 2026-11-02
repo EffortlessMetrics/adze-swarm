@@ -223,12 +223,14 @@ impl ErrorRecoveringLexer {
         self.recovery_mode = mode;
     }
 
-    /// Return the next token at `position`, recovering instead of failing.
+    /// Return the next token at `position`, applying the selected recovery mode.
     ///
-    /// Delegates to the base lexer first; when it yields nothing, the
-    /// current [`ErrorRecoveryMode`] decides: emit an error token
-    /// ([`ErrorRecoveryMode::SkipChar`] / [`ErrorRecoveryMode::SkipToKnown`])
-    /// or return `None` ([`ErrorRecoveryMode::Fail`], or no input remains).
+    /// Delegates to the base lexer first, including its EOF token (symbol 0).
+    /// At end of input, that token is returned unchanged in every recovery mode.
+    /// For an unrecognized in-bounds byte, [`ErrorRecoveryMode::SkipChar`]
+    /// emits a one-byte error token, [`ErrorRecoveryMode::SkipToKnown`] emits
+    /// an error token up to the next recognized token boundary, and
+    /// [`ErrorRecoveryMode::Fail`] returns `None`.
     pub fn next_token(&mut self, input: &[u8], position: usize) -> Option<Token> {
         // Try normal lexing first
         if let Some(token) = self.base.next_token(input, position) {
