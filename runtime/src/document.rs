@@ -3032,6 +3032,83 @@ mod tests {
         assert_eq!(document.validate_fields(), Ok(()));
     }
 
+    // Direct-edge controls deliberately avoid normalization carriers: the
+    // canonical doc.value grant is required, singular, and targets item(11).
+    fn direct_schema_document(children: Vec<ParseNode>) -> AdzeDocument {
+        schema_test_document(
+            ParseNode {
+                symbol: SymbolId(10),
+                symbol_id: SymbolId(10),
+                start_byte: 0,
+                end_byte: 2,
+                field_name: None,
+                alias_symbol_id: None,
+                children,
+            },
+            "12",
+        )
+    }
+
+    fn direct_schema_item(start: usize) -> ParseNode {
+        ParseNode {
+            symbol: SymbolId(11),
+            symbol_id: SymbolId(11),
+            start_byte: start,
+            end_byte: start + 1,
+            field_name: Some("value".to_string()),
+            alias_symbol_id: None,
+            children: vec![schema_leaf(1, start, start + 1, "value")],
+        }
+    }
+
+    #[test]
+    fn test_validate_fields_rejects_direct_wrong_target() {
+        let document = direct_schema_document(vec![schema_leaf(1, 0, 1, "value")]);
+        let fact = document
+            .language
+            .field_semantics(SymbolId(10), "value")
+            .unwrap();
+        assert_eq!(fact.target_kinds, vec![SymbolId(11)]);
+        assert!(document.tree().validate_structure().is_ok());
+        assert!(document.diagnostics().is_empty());
+        assert!(
+            document.validate_fields().is_err(),
+            "doc.value cannot target num(1)"
+        );
+    }
+
+    #[test]
+    fn test_validate_fields_rejects_direct_missing_required() {
+        let document = direct_schema_document(Vec::new());
+        let fact = document
+            .language
+            .field_semantics(SymbolId(10), "value")
+            .unwrap();
+        assert!(fact.required);
+        assert!(document.tree().validate_structure().is_ok());
+        assert!(document.diagnostics().is_empty());
+        assert!(
+            document.validate_fields().is_err(),
+            "doc.value requires an occurrence"
+        );
+    }
+
+    #[test]
+    fn test_validate_fields_rejects_direct_duplicate_single() {
+        let document = direct_schema_document(vec![direct_schema_item(0), direct_schema_item(1)]);
+        let fact = document
+            .language
+            .field_semantics(SymbolId(10), "value")
+            .unwrap();
+        assert!(!fact.multiple);
+        assert!(document.tree().validate_structure().is_ok());
+        assert!(document.diagnostics().is_empty());
+        assert!(
+            document.validate_fields().is_err(),
+            "doc.value permits only one occurrence"
+        );
+    }
+
     #[test]
     fn test_validate_fields_when_field_unknown_to_schema_fails() {
         // "bogus" resolves through the field table but no node kind in the
