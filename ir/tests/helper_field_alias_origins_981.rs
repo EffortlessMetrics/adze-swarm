@@ -65,7 +65,7 @@ fn helper_wrappers() -> Vec<(&'static str, Symbol)> {
 }
 
 #[test]
-fn field_on_helper_wrapper_rides_generated_helper() {
+fn test_field_on_helper_wrapper_rides_generated_helper() {
     for (name, wrapper) in helper_wrappers() {
         let mut g = grammar_with_tokens(&[2, 3, 4]);
         let mut r = rule(1, vec![wrapper], 7);
@@ -93,7 +93,7 @@ fn field_on_helper_wrapper_rides_generated_helper() {
 }
 
 #[test]
-fn fields_before_and_after_helper_keep_original_children() {
+fn test_fields_before_and_after_helper_keep_original_children() {
     for (name, wrapper) in helper_wrappers() {
         let mut g = grammar_with_tokens(&[2, 3, 4]);
         let mut r = rule(
@@ -131,7 +131,7 @@ fn fields_before_and_after_helper_keep_original_children() {
 }
 
 #[test]
-fn alias_on_helper_keeps_position_and_full_length() {
+fn test_alias_on_helper_keeps_position_and_full_length() {
     for (name, wrapper) in helper_wrappers() {
         let mut g = grammar_with_tokens(&[2, 3, 4]);
         g.add_rule(rule(1, vec![wrapper, Symbol::Terminal(SymbolId(3))], 7));
@@ -168,7 +168,7 @@ fn alias_on_helper_keeps_position_and_full_length() {
 }
 
 #[test]
-fn alias_after_helper_resolves_to_intended_child() {
+fn test_alias_after_helper_resolves_to_intended_child() {
     let mut g = grammar_with_tokens(&[2, 3]);
     g.add_rule(rule(
         1,
@@ -198,7 +198,7 @@ fn alias_after_helper_resolves_to_intended_child() {
 }
 
 #[test]
-fn field_after_nested_helper_expansion_keeps_child() {
+fn test_field_after_nested_helper_expansion_keeps_child() {
     // The wrapper itself needs a second expansion pass (helper rule holds a
     // `Sequence`); a field after the wrapper must still designate `c`.
     let mut g = grammar_with_tokens(&[2, 3, 4]);
