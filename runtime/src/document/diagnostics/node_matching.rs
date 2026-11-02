@@ -76,6 +76,7 @@ mod tests {
             name: "related-nodes-test".to_string(),
             symbols: Vec::new(),
             fields: Vec::new(),
+            field_semantics: Default::default(),
         }
     }
 

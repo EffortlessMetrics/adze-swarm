@@ -33,6 +33,7 @@ pub use typed_ast::{Provenance, SyntheticReason, TypedAst};
 use typed_conversion::flat_subtree_to_parsed_node;
 
 use adze_ir::{Grammar, SymbolId};
+use std::collections::BTreeMap;
 use std::num::NonZeroU16;
 use std::ops::Range;
 
@@ -925,6 +926,25 @@ pub struct LanguageMetadata {
     name: String,
     symbols: Vec<NodeKind>,
     fields: Vec<String>,
+    /// Canonical field facts per owning node kind and field name.
+    ///
+    /// This is the document-side projection of the canonical schema
+    /// (`adze_tablegen::field_schema`): the same required/multiple/target
+    /// facts the table generator emits, keyed for direct lookup during
+    /// native traversal and query validation instead of re-derivation.
+    field_semantics: BTreeMap<SymbolId, BTreeMap<String, FieldSemantics>>,
+}
+
+/// Canonical field cardinality facts for one node's field, as recorded on
+/// the document's language metadata.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FieldSemantics {
+    /// Whether every alternative provides the field in a non-optional position.
+    pub required: bool,
+    /// Whether the field may appear more than once (repeat or multi-binding).
+    pub multiple: bool,
+    /// Grammar node kinds the field may hold, in deterministic order.
+    pub target_kinds: Vec<SymbolId>,
 }
 
 impl LanguageMetadata {
@@ -976,10 +996,43 @@ impl LanguageMetadata {
 
         symbols.sort_by_key(|symbol| symbol.symbol_id.0);
 
+        // Canonical per-node field facts, resolved once per language through
+        // the same schema the table generator consumes. Targets keep their
+        // grammar identities; only leaf symbols are stored.
+        let field_semantics = adze_tablegen::field_schema::field_semantics_for_grammar(grammar)
+            .into_iter()
+            .map(|(owner, fields)| {
+                let semantics = fields
+                    .into_iter()
+                    .map(|(name, fact)| {
+                        let mut targets = Vec::with_capacity(fact.targets.len());
+                        for target in &fact.targets {
+                            match target {
+                                adze_ir::Symbol::Terminal(id)
+                                | adze_ir::Symbol::NonTerminal(id)
+                                | adze_ir::Symbol::External(id) => targets.push(*id),
+                                _ => {}
+                            }
+                        }
+                        (
+                            name,
+                            FieldSemantics {
+                                required: fact.required,
+                                multiple: fact.multiple,
+                                target_kinds: targets,
+                            },
+                        )
+                    })
+                    .collect();
+                (owner, semantics)
+            })
+            .collect();
+
         Self {
             name: language_name.to_string(),
             symbols,
             fields: parse_table.field_names.clone(),
+            field_semantics,
         }
     }
 
@@ -1034,6 +1087,16 @@ impl LanguageMetadata {
                 let field_id = u16::try_from(index.checked_add(1)?).ok()?;
                 FieldId::new(field_id)
             })
+    }
+
+    /// Return canonical cardinality facts for a node's field, if the schema
+    /// recorded any.
+    ///
+    /// This is the document-side projection of the canonical field schema:
+    /// the same required/multiple/target facts the table generator emits,
+    /// keyed by owning node kind and field name.
+    pub fn field_semantics(&self, owner: SymbolId, field_name: &str) -> Option<&FieldSemantics> {
+        self.field_semantics.get(&owner)?.get(field_name)
     }
 }
 
@@ -2492,5 +2555,146 @@ mod tests {
             unparented.validate().is_err(),
             "clearing a non-root parent must fail validation"
         );
+    }
+
+    fn schema_test_grammar() -> Grammar {
+        use adze_ir::{FieldId, ProductionId, Rule, Token, TokenPattern};
+
+        let mut grammar = Grammar::new("field-schema-doc".to_string());
+        for (id, name, pattern) in [
+            (1u16, "num", TokenPattern::Regex(r"\d+".to_string())),
+            (2, "word", TokenPattern::Regex("[a-z]+".to_string())),
+        ] {
+            grammar.tokens.insert(
+                SymbolId(id),
+                Token {
+                    name: name.to_string(),
+                    pattern,
+                    fragile: false,
+                },
+            );
+        }
+        for (id, name) in [(10u16, "doc"), (11, "item"), (12, "group")] {
+            grammar.rule_names.insert(SymbolId(id), name.to_string());
+        }
+        grammar.fields.insert(FieldId(2), "items".to_string());
+        grammar.fields.insert(FieldId(1), "value".to_string());
+        let mut pid = ProductionId(0);
+        let mut add_rule = |grammar: &mut Grammar,
+                            lhs: u16,
+                            rhs: Vec<adze_ir::Symbol>,
+                            fields: Vec<(FieldId, usize)>| {
+            grammar.add_rule(Rule {
+                lhs: SymbolId(lhs),
+                rhs,
+                precedence: None,
+                associativity: None,
+                fields,
+                production_id: pid,
+            });
+            pid = ProductionId(pid.0 + 1);
+        };
+        use adze_ir::Symbol::{NonTerminal as nt, Repeat, Terminal as term};
+        // doc -> item (single mandatory field).
+        add_rule(
+            &mut grammar,
+            10,
+            vec![nt(SymbolId(11))],
+            vec![(FieldId(1), 0)],
+        );
+        // item -> num | word (same-named field, different target kinds).
+        add_rule(
+            &mut grammar,
+            11,
+            vec![term(SymbolId(1))],
+            vec![(FieldId(1), 0)],
+        );
+        add_rule(
+            &mut grammar,
+            11,
+            vec![term(SymbolId(2))],
+            vec![(FieldId(1), 0)],
+        );
+        // group -> item* (zero or more repeated children).
+        add_rule(
+            &mut grammar,
+            12,
+            vec![Repeat(Box::new(nt(SymbolId(11))))],
+            vec![(FieldId(2), 0)],
+        );
+        grammar.set_start_symbol(SymbolId(10));
+        grammar
+    }
+
+    fn schema_test_language() -> LanguageMetadata {
+        use adze_glr_core::ParseTable;
+
+        let mut grammar = schema_test_grammar();
+        grammar.try_normalize().expect("schema fixture normalizes");
+        grammar.validate().expect("normalized grammar validates");
+        LanguageMetadata::from_runtime("schema-fixture", &grammar, &ParseTable::default())
+    }
+
+    #[test]
+    fn test_language_metadata_carries_canonical_field_facts() {
+        let language = schema_test_language();
+
+        // Optional to keep the contract honest: undeclared fields and
+        // unknown owners report absence rather than a default.
+        assert_eq!(language.field_semantics(SymbolId(10), "missing"), None);
+        assert_eq!(language.field_semantics(SymbolId(999), "value"), None);
+
+        let value = language
+            .field_semantics(SymbolId(11), "value")
+            .expect("item.value must have recorded facts");
+        assert!(value.required, "every alternative provides value");
+        assert!(!value.multiple, "single binding per alternative");
+        assert_eq!(value.target_kinds, vec![SymbolId(1), SymbolId(2)]);
+
+        let items = language
+            .field_semantics(SymbolId(12), "items")
+            .expect("group.items must have recorded facts");
+        assert!(!items.required, "zero repetitions admit absence");
+        assert!(items.multiple, "repetition admits several children");
+        assert_eq!(items.target_kinds, vec![SymbolId(11)]);
+    }
+
+    #[test]
+    fn test_field_semantics_agree_with_node_types_facts() {
+        // The same normalized grammar feeds both the table generator and
+        // the document metadata; required/multiple must agree.
+        let mut grammar = schema_test_grammar();
+        grammar.try_normalize().expect("schema fixture normalizes");
+        let language = schema_test_language();
+        let json = adze_tablegen::NodeTypesGenerator::new(&grammar)
+            .generate()
+            .expect("node types generate");
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid node types JSON");
+        let by_name: std::collections::HashMap<&str, &serde_json::Value> = parsed
+            .as_array()
+            .expect("top-level array")
+            .iter()
+            .map(|node| (node["type"].as_str().unwrap_or(""), node))
+            .collect();
+
+        for (owner, field) in [(11u16, "value"), (12, "items")] {
+            let semantics = language
+                .field_semantics(SymbolId(owner), field)
+                .unwrap_or_else(|| panic!("owner {owner} field {field} must have facts"));
+            let node = by_name
+                .values()
+                .find(|node| node["fields"][field].is_object())
+                .unwrap_or_else(|| panic!("node types must declare {field}"));
+            assert_eq!(
+                node["fields"][field]["required"],
+                serde_json::Value::Bool(semantics.required),
+                "required must agree for owner {owner} field {field}"
+            );
+            assert_eq!(
+                node["fields"][field]["multiple"],
+                serde_json::Value::Bool(semantics.multiple),
+                "multiple must agree for owner {owner} field {field}"
+            );
+        }
     }
 }

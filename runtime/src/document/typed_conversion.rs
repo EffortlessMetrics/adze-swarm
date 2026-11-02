@@ -185,6 +185,7 @@ mod tests {
             name: "conversion-test".to_string(),
             symbols: Vec::new(),
             fields: vec!["left".to_string(), "right".to_string()],
+            field_semantics: Default::default(),
         }
     }
 
