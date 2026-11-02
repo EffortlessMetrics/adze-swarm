@@ -22,6 +22,7 @@ mod no_mangle;
 mod perf_receipt;
 mod policy;
 mod profile;
+mod promotion_packet;
 mod publish_install;
 mod queue_admission;
 mod release_graph;
@@ -370,6 +371,27 @@ enum Commands {
     QueueAdmission {
         #[command(subcommand)]
         action: Box<QueueAdmissionAction>,
+    },
+    /// Generate or check the promotion packet from one typed schema (#1123).
+    PromotionPacket {
+        /// Selected candidate swarm SHA.
+        #[arg(long)]
+        source: String,
+        /// Public target SHA (EffortlessMetrics/adze).
+        #[arg(long)]
+        public_target: String,
+        /// Release version.
+        #[arg(long, default_value = "0.10.0")]
+        version: String,
+        /// Output directory for promotion-packet-<version>.{md,json}.
+        #[arg(long)]
+        output: Option<std::path::PathBuf>,
+        /// Regenerate into a temp dir and diff against docs/release/.
+        #[arg(long)]
+        check: bool,
+        /// Receipt JSON file(s) to attach (repeatable).
+        #[arg(long = "receipt")]
+        receipts: Vec<std::path::PathBuf>,
     },
     /// Compute the CI plan for the current PR (LEM + lane selection).
     ///
@@ -853,6 +875,23 @@ fn run_cli() -> Result<()> {
                 out,
             } => queue_admission::run_revoke(&record, &reason, at, withdraw, out.as_deref())?,
         },
+        Commands::PromotionPacket {
+            source,
+            public_target,
+            version,
+            output,
+            check,
+            receipts,
+        } => {
+            promotion_packet::run(promotion_packet::PacketArgs {
+                source,
+                public_target,
+                version,
+                output,
+                check,
+                receipts,
+            })?;
+        }
         Commands::CiPlan {
             base,
             head,

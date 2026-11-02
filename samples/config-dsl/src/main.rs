@@ -13,7 +13,10 @@ fn main() -> ExitCode {
     let source = match std::fs::read_to_string(&path) {
         Ok(source) => source,
         Err(error) => {
-            eprintln!("cannot read {}: {error}", std::path::Path::new(&path).display());
+            eprintln!(
+                "cannot read {}: {error}",
+                std::path::Path::new(&path).display()
+            );
             return ExitCode::from(2);
         }
     };

@@ -81,10 +81,8 @@ pub fn build_lr1_automaton(
     let mut rules = Vec::new();
     let mut dynamic_prec_by_rule = Vec::new();
     let mut rule_assoc_by_rule = Vec::new();
-    let mut production_to_rule_id = BTreeMap::new();
 
-    for (rule_id, rule) in grammar.all_rules().enumerate() {
-        production_to_rule_id.insert(rule.production_id.0, rule_id as u16);
+    for rule in grammar.all_rules() {
         rules.push(ParseRule {
             lhs: rule.lhs,
             rhs_len: rule.rhs.len() as u16,
@@ -251,9 +249,7 @@ pub fn build_lr1_automaton(
         for item in &item_set.items {
             if item.is_reduce_item(&augmented_grammar) {
                 // Check if this is a reduce by the augmented start rule
-                if let Some(rule) = augmented_grammar
-                    .all_rules()
-                    .find(|r| r.production_id.0 == item.rule_id.0)
+                if let Some(rule) = augmented_grammar.rule_by_id(item.rule_id)
                     && rule.lhs == augmented_start
                 {
                     if item.lookahead == eof_symbol {
@@ -273,7 +269,8 @@ pub fn build_lr1_automaton(
                 }
 
                 // Regular reduce action
-                if let Some(&rule_id) = production_to_rule_id.get(&item.rule_id.0) {
+                if (item.rule_id.0 as usize) < rules.len() {
+                    let rule_id = item.rule_id.0;
                     let rule = &rules[rule_id as usize];
                     let is_empty_production = rule.rhs_len == 0
                         || augmented_grammar
@@ -323,14 +320,14 @@ pub fn build_lr1_automaton(
     // Shift actions were already added before reduce actions
 
     // Build precedence tables once
-    let production_count = augmented_grammar.all_rules().count() as u32;
+    let rule_count = augmented_grammar.all_rules().count() as u32;
     // token_count includes EOF (symbol 0 in table) plus all regular tokens.
     let token_count = (internal_tokens.len() + 1) as u32;
     let prec_tables = build_prec_tables(
         &augmented_grammar,
         &symbol_to_index,
         token_count,
-        production_count,
+        rule_count,
     );
 
     // Calculate the first non-terminal index

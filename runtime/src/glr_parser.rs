@@ -2441,4 +2441,210 @@ mod tests {
         stack.push(StateId(2), node2);
         assert_eq!(stack.version.dynamic_prec, 5); // 3 + 2
     }
+
+    /// #1031 regression for one manually tokenized ambiguous arithmetic fixture.
+    /// Pin both exact trees and the selected summary before comparing 25 fresh
+    /// parses. This exercises GLRParser's finish APIs; generated lexing,
+    /// document/streaming projections and clean-after-failure remain separate
+    /// acceptance rows rather than claims established by this probe.
+    #[test]
+    fn test_glr_consumer_selection_repeated_ambiguous_parses_stable() {
+        use adze_glr_core::{FirstFollowSets, build_lr1_automaton};
+        use adze_ir::{ProductionId, Rule, Symbol, Token, TokenPattern};
+
+        fn ambiguous_grammar() -> Grammar {
+            let mut grammar = Grammar::new("probe_ambiguous_expr".to_string());
+            let number_id = SymbolId(1);
+            grammar.tokens.insert(
+                number_id,
+                Token {
+                    name: "number".to_string(),
+                    pattern: TokenPattern::Regex(r"\d+".to_string()),
+                    fragile: false,
+                },
+            );
+            let plus_id = SymbolId(2);
+            grammar.tokens.insert(
+                plus_id,
+                Token {
+                    name: "plus".to_string(),
+                    pattern: TokenPattern::String("+".to_string()),
+                    fragile: false,
+                },
+            );
+            let expr_id = SymbolId(10);
+            grammar.rule_names.insert(expr_id, "expression".to_string());
+            grammar.rules.entry(expr_id).or_default().push(Rule {
+                lhs: expr_id,
+                rhs: vec![Symbol::Terminal(number_id)],
+                precedence: None,
+                associativity: None,
+                production_id: ProductionId(0),
+                fields: vec![],
+            });
+            grammar.rules.entry(expr_id).or_default().push(Rule {
+                lhs: expr_id,
+                rhs: vec![
+                    Symbol::NonTerminal(expr_id),
+                    Symbol::Terminal(plus_id),
+                    Symbol::NonTerminal(expr_id),
+                ],
+                precedence: None,
+                associativity: None,
+                production_id: ProductionId(1),
+                fields: vec![],
+            });
+            grammar.set_start_symbol(expr_id);
+            grammar
+        }
+
+        // `1+2+3` without precedence is genuinely ambiguous (`(1+2)+3`
+        // versus `1+(2+3)`); tokens are fed manually with exact byte
+        // offsets so the probe covers only the GLRParser consumer path.
+        let tokens: Vec<(SymbolId, &str, usize)> = vec![
+            (SymbolId(1), "1", 0),
+            (SymbolId(2), "+", 1),
+            (SymbolId(1), "2", 2),
+            (SymbolId(2), "+", 3),
+            (SymbolId(1), "3", 4),
+        ];
+        let input_len = 5;
+
+        // Build the two mathematical parses independently of parser output.
+        fn node(
+            symbol: u16,
+            start: usize,
+            end: usize,
+            children: Vec<Arc<Subtree>>,
+        ) -> Arc<Subtree> {
+            Arc::new(Subtree::new(
+                SubtreeNode {
+                    symbol_id: SymbolId(symbol),
+                    is_error: false,
+                    byte_range: start..end,
+                },
+                children,
+            ))
+        }
+        fn number(start: usize) -> Arc<Subtree> {
+            node(
+                10,
+                start,
+                start + 1,
+                vec![node(1, start, start + 1, vec![])],
+            )
+        }
+        fn plus(start: usize) -> Arc<Subtree> {
+            node(2, start, start + 1, vec![])
+        }
+        fn assert_tree(actual: &Subtree, expected: &Subtree) {
+            assert_eq!(actual.node.symbol_id, expected.node.symbol_id);
+            assert_eq!(actual.node.byte_range, expected.node.byte_range);
+            assert!(!actual.node.is_error);
+            assert_eq!(actual.dynamic_prec, 0);
+            assert_eq!(actual.children.len(), expected.children.len());
+            for (actual, expected) in actual.children.iter().zip(&expected.children) {
+                assert_eq!(actual.field_id, crate::subtree::FIELD_NONE);
+                assert_tree(&actual.subtree, &expected.subtree);
+            }
+        }
+        let right_associated = node(
+            10,
+            0,
+            5,
+            vec![
+                number(0),
+                plus(1),
+                node(10, 2, 5, vec![number(2), plus(3), number(4)]),
+            ],
+        );
+        let left_associated = node(
+            10,
+            0,
+            5,
+            vec![
+                node(10, 0, 3, vec![number(0), plus(1), number(2)]),
+                plus(3),
+                number(4),
+            ],
+        );
+        // Structural order compares the first expression child's end: 1 < 3.
+        // This pins a fixture's stable tie-break, not a language associativity rule.
+        let expected_trees = [right_associated, left_associated];
+        let expected_keys: Vec<_> = expected_trees
+            .iter()
+            .map(|tree| subtree_selection_key(tree))
+            .collect();
+        assert!(
+            expected_keys[0] < expected_keys[1],
+            "the two exact trees must remain distinct"
+        );
+        // Three number/token pairs, two operator leaves and two additions: ten nodes.
+        let expected_summary = AmbiguitySummary {
+            span: 0..5,
+            selected: Some(0),
+            selection_reason: SelectionReason::StableStructuralTieBreak,
+            alternatives: (0..2)
+                .map(|index| AlternativeSummary {
+                    index,
+                    root_symbol: SymbolId(10),
+                    span: 0..5,
+                    dynamic_precedence: 0,
+                    in_error: false,
+                    cost: 0,
+                    node_count: 10,
+                })
+                .collect(),
+        };
+
+        for run in 0..25 {
+            let grammar = ambiguous_grammar();
+            let first_follow = FirstFollowSets::compute(&grammar).expect("fixture FIRST/FOLLOW");
+            let parse_table =
+                build_lr1_automaton(&grammar, &first_follow).expect("fixture LR(1) table");
+            let mut parser = GLRParser::new(parse_table, grammar);
+            for (symbol, text, offset) in &tokens {
+                parser.process_token(*symbol, text, *offset);
+            }
+            parser.process_eof(input_len);
+            let winner = parser.finish().expect("ambiguous parse should succeed");
+            let winner_key = subtree_selection_key(&winner);
+            let alternatives = parser
+                .finish_all_alternatives()
+                .expect("retain both arithmetic parses");
+            let alternative_keys: Vec<_> = alternatives
+                .iter()
+                .map(|tree| subtree_selection_key(tree))
+                .collect();
+            let summary = parser
+                .finish_ambiguity_summary()
+                .expect("ambiguity summary should not error");
+
+            assert_eq!(
+                alternative_keys, expected_keys,
+                "run {run}: exact canonical alternatives"
+            );
+            for (actual, expected) in alternatives.iter().zip(&expected_trees) {
+                assert_tree(actual, expected);
+            }
+            assert_tree(&winner, &expected_trees[0]);
+            assert_eq!(
+                winner_key, expected_keys[0],
+                "run {run}: independent winner"
+            );
+            assert_eq!(
+                summary.as_ref(),
+                Some(&expected_summary),
+                "run {run}: exact ambiguity metadata"
+            );
+            let selected = summary
+                .unwrap()
+                .selected
+                .expect("selected alternative is known");
+            assert_eq!(
+                winner_key, alternative_keys[selected],
+                "run {run}: selected index identifies winner"
+            );
+        }
+    }
 }

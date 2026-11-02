@@ -126,7 +126,7 @@ fn share_grammar(fields_a: Vec<(FieldId, usize)>, fields_b: Vec<(FieldId, usize)
     b.fields = fields_b;
     grammar.add_rule(a);
     grammar.add_rule(b);
-    grammar.refresh_production_ids();
+    grammar.refresh_production_ids().unwrap();
     grammar
 }
 
@@ -169,7 +169,7 @@ fn conflicting_alias_share_is_rejected() {
             aliases: vec![Some("x".into()), None],
         },
     );
-    grammar.refresh_production_ids();
+    grammar.refresh_production_ids().unwrap();
     assert!(matches!(
         grammar.validate(),
         Err(GrammarError::ConflictingProductionShare {

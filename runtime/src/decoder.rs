@@ -121,7 +121,9 @@ pub(crate) fn decode_rule_fields(
     lang: &'static TSLanguage,
     rule_index: usize,
 ) -> Vec<(adze_ir::FieldId, usize)> {
-    fields::decode_rule_fields(lang, rule_index)
+    lang.production_for_rule(rule_index)
+        .map(|production| fields::decode_rule_fields(lang, production as usize))
+        .unwrap_or_default()
 }
 
 /// Decode a Grammar from a TSLanguage struct with token patterns from grammar.json
@@ -304,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn small_table_reduce_actions_map_rule_id_to_production_id() {
+    fn test_small_table_reduce_actions_preserve_rule_id_with_permuted_production_map() {
         static PRODUCTION_ID_MAP: [u16; 2] = [1, 0];
         static PRODUCTION_LHS_INDEX: [u16; 2] = [2, 2];
         static SMALL_PARSE_TABLE: [u16; 2] = [1, 0x8001];
@@ -369,8 +371,16 @@ mod tests {
 
         let table = decode_parse_table(language);
 
+        assert_eq!(
+            table.grammar.production_ids.get(&RuleId(0)),
+            Some(&adze_ir::ProductionId(1))
+        );
+        assert_eq!(
+            table.grammar.production_ids.get(&RuleId(1)),
+            Some(&adze_ir::ProductionId(0))
+        );
         match table.action_table[0][1][0] {
-            Action::Reduce(RuleId(rule_id)) => assert_eq!(rule_id, 1),
+            Action::Reduce(RuleId(rule_id)) => assert_eq!(rule_id, 0),
             ref action => panic!("expected mapped reduce action, got {action:?}"),
         }
     }

@@ -248,14 +248,16 @@ fn gen_field(
         // first element. Later elements keep the optional wrapping.
         let first_field_rule = field_rule_non_optional.clone();
         let field_rule = if field_optional {
+            // The occurrence is a field even when its optional value is
+            // absent. Keeping FIELD outside CHOICE preserves the zero-width
+            // element edge, distinct from an empty whole-repeat sentinel.
             json!({
-                "type": "CHOICE",
-                "members": [
-                    {
-                        "type": "BLANK"
-                    },
-                    field_rule_non_optional
-                ]
+                "type": "FIELD",
+                "name": format!("{path}_vec_element"),
+                "content": {
+                    "type": "CHOICE",
+                    "members": [{ "type": "BLANK" }, field_json]
+                }
             })
         } else {
             field_rule_non_optional
@@ -281,11 +283,7 @@ fn gen_field(
                 "members": [
                     first_field_rule,
                     {
-                        "type": if field_optional {
-                            "REPEAT1"
-                        } else {
-                            "REPEAT"
-                        },
+                        "type": "REPEAT",
                         "content": {
                             "type": "SEQ",
                             "members": [
@@ -968,17 +966,31 @@ pub fn generate_grammar(module: &ItemMod) -> ToolResult<Value> {
                     lit: Lit::Str(s),
                 })) = grammar_name_expr
                 {
-                    Some(s.value())
+                    Some(Ok(s.value()))
                 } else {
-                    panic!("Expected string literal for grammar name");
+                    Some(Err(syn::Error::new_spanned(
+                        a,
+                        "Expected string literal for grammar name; write `#[adze::grammar(\"my_grammar\")]`",
+                    )))
                 }
             } else {
                 None
             }
         })
-        .expect("Each grammar must have a name");
+        .transpose()?
+        .ok_or_else(|| {
+            syn::Error::new_spanned(
+                module,
+                "Each grammar must have a name; annotate the module with `#[adze::grammar(\"my_grammar\")]`",
+            )
+        })?;
 
-    let (_, contents) = module.content.as_ref().unwrap();
+    let (_, contents) = module.content.as_ref().ok_or_else(|| {
+        syn::Error::new_spanned(
+            module,
+            "Expected the module to have inline contents (`mod my_module { .. }` syntax)",
+        )
+    })?;
 
     let root_type = contents
         .iter()
@@ -996,7 +1008,12 @@ pub fn generate_grammar(module: &ItemMod) -> ToolResult<Value> {
             }
             _ => None,
         })
-        .expect("Each parser must have the root type annotated with `#[adze::language]`")
+        .ok_or_else(|| {
+            syn::Error::new_spanned(
+                module,
+                "Each parser must have the root type annotated with `#[adze::language]`; add `#[adze::language]` to the enum or struct that is the parse entry point",
+            )
+        })?
         .to_string();
 
     // Insert source_file rule that references the root type
@@ -1190,4 +1207,75 @@ pub fn generate_grammar(module: &ItemMod) -> ToolResult<Value> {
     }
 
     Ok(grammar)
+}
+
+#[cfg(test)]
+mod tests {
+    use syn::parse_quote;
+
+    use super::generate_grammar;
+    use crate::error::ToolError;
+
+    fn expect_syn_error(module: &syn::ItemMod, needle: &str) {
+        match generate_grammar(module) {
+            Err(ToolError::SynError { syn_error }) => assert!(
+                syn_error.to_string().contains(needle),
+                "unexpected error message: {syn_error}"
+            ),
+            Err(other) => panic!("expected a spanned syntax error, got: {other}"),
+            Ok(_) => panic!("malformed grammar unexpectedly expanded without error"),
+        }
+    }
+
+    #[test]
+    fn test_generate_grammar_rejects_non_string_grammar_name() {
+        let m: syn::ItemMod = parse_quote! {
+            #[adze::grammar(42)]
+            mod grammar {
+                #[adze::language]
+                pub struct Root {
+                    #[adze::leaf(text = "a")]
+                    a: (),
+                }
+            }
+        };
+        expect_syn_error(&m, "Expected string literal for grammar name");
+    }
+
+    #[test]
+    fn test_generate_grammar_rejects_missing_grammar_name() {
+        let m: syn::ItemMod = parse_quote! {
+            mod grammar {
+                #[adze::language]
+                pub struct Root {
+                    #[adze::leaf(text = "a")]
+                    a: (),
+                }
+            }
+        };
+        expect_syn_error(&m, "Each grammar must have a name");
+    }
+
+    #[test]
+    fn test_generate_grammar_rejects_out_of_line_module() {
+        let m: syn::ItemMod = parse_quote! {
+            #[adze::grammar("test")]
+            mod grammar;
+        };
+        expect_syn_error(&m, "inline contents");
+    }
+
+    #[test]
+    fn test_generate_grammar_rejects_missing_language_root() {
+        let m: syn::ItemMod = parse_quote! {
+            #[adze::grammar("test")]
+            mod grammar {
+                pub struct NotRoot {
+                    #[adze::leaf(text = "a")]
+                    a: (),
+                }
+            }
+        };
+        expect_syn_error(&m, "annotated with `#[adze::language]`");
+    }
 }

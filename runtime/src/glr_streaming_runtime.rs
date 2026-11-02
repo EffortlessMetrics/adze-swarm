@@ -16,7 +16,7 @@ use crate::pure_parser::TSLanguage;
 use crate::subtree::{ChildEdge, FIELD_NONE, Subtree, SubtreeNode};
 use adze_glr_core::parse_forest::ERROR_SYMBOL;
 use adze_glr_core::{
-    Driver, ForestView, LexMode, ParseTable, build_lex_modes_from_shiftable_terminals,
+    Driver, ForestView, LexMode, ParseTable, build_lex_modes_from_usable_lookahead,
     driver::{GlrError, GlrUnexpectedToken},
 };
 use adze_ir::{Grammar, Symbol, SymbolId};
@@ -147,8 +147,8 @@ pub fn prepare_streaming_parse_table(
     parse_table
 }
 
-/// Select lex modes that match the generated lexer ABI instead of inventing
-/// shiftable-terminal signatures that the generated `lex_fn` cannot execute.
+/// Use generated ABI modes where applicable and canonical usable-lookahead
+/// signatures for the existing mode-reconstruction paths.
 fn populate_streaming_parse_table_lex_modes(
     language: &'static TSLanguage,
     parse_table: &mut ParseTable,
@@ -163,7 +163,7 @@ fn populate_streaming_parse_table_lex_modes(
         if language_lex_modes_match_state_count(language, parse_table.state_count) {
             parse_table.lex_modes = lex_modes_from_generated_language(language);
         } else {
-            parse_table.lex_modes = build_lex_modes_from_shiftable_terminals(
+            parse_table.lex_modes = build_lex_modes_from_usable_lookahead(
                 &parse_table.action_table,
                 &parse_table.external_scanner_states,
             );
@@ -172,7 +172,7 @@ fn populate_streaming_parse_table_lex_modes(
     }
 
     if has_external_scanner {
-        parse_table.lex_modes = build_lex_modes_from_shiftable_terminals(
+        parse_table.lex_modes = build_lex_modes_from_usable_lookahead(
             &parse_table.action_table,
             &parse_table.external_scanner_states,
         );
@@ -191,7 +191,7 @@ fn populate_streaming_parse_table_lex_modes(
         return;
     }
 
-    parse_table.lex_modes = build_lex_modes_from_shiftable_terminals(
+    parse_table.lex_modes = build_lex_modes_from_usable_lookahead(
         &parse_table.action_table,
         &parse_table.external_scanner_states,
     );
@@ -274,6 +274,22 @@ pub fn parse_with_streaming_driver(
                     found: None,
                     found_is_eof: stall >= input.len(),
                     expected: Vec::new(),
+                })));
+            }
+            // Cannot-lex failures from the driver now arrive structured
+            // with the ACTION-row expected set for the surviving stack
+            // tops; only the byte needs correcting to the lexer's exact
+            // stall position (the driver position precedes skipped extras).
+            if let GlrError::UnexpectedToken(unexpected) = &error
+                && unexpected.found.is_none()
+                && let Some(stall) = lex_failure_pos.get()
+            {
+                return Err(GlrError::UnexpectedToken(Box::new(GlrUnexpectedToken {
+                    byte_start: stall,
+                    byte_end: stall,
+                    found: None,
+                    found_is_eof: stall >= input.len(),
+                    expected: unexpected.expected.clone(),
                 })));
             }
             return Err(error);
@@ -575,15 +591,16 @@ fn match_rule_id(
         if parse_rule.lhs != lhs || parse_rule.rhs_len as usize != child_symbols.len() {
             continue;
         }
-        if let Some(candidates) = grammar.rules.get(&lhs) {
-            for rule in candidates {
-                if rule.production_id.0 as usize != rule_id {
-                    continue;
-                }
-                if rhs_symbol_ids(&rule.rhs) == child_symbols {
-                    return Some(rule_id);
-                }
-            }
+        // Resolve by RuleId identity (#1060): `parse_table.rules` is dense in
+        // RuleId order, so index `rule_id` names `RuleId(rule_id)`.
+        // ProductionId is shareable field/alias metadata and must never
+        // select the rule; rules sharing one slot keep independent behavior.
+        let rule_matches = u16::try_from(rule_id)
+            .ok()
+            .and_then(|id| grammar.rule_by_id(adze_ir::RuleId(id)))
+            .is_some_and(|rule| rule.lhs == lhs && rhs_symbol_ids(&rule.rhs) == child_symbols);
+        if rule_matches {
+            return Some(rule_id);
         }
     }
 
@@ -619,7 +636,18 @@ pub(crate) fn glr_error_to_parse_errors(
         } else {
             source_len
         };
-        let expected = glr_expected_token_names(language, &unexpected.expected);
+        let mut expected = glr_expected_token_names(language, &unexpected.expected);
+        if expected.is_empty() && start == 0 {
+            // Native table metadata (#1030): a failure at the first byte
+            // happened in the initial state, whose ACTION row names the
+            // expected terminals. No other engine is consulted.
+            let mut table = crate::decoder::decode_parse_table(language);
+            crate::__private::align_true_glr_parse_table_to_language_symbols(language, &mut table);
+            let initial = crate::__private::initial_state_expected_names(language, &table);
+            if !initial.is_empty() {
+                expected = initial;
+            }
+        }
         let found_name = match unexpected.found {
             Some(found) => glr_found_token_name(language, found),
             None if start < source_len => input
@@ -645,9 +673,10 @@ pub(crate) fn glr_error_to_parse_errors(
     }
 
     let (start, message) = match error {
-        GlrError::Lex(message) | GlrError::Parse(message) | GlrError::Other(message) => {
-            (extract_byte_offset(&message).unwrap_or(0), message)
-        }
+        GlrError::Lex(message) | GlrError::Parse(message) | GlrError::Other(message) => (
+            extract_byte_offset(&message).unwrap_or(0).min(source_len),
+            message,
+        ),
         GlrError::UnexpectedToken(_) => unreachable!("handled above"),
     };
     let end = if start < source_len {
@@ -722,4 +751,72 @@ fn diagnostic_end_for_byte(source: &[u8], start: usize) -> usize {
         .and_then(|tail| tail.chars().next())
         .map(|ch| start + ch.len_utf8())
         .unwrap_or_else(|| (start + 1).min(source.len()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use adze_glr_core::ParseRule;
+    use adze_ir::{ProductionId, Rule, RuleId};
+
+    /// Grammar where two `A` alternatives share one production slot (#1060):
+    /// RuleId(0): S -> A (prod 5); RuleId(1): A -> a (prod 0);
+    /// RuleId(2): A -> b (prod 0). Parse-table rules are dense in RuleId order.
+    fn shared_production_fixture() -> (ParseTable, Grammar) {
+        let s = SymbolId(10);
+        let a = SymbolId(11);
+        let t_a = SymbolId(1);
+        let t_b = SymbolId(2);
+        let mut grammar = Grammar::new("shared_prod".to_string());
+        grammar.add_rule(Rule {
+            lhs: s,
+            rhs: vec![Symbol::NonTerminal(a)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(5),
+        });
+        grammar.add_rule(Rule {
+            lhs: a,
+            rhs: vec![Symbol::Terminal(t_a)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        grammar.add_rule(Rule {
+            lhs: a,
+            rhs: vec![Symbol::Terminal(t_b)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        let mut parse_table = ParseTable::default();
+        parse_table.rules = vec![
+            ParseRule { lhs: s, rhs_len: 1 },
+            ParseRule { lhs: a, rhs_len: 1 },
+            ParseRule { lhs: a, rhs_len: 1 },
+        ];
+        (parse_table, grammar)
+    }
+
+    #[test]
+    fn test_shared_production_rules_resolve_by_rule_identity() {
+        let (table, grammar) = shared_production_fixture();
+        // `A -> a` is RuleId(1) even though its production slot is 0.
+        assert_eq!(
+            match_rule_id(&table, &grammar, SymbolId(11), &[SymbolId(1)]),
+            Some(1)
+        );
+        // `A -> b` is RuleId(2); first-match production lookup mis-resolves to 1.
+        assert_eq!(
+            match_rule_id(&table, &grammar, SymbolId(11), &[SymbolId(2)]),
+            Some(2)
+        );
+        assert_eq!(
+            match_rule_id(&table, &grammar, SymbolId(10), &[SymbolId(11)]),
+            Some(0)
+        );
+    }
 }

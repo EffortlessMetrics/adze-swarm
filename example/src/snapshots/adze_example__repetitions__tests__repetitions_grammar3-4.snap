@@ -2,37 +2,41 @@
 source: src/repetitions.rs
 expression: "grammar3::parse(\"1,, 2\")"
 ---
-Err(
-    [
-        ParseError {
-            reason: UnexpectedToken(
-                ",; expected one of: ,, end, number",
+Ok(
+    NumberList {
+        numbers: Spanned {
+            value: [
+                Spanned {
+                    value: Some(
+                        1,
+                    ),
+                    span: (
+                        0,
+                        1,
+                    ),
+                },
+                Spanned {
+                    value: None,
+                    span: (
+                        2,
+                        2,
+                    ),
+                },
+                Spanned {
+                    value: Some(
+                        2,
+                    ),
+                    span: (
+                        4,
+                        5,
+                    ),
+                },
+            ],
+            span: (
+                0,
+                5,
             ),
-            start: 2,
-            end: 3,
-            expected: [
-                ",",
-                "end",
-                "number",
-            ],
         },
-        ParseError {
-            reason: UnexpectedToken(
-                "2; expected one of: ,",
-            ),
-            start: 4,
-            end: 5,
-            expected: [
-                ",",
-            ],
-        },
-        ParseError {
-            reason: UnexpectedEof,
-            start: 5,
-            end: 5,
-            expected: [
-                ",",
-            ],
-        },
-    ],
+        metadata: 123,
+    },
 )

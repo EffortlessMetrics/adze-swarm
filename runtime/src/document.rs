@@ -24,13 +24,16 @@ use diagnostics::{attach_related_nodes, build_diagnostics, source_line};
 use json_projection::{ambiguity_to_json, diagnostic_to_json, node_to_document_json};
 pub(crate) use runtime_metadata::DocumentRuntime;
 pub use runtime_metadata::{IncrementalFallbackReason, ParseMetadata};
+#[cfg(feature = "ts-compat")]
+pub(crate) use source_position::SourceLineIndex;
 pub use source_position::{DocumentPoint, PointRange};
-use tree_builder::{build_node_index, collect_edge_records, collect_node_records, insert_symbol};
+use tree_builder::{build_flat_tree, insert_symbol};
 use typed_ast::TypedAstExtractionTarget;
 pub use typed_ast::{Provenance, SyntheticReason, TypedAst};
-use typed_conversion::document_node_to_parsed_node;
+use typed_conversion::flat_subtree_to_parsed_node;
 
 use adze_ir::{Grammar, SymbolId};
+use std::collections::BTreeMap;
 use std::num::NonZeroU16;
 use std::ops::Range;
 
@@ -84,8 +87,9 @@ impl ParseOutcome {
 #[derive(Clone, Debug)]
 pub struct AdzeDocument {
     source: String,
-    root: ParseNode,
-    node_index: Vec<NodeIndex>,
+    // No persistent recursive tree: the selected tree lives only as flat
+    // records in `syntax`. The `root` construction parameter is consumed
+    // once by `SyntaxTree::from_parse_root` and dropped.
     syntax: SyntaxTree,
     language: LanguageMetadata,
     diagnostics: Vec<ParseDiagnostic>,
@@ -103,14 +107,29 @@ impl AdzeDocument {
         grammar: &Grammar,
         parse_table: &ParseTable,
     ) -> Self {
-        let diagnostics = build_diagnostics(&root, error_count, source);
         let runtime = DocumentRuntime {
             language_name,
             grammar,
             parse_table,
             pure_language: None,
         };
-        Self::from_parse_result_with_diagnostics(source, root, error_count, runtime, diagnostics)
+        let language = LanguageMetadata::from_runtime(
+            runtime.language_name,
+            runtime.grammar,
+            runtime.parse_table,
+        );
+        let syntax = SyntaxTree::from_parse_root(&root, source, &language, error_count);
+        let diagnostics = build_diagnostics(&syntax, error_count, source);
+        Self::from_parse_result_with_built_parts(
+            source,
+            root,
+            error_count,
+            runtime,
+            language,
+            syntax,
+            diagnostics,
+            Vec::new(),
+        )
     }
 
     pub(crate) fn from_parse_result_with_diagnostics(
@@ -138,20 +157,42 @@ impl AdzeDocument {
         diagnostics: Vec<ParseDiagnostic>,
         ambiguities: Vec<crate::glr_parser::AmbiguitySummary>,
     ) -> Self {
-        let node_index = build_node_index(&root);
         let language = LanguageMetadata::from_runtime(
             runtime.language_name,
             runtime.grammar,
             runtime.parse_table,
         );
-        let syntax =
-            SyntaxTree::from_parse_root(&root, source, &language, error_count, &node_index);
+        let syntax = SyntaxTree::from_parse_root(&root, source, &language, error_count);
+        Self::from_parse_result_with_built_parts(
+            source,
+            root,
+            error_count,
+            runtime,
+            language,
+            syntax,
+            diagnostics,
+            ambiguities,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn from_parse_result_with_built_parts(
+        source: &str,
+        root: ParseNode,
+        error_count: usize,
+        runtime: DocumentRuntime<'_>,
+        language: LanguageMetadata,
+        syntax: SyntaxTree,
+        diagnostics: Vec<ParseDiagnostic>,
+        ambiguities: Vec<crate::glr_parser::AmbiguitySummary>,
+    ) -> Self {
         let mut diagnostics = diagnostics;
-        attach_related_nodes(&root, &mut diagnostics);
+        attach_related_nodes(&syntax, &mut diagnostics);
+        // `root` is consumed once by flat construction above and dropped:
+        // no persistent recursive tree is retained.
+        let _ = root;
         Self {
             source: source.to_string(),
-            root,
-            node_index,
             syntax,
             language,
             diagnostics,
@@ -186,8 +227,16 @@ impl AdzeDocument {
     /// parse. Missing-token nodes still count as trustworthy content, so
     /// unexpected-EOF documents with a real grammar root are `Recovered`.
     pub fn outcome(&self) -> ParseOutcome {
+        // Error/missing node facts force a non-Complete outcome even if a
+        // producer failed to record diagnostics/counts (#898).
+        let has_syntax_error = self
+            .syntax
+            .nodes
+            .iter()
+            .any(|record| record.flags().is_error() || record.flags().is_missing());
         if self.diagnostics.is_empty()
             && self.metadata.error_count == 0
+            && !has_syntax_error
             && !self.tree().has_errors()
         {
             return ParseOutcome::Complete;
@@ -215,6 +264,16 @@ impl AdzeDocument {
     /// documents return an empty slice.
     pub fn ambiguities(&self) -> &[crate::glr_parser::AmbiguitySummary] {
         &self.ambiguities
+    }
+
+    /// Return the canonical flat selected-tree records.
+    ///
+    /// Compatibility projections (notably ts-compat) and the query matcher
+    /// resolve traversal, ranges, and flags from these facts instead of
+    /// cloning or searching a recursive tree.
+    #[cfg(any(feature = "ts-compat", feature = "query"))]
+    pub(crate) fn syntax(&self) -> &SyntaxTree {
+        &self.syntax
     }
 
     /// Return parse metadata recorded for this document.
@@ -345,16 +404,38 @@ impl AdzeDocument {
     {
         let language = self.typed_ast_language()?;
 
-        let parsed_root = document_node_to_parsed_node(&self.root, language, self.source_bytes());
+        // Convert only the extraction-target subtree from flat records: no
+        // path replay, no full-root conversion, one shared line index.
         let extraction_target = self.typed_ast_extraction_target();
-        let extract_node = extraction_target
+        let target_id = extraction_target
             .child_index
-            .and_then(|child_index| parsed_root.children.get(child_index))
-            .unwrap_or(&parsed_root);
+            .and_then(|child_index| self.syntax.child_id(self.syntax.root_id(), child_index))
+            .unwrap_or_else(|| self.syntax.root_id());
+        let Some(parsed_target) = flat_subtree_to_parsed_node(
+            &self.syntax,
+            self.language(),
+            language,
+            &self.source,
+            target_id,
+        ) else {
+            return Err(vec![crate::errors::ParseError {
+                reason: crate::errors::ParseErrorReason::UnexpectedToken(format!(
+                    "typed AST extraction target {} does not exist in document",
+                    target_id.as_usize()
+                )),
+                start: 0,
+                end: 0,
+                expected: Vec::new(),
+            }]);
+        };
 
-        let value =
-            <T as crate::Extract<_>>::try_extract(Some(extract_node), self.source_bytes(), 0, None)
-                .map_err(|error| vec![error])?;
+        let value = <T as crate::Extract<_>>::try_extract(
+            Some(&parsed_target),
+            self.source_bytes(),
+            0,
+            None,
+        )
+        .map_err(|error| vec![error])?;
 
         Ok(TypedAst {
             value,
@@ -377,7 +458,13 @@ impl AdzeDocument {
         T: crate::Extract<T>,
     {
         let language = self.typed_ast_language()?;
-        let Some(node) = self.parse_node_by_id(node_id) else {
+        let Some(parsed_node) = flat_subtree_to_parsed_node(
+            &self.syntax,
+            self.language(),
+            language,
+            &self.source,
+            node_id,
+        ) else {
             return Err(vec![crate::errors::ParseError {
                 reason: crate::errors::ParseErrorReason::UnexpectedToken(format!(
                     "typed AST extraction node {} does not exist in document",
@@ -389,7 +476,6 @@ impl AdzeDocument {
             }]);
         };
 
-        let parsed_node = document_node_to_parsed_node(node, language, self.source_bytes());
         let value =
             <T as crate::Extract<_>>::try_extract(Some(&parsed_node), self.source_bytes(), 0, None)
                 .map_err(|error| vec![error])?;
@@ -398,29 +484,6 @@ impl AdzeDocument {
             value,
             provenance: Provenance::Node(node_id),
         })
-    }
-
-    #[cfg(feature = "ts-compat")]
-    pub(crate) fn root_parse_node(&self) -> &ParseNode {
-        &self.root
-    }
-
-    /// Look up the recursive bridge node for a document-local id.
-    ///
-    /// This replays the recorded root-to-node child path through the retained
-    /// recursive `root` storage. It exists only as a compatibility bridge for
-    /// typed AST extraction until extraction also reads flat records. Native
-    /// traversal ([`AdzeTree::node`], [`AdzeNode`]) resolves ids directly from
-    /// [`SyntaxTree`] records and never calls this helper.
-    fn parse_node_by_id(&self, node_id: NodeId) -> Option<&ParseNode> {
-        let index = self.node_index.get(node_id.as_usize())?;
-        let mut node = &self.root;
-
-        for &child_index in &index.path {
-            node = node.children.get(child_index)?;
-        }
-
-        Some(node)
     }
 
     fn typed_ast_extraction_target(&self) -> TypedAstExtractionTarget {
@@ -464,6 +527,56 @@ impl AdzeDocument {
                 .collect());
         }
 
+        // Guard on tree facts too (#898): recovered/failed syntax must
+        // reject extraction before any user Extract/converter runs, even
+        // when a producer recorded no diagnostics.
+        let outcome = self.outcome();
+        if outcome != ParseOutcome::Complete {
+            let mut errors: Vec<_> = self
+                .syntax
+                .nodes
+                .iter()
+                .filter(|record| record.flags().is_error() || record.flags().is_missing())
+                .map(|record| {
+                    let range = record.byte_range();
+                    crate::errors::ParseError {
+                        reason: if record.flags().is_missing() {
+                            crate::errors::ParseErrorReason::MissingToken(
+                                "missing token".to_string(),
+                            )
+                        } else {
+                            crate::errors::ParseErrorReason::UnexpectedToken(
+                                "error syntax in recovered document".to_string(),
+                            )
+                        },
+                        start: range.start.min(self.source.len()),
+                        end: range.end.min(self.source.len()),
+                        expected: Vec::new(),
+                    }
+                })
+                .collect();
+            if errors.is_empty() {
+                // Fail closed when the outcome is non-Complete solely from
+                // recorded error facts (e.g. metadata.error_count > 0) with
+                // no diagnostics and no error/missing nodes: synthesize an
+                // error from the error count instead of falling through to
+                // Extract/converter invocation.
+                errors.push(crate::errors::ParseError {
+                    reason: crate::errors::ParseErrorReason::UnexpectedToken(format!(
+                        "typed AST extraction requires a complete parse: outcome is {} \
+                         with {} recorded parse error(s) but no diagnostics or \
+                         error/missing syntax nodes",
+                        outcome.as_str(),
+                        self.metadata.error_count
+                    )),
+                    start: 0,
+                    end: 0,
+                    expected: Vec::new(),
+                });
+            }
+            return Err(errors);
+        }
+
         self.pure_language.ok_or_else(|| {
             vec![crate::errors::ParseError {
                 reason: crate::errors::ParseErrorReason::UnexpectedToken(
@@ -500,13 +613,6 @@ impl NodeId {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct NodeIndex {
-    path: Vec<usize>,
-    parent_id: Option<NodeId>,
-    child_ids: Vec<NodeId>,
-}
-
 /// Direct selected-tree storage for an [`AdzeDocument`].
 ///
 /// This is the alpha v2 storage layer behind the borrowed [`AdzeTree`] view.
@@ -522,23 +628,29 @@ pub struct SyntaxTree {
 }
 
 impl SyntaxTree {
+    /// Build canonical flat node/edge/parent records directly from one
+    /// selected parse tree.
+    ///
+    /// Construction uses explicit heap traversal frames (no recursion) and a
+    /// single document-local line index. Every child of every visited node
+    /// yields exactly one edge; nothing is silently dropped. The `root`
+    /// construction parameter is consumed once here and dropped: no
+    /// persistent recursive tree is retained (retirement completed under
+    /// #900b/#860; #901 tracks consumer migration only).
     fn from_parse_root(
         root: &ParseNode,
         source: &str,
         language: &LanguageMetadata,
         error_count: usize,
-        node_index: &[NodeIndex],
     ) -> Self {
-        let mut nodes = Vec::new();
-        collect_node_records(root, source, language, error_count, true, &mut nodes);
+        let built = build_flat_tree(root, source, language, error_count);
 
-        let mut tree = Self {
+        let tree = Self {
             root_id: NodeId::new(0),
-            nodes,
-            edges: Vec::new(),
-            parents: node_index.iter().map(|index| index.parent_id).collect(),
+            nodes: built.nodes,
+            edges: built.edges,
+            parents: built.parents,
         };
-        collect_edge_records(root, tree.root_id, node_index, language, &mut tree);
         debug_assert!(
             tree.validate().is_ok(),
             "document SyntaxTree construction must produce symmetric node/edge/parent records"
@@ -814,6 +926,25 @@ pub struct LanguageMetadata {
     name: String,
     symbols: Vec<NodeKind>,
     fields: Vec<String>,
+    /// Canonical field facts per owning node kind and field name.
+    ///
+    /// This is the document-side projection of the canonical schema
+    /// (`adze_tablegen::field_schema`): the same required/multiple/target
+    /// facts the table generator emits, keyed for direct lookup during
+    /// native traversal and query validation instead of re-derivation.
+    field_semantics: BTreeMap<SymbolId, BTreeMap<String, FieldSemantics>>,
+}
+
+/// Canonical field cardinality facts for one node's field, as recorded on
+/// the document's language metadata.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FieldSemantics {
+    /// Whether every alternative provides the field in a non-optional position.
+    pub required: bool,
+    /// Whether the field may appear more than once (repeat or multi-binding).
+    pub multiple: bool,
+    /// Grammar node kinds the field may hold, in deterministic order.
+    pub target_kinds: Vec<SymbolId>,
 }
 
 impl LanguageMetadata {
@@ -865,10 +996,43 @@ impl LanguageMetadata {
 
         symbols.sort_by_key(|symbol| symbol.symbol_id.0);
 
+        // Canonical per-node field facts, resolved once per language through
+        // the same schema the table generator consumes. Targets keep their
+        // grammar identities; only leaf symbols are stored.
+        let field_semantics = adze_tablegen::field_schema::field_semantics_for_grammar(grammar)
+            .into_iter()
+            .map(|(owner, fields)| {
+                let semantics = fields
+                    .into_iter()
+                    .map(|(name, fact)| {
+                        let mut targets = Vec::with_capacity(fact.targets.len());
+                        for target in &fact.targets {
+                            match target {
+                                adze_ir::Symbol::Terminal(id)
+                                | adze_ir::Symbol::NonTerminal(id)
+                                | adze_ir::Symbol::External(id) => targets.push(*id),
+                                _ => {}
+                            }
+                        }
+                        (
+                            name,
+                            FieldSemantics {
+                                required: fact.required,
+                                multiple: fact.multiple,
+                                target_kinds: targets,
+                            },
+                        )
+                    })
+                    .collect();
+                (owner, semantics)
+            })
+            .collect();
+
         Self {
             name: language_name.to_string(),
             symbols,
             fields: parse_table.field_names.clone(),
+            field_semantics,
         }
     }
 
@@ -923,6 +1087,16 @@ impl LanguageMetadata {
                 let field_id = u16::try_from(index.checked_add(1)?).ok()?;
                 FieldId::new(field_id)
             })
+    }
+
+    /// Return canonical cardinality facts for a node's field, if the schema
+    /// recorded any.
+    ///
+    /// This is the document-side projection of the canonical field schema:
+    /// the same required/multiple/target facts the table generator emits,
+    /// keyed by owning node kind and field name.
+    pub fn field_semantics(&self, owner: SymbolId, field_name: &str) -> Option<&FieldSemantics> {
+        self.field_semantics.get(&owner)?.get(field_name)
     }
 }
 
@@ -1274,6 +1448,12 @@ impl<'doc> AdzeTree<'doc> {
     /// Return whether this tree has parser errors.
     pub fn has_errors(&self) -> bool {
         self.document.metadata.error_count > 0
+            || self
+                .document
+                .syntax
+                .nodes
+                .iter()
+                .any(|record| record.flags().is_error() || record.flags().is_missing())
     }
 
     /// Return the number of parser recovery/error events.
@@ -1881,6 +2061,85 @@ mod tests {
     }
 
     #[test]
+    fn test_typed_ast_language_when_error_count_without_diagnostics_or_error_nodes_rejects() {
+        let (grammar, table) = fielded_language();
+        let source_file = SymbolId(1);
+        let expression = SymbolId(2);
+        let number = SymbolId(3);
+        let source = "1";
+
+        let root = ParseNode {
+            symbol: source_file,
+            symbol_id: source_file,
+            start_byte: 0,
+            end_byte: source.len(),
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![ParseNode {
+                symbol: expression,
+                symbol_id: expression,
+                start_byte: 0,
+                end_byte: source.len(),
+                field_name: None,
+                alias_symbol_id: None,
+                children: vec![ParseNode {
+                    symbol: number,
+                    symbol_id: number,
+                    start_byte: 0,
+                    end_byte: source.len(),
+                    field_name: Some("left".to_string()),
+                    alias_symbol_id: None,
+                    children: Vec::new(),
+                }],
+            }],
+        };
+        // Latent state: error_count > 0 alone makes the outcome
+        // non-Complete, with empty diagnostics and no error/missing nodes.
+        let document = AdzeDocument::from_parse_result_with_diagnostics(
+            source,
+            root,
+            2,
+            DocumentRuntime {
+                language_name: "fielded",
+                grammar: &grammar,
+                parse_table: &table,
+                pure_language: None,
+            },
+            Vec::new(),
+        );
+
+        assert!(document.diagnostics().is_empty());
+        assert_eq!(document.metadata().error_count, 2);
+        assert_eq!(document.outcome(), ParseOutcome::Recovered);
+        assert!(
+            document
+                .syntax
+                .nodes
+                .iter()
+                .all(|record| !record.flags().is_error() && !record.flags().is_missing())
+        );
+
+        let errors = document
+            .typed_ast_language()
+            .expect_err("non-Complete outcome must reject typed extraction");
+        assert_eq!(errors.len(), 1);
+        let crate::errors::ParseErrorReason::UnexpectedToken(message) = &errors[0].reason else {
+            panic!(
+                "expected synthesized UnexpectedToken, got {:?}",
+                errors[0].reason
+            );
+        };
+        assert!(
+            message.contains("recovered") && message.contains('2'),
+            "synthesized error should name outcome and error_count, got: {message}"
+        );
+        assert!(
+            !message.contains("pure-Rust language metadata"),
+            "guard must fire before the pure-language fallthrough, got: {message}"
+        );
+    }
+
+    #[test]
     fn changed_ranges_returns_empty_when_sources_match() {
         let old = fielded_document("1 + 2");
         let newer = fielded_document("1 + 2");
@@ -2296,5 +2555,146 @@ mod tests {
             unparented.validate().is_err(),
             "clearing a non-root parent must fail validation"
         );
+    }
+
+    fn schema_test_grammar() -> Grammar {
+        use adze_ir::{FieldId, ProductionId, Rule, Token, TokenPattern};
+
+        let mut grammar = Grammar::new("field-schema-doc".to_string());
+        for (id, name, pattern) in [
+            (1u16, "num", TokenPattern::Regex(r"\d+".to_string())),
+            (2, "word", TokenPattern::Regex("[a-z]+".to_string())),
+        ] {
+            grammar.tokens.insert(
+                SymbolId(id),
+                Token {
+                    name: name.to_string(),
+                    pattern,
+                    fragile: false,
+                },
+            );
+        }
+        for (id, name) in [(10u16, "doc"), (11, "item"), (12, "group")] {
+            grammar.rule_names.insert(SymbolId(id), name.to_string());
+        }
+        grammar.fields.insert(FieldId(2), "items".to_string());
+        grammar.fields.insert(FieldId(1), "value".to_string());
+        let mut pid = ProductionId(0);
+        let mut add_rule = |grammar: &mut Grammar,
+                            lhs: u16,
+                            rhs: Vec<adze_ir::Symbol>,
+                            fields: Vec<(FieldId, usize)>| {
+            grammar.add_rule(Rule {
+                lhs: SymbolId(lhs),
+                rhs,
+                precedence: None,
+                associativity: None,
+                fields,
+                production_id: pid,
+            });
+            pid = ProductionId(pid.0 + 1);
+        };
+        use adze_ir::Symbol::{NonTerminal as nt, Repeat, Terminal as term};
+        // doc -> item (single mandatory field).
+        add_rule(
+            &mut grammar,
+            10,
+            vec![nt(SymbolId(11))],
+            vec![(FieldId(1), 0)],
+        );
+        // item -> num | word (same-named field, different target kinds).
+        add_rule(
+            &mut grammar,
+            11,
+            vec![term(SymbolId(1))],
+            vec![(FieldId(1), 0)],
+        );
+        add_rule(
+            &mut grammar,
+            11,
+            vec![term(SymbolId(2))],
+            vec![(FieldId(1), 0)],
+        );
+        // group -> item* (zero or more repeated children).
+        add_rule(
+            &mut grammar,
+            12,
+            vec![Repeat(Box::new(nt(SymbolId(11))))],
+            vec![(FieldId(2), 0)],
+        );
+        grammar.set_start_symbol(SymbolId(10));
+        grammar
+    }
+
+    fn schema_test_language() -> LanguageMetadata {
+        use adze_glr_core::ParseTable;
+
+        let mut grammar = schema_test_grammar();
+        grammar.try_normalize().expect("schema fixture normalizes");
+        grammar.validate().expect("normalized grammar validates");
+        LanguageMetadata::from_runtime("schema-fixture", &grammar, &ParseTable::default())
+    }
+
+    #[test]
+    fn test_language_metadata_carries_canonical_field_facts() {
+        let language = schema_test_language();
+
+        // Optional to keep the contract honest: undeclared fields and
+        // unknown owners report absence rather than a default.
+        assert_eq!(language.field_semantics(SymbolId(10), "missing"), None);
+        assert_eq!(language.field_semantics(SymbolId(999), "value"), None);
+
+        let value = language
+            .field_semantics(SymbolId(11), "value")
+            .expect("item.value must have recorded facts");
+        assert!(value.required, "every alternative provides value");
+        assert!(!value.multiple, "single binding per alternative");
+        assert_eq!(value.target_kinds, vec![SymbolId(1), SymbolId(2)]);
+
+        let items = language
+            .field_semantics(SymbolId(12), "items")
+            .expect("group.items must have recorded facts");
+        assert!(!items.required, "zero repetitions admit absence");
+        assert!(items.multiple, "repetition admits several children");
+        assert_eq!(items.target_kinds, vec![SymbolId(11)]);
+    }
+
+    #[test]
+    fn test_field_semantics_agree_with_node_types_facts() {
+        // The same normalized grammar feeds both the table generator and
+        // the document metadata; required/multiple must agree.
+        let mut grammar = schema_test_grammar();
+        grammar.try_normalize().expect("schema fixture normalizes");
+        let language = schema_test_language();
+        let json = adze_tablegen::NodeTypesGenerator::new(&grammar)
+            .generate()
+            .expect("node types generate");
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid node types JSON");
+        let by_name: std::collections::HashMap<&str, &serde_json::Value> = parsed
+            .as_array()
+            .expect("top-level array")
+            .iter()
+            .map(|node| (node["type"].as_str().unwrap_or(""), node))
+            .collect();
+
+        for (owner, field) in [(11u16, "value"), (12, "items")] {
+            let semantics = language
+                .field_semantics(SymbolId(owner), field)
+                .unwrap_or_else(|| panic!("owner {owner} field {field} must have facts"));
+            let node = by_name
+                .values()
+                .find(|node| node["fields"][field].is_object())
+                .unwrap_or_else(|| panic!("node types must declare {field}"));
+            assert_eq!(
+                node["fields"][field]["required"],
+                serde_json::Value::Bool(semantics.required),
+                "required must agree for owner {owner} field {field}"
+            );
+            assert_eq!(
+                node["fields"][field]["multiple"],
+                serde_json::Value::Bool(semantics.multiple),
+                "multiple must agree for owner {owner} field {field}"
+            );
+        }
     }
 }

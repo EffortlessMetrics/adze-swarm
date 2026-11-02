@@ -261,12 +261,17 @@ fn validate_command(root: &Path, command: &str) -> Result<(), String> {
         root.to_path_buf()
     };
 
-    if let Some(package) = &parsed.package {
+    // Feature validation applies to --manifest-path commands too (#1058):
+    // a manifest-selected undeclared feature must not slip through merely
+    // because no -p package was named.
+    if parsed.package.is_some() || parsed.manifest_path.is_some() {
         let declared = declared_features(&package_dir);
         for feature in &parsed.features {
-            if !declared.iter().any(|f| f == feature) {
+            let base = feature.split('/').next().unwrap_or(feature);
+            if !feature.contains('/') && !declared.iter().any(|f| f == base) {
                 return Err(format!(
-                    "package {package} does not declare feature {feature}"
+                    "package at {} does not declare feature {feature}",
+                    package_dir.display()
                 ));
             }
         }
@@ -368,6 +373,17 @@ fn test_validator_rejects_undeclared_feature() {
         "cargo test -p adze --features \"pure-rust,not-a-feature\" --test generated_parse_errors -- --nocapture",
     )
     .expect_err("an undeclared feature must be rejected");
+    assert!(error.contains("does not declare feature"), "{error}");
+}
+
+#[test]
+fn test_validator_rejects_manifest_path_undeclared_feature() {
+    let root = workspace_root();
+    let error = validate_command(
+        &root,
+        "cargo test --manifest-path runtime/Cargo.toml --features audit_missing_feature --test projection_equivalence",
+    )
+    .expect_err("manifest-selected undeclared feature must be rejected (#1058)");
     assert!(error.contains("does not declare feature"), "{error}");
 }
 

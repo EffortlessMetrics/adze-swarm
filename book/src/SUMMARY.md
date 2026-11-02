@@ -24,6 +24,10 @@
 - [Performance Optimization](guide/performance.md)
 - [Migration: rust-sitter to Adze](guide/migration.md)
 
+# Cookbook
+
+- [Cookbook](cookbook.md)
+
 # Advanced Topics
 
 - [GLR Parsing](advanced/glr-parsing.md)

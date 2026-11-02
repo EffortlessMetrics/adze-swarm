@@ -34,6 +34,8 @@ pub mod error;
 pub mod external_scanner;
 /// External scanner code generation (v2, improved).
 pub mod external_scanner_v2;
+/// Canonical field semantic schema derived from (possibly normalized) grammars.
+pub mod field_schema;
 /// Language builder for generating static parsers
 pub mod generate;
 /// Helper utilities for table generation

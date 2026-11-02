@@ -85,13 +85,8 @@ impl ConflictResolver {
                     if let Some(start_symbol) = crate::grammar_start::analysis_start_symbol(grammar)
                     {
                         // Look through all rules to find the one with this rule ID
-                        for rule in grammar.all_rules() {
-                            if rule.production_id.0 == item.rule_id.0 {
-                                // Check if this rule reduces to the start symbol and we have EOF lookahead
-                                is_accept =
-                                    rule.lhs == start_symbol && item.lookahead == SymbolId(0);
-                                break;
-                            }
+                        if let Some(rule) = grammar.rule_by_id(item.rule_id) {
+                            is_accept = rule.lhs == start_symbol && item.lookahead == SymbolId(0);
                         }
                     }
 

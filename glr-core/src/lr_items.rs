@@ -27,10 +27,7 @@ impl LRItem {
 
     /// Check if this item is at the end of the rule (reduce item)
     pub fn is_reduce_item(&self, grammar: &Grammar) -> bool {
-        if let Some(rule) = grammar
-            .all_rules()
-            .find(|r| r.production_id.0 == self.rule_id.0)
-        {
+        if let Some(rule) = grammar.rule_by_id(self.rule_id) {
             // Special case: epsilon rules (A -> epsilon) are reduce items at position 0
             // because epsilon doesn't need to be "consumed" - it represents empty string
             if rule.rhs.len() == 1 && matches!(rule.rhs[0], Symbol::Epsilon) {
@@ -45,10 +42,7 @@ impl LRItem {
 
     /// Get the symbol after the dot (next symbol to parse)
     pub fn next_symbol<'a>(&self, grammar: &'a Grammar) -> Option<&'a Symbol> {
-        if let Some(rule) = grammar
-            .all_rules()
-            .find(|r| r.production_id.0 == self.rule_id.0)
-        {
+        if let Some(rule) = grammar.rule_by_id(self.rule_id) {
             rule.rhs.get(self.position)
         } else {
             None
@@ -98,14 +92,12 @@ impl ItemSet {
                 if let Some(Symbol::NonTerminal(symbol_id)) = item.next_symbol(grammar) {
                     // Find all rules with this symbol as LHS
                     if let Some(rules) = grammar.get_rules_for_symbol(*symbol_id) {
-                        for rule in rules {
+                        let rule_ids = grammar.rule_ids_for_symbol(*symbol_id);
+                        for (rule, rule_id) in rules.iter().zip(rule_ids) {
                             // Compute FIRST of β α where β is the rest of the current rule
                             // and α is the lookahead
                             let mut beta = Vec::new();
-                            if let Some(current_rule) = grammar
-                                .all_rules()
-                                .find(|r| r.production_id.0 == item.rule_id.0)
-                            {
+                            if let Some(current_rule) = grammar.rule_by_id(item.rule_id) {
                                 beta.extend_from_slice(&current_rule.rhs[item.position + 1..]);
                             }
                             beta.push(Symbol::Terminal(item.lookahead));
@@ -114,11 +106,8 @@ impl ItemSet {
 
                             // Add new items for each symbol in FIRST(β α)
                             for lookahead_idx in first_beta_alpha.ones() {
-                                let new_item = LRItem::new(
-                                    RuleId(rule.production_id.0),
-                                    0,
-                                    SymbolId(lookahead_idx as u16),
-                                );
+                                let new_item =
+                                    LRItem::new(rule_id, 0, SymbolId(lookahead_idx as u16));
 
                                 if !self.items.contains(&new_item) {
                                     self.items.insert(new_item);
@@ -204,12 +193,12 @@ impl ItemSetCollection {
 
         // Find the augmented start rule
         if let Some(augmented_rules) = grammar.get_rules_for_symbol(augmented_start) {
-            for rule in augmented_rules {
+            let rule_ids = grammar.rule_ids_for_symbol(augmented_start);
+            for (rule, rule_id) in augmented_rules.iter().zip(rule_ids) {
+                let _ = rule;
                 // Add S' -> • S with lookahead $ (EOF)
                 let start_item = LRItem::new(
-                    RuleId(rule.production_id.0),
-                    0,
-                    eof_symbol, // EOF symbol
+                    rule_id, 0, eof_symbol, // EOF symbol
                 );
                 initial_set.add_item(start_item);
             }
@@ -228,10 +217,7 @@ impl ItemSetCollection {
 
         for item in &initial_set.items {
             // Print each item to debug
-            if let Some(rule) = grammar
-                .all_rules()
-                .find(|r| r.production_id.0 == item.rule_id.0)
-            {
+            if let Some(rule) = grammar.rule_by_id(item.rule_id) {
                 let mut rhs_str = String::new();
                 for (idx, sym) in rule.rhs.iter().enumerate() {
                     if idx == item.position {
@@ -282,10 +268,7 @@ impl ItemSetCollection {
 
             // Debug: Print all items in this state
             for item in &current_set.items {
-                if let Some(rule) = grammar
-                    .all_rules()
-                    .find(|r| r.production_id.0 == item.rule_id.0)
-                {
+                if let Some(rule) = grammar.rule_by_id(item.rule_id) {
                     let mut rhs_str = String::new();
                     for (idx, sym) in rule.rhs.iter().enumerate() {
                         if idx == item.position {
@@ -311,10 +294,7 @@ impl ItemSetCollection {
             for (_idx, item) in current_set.items.iter().enumerate() {
                 if i == 0 {
                     // Print the item details
-                    if let Some(rule) = grammar
-                        .all_rules()
-                        .find(|r| r.production_id.0 == item.rule_id.0)
-                    {
+                    if let Some(rule) = grammar.rule_by_id(item.rule_id) {
                         let mut item_str = String::new();
                         item_str.push_str(&format!("NT({}) -> ", rule.lhs.0));
                         for (pos, sym) in rule.rhs.iter().enumerate() {
@@ -466,10 +446,11 @@ impl ItemSetCollection {
 
             // Add items for ALL rules with the start symbol as LHS
             if let Some(start_rules) = grammar.get_rules_for_symbol(start_symbol) {
-                for rule in start_rules.iter() {
-                    // Debug: idx, rule.lhs, rule.rhs, rule.production_id.0
+                let rule_ids = grammar.rule_ids_for_symbol(start_symbol);
+                for (rule, rule_id) in start_rules.iter().zip(rule_ids) {
+                    let _ = rule;
                     let start_item = LRItem::new(
-                        RuleId(rule.production_id.0),
+                        rule_id,
                         0,
                         SymbolId(0), // EOF symbol
                     );
@@ -501,10 +482,7 @@ impl ItemSetCollection {
 
             // Debug: Print all items in this state
             for item in &current_set.items {
-                if let Some(rule) = grammar
-                    .all_rules()
-                    .find(|r| r.production_id.0 == item.rule_id.0)
-                {
+                if let Some(rule) = grammar.rule_by_id(item.rule_id) {
                     let mut rhs_str = String::new();
                     for (idx, sym) in rule.rhs.iter().enumerate() {
                         if idx == item.position {
@@ -530,10 +508,7 @@ impl ItemSetCollection {
             for (_idx, item) in current_set.items.iter().enumerate() {
                 if i == 0 {
                     // Print the item details
-                    if let Some(rule) = grammar
-                        .all_rules()
-                        .find(|r| r.production_id.0 == item.rule_id.0)
-                    {
+                    if let Some(rule) = grammar.rule_by_id(item.rule_id) {
                         let mut item_str = String::new();
                         item_str.push_str(&format!("NT({}) -> ", rule.lhs.0));
                         for (pos, sym) in rule.rhs.iter().enumerate() {

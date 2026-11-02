@@ -125,7 +125,9 @@ fn assert_one_passed(phase: &str, output: &Output) {
         "{phase}: the intended test must actually execute\n{stdout}",
     );
     assert!(
-        stdout.lines().any(|line| line == "test journey_contract ... ok"),
+        stdout
+            .lines()
+            .any(|line| line == "test journey_contract ... ok"),
         "{phase}: missing named test\n{stdout}"
     );
 }
@@ -200,7 +202,10 @@ pure-rust = ["adze/pure-rust"]
     fs::write(project.join("src/lib.rs"), broken).expect("break user source");
     let failure = run_phase(project);
     let stderr = String::from_utf8_lossy(&failure.stderr);
-    assert!(!failure.status.success(), "broken source reused stale success");
+    assert!(
+        !failure.status.success(),
+        "broken source reused stale success"
+    );
     assert!(
         stderr.contains("MissingBackoffType1138"),
         "failure must be the deliberate missing type, not network/tool setup: {stderr}"

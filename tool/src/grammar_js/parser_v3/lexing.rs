@@ -24,7 +24,13 @@ pub(super) fn extract_balanced_delim(content: &str, open: char, close: char) -> 
     }
 
     if depth == 0 {
-        Ok(content[..pos - 1].to_string())
+        // Quote/regex skipping uses character cursors. Resolve the closing
+        // character back to the original source's byte boundary before slicing.
+        pos.checked_sub(1)
+            .and_then(|closing| content.char_indices().nth(closing))
+            .and_then(|(byte, _)| content.get(..byte))
+            .map(str::to_owned)
+            .ok_or_else(|| anyhow::anyhow!("Invalid closing delimiter boundary"))
     } else {
         bail!("Unbalanced {} and {} in content", open, close)
     }
@@ -166,5 +172,14 @@ mod tests {
         let extracted = extract_balanced_delim(content, '(', ')').unwrap();
 
         assert_eq!(extracted, "seq($.left, choice(')', /a\\)/), $.right)");
+    }
+    #[test]
+    fn test_extract_unicode_delimiter_content_preserves_byte_boundaries() {
+        assert_eq!(extract_balanced_delim("€)", '(', ')').unwrap(), "€");
+        let content = "seq('€)', /é\\)/))";
+        assert_eq!(
+            extract_balanced_delim(content, '(', ')').unwrap(),
+            "seq('€)', /é\\)/)"
+        );
     }
 }

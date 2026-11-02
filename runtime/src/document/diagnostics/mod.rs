@@ -10,7 +10,7 @@ use node_matching::related_nodes_for_diagnostic;
 use spans::first_error_span;
 
 pub(super) fn build_diagnostics(
-    root: &ParseNode,
+    tree: &SyntaxTree,
     error_count: usize,
     source: &str,
 ) -> Vec<ParseDiagnostic> {
@@ -18,7 +18,12 @@ pub(super) fn build_diagnostics(
         return Vec::new();
     }
 
-    let span = first_error_span(root).unwrap_or(root.start_byte..root.end_byte);
+    let root_range = tree
+        .node_record(tree.root_id())
+        .map(|record| record.byte_range())
+        .unwrap_or(0..source.len());
+    let root_start = root_range.start;
+    let span = first_error_span(tree).unwrap_or(root_range);
     let start_byte = span.start.min(source.len());
     let end_byte = span.end.min(source.len()).max(start_byte);
     let point_range = PointRange::from_byte_range(source, start_byte..end_byte);
@@ -29,7 +34,7 @@ pub(super) fn build_diagnostics(
     // invalid final byte, which is not an EOF failure.
     let found = (start_byte == end_byte
         && start_byte == source.len()
-        && (root.start_byte < start_byte || source.is_empty()))
+        && (root_start < start_byte || source.is_empty()))
     .then(|| "end of input".to_string());
 
     vec![ParseDiagnostic {
@@ -43,9 +48,9 @@ pub(super) fn build_diagnostics(
     }]
 }
 
-pub(super) fn attach_related_nodes(root: &ParseNode, diagnostics: &mut [ParseDiagnostic]) {
+pub(super) fn attach_related_nodes(tree: &SyntaxTree, diagnostics: &mut [ParseDiagnostic]) {
     for diagnostic in diagnostics {
-        diagnostic.related_nodes = related_nodes_for_diagnostic(root, diagnostic);
+        diagnostic.related_nodes = related_nodes_for_diagnostic(tree, diagnostic);
     }
 }
 

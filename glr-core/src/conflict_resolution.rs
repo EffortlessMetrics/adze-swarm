@@ -1,6 +1,8 @@
 //! Conflict resolution strategies for GLR parse table construction.
 
-use crate::{Action, FirstFollowSets, Grammar, ParseTable, ProductionId, StateId, SymbolId};
+use crate::{
+    Action, FirstFollowSets, Grammar, ParseTable, ProductionId, RuleId, StateId, SymbolId,
+};
 use fixedbitset::FixedBitSet;
 use rustc_hash::FxHashMap;
 
@@ -37,10 +39,8 @@ mod resolver_submodules {
     ) -> Option<ProductionId> {
         for action in actions {
             match action {
-                Action::Reduce(rule_id)
-                    if is_vec_wrapper_empty_rule(ProductionId(rule_id.0), grammar) =>
-                {
-                    return Some(ProductionId(rule_id.0));
+                Action::Reduce(rule_id) if is_vec_wrapper_empty_rule(*rule_id, grammar) => {
+                    return grammar.rule_by_id(*rule_id).map(|rule| rule.production_id);
                 }
                 Action::Fork(fork_actions) => {
                     if let Some(production_id) =
@@ -56,10 +56,9 @@ mod resolver_submodules {
         None
     }
 
-    fn is_vec_wrapper_empty_rule(rule_id: ProductionId, grammar: &Grammar) -> bool {
+    fn is_vec_wrapper_empty_rule(rule_id: RuleId, grammar: &Grammar) -> bool {
         grammar
-            .all_rules()
-            .find(|rule| rule.production_id.0 == rule_id.0)
+            .rule_by_id(rule_id)
             .and_then(|rule| grammar.rule_names.get(&rule.lhs).map(|name| (name, rule)))
             .is_some_and(|(rule_name, rule)| {
                 rule_name.ends_with("_vec_contents") && rule.rhs.is_empty()
@@ -402,7 +401,7 @@ mod tests {
         let mut table = ParseTable::default();
         table
             .action_table
-            .push(vec![vec![Action::Reduce(RuleId(7))]]);
+            .push(vec![vec![Action::Reduce(RuleId(0))]]);
 
         let prod = resolver.get_vec_wrapper_action(StateId(0), &table, &grammar);
         assert_eq!(prod, Some(ProductionId(7)));
@@ -446,7 +445,7 @@ mod tests {
         let mut table = ParseTable::default();
         table
             .action_table
-            .push(vec![vec![Action::Reduce(RuleId(3))]]);
+            .push(vec![vec![Action::Reduce(RuleId(0))]]);
 
         assert_eq!(
             resolver.get_vec_wrapper_action(StateId(0), &table, &grammar),
@@ -481,7 +480,7 @@ mod tests {
         let mut table = ParseTable::default();
         table.action_table.push(vec![vec![Action::Fork(vec![
             Action::Shift(StateId(1)),
-            Action::Reduce(RuleId(9)),
+            Action::Reduce(RuleId(0)),
         ])]]);
 
         let prod = resolver.get_vec_wrapper_action(StateId(0), &table, &grammar);

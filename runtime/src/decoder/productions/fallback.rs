@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 
 use crate::pure_parser::TSLanguage;
 
-use super::{decode_rules, symbol_for_index};
+use super::{decode_rule_rhs, decode_rules};
 
 pub(super) fn decode_fallback_rules(
     lang: &TSLanguage,
@@ -49,7 +49,9 @@ fn decode_production_ids_from_rule_count(
     production_ids: &mut IndexMap<RuleId, ProductionId>,
 ) {
     for i in 0..lang.rule_count as usize {
-        production_ids.insert(RuleId(i as u16), ProductionId(i as u16));
+        if let Some(production_id) = lang.production_for_rule(i) {
+            production_ids.insert(RuleId(i as u16), ProductionId(production_id));
+        }
     }
 }
 
@@ -75,47 +77,7 @@ fn decode_fallback_rhs(
     rule_index: usize,
     rhs_len: usize,
 ) -> Option<Vec<Symbol>> {
-    let alias_map_size = (lang.production_count as usize).max(rule_index + 1);
-    if alias_map_size == 0 {
-        return Some(Vec::new());
-    }
-
-    // SAFETY: `lang.alias_map` is non-null (caller checks alias data).
-    // `alias_map_size` is bounded to at least `rule_index + 1` elements, which
-    // is the minimum needed for indexing below.
-    let alias_map_slice = unsafe { std::slice::from_raw_parts(lang.alias_map, alias_map_size) };
-    let offset = *alias_map_slice.get(rule_index)? as usize;
-    let total_sequences_needed = offset.saturating_add(rhs_len);
-    if total_sequences_needed > usize::MAX / 2 {
-        return Some(Vec::new());
-    }
-
-    Some(read_rhs_symbols(
-        lang,
-        offset,
-        rhs_len,
-        total_sequences_needed,
-    ))
-}
-
-fn read_rhs_symbols(
-    lang: &TSLanguage,
-    offset: usize,
-    rhs_len: usize,
-    sequence_len: usize,
-) -> Vec<Symbol> {
-    // TODO(safety): `sequence_len` is derived from alias_map data which may not
-    // reflect the true allocation size of `lang.alias_sequences`.
-    let alias_sequences_slice =
-        unsafe { std::slice::from_raw_parts(lang.alias_sequences, sequence_len) };
-    let mut rhs = Vec::with_capacity(rhs_len);
-
-    for j in 0..rhs_len {
-        let seq_idx = offset + j;
-        if let Some(&sym_idx) = alias_sequences_slice.get(seq_idx) {
-            rhs.push(symbol_for_index(lang, sym_idx));
-        }
-    }
-
-    rhs
+    // Use the same advertised allocation and per-row bounds as native
+    // metadata decoding; a fallback cannot grow raw slices from offsets.
+    decode_rule_rhs(lang, rule_index, rhs_len, lang.production_count as usize)
 }

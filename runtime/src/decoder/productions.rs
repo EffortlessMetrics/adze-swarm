@@ -32,13 +32,18 @@ pub(super) fn decode_metadata_rules(lang: &TSLanguage, rules: &mut IndexMap<Symb
             continue;
         }
 
-        let rhs = decode_rule_rhs(lang, i, rhs_len, rule_count).unwrap_or_else(|| {
-            (0..rhs_len)
-                .map(|_| Symbol::NonTerminal(SymbolId(0)))
-                .collect()
-        });
-        let precedence = decode_dynamic_precedence(lang, i);
-        let fields = fields::decode_rule_fields(lang, i);
+        let Some(production_id) = lang.production_for_rule(i) else {
+            continue;
+        };
+        let rhs = decode_rule_rhs(
+            lang,
+            production_id as usize,
+            rhs_len,
+            lang.production_id_count as usize,
+        )
+        .unwrap_or_else(|| placeholder_rhs(rhs_len));
+        let precedence = decode_dynamic_precedence(lang, production_id as usize);
+        let fields = fields::decode_rule_fields(lang, production_id as usize);
 
         rules.entry(lhs).or_default().push(Rule {
             lhs,
@@ -46,62 +51,56 @@ pub(super) fn decode_metadata_rules(lang: &TSLanguage, rules: &mut IndexMap<Symb
             precedence,
             associativity: None,
             fields,
-            production_id: ProductionId(i as u16),
+            production_id: ProductionId(production_id),
         });
     }
 }
 
 fn decode_rule_rhs(
     lang: &TSLanguage,
-    rule_index: usize,
+    production_index: usize,
     rhs_len: usize,
-    rule_count: usize,
+    production_count: usize,
 ) -> Option<Vec<Symbol>> {
     if lang.alias_map.is_null() || lang.alias_sequences.is_null() {
         return Some(placeholder_rhs(rhs_len));
     }
 
-    // SAFETY: `lang.alias_map` is non-null (branch guard above). `rule_count`
-    // matches the alias_map array length per TSLanguage contract.
-    let alias_map_slice = unsafe { std::slice::from_raw_parts(lang.alias_map, rule_count) };
-    let offset = *alias_map_slice.get(rule_index)? as usize;
-    let max_sequences_needed = offset.saturating_add(rhs_len);
-    if max_sequences_needed > usize::MAX / 2 {
-        return Some(placeholder_rhs(rhs_len));
+    let stride = lang.max_alias_sequence_length as usize;
+    let sequence_len = production_count.checked_mul(stride)?;
+    // The native generator allocates exactly count * stride cells. Neither
+    // an alias offset nor an unrelated syntax RHS length can enlarge it.
+    if production_count == 0
+        || production_count > 100_000
+        || stride == 0
+        || sequence_len > 10_000_000
+        || production_index >= production_count
+    {
+        return None;
     }
-
-    Some(read_rhs_symbols(
-        lang,
-        offset,
-        rhs_len,
-        max_sequences_needed,
-        true,
-    ))
-}
-
-fn read_rhs_symbols(
-    lang: &TSLanguage,
-    offset: usize,
-    rhs_len: usize,
-    sequence_len: usize,
-    fill_missing_with_placeholder: bool,
-) -> Vec<Symbol> {
-    // TODO(safety): `sequence_len` is derived from alias_map data which may not
-    // reflect the true allocation size of `lang.alias_sequences`.
-    let alias_sequences_slice =
-        unsafe { std::slice::from_raw_parts(lang.alias_sequences, sequence_len) };
-    let mut rhs = Vec::with_capacity(rhs_len);
-
-    for j in 0..rhs_len {
-        let seq_idx = offset + j;
-        if let Some(&sym_idx) = alias_sequences_slice.get(seq_idx) {
-            rhs.push(symbol_for_index(lang, sym_idx));
-        } else if fill_missing_with_placeholder {
-            rhs.push(Symbol::NonTerminal(SymbolId(0)));
-        }
+    // SAFETY: the non-null alias map has production_count entries under the
+    // native ABI contract, independently of the number of syntax rules.
+    let alias_map_slice = unsafe { std::slice::from_raw_parts(lang.alias_map, production_count) };
+    let offset = *alias_map_slice.get(production_index)? as usize;
+    let row_end = offset.checked_add(stride)?;
+    // Offsets name row starts. Zero is the valid first row, not a missing
+    // alias sentinel; absent aliases are zero-filled cells in that row.
+    if !offset.is_multiple_of(stride) || row_end > sequence_len {
+        return None;
     }
-
-    rhs
+    // SAFETY: the native ABI advertises a dense count * stride allocation.
+    // Both factors and the selected complete row have been checked above.
+    let cells = unsafe { std::slice::from_raw_parts(lang.alias_sequences, sequence_len) };
+    let row = cells.get(offset..row_end)?;
+    Some(
+        (0..rhs_len)
+            .map(|position| {
+                row.get(position)
+                    .map(|&symbol| symbol_for_index(lang, symbol))
+                    .unwrap_or(Symbol::NonTerminal(SymbolId(0)))
+            })
+            .collect(),
+    )
 }
 
 fn symbol_for_index(lang: &TSLanguage, sym_idx: u16) -> Symbol {

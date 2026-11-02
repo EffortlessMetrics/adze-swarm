@@ -141,8 +141,19 @@ fn streaming_lexer_internal_adapter_contract_rejects_empty_candidate_set() {
     let result = driver.parse_streaming("a", lexer, None::<fn(&str, usize, &[bool], _) -> _>);
 
     match result {
-        Err(GlrError::Parse(_)) => {}
+        Err(GlrError::UnexpectedToken(unexpected)) => {
+            // Cannot-lex at `pos` is a structured unexpected-token failure:
+            // zero-width span at the failure position, no offending symbol,
+            // and the surviving stack tops' ACTION rows naming SymbolId(1).
+            assert_eq!(unexpected.byte_start, 0);
+            assert_eq!(unexpected.byte_end, 0);
+            assert_eq!(unexpected.found, None);
+            assert!(!unexpected.found_is_eof);
+            assert_eq!(unexpected.expected, vec![SymbolId(1)]);
+        }
         Ok(_) => panic!("expected parse error for empty candidate set, got Ok"),
-        Err(other) => panic!("expected parse error for empty candidate set, got {other:?}"),
+        Err(other) => {
+            panic!("expected structured unexpected-token for empty candidate set, got {other:?}")
+        }
     }
 }

@@ -806,3 +806,26 @@ fn parse_document_flat_traversal_is_direct_and_symmetric() {
     );
     assert!(children[2].next_sibling().is_none());
 }
+
+#[test]
+fn parse_document_clone_preserves_single_flat_storage() {
+    let lang = fielded_arithmetic_language();
+    let mut parser = CoreParser::new(lang.grammar.clone(), lang.table.clone(), lang.name.clone());
+
+    let source = "1-2";
+    let document = parser
+        .parse_document(source)
+        .expect("document parse should succeed");
+    let cloned = document.clone();
+
+    // One persistent flat representation: clone carries the same node/edge
+    // facts and structural validity, with no second selected tree to drift.
+    assert_eq!(cloned.tree().node_count(), document.tree().node_count());
+    assert_eq!(cloned.tree().edge_count(), document.tree().edge_count());
+    assert_eq!(cloned.tree().validate_structure(), Ok(()));
+    assert_eq!(
+        cloned.tree().root().node_id(),
+        document.tree().root().node_id()
+    );
+    assert_eq!(cloned.source_text(), document.source_text());
+}
