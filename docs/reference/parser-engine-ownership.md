@@ -54,7 +54,7 @@ Rules:
 | `glr_streaming_runtime` | canonical adapter | Lex-mode preparation, forest materialization, native error projection for the streaming driver. |
 | `glr_parser::GLRParser` + `glr_lexer` | legacy adapter | Only the `LegacyGlrWithoutLexFn` route (synthetic languages without a generated lexer). Not a generated production route; retirement owner #897 once lex-fn-less callers are gone or explicitly gated. |
 | `parser_v4` (`parser` alias) | adapter / document-tree substrate | Supplies `ParseNode` conversion and document materialization. Its conflict path already refuses ordered first-success fallback; it does not own generated dispatch. The "main GLR parser" wording for it is retired. |
-| `parser_v2`, `parser_v3`, `glr` (legacy), `incremental`, `incremental_v2`, `incremental_v3` | legacy, `legacy-parsers` feature-gated | No production generated caller. Non-claim: not supported engines. |
+| `parser_v2`, `parser_v3`, `glr` (legacy), `incremental`, `incremental_v2`, `incremental_v3` | deleted (see #897) | Modules removed by the #897 legacy deletion; they had no production generated caller. Non-claim: not supported engines. |
 | `pure_incremental`, `glr_incremental`, `unified_parser` | experimental adapters | Incremental/reparse helpers; not selected by the generated dispatch. |
 | `parser_selection` / `adze_bdd_governance_core::ParserBackend` | governance/reporting shim | Describes feature profiles for BDD governance. It no longer selects the generated engine; the table-derived dispatch above does. |
 | `runtime2/` | experimental, dev-only | Proving ground. Non-claim: not a production runtime, not promoted by this map. |

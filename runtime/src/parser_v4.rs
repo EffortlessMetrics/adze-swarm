@@ -2,7 +2,8 @@
 #![cfg_attr(feature = "strict_docs", allow(missing_docs))]
 
 // Enhanced Pure-Rust parser with external scanner support
-// This module extends parser_v3 with full external scanner integration
+// This module superseded parser_v3 with full external scanner integration
+// (parser_v3 removed by the legacy deletion; see #897)
 
 use crate::arena_allocator::{ArenaMetrics, NodeHandle, TreeArena, TreeNode};
 use crate::external_scanner::ExternalScannerRuntime;
@@ -23,7 +24,7 @@ const PARSE_WITH_CUSTOM_LEXER_UNSUPPORTED: &str = "Custom lexer functions are no
      Provide a grammar/tokenization path without a custom transform lexer.";
 const GLR_CONFLICT_REQUIRES_TRUE_GLR: &str = "GLR conflict encountered in parser_v4: refusing ordered first-success fallback. Route conflicted tables to the GLR parser runtime.";
 
-// Define types directly in parser_v4 (no longer dependent on parser_v3)
+// Types are defined directly in parser_v4 (the former parser_v3 dependency was removed; see #897)
 
 /// Error type for parsing operations
 #[derive(Debug, thiserror::Error)]
