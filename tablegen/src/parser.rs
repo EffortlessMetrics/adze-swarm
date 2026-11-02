@@ -82,7 +82,11 @@ impl Parser {
                 }
                 ParseAction::Accept => {
                     if self.nodes.len() == 1 {
-                        return Ok(self.nodes.pop().expect("length checked == 1"));
+                        let node = self
+                            .nodes
+                            .pop()
+                            .ok_or_else(|| "Accept with empty node stack".to_string())?;
+                        return Ok(node);
                     }
                     return Err("Accept but multiple nodes remain".to_string());
                 }
@@ -400,5 +404,44 @@ mod tests {
 
         let err = parser.parse("1").expect_err("expected parse to fail");
         assert!(err.contains("parse table pointer is null"));
+    }
+
+    #[test]
+    fn test_accept_with_empty_nodes_returns_error() {
+        // Slice length is state_count*2; entries must live inside that window.
+        // State 0 maps symbol 7 straight to Accept; entries sit at [4, 5].
+        static PARSE_TABLE: [u16; 6] = [1, 4, 0, 0, 7, 0xFFFF];
+        let mut lang = null_language();
+        lang.state_count = 3;
+        lang.parse_table = PARSE_TABLE.as_ptr();
+
+        // SAFETY: `lang` outlives `parser` in this test scope; table is static.
+        let mut parser = unsafe {
+            let lang_ptr = &lang as *const TSLanguage;
+            Parser::new(&*lang_ptr)
+        };
+
+        let err = parser.parse("1").expect_err("expected parse to fail");
+        assert!(err.contains("multiple nodes"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn test_accept_with_single_node_returns_ok() {
+        // State 0 shifts symbol 7 to state 1 (entries at [6, 7]);
+        // state 1 accepts on EOF (entries at [4, 5]).
+        static PARSE_TABLE: [u16; 8] = [1, 6, 1, 4, 0, 0xFFFF, 7, 1];
+        let mut lang = null_language();
+        lang.state_count = 4;
+        lang.parse_table = PARSE_TABLE.as_ptr();
+
+        // SAFETY: `lang` outlives `parser` in this test scope; table is static.
+        let mut parser = unsafe {
+            let lang_ptr = &lang as *const TSLanguage;
+            Parser::new(&*lang_ptr)
+        };
+
+        let node = parser.parse("1").expect("expected parse to succeed");
+        assert_eq!(node.symbol, 7);
+        assert_eq!((node.start_byte, node.end_byte), (0, 1));
     }
 }
