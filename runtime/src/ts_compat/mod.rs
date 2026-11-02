@@ -28,8 +28,8 @@ mod tree_cursor_nav;
 pub(crate) struct OwnedCoreTree {
     /// Shared owning parse document with canonical flat node/edge records.
     pub document: Arc<AdzeDocument>,
-    /// Line index built once per tree for point lookups.
-    pub positions: SourceLineIndex,
+    /// Immutable line index shared by cloned trees for point lookups.
+    pub positions: Arc<SourceLineIndex>,
 }
 
 impl OwnedCoreTree {
@@ -333,7 +333,7 @@ impl Tree {
     pub fn from_document(language: Arc<Language>, document: &AdzeDocument) -> Self {
         Self {
             core: OwnedCoreTree {
-                positions: SourceLineIndex::new(document.source_text()),
+                positions: Arc::new(SourceLineIndex::new(document.source_text())),
                 document: Arc::new(document.clone()),
             },
             last_edit: None,
@@ -1283,6 +1283,7 @@ mod tests {
 
         // Cloned trees read one canonical document store: no second tree copy.
         assert!(Arc::ptr_eq(&tree.core.document, &shared.core.document));
+        assert!(Arc::ptr_eq(&tree.core.positions, &shared.core.positions));
 
         // Nodes resolved through either view read identical canonical records.
         let (root, shared_root) = (tree.root_node(), shared.root_node());
@@ -1307,6 +1308,31 @@ mod tests {
         };
         assert_eq!(chain(leaf), chain(shared_leaf));
         assert_eq!(chain(leaf), Some(root.byte_range()));
+    }
+
+    #[test]
+    fn test_multiline_tree_clone_shares_index_and_preserves_points() {
+        let source = "α\nbeta\nγ";
+        let root = branch_node(
+            1,
+            0,
+            source.len(),
+            vec![
+                parse_node(2, 0, 2),
+                parse_node(2, 3, 7),
+                parse_node(2, 8, 10),
+            ],
+        );
+        let tree = compat_tree(root, source, 0);
+        let shared = tree.clone();
+        assert!(Arc::ptr_eq(&tree.core.positions, &shared.core.positions));
+        assert!(Arc::ptr_eq(&tree.core.document, &shared.core.document));
+        drop(tree);
+
+        let last = shared.root_node().child(2).expect("last line exists");
+        assert_eq!(last.byte_range(), 8..10);
+        assert_eq!(last.start_position(), Point { row: 2, column: 0 });
+        assert_eq!(last.end_position(), Point { row: 2, column: 2 });
     }
 
     #[test]
