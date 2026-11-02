@@ -1168,17 +1168,14 @@ impl Grammar {
                             aliases[range.start] = alias.clone();
                         }
                     }
-                    // An all-None sequence carries no alias to anchor a
-                    // truncated length, so it is padded with `None` to the
-                    // new RHS length and validates positionally (#981).
-                    // Sequences with a real alias keep the established
-                    // stored form: trailing unaliased children after the
-                    // last alias are not stored.
-                    let stored_len = aliases
-                        .iter()
-                        .rposition(|alias| alias.is_some())
-                        .map_or(aliases.len(), |last| last + 1);
-                    aliases.truncate(stored_len);
+                    // The remapped vector stays exactly `new_rhs.len()` long:
+                    // it is positional over the normalized children, which
+                    // is what `validate()` requires (exact
+                    // `rhs.len() == aliases.len()`) and what the ABI
+                    // stride pads with zeros downstream. Trailing `None`
+                    // entries are significant length information — dropping
+                    // them would stale the sequence and fail validation —
+                    // so no truncation happens here (#981).
                     let candidate = AliasSequence { aliases };
                     if let Some(existing) = remapped_aliases.get(&rule.production_id) {
                         if *existing != candidate {

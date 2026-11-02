@@ -39,6 +39,23 @@ pub type TSStateId = u16;
 #[allow(dead_code)]
 pub type TSFieldId = u16;
 
+impl TSLanguage {
+    /// Resolve a syntax rule to its shareable metadata slot.
+    pub(crate) fn production_for_rule(&self, rule_index: usize) -> Option<u16> {
+        if rule_index >= self.rule_count as usize {
+            return None;
+        }
+        let production = if self.production_id_map.is_null() {
+            u16::try_from(rule_index).ok()?
+        } else {
+            // SAFETY: the native ABI stores exactly rule_count map entries,
+            // and rule_index is bounded above before pointer arithmetic.
+            unsafe { *self.production_id_map.add(rule_index) }
+        };
+        ((production as u32) < self.production_id_count).then_some(production)
+    }
+}
+
 /// Friendly name for [`TSSymbol`]; both names denote the same type.
 pub type Symbol = TSSymbol;
 
@@ -121,7 +138,7 @@ pub struct TSLanguage {
     pub production_id_count: u32,
     pub field_count: u32,
     pub max_alias_sequence_length: u16,
-    pub production_id_map: *const u16,
+    pub production_id_map: *const u16, // rule_count entries, RuleId -> ProductionId
     pub parse_table: *const u16,
     pub small_parse_table: *const u16,
     pub small_parse_table_map: *const u32,
@@ -143,8 +160,8 @@ pub struct TSLanguage {
     pub production_lhs_index: *const u16, // LHS symbols in table index space
     pub production_count: u16,            // Number of productions
     pub eof_symbol: u16,                  // Column index of EOF (usually 0)
-    pub rules: *const TSRule,             // Rule metadata array
-    pub rule_count: u16,                  // Number of rules
+    pub rules: *const TSRule,             // Syntax metadata indexed by RuleId
+    pub rule_count: u16,                  // Length of rules and production_id_map
 }
 
 /// Friendly name for [`TSLanguage`]; both names denote the same type.
@@ -1340,7 +1357,7 @@ impl Parser {
 
         // SAFETY: `production_id_map`, `parse_actions`, and `production_lhs_index`
         // are static arrays from TSLanguage. All accesses are guarded by
-        // `production_id_count` bounds checks.
+        // rule_count (syntax) and production_id_count (metadata) bounds checks.
         unsafe {
             // Tree-sitter uses 1-based production IDs in the parse table
             // We need to subtract 1 and then use production_id_map
@@ -1351,37 +1368,25 @@ impl Parser {
 
             let zero_based_id = production_id - 1;
 
-            // Use the production_id_map to get the actual production index
-            let production_index = if zero_based_id < language.production_id_count as u16 {
-                *language.production_id_map.add(zero_based_id as usize)
-            } else {
-                ////eprintln!("DEBUG reduce: Invalid production_id {} (zero_based={}, >= {})",
-                //         production_id, zero_based_id, language.production_id_count);
+            let Some(production_index) = language.production_for_rule(zero_based_id as usize)
+            else {
                 return false;
             };
-
-            // Look up the parse action for this production
-            if production_index >= language.production_id_count as u16 {
-                ////eprintln!($
-                //    "DEBUG reduce: Invalid production_index {} (>= {})",
-                //    production_index, language.production_id_count
-                //);
-                return false;
-            }
-
-            let action = &*language.parse_actions.add(production_index as usize);
-            let child_count = action.child_count as usize;
-
-            // Get the LHS symbol from the production_lhs_index array instead of parse_actions
-            // This ensures the symbol is in table index space
-            let symbol = self.lhs_index_of(language, production_index);
-
-            // Also check what parse_actions says for comparison
-            let _parse_action_symbol = action.symbol;
-            // eprintln!(
-            // "DEBUG: production_index={}, lhs_index={}, parse_action_symbol={}",
-            // production_index, symbol, parse_action_symbol
-            // );
+            // Syntax shape is RuleId-keyed; metadata sharing does not imply
+            // equal child counts or LHS symbols.
+            let (symbol, child_count) = if !language.rules.is_null() {
+                let rule = &*language.rules.add(zero_based_id as usize);
+                (rule.lhs, rule.rhs_len as usize)
+            } else {
+                if language.parse_actions.is_null() || language.production_lhs_index.is_null() {
+                    return false;
+                }
+                let action = &*language.parse_actions.add(production_index as usize);
+                (
+                    self.lhs_index_of(language, production_index),
+                    action.child_count as usize,
+                )
+            };
 
             if source.len() < 20 {
                 // eprintln!(
@@ -1603,20 +1608,6 @@ impl Parser {
 
             if child_index < children.len() && field_id < language.field_count as u16 {
                 children[child_index].field_id = Some(field_id);
-            }
-        }
-    }
-
-    /// Get production ID for field mappings
-    #[allow(dead_code)]
-    fn get_production_id(&self, language: &TSLanguage, action_index: u16) -> u16 {
-        // SAFETY: `production_id_map` is a static array of `production_id_count`
-        // entries. `action_index` is bounds-checked before access.
-        unsafe {
-            if action_index < language.production_id_count as u16 {
-                *language.production_id_map.add(action_index as usize)
-            } else {
-                0
             }
         }
     }

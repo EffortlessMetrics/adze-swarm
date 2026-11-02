@@ -3,7 +3,12 @@ use super::{Query, QueryMatch, QueryMatches};
 use crate::parser_v4::ParseNode;
 use std::ops::Range;
 
-/// A stateful object for executing queries on a syntax tree
+/// A stateful object for executing queries on a [`ParseNode`] syntax tree.
+///
+/// Bounds matching by byte range and root-only flags. This is a different
+/// type from the same-named [`glr_query::QueryCursor`](crate::glr_query::QueryCursor),
+/// which bounds [`Subtree`](crate::glr_query::Subtree) matching by maximum
+/// depth. The shared name is a known collision tracked by #871 §d.
 pub struct QueryCursor {
     /// Byte range to restrict matches
     byte_range: Option<Range<usize>>,

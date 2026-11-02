@@ -2062,7 +2062,7 @@ fn match_production_rule_id(
     lhs: adze_ir::SymbolId,
     child_symbols: &[adze_ir::SymbolId],
 ) -> Option<usize> {
-    use adze_ir::Symbol;
+    use adze_ir::RuleId;
 
     if child_symbols.is_empty() {
         return parse_table
@@ -2077,15 +2077,18 @@ fn match_production_rule_id(
         if parse_rule.lhs != lhs || parse_rule.rhs_len as usize != child_symbols.len() {
             continue;
         }
-        if let Some(candidates) = grammar.rules.get(&lhs) {
-            for rule in candidates {
-                if rule.production_id.0 as usize != rule_id {
-                    continue;
-                }
-                if production_rhs_symbol_ids(&rule.rhs) == child_symbols {
-                    return Some(rule_id);
-                }
-            }
+        // Resolve by RuleId identity (#1060): `parse_table.rules` is dense in
+        // RuleId order, so index `rule_id` names `RuleId(rule_id)`.
+        // ProductionId is shareable field/alias metadata and must never
+        // select the rule; rules sharing one slot keep independent behavior.
+        let rule_matches = u16::try_from(rule_id)
+            .ok()
+            .and_then(|id| grammar.rule_by_id(RuleId(id)))
+            .is_some_and(|rule| {
+                rule.lhs == lhs && production_rhs_symbol_ids(&rule.rhs) == child_symbols
+            });
+        if rule_matches {
+            return Some(rule_id);
         }
     }
 
@@ -2523,6 +2526,68 @@ mod tests {
         assert_eq!(
             engine_dispatch_policy(true, true, false, false),
             EngineDispatch::LegacyGlrWithoutLexFn
+        );
+    }
+
+    /// Shared-production witness for alias-rule resolution (#1060).
+    ///
+    /// RuleId(1) `A -> a` and RuleId(2) `A -> b` share ProductionId(0);
+    /// resolution must return the RuleId whose RHS matches, not the first
+    /// rule carrying the shared slot.
+    #[test]
+    #[cfg(feature = "glr")]
+    fn test_shared_production_alias_rules_resolve_by_rule_identity() {
+        use adze_glr_core::{ParseRule, ParseTable};
+        use adze_ir::{Grammar, ProductionId, Rule, RuleId, Symbol, SymbolId};
+
+        let s = SymbolId(10);
+        let a = SymbolId(11);
+        let t_a = SymbolId(1);
+        let t_b = SymbolId(2);
+        let mut grammar = Grammar::new("shared_prod".to_string());
+        grammar.add_rule(Rule {
+            lhs: s,
+            rhs: vec![Symbol::NonTerminal(a)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(5),
+        });
+        grammar.add_rule(Rule {
+            lhs: a,
+            rhs: vec![Symbol::Terminal(t_a)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        grammar.add_rule(Rule {
+            lhs: a,
+            rhs: vec![Symbol::Terminal(t_b)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        let mut parse_table = ParseTable::default();
+        parse_table.rules = vec![
+            ParseRule { lhs: s, rhs_len: 1 },
+            ParseRule { lhs: a, rhs_len: 1 },
+            ParseRule { lhs: a, rhs_len: 1 },
+        ];
+
+        assert_eq!(
+            match_production_rule_id(&parse_table, &grammar, a, &[t_a]),
+            Some(1)
+        );
+        assert_eq!(
+            match_production_rule_id(&parse_table, &grammar, a, &[t_b]),
+            Some(2),
+            "shared ProductionId(0) must not collapse A -> b onto RuleId(1)"
+        );
+        assert_eq!(
+            match_production_rule_id(&parse_table, &grammar, s, &[a]),
+            Some(0)
         );
     }
     use crate::pure_parser::{

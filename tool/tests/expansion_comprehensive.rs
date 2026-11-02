@@ -912,9 +912,8 @@ fn struct_with_all_skipped_fields_error() {
 }
 
 #[test]
-#[should_panic]
-fn missing_grammar_name_panics() {
-    // grammar attribute without a string name should panic
+fn test_missing_grammar_name_returns_spanned_error() {
+    // Malformed attributes retain a source-located error and repair guidance.
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("lib.rs");
     fs::write(
@@ -930,12 +929,18 @@ fn missing_grammar_name_panics() {
         "#,
     )
     .unwrap();
-    let _ = adze_tool::generate_grammars(&path);
+    let error = adze_tool::generate_grammars(&path).unwrap_err();
+    match error {
+        adze_tool::ToolError::SynError { syn_error } => assert_eq!(
+            syn_error.to_string(),
+            "Expected string literal for grammar name; write `#[adze::grammar(\"my_grammar\")]`"
+        ),
+        other => panic!("expected a spanned syntax error, got {other}"),
+    }
 }
 
 #[test]
-#[should_panic]
-fn missing_language_annotation_panics() {
+fn test_missing_language_annotation_returns_spanned_error() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("lib.rs");
     fs::write(
@@ -950,7 +955,14 @@ fn missing_language_annotation_panics() {
         "#,
     )
     .unwrap();
-    let _ = adze_tool::generate_grammars(&path);
+    let error = adze_tool::generate_grammars(&path).unwrap_err();
+    match error {
+        adze_tool::ToolError::SynError { syn_error } => assert_eq!(
+            syn_error.to_string(),
+            "Each parser must have the root type annotated with `#[adze::language]`; add `#[adze::language]` to the enum or struct that is the parse entry point"
+        ),
+        other => panic!("expected a spanned syntax error, got {other}"),
+    }
 }
 
 // =========================================================================
