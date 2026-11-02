@@ -368,7 +368,7 @@ mod tests {
     }
 
     #[test]
-    fn repetitions_overflow_is_structured_conversion_error_1062() {
+    fn test_repetitions_overflow_returns_conversion_error() {
         // #1062/#1045: numeric overflow is a structured conversion error
         // through `try_transform`, not a parser panic or a silent zero.
         // i32::MAX stays valid with its exact value and span.
@@ -399,7 +399,7 @@ mod tests {
     }
 
     #[test]
-    fn repetitions_undelimited_overflow_is_structured_conversion_error_1062() {
+    fn test_undelimited_repetitions_overflow_returns_conversion_error() {
         // #1062/#1045: same overflow contract for the undelimited shape.
         use adze::errors::ParseErrorReason;
 
@@ -426,7 +426,7 @@ mod tests {
     }
 
     #[test]
-    fn repetitions_optional_overflow_is_structured_conversion_error_1062() {
+    fn test_optional_repetitions_overflow_returns_conversion_error() {
         // #1062/#1045: same overflow contract for the nested-optional shape.
         // The table demands a delimiter pair, so the row uses two elements.
         use adze::errors::ParseErrorReason;
