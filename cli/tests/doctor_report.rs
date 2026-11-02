@@ -20,7 +20,9 @@ fn complete_report() -> DoctorReport {
         CheckId::Dependencies,
         CheckId::Features,
     ] {
-        report.record(id, finding(Status::Passed)).expect("unique check");
+        report
+            .record(id, finding(Status::Passed))
+            .expect("unique check");
     }
     report
 }
@@ -40,7 +42,9 @@ fn doctor_empty_report_is_incomplete_with_four_visible_checks() {
 fn doctor_three_passing_checks_do_not_hide_a_missing_fourth() {
     let mut report = DoctorReport::default();
     for id in [CheckId::Project, CheckId::Toolchain, CheckId::Dependencies] {
-        report.record(id, finding(Status::Passed)).expect("unique check");
+        report
+            .record(id, finding(Status::Passed))
+            .expect("unique check");
     }
     assert_eq!(report.summary(), Summary::Incomplete);
     assert_eq!(report.as_json()["checks"][0]["id"], "features");
@@ -51,9 +55,11 @@ fn doctor_complete_setup_does_not_claim_parser_or_registry_proof() {
     let report = complete_report();
     assert_eq!(report.summary(), Summary::ChecksPassed);
     assert_eq!(report.summary().exit_code(), 0);
-    assert!(report.render_text().contains(
-        "parser correctness and registry installation are not tested"
-    ));
+    assert!(
+        report
+            .render_text()
+            .contains("parser correctness and registry installation are not tested")
+    );
 }
 
 #[test]
@@ -102,7 +108,11 @@ fn doctor_duplicate_result_cannot_overwrite_a_blocker() {
     report
         .record(CheckId::Project, finding(Status::Blocked))
         .expect("first result");
-    assert!(report.record(CheckId::Project, finding(Status::Passed)).is_err());
+    assert!(
+        report
+            .record(CheckId::Project, finding(Status::Passed))
+            .is_err()
+    );
     assert_eq!(report.summary(), Summary::Blocked);
 }
 
@@ -122,9 +132,31 @@ fn doctor_invalid_finding_is_rejected_before_mutation() {
 }
 
 #[test]
+fn test_doctor_control_only_message_is_rejected_without_mutation() {
+    let mut report = DoctorReport::default();
+    let mut invalid = finding(Status::Passed);
+    invalid.message = "\u{1b}\u{7f}\n".into();
+    assert!(report.record(CheckId::Project, invalid).is_err());
+    assert_eq!(report.as_json()["checks"][0]["status"], "not_run");
+}
+
+#[test]
+fn test_doctor_control_only_action_is_rejected_without_mutation() {
+    let mut report = DoctorReport::default();
+    let mut invalid = finding(Status::Blocked);
+    invalid.next_action = Some("\u{1b}\u{7f}\n".into());
+    assert!(report.record(CheckId::Project, invalid).is_err());
+    assert_eq!(report.as_json()["checks"][0]["status"], "not_run");
+}
+
+#[test]
 fn doctor_text_and_json_share_order_status_and_actions() {
     let mut report = complete_report();
-    assert!(report.record(CheckId::Project, finding(Status::Blocked)).is_err());
+    assert!(
+        report
+            .record(CheckId::Project, finding(Status::Blocked))
+            .is_err()
+    );
     let text = report.render_text();
     let json = report.as_json();
     let mut previous = 0;

@@ -111,14 +111,14 @@ pub(crate) struct DoctorReport {
 impl DoctorReport {
     /// Accept one result per check; a retry belongs in a new report.
     pub(crate) fn record(&mut self, id: CheckId, finding: Finding) -> Result<(), &'static str> {
-        if finding.message.trim().is_empty() {
+        if single_line(&finding.message).trim().is_empty() {
             return Err("a check needs an observed fact or an explicit non-execution reason");
         }
         if finding.status != Status::Passed
             && finding
                 .next_action
                 .as_deref()
-                .is_none_or(|action| action.trim().is_empty())
+                .is_none_or(|action| single_line(action).trim().is_empty())
         {
             return Err("an unsuccessful or unexecuted check needs an actionable next step");
         }
