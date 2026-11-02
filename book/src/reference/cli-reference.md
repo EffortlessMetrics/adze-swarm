@@ -3,9 +3,11 @@
 Complete reference for the adze command-line interface.
 
 > **Current support note:** `adze init`, `adze check`, `adze stats`, `adze build`,
-> `adze test`, and `adze doc` are implemented. `adze parse` is present in the
-> CLI shape, but static parsing and dynamic parse output are not implemented yet;
-> both modes fail with explicit errors.
+> `adze test`, and `adze doc` are implemented. `adze parse` performs static
+> parsing from a grammar file: the default `tree` mode emits a document-backed
+> tree (see `test_parse_static_tree_mode_emits_document_backed_tree`). The
+> remaining static output formats and dynamic (`--dynamic`) parse output are
+> developing surfaces, not supported parse-output paths.
 
 ## Installation
 
@@ -118,12 +120,13 @@ Automatically rebuilds when `.rs` files change. Useful during grammar developmen
 
 Parse input files using adze grammars.
 
-**Status:** experimental command shape only. The current CLI accepts these
-arguments so scripts can detect the intended interface, but it does not yet
-produce parse trees. Static mode returns `static parse mode is currently
-unimplemented`. Dynamic mode can attempt to load a library symbol when compiled
-with `--features dynamic`, then returns `dynamic parse mode is currently
-unimplemented`.
+**Status:** `adze parse <grammar.rs> <input>` performs static parsing. The
+default `tree` mode emits a document-backed tree and exits zero on success
+(proved by `test_parse_static_tree_mode_emits_document_backed_tree`). The other
+static formats (`sexp`, `json`, `dot`, and the `*-json` document projection
+modes) and dynamic mode are developing surfaces: their selection tests fail at
+the current head, so treat them as unproved. Dynamic mode fails without loading
+anything when `--dynamic` is passed.
 
 **Usage:**
 ```bash
@@ -135,7 +138,7 @@ adze parse <GRAMMAR> <INPUT> [OPTIONS]
 - `<INPUT>` - Input file to parse
 
 **Options:**
-- `--format, -f <FORMAT>` - Output format: `tree` (default), `json`, `sexp`, `dot`
+- `--format, -f <FORMAT>` - Output format (alias `--output`): `tree` (default), `json`, `sexp`, `dot`, `document-json`, `tree-json`, `diagnostics-json`, `ambiguity-json`
 - `--dynamic` - Use dynamic loading from shared library
 - `--symbol <SYMBOL>` - Symbol name for dynamic loading (default: "language")
 
@@ -144,8 +147,8 @@ adze parse <GRAMMAR> <INPUT> [OPTIONS]
 adze parse grammar.rs input.txt
 ```
 
-Expected result today: a non-zero exit with a message that static parse mode is
-not implemented. Use `adze check` to validate a grammar, `adze build` to
+Expected result today: the default `tree` mode prints the document-backed tree
+and exits zero on success. Use `adze check` to validate a grammar, `adze build` to
 generate parsers, and call `grammar::parse(input)` from Rust code.
 
 **Dynamic Loading Example:**
@@ -407,7 +410,7 @@ Adze requires specific toolchain configuration:
 
 ```toml
 [toolchain]
-channel = "1.92"
+channel = "1.95.0"
 edition = "2024"
 components = ["rustfmt", "clippy"]
 ```

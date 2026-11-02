@@ -27,7 +27,7 @@ mod grammar {
     #[adze::language]
     pub enum Expr {
         Number(
-            #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+            #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<u32>())]
             u32,
         ),
         #[adze::prec_left(1)]
