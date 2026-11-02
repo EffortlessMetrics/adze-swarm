@@ -17,9 +17,10 @@ import tempfile
 
 REPO = Path(__file__).resolve().parents[4]
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--target-dir", type=Path, default=Path("/tmp/adze-nov2-mixed-artifacts-target"))
+parser.add_argument("--target-dir", type=Path, help="optional explicitly owned Cargo target to reuse")
 args = parser.parse_args()
 PROOF = Path(tempfile.mkdtemp(prefix="adze-mixed-artifacts-"))
+args.target_dir = args.target_dir or PROOF / "target"
 (PROOF / "src").mkdir()
 (PROOF / "Cargo.toml").write_text(f'''[package]
 name = "mixed-artifact-consumer"
