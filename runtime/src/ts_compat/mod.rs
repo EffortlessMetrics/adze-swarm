@@ -22,12 +22,12 @@ mod tree_cursor_nav;
 /// The selected tree is the owning [`AdzeDocument`]'s canonical flat records
 /// (no cloned recursive tree, no root-pointer searches); `positions` is the
 /// single line index for point lookups. `Tree::from_document` clones the
-/// source document once per parse, replacing the old recursive-root and
-/// source-byte clones.
+/// source document once per parse into a shared `Arc`, replacing the old
+/// recursive-root and source-byte clones; cloned trees share one store.
 #[derive(Clone, Debug)]
 pub(crate) struct OwnedCoreTree {
-    /// Owning parse document with canonical flat node/edge records.
-    pub document: AdzeDocument,
+    /// Shared owning parse document with canonical flat node/edge records.
+    pub document: Arc<AdzeDocument>,
     /// Line index built once per tree for point lookups.
     pub positions: SourceLineIndex,
 }
@@ -324,16 +324,17 @@ pub struct Tree {
 impl Tree {
     /// Build a Tree-sitter-compatible tree from a native parse document.
     ///
-    /// Clones the source document once (replacing the old recursive-root and
-    /// source-byte clones) and builds one line index shared by every node in
-    /// this tree. Keeping `&AdzeDocument` (instead of taking ownership or an
-    /// `Arc`) preserves the public signature; revisit under #871 if facade
-    /// ownership changes.
+    /// Clones the source document once into a shared [`Arc`] (replacing the
+    /// old recursive-root and source-byte clones) and builds one line index
+    /// shared by every node in this tree. The single clone is forced by the
+    /// `&AdzeDocument` parameter; keeping the `&` preserves the public
+    /// signature (revisit under #871 if facade ownership changes). Cloning the
+    /// resulting [`Tree`] shares the same document store without copying it.
     pub fn from_document(language: Arc<Language>, document: &AdzeDocument) -> Self {
         Self {
             core: OwnedCoreTree {
                 positions: SourceLineIndex::new(document.source_text()),
-                document: document.clone(),
+                document: Arc::new(document.clone()),
             },
             last_edit: None,
             language,
@@ -1235,6 +1236,23 @@ mod tests {
         }
     }
 
+    fn branch_node(
+        symbol: u16,
+        start_byte: usize,
+        end_byte: usize,
+        children: Vec<ParseNode>,
+    ) -> ParseNode {
+        ParseNode {
+            symbol: SymbolId(symbol),
+            symbol_id: SymbolId(symbol),
+            start_byte,
+            end_byte,
+            field_name: None,
+            alias_symbol_id: None,
+            children,
+        }
+    }
+
     fn compat_tree(root: ParseNode, source: &str, error_count: usize) -> Tree {
         let language = empty_parse_table_language();
         let document = AdzeDocument::from_parse_result(
@@ -1246,6 +1264,103 @@ mod tests {
             &language.table,
         );
         Tree::from_document(Arc::clone(&language), &document)
+    }
+
+    /// Root(1, 0..5) with left(2, 0..2) holding leaf(4, 0..1) and
+    /// right(3, 2..5): exercises parent chains and sibling edges below the root.
+    fn nested_compat_tree() -> Tree {
+        let leaf = parse_node(4, 0, 1);
+        let left = branch_node(2, 0, 2, vec![leaf]);
+        let right = parse_node(3, 2, 5);
+        let root = branch_node(1, 0, 5, vec![left, right]);
+        compat_tree(root, "abcde", 0)
+    }
+
+    #[test]
+    fn tree_clone_shares_single_document_store() {
+        let tree = nested_compat_tree();
+        let shared = tree.clone();
+
+        // Cloned trees read one canonical document store: no second tree copy.
+        assert!(Arc::ptr_eq(&tree.core.document, &shared.core.document));
+
+        // Nodes resolved through either view read identical canonical records.
+        let (root, shared_root) = (tree.root_node(), shared.root_node());
+        assert_eq!(root.byte_range(), shared_root.byte_range());
+        assert_eq!(root.to_sexp(), shared_root.to_sexp());
+
+        let leaf = root
+            .child(0)
+            .and_then(|left| left.child(0))
+            .expect("leaf should exist");
+        let shared_leaf = shared_root
+            .child(0)
+            .and_then(|left| left.child(0))
+            .expect("leaf should exist through the cloned tree");
+        assert_eq!(leaf.byte_range(), shared_leaf.byte_range());
+        assert_eq!(leaf.range(), shared_leaf.range());
+        // Parent chains agree across views: no per-tree drift.
+        let chain = |node: Node<'_>| {
+            node.parent()
+                .and_then(|parent| parent.parent())
+                .map(|grandparent| grandparent.byte_range())
+        };
+        assert_eq!(chain(leaf), chain(shared_leaf));
+        assert_eq!(chain(leaf), Some(root.byte_range()));
+    }
+
+    #[test]
+    fn node_parent_and_sibling_navigation_uses_direct_edge_records() {
+        let tree = nested_compat_tree();
+        let root = tree.root_node();
+        assert!(root.parent().is_none());
+
+        let left = root.child(0).expect("left child should exist");
+        let right = root.child(1).expect("right child should exist");
+        assert!(root.child(2).is_none());
+
+        // Sibling navigation resolves through parent edge records.
+        assert_eq!(
+            left.next_sibling().map(|node| node.byte_range()),
+            Some(right.byte_range())
+        );
+        assert_eq!(
+            right.prev_sibling().map(|node| node.byte_range()),
+            Some(left.byte_range())
+        );
+        assert!(left.prev_sibling().is_none());
+        assert!(right.next_sibling().is_none());
+
+        // Parent lookup is direct: the grandchild resolves to its recorded
+        // parent without replaying a path from the root.
+        let leaf = left.child(0).expect("leaf should exist");
+        assert_eq!(
+            leaf.parent().map(|node| node.byte_range()),
+            Some(left.byte_range())
+        );
+        assert_eq!(
+            leaf.parent()
+                .and_then(|parent| parent.parent())
+                .map(|node| node.byte_range()),
+            Some(root.byte_range())
+        );
+
+        // Repeated navigation and point reads are stable: no rescan drift.
+        let expected = Range {
+            start_byte: 0,
+            end_byte: 1,
+            start_point: Point { row: 0, column: 0 },
+            end_point: Point { row: 0, column: 1 },
+        };
+        for _ in 0..3 {
+            assert_eq!(leaf.range(), expected);
+            assert_eq!(
+                leaf.parent().map(|node| node.byte_range()),
+                Some(left.byte_range())
+            );
+            assert_eq!(leaf.start_position(), left.start_position());
+            assert!(leaf.next_sibling().is_none());
+        }
     }
 
     #[test]
