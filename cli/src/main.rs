@@ -844,7 +844,8 @@ fn parse_file(
 
 fn parse_file_static_tree(grammar: &Path, input: &Path) -> Result<()> {
     let output = run_static_parse_runner(grammar, input, "document-json")?;
-    let root = &output.json()["tree"]["root"];
+    let document = output.json()?;
+    let root = &document["tree"]["root"];
 
     let mut rendered = String::new();
     render_selected_tree(root, 0, None, &mut rendered);
@@ -854,7 +855,8 @@ fn parse_file_static_tree(grammar: &Path, input: &Path) -> Result<()> {
 
 fn parse_file_static_sexp(grammar: &Path, input: &Path) -> Result<()> {
     let output = run_static_parse_runner(grammar, input, "document-json")?;
-    let root = &output.json()["tree"]["root"];
+    let document = output.json()?;
+    let root = &document["tree"]["root"];
 
     let mut rendered = String::new();
     render_selected_sexp(root, None, &mut rendered);
@@ -871,7 +873,8 @@ fn parse_file_static_json(grammar: &Path, input: &Path) -> Result<()> {
 
 fn parse_file_static_dot(grammar: &Path, input: &Path) -> Result<()> {
     let output = run_static_parse_runner(grammar, input, "document-json")?;
-    let root = &output.json()["tree"]["root"];
+    let document = output.json()?;
+    let root = &document["tree"]["root"];
 
     let mut rendered = String::new();
     render_selected_dot(root, &mut rendered);
