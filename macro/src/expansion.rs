@@ -605,6 +605,12 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                     }).collect::<Vec<_>>();
 
                     let leaf_variant_detection = e.variants.iter().filter_map(|v| {
+                        // Pure-Rust wrapped variants use their named identity,
+                        // never a sibling's inline token. Keep the legacy C
+                        // backend's existing extraction output unchanged.
+                        if cfg!(feature = "pure-rust") && variant_has_explicit_wrapper(&v.attrs) {
+                            return None;
+                        }
                         let leaf_attr_source = if let Fields::Unnamed(ref unnamed) = v.fields {
                             if unnamed.unnamed.len() == 1 && unnamed.unnamed[0]
                                 .attrs

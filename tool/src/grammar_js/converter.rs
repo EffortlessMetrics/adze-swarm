@@ -334,8 +334,11 @@ impl GrammarJsConverter {
                         "wrapper_token_relations wrapper '{wrapper_name}' does not reference an existing rule"
                     )
                 })?;
-            let token_id = self
-                .resolve_token_symbol(grammar, token_key)
+            // Prefer the token actually created for this wrapper rule. Equal
+            // regexes may share a diagnostic name while retaining distinct IDs.
+            let token_id = self.token_symbols.get(&wrapper_id).copied()
+                .filter(|id| grammar.tokens.get(id).is_some_and(|token| token.name == *token_key))
+                .or_else(|| self.resolve_token_symbol(grammar, token_key))
                 .with_context(|| {
                     format!(
                         "wrapper_token_relations token '{token_key}' for wrapper '{wrapper_name}' was not found"
@@ -509,9 +512,12 @@ impl GrammarJsConverter {
     }
 
     fn get_or_create_pattern_token(&mut self, grammar: &mut Grammar, pattern: &str) -> SymbolId {
-        // Check if we already have this token
+        // Inline regex identity is separate from rule-scoped wrapper tokens,
+        // even when their regex text is equal.
+        let token_name = adze_common::pattern_token_name(pattern);
         for (id, token) in &grammar.tokens {
-            if let TokenPattern::Regex(p) = &token.pattern
+            if token.name == token_name
+                && let TokenPattern::Regex(p) = &token.pattern
                 && p == pattern
             {
                 return *id;
@@ -521,7 +527,7 @@ impl GrammarJsConverter {
         // Create new token
         let id = self.alloc_symbol_id();
         let token = Token {
-            name: adze_common::pattern_token_name(pattern),
+            name: token_name,
             pattern: TokenPattern::Regex(pattern.to_string()),
             fragile: false,
         };

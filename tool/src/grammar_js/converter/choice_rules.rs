@@ -1,5 +1,5 @@
 use super::{GrammarJsConverter, JsRule};
-use adze_ir::{Associativity, Grammar, PrecedenceKind, SymbolId};
+use adze_ir::{Associativity, Grammar, PrecedenceKind, Symbol, SymbolId};
 use anyhow::Result;
 
 impl GrammarJsConverter {
@@ -65,12 +65,26 @@ impl GrammarJsConverter {
             }
             _ => {
                 let symbol = self
-                    .rule_to_symbol(grammar, member)
+                    .choice_member_symbol(grammar, member)
                     .map_err(|e| e.context(format!("failed to convert CHOICE member {index}")))?;
                 self.add_rule(grammar, lhs, vec![symbol], None, None);
                 Ok(())
             }
         }
+    }
+
+    fn choice_member_symbol(&mut self, grammar: &mut Grammar, member: &JsRule) -> Result<Symbol> {
+        if let JsRule::Symbol { name } = member
+            && self.grammar_js.wrapper_token_relations.contains_key(name)
+        {
+            // A declared wrapper is semantic variant identity (ADR 0003), not
+            // merely another spelling for its backing terminal.
+            let symbol = self.symbol_names.get(name).copied().ok_or_else(|| {
+                anyhow::anyhow!("explicit choice wrapper '{name}' has no declared rule")
+            })?;
+            return Ok(Symbol::NonTerminal(symbol));
+        }
+        self.rule_to_symbol(grammar, member)
     }
 
     fn convert_choice_member_with_precedence(
@@ -97,7 +111,7 @@ impl GrammarJsConverter {
         }
 
         let symbol = self
-            .rule_to_symbol(grammar, content)
+            .choice_member_symbol(grammar, content)
             .map_err(|e| e.context(format!("failed to convert CHOICE member ({label})")))?;
         self.add_rule(grammar, lhs, vec![symbol], precedence, associativity);
         Ok(())
