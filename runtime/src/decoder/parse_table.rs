@@ -84,6 +84,13 @@ pub fn decode_parse_table(lang: &'static TSLanguage) -> ParseTable {
     let mut grammar = decode_grammar(lang);
     let rules = decode_parse_rules(lang, &grammar, &index_to_symbol);
     let rid_by_pair = build_reduce_rule_map(&rules);
+    // Canonical decoded RuleId per production slot: PARSE_ACTIONS entries name
+    // production slots, so large-state reduces must translate slots back to
+    // RuleIds. Sharing rules reduce identically; the first carries the slot.
+    let mut prod_to_rid = HashMap::new();
+    for (rule_id, rule) in grammar.all_rules_with_ids() {
+        prod_to_rid.entry(rule.production_id.0).or_insert(rule_id.0);
+    }
     let mut goto_table = empty_goto_table(lang, symbol_count);
     let mut extras_set = BTreeSet::new();
 
@@ -94,6 +101,7 @@ pub fn decode_parse_table(lang: &'static TSLanguage) -> ParseTable {
         tcols,
         &rules,
         &rid_by_pair,
+        &prod_to_rid,
         &index_to_symbol,
         &mut goto_table,
         &mut extras_set,
@@ -204,30 +212,19 @@ fn invert_symbol_map(index_to_symbol: &[SymbolId]) -> BTreeMap<SymbolId, usize> 
 }
 
 fn decode_parse_rules(
-    lang: &TSLanguage,
+    _lang: &TSLanguage,
     grammar: &adze_ir::Grammar,
     index_to_symbol: &[SymbolId],
 ) -> Vec<ParseRule> {
-    let mut rules_vec = vec![None; lang.rule_count as usize];
-    for rules_for_lhs in grammar.rules.values() {
-        for rule in rules_for_lhs {
-            let idx = rule.production_id.0 as usize;
-            if idx < rules_vec.len() {
-                rules_vec[idx] = Some(ParseRule {
-                    lhs: rule.lhs,
-                    rhs_len: rule.rhs.len() as u16,
-                });
-            }
-        }
-    }
-
-    let mut rules: Vec<_> = rules_vec
-        .into_iter()
-        .map(|opt_rule| {
-            opt_rule.unwrap_or(ParseRule {
-                lhs: SymbolId(0),
-                rhs_len: 0,
-            })
+    // RuleId-keyed by construction: one entry per decoded grammar rule in
+    // RuleId order. Production slots are never used as indexes here, so rules
+    // that share a production slot each keep their own entry and sparse slots
+    // contribute no placeholders.
+    let mut rules: Vec<_> = grammar
+        .all_rules()
+        .map(|rule| ParseRule {
+            lhs: rule.lhs,
+            rhs_len: rule.rhs.len() as u16,
         })
         .collect();
 
@@ -309,6 +306,7 @@ fn decode_large_states(
     tcols: usize,
     rules: &[ParseRule],
     rid_by_pair: &HashMap<(u16, u8), u16>,
+    prod_to_rid: &HashMap<u16, u16>,
     index_to_symbol: &[SymbolId],
     goto_table: &mut [Vec<StateId>],
     extras_set: &mut BTreeSet<SymbolId>,
@@ -328,6 +326,7 @@ fn decode_large_states(
                 tcols,
                 rules,
                 rid_by_pair,
+                prod_to_rid,
                 index_to_symbol,
                 &mut goto_table[state],
                 extras_set,
@@ -347,6 +346,7 @@ fn decode_large_state_cell(
     tcols: usize,
     rules: &[ParseRule],
     rid_by_pair: &HashMap<(u16, u8), u16>,
+    prod_to_rid: &HashMap<u16, u16>,
     index_to_symbol: &[SymbolId],
     state_gotos: &mut [StateId],
     extras_set: &mut BTreeSet<SymbolId>,
@@ -371,7 +371,7 @@ fn decode_large_state_cell(
         {
             extras_set.insert(sym);
         }
-        decode_action(raw, rules, rid_by_pair)
+        decode_action(raw, rules, rid_by_pair, prod_to_rid)
     };
 
     if matches!(action, Action::Error) {
@@ -504,12 +504,12 @@ fn decode_eof_symbol(lang: &TSLanguage, index_to_symbol: &[SymbolId]) -> SymbolI
 }
 
 fn build_field_map(grammar: &adze_ir::Grammar) -> BTreeMap<(RuleId, u16), u16> {
+    // Keyed by real RuleIds in decoded rule order. Keying by production slot
+    // would collide entries of rules that share a slot.
     let mut field_map = BTreeMap::new();
-    for rules_vec in grammar.rules.values() {
-        for rule in rules_vec {
-            for (fid, pos) in &rule.fields {
-                field_map.insert((RuleId(rule.production_id.0), *pos as u16), fid.0);
-            }
+    for (rule_id, rule) in grammar.all_rules_with_ids() {
+        for (fid, pos) in &rule.fields {
+            field_map.insert((rule_id, *pos as u16), fid.0);
         }
     }
     field_map
@@ -606,6 +606,7 @@ pub(super) fn decode_action(
     action: &TSParseAction,
     rules: &[ParseRule],
     rid_by_pair: &HashMap<(u16, u8), u16>,
+    prod_to_rid: &HashMap<u16, u16>,
 ) -> Action {
     // Based on Tree-sitter's encoding, action_type determines the action
     // The TSParseAction struct contains different data depending on action type
@@ -619,32 +620,33 @@ pub(super) fn decode_action(
             Action::Shift(StateId(action.symbol))
         }
         x if x == TSActionTag::Reduce as u8 => {
-            // Normalize Reduce action to proper rule index
-            let direct = action.symbol as usize;
-
-            // Fast path: symbol already a valid rule index and matches child_count
-            let rid: u16 =
-                if direct < rules.len() && (rules[direct].rhs_len as u8) == action.child_count {
-                    // Using rule ID directly from symbol field
-                    action.symbol
-                } else {
-                    // Fallback: legacy TS encoding (symbol = LHS, child_count = rhs_len)
-                    // This happens when symbol is the LHS column index
-                    let key = (action.symbol, action.child_count);
-                    match rid_by_pair.get(&key) {
-                        Some(&rid) => rid,
-                        None => {
-                            debug_assert!(
-                                false,
-                                "Reduce mapping failed: no rule for (lhs={}, rhs_len={})",
-                                action.symbol, action.child_count
-                            );
-                            // In release, use a distinct sentinel past rules.len()
-                            // so later bounds checks catch it deterministically.
-                            u16::MAX
-                        }
+            // The symbol field names a PRODUCTION slot (PARSE_ACTIONS and the
+            // rule metadata array are production-indexed), never a RuleId
+            // directly. Translate the slot to the canonical decoded RuleId;
+            // rules that share the slot reduce identically.
+            let rid: u16 = if let Some(&rid) = prod_to_rid.get(&action.symbol)
+                && (rid as usize) < rules.len()
+                && (rules[rid as usize].rhs_len as u8) == action.child_count
+            {
+                rid
+            } else {
+                // Fallback: legacy TS encoding (symbol = LHS, child_count = rhs_len)
+                // This happens when symbol is the LHS column index
+                let key = (action.symbol, action.child_count);
+                match rid_by_pair.get(&key) {
+                    Some(&rid) => rid,
+                    None => {
+                        debug_assert!(
+                            false,
+                            "Reduce mapping failed: no rule for (lhs={}, rhs_len={})",
+                            action.symbol, action.child_count
+                        );
+                        // In release, use a distinct sentinel past rules.len()
+                        // so later bounds checks catch it deterministically.
+                        u16::MAX
                     }
-                };
+                }
+            };
 
             // Short-circuit invalid rule IDs
             if rid == u16::MAX || (rid as usize) >= rules.len() {
@@ -672,24 +674,38 @@ pub(super) fn decode_action(
     }
 }
 
+/// Resolve an encoded small-table reduce value to the decoded [`RuleId`].
+///
+/// The encoded value names a rule (rule space), not a production slot. The
+/// production map holds one entry per rule (`rule_count`), so the access is
+/// bounded by the map length — `rule_count` — rather than by
+/// `production_id_count`. The decoded `RuleId` is the dense position of that
+/// rule among live map entries (identity when no entries are skipped).
 fn mapped_production_id(
     lang: &TSLanguage,
     encoded_rule_id: usize,
-    production_count: usize,
+    rules_len: usize,
 ) -> Option<u16> {
-    let production_id = if !lang.production_id_map.is_null()
-        && encoded_rule_id < lang.production_id_count as usize
-    {
-        // SAFETY: `encoded_rule_id` is bounded by `production_id_count`, and
-        // TSLanguage production_id_map contains one entry per production slot.
-        unsafe { *lang.production_id_map.add(encoded_rule_id) }
-    } else {
-        u16::try_from(encoded_rule_id).ok()?
-    };
-
-    if production_id == u16::MAX || production_id as usize >= production_count {
-        None
-    } else {
-        Some(production_id)
+    let rule_count = lang.rule_count as usize;
+    if encoded_rule_id >= rule_count {
+        return None;
     }
+    if lang.production_id_map.is_null() {
+        // Legacy identity layout: rule `r` owns slot `r`, decoded densely.
+        return (encoded_rule_id < rules_len).then_some(encoded_rule_id as u16);
+    }
+    // SAFETY: `encoded_rule_id` is bounded by `rule_count`, the map length.
+    let slot = unsafe { *lang.production_id_map.add(encoded_rule_id) };
+    if slot == u16::MAX || (slot as usize) >= rule_count {
+        return None;
+    }
+    let mut rule_id = 0usize;
+    for r in 0..encoded_rule_id {
+        // SAFETY: `r` ranges below the checked `encoded_rule_id` bound.
+        let earlier = unsafe { *lang.production_id_map.add(r) };
+        if earlier != u16::MAX && (earlier as usize) < rule_count {
+            rule_id += 1;
+        }
+    }
+    (rule_id < rules_len).then_some(rule_id as u16)
 }

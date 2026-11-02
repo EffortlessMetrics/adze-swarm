@@ -48,8 +48,15 @@ fn decode_production_ids_from_rule_count(
     lang: &TSLanguage,
     production_ids: &mut IndexMap<RuleId, ProductionId>,
 ) {
-    for i in 0..lang.rule_count as usize {
-        production_ids.insert(RuleId(i as u16), ProductionId(i as u16));
+    // Decoded RuleIds are dense over live map entries in rule order, matching
+    // the push order of `decode_metadata_rules`; each maps to its own
+    // production slot, so shared slots appear once per sharing rule.
+    for r in 0..lang.rule_count as usize {
+        if let Some(production_id) = super::super::live_production_for_rule(lang, r)
+            && let Ok(rule_id) = u16::try_from(production_ids.len()).map(RuleId)
+        {
+            production_ids.insert(rule_id, production_id);
+        }
     }
 }
 

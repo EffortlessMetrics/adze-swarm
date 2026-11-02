@@ -25,20 +25,28 @@ pub(super) fn decode_metadata_rules(lang: &TSLanguage, rules: &mut IndexMap<Symb
     // TSLanguage contract guarantees the array has `rule_count` elements.
     let rules_slice = unsafe { std::slice::from_raw_parts(lang.rules, rule_count) };
 
-    for (i, &ts_rule) in rules_slice.iter().enumerate() {
+    // Rule space drives decoding: entry `r` is the `r`-th grammar rule and
+    // names its production slot through the map. Distinct rules may share one
+    // slot; each still decodes to its own rule with its own RuleId.
+    for r in 0..rule_count {
+        let Some(production_id) = crate::decoder::live_production_for_rule(lang, r) else {
+            continue;
+        };
+        let slot = production_id.0 as usize;
+        let ts_rule = rules_slice[slot];
         let lhs = SymbolId(ts_rule.lhs);
         let rhs_len = ts_rule.rhs_len as usize;
         if rhs_len > 10_000 {
             continue;
         }
 
-        let rhs = decode_rule_rhs(lang, i, rhs_len, rule_count).unwrap_or_else(|| {
+        let rhs = decode_rule_rhs(lang, slot, rhs_len, rule_count).unwrap_or_else(|| {
             (0..rhs_len)
                 .map(|_| Symbol::NonTerminal(SymbolId(0)))
                 .collect()
         });
-        let precedence = decode_dynamic_precedence(lang, i);
-        let fields = fields::decode_rule_fields(lang, i);
+        let precedence = decode_dynamic_precedence(lang, slot);
+        let fields = fields::decode_rule_fields(lang, slot);
 
         rules.entry(lhs).or_default().push(Rule {
             lhs,
@@ -46,7 +54,7 @@ pub(super) fn decode_metadata_rules(lang: &TSLanguage, rules: &mut IndexMap<Symb
             precedence,
             associativity: None,
             fields,
-            production_id: ProductionId(i as u16),
+            production_id,
         });
     }
 }

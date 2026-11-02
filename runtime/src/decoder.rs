@@ -4,7 +4,7 @@
 //! and decodes it into adze's native structures.
 
 use adze_glr_core::ParseRule;
-use adze_ir::{Grammar, Rule, SymbolId, TokenPattern};
+use adze_ir::{Grammar, ProductionId, Rule, SymbolId, TokenPattern};
 use indexmap::IndexMap;
 use regex::Regex;
 use std::collections::HashMap;
@@ -163,6 +163,32 @@ pub fn decode_grammar_with_patterns(
     }
 }
 
+/// Production slot of one rule-space entry, when the entry is live.
+///
+/// The `production_id_map` has one entry per rule (`rule_count`), mapping a
+/// rule index to its production slot. Entries holding `u16::MAX` (or naming a
+/// slot outside the rule metadata array) carry no rule and decode to nothing.
+/// A null map denotes the legacy identity layout where rule `r` owns slot `r`.
+pub(super) fn live_production_for_rule(
+    lang: &TSLanguage,
+    rule_index: usize,
+) -> Option<ProductionId> {
+    let rule_count = lang.rule_count as usize;
+    if rule_index >= rule_count {
+        return None;
+    }
+    if lang.production_id_map.is_null() {
+        return Some(ProductionId(rule_index as u16));
+    }
+    // SAFETY: `rule_index` is bounded by `rule_count`, and the map holds one
+    // entry per rule for adze-generated languages.
+    let slot = unsafe { *lang.production_id_map.add(rule_index) };
+    if slot == u16::MAX || (slot as usize) >= rule_count {
+        return None;
+    }
+    Some(ProductionId(slot))
+}
+
 pub(super) fn decode_rules(lang: &TSLanguage) -> Vec<ParseRule> {
     let production_count = lang.production_count as usize;
 
@@ -245,6 +271,7 @@ mod tests {
         // Test that we can decode different action types correctly
         let empty_rules = vec![];
         let empty_map = HashMap::new();
+        let empty_prod_map = HashMap::new();
 
         // Test Shift action
         let shift_action = TSParseAction {
@@ -254,12 +281,13 @@ mod tests {
             dynamic_precedence: 0,
             symbol: 42,
         };
-        match decode_action(&shift_action, &empty_rules, &empty_map) {
+        match decode_action(&shift_action, &empty_rules, &empty_map, &empty_prod_map) {
             Action::Shift(StateId(state)) => assert_eq!(state, 42),
             _ => panic!("Expected Shift action"),
         }
 
-        // Test Reduce action with direct rule index
+        // Test Reduce action: the symbol field names a production slot, which
+        // the slot-to-rule map translates to the decoded RuleId.
         let rules = vec![ParseRule {
             lhs: SymbolId(10),
             rhs_len: 3,
@@ -271,7 +299,8 @@ mod tests {
             dynamic_precedence: 0,
             symbol: 0,
         };
-        match decode_action(&reduce_action, &rules, &empty_map) {
+        let prod_to_rid: HashMap<u16, u16> = HashMap::from([(0, 0)]);
+        match decode_action(&reduce_action, &rules, &empty_map, &prod_to_rid) {
             Action::Reduce(RuleId(rule)) => assert_eq!(rule, 0),
             _ => panic!("Expected Reduce action"),
         }
@@ -285,7 +314,7 @@ mod tests {
             symbol: 0,
         };
         assert!(matches!(
-            decode_action(&accept_action, &empty_rules, &empty_map),
+            decode_action(&accept_action, &empty_rules, &empty_map, &empty_prod_map),
             Action::Accept
         ));
 
@@ -298,13 +327,17 @@ mod tests {
             symbol: 0,
         };
         assert!(matches!(
-            decode_action(&recover_action, &empty_rules, &empty_map),
+            decode_action(&recover_action, &empty_rules, &empty_map, &empty_prod_map),
             Action::Error
         ));
     }
 
     #[test]
-    fn small_table_reduce_actions_map_rule_id_to_production_id() {
+    fn small_table_reduce_actions_resolve_rule_identity_through_shared_map() {
+        // Rule 0 owns production slot 1 and rule 1 owns slot 0 (a permuted
+        // map). Encoded reduce values name rules, so decoding must yield the
+        // encoded rule's RuleId — never the production slot as a RuleId —
+        // while each rule keeps its own production identity.
         static PRODUCTION_ID_MAP: [u16; 2] = [1, 0];
         static PRODUCTION_LHS_INDEX: [u16; 2] = [2, 2];
         static SMALL_PARSE_TABLE: [u16; 2] = [1, 0x8001];
@@ -367,12 +400,183 @@ mod tests {
             rule_count: 2,
         }));
 
+        let grammar = decode_grammar(language);
         let table = decode_parse_table(language);
 
+        // Encoded rule 0 reduces to decoded RuleId(0), even though its
+        // production slot is 1.
         match table.action_table[0][1][0] {
-            Action::Reduce(RuleId(rule_id)) => assert_eq!(rule_id, 1),
+            Action::Reduce(RuleId(rule_id)) => assert_eq!(rule_id, 0),
             ref action => panic!("expected mapped reduce action, got {action:?}"),
         }
+        // Production identity still roundtrips per rule.
+        assert_eq!(
+            grammar.production_ids.get(&RuleId(0)),
+            Some(&ProductionId(1))
+        );
+        assert_eq!(
+            grammar.production_ids.get(&RuleId(1)),
+            Some(&ProductionId(0))
+        );
+    }
+
+    #[test]
+    fn shared_production_id_grammar_decodes_rule_identity_and_parses() {
+        use adze_glr_core::{Action as GlrAction, StateId as GlrStateId};
+        use adze_ir::{RuleId as IrRuleId, Symbol as IrSymbol};
+
+        // Two rules share production slot 0: the map is sized by rule count
+        // (2 entries), while only one production slot exists.
+        static PRODUCTION_ID_MAP: [u16; 2] = [0, 0];
+        static PRODUCTION_LHS_INDEX: [u16; 1] = [2];
+        // state0: (x -> shift 1), (A -> goto 2)
+        // state1: (eof -> reduce rule 0), (x -> reduce rule 1)
+        // state2: (eof -> accept)
+        static SMALL_PARSE_TABLE: [u16; 10] = [1, 1, 2, 2, 0, 0x8001, 1, 0x8002, 0, 0xFFFF];
+        static SMALL_PARSE_TABLE_MAP: [u32; 4] = [0, 4, 8, 10];
+        static RULES: [crate::pure_parser::TSRule; 2] = [
+            crate::pure_parser::TSRule {
+                lhs: 2,
+                rhs_len: 1,
+                _pad: 0,
+            },
+            // Spare production slot: no rule maps to it, so it must not
+            // surface as a decoded rule.
+            crate::pure_parser::TSRule {
+                lhs: 0,
+                rhs_len: 0,
+                _pad: 0,
+            },
+        ];
+        static ALIAS_MAP: [u16; 2] = [0, 0];
+        static ALIAS_SEQUENCES: [u16; 1] = [1];
+        static FIELD_MAP_SLICES: [u16; 2] = [0, 1];
+        static FIELD_MAP_ENTRIES: [u16; 2] = [0, 0];
+        static FIELD_NAME: &[u8] = b"f\0";
+        let field_names = Box::leak(Box::new([FIELD_NAME.as_ptr()]));
+        static NAME_ERROR: &[u8] = b"end\0";
+        static NAME_TOKEN: &[u8] = b"x\0";
+        static NAME_NODE: &[u8] = b"A\0";
+        let symbol_names = Box::leak(Box::new([
+            NAME_ERROR.as_ptr(),
+            NAME_TOKEN.as_ptr(),
+            NAME_NODE.as_ptr(),
+        ]));
+
+        let language = Box::leak(Box::new(TSLanguage {
+            version: crate::pure_parser::TREE_SITTER_LANGUAGE_VERSION,
+            symbol_count: 3,
+            alias_count: 0,
+            token_count: 2,
+            external_token_count: 0,
+            state_count: 3,
+            large_state_count: 0,
+            production_id_count: 1,
+            field_count: 1,
+            max_alias_sequence_length: 0,
+            production_id_map: PRODUCTION_ID_MAP.as_ptr(),
+            parse_table: std::ptr::null(),
+            small_parse_table: SMALL_PARSE_TABLE.as_ptr(),
+            small_parse_table_map: SMALL_PARSE_TABLE_MAP.as_ptr(),
+            parse_actions: std::ptr::null(),
+            symbol_names: symbol_names.as_ptr(),
+            field_names: field_names.as_ptr(),
+            field_map_slices: FIELD_MAP_SLICES.as_ptr(),
+            field_map_entries: FIELD_MAP_ENTRIES.as_ptr(),
+            symbol_metadata: std::ptr::null(),
+            public_symbol_map: std::ptr::null(),
+            alias_map: ALIAS_MAP.as_ptr(),
+            alias_sequences: ALIAS_SEQUENCES.as_ptr(),
+            lex_modes: std::ptr::null(),
+            lex_fn: None,
+            keyword_lex_fn: None,
+            keyword_capture_token: 0,
+            external_scanner: crate::pure_parser::ExternalScanner::default(),
+            primary_state_ids: std::ptr::null(),
+            production_lhs_index: PRODUCTION_LHS_INDEX.as_ptr(),
+            production_count: 1,
+            eof_symbol: 0,
+            rules: RULES.as_ptr(),
+            rule_count: 2,
+        }));
+
+        let grammar = decode_grammar(language);
+        let table = decode_parse_table(language);
+
+        // Both decoded rules share ProductionId(0); RuleIds stay dense.
+        let decoded: Vec<_> = grammar.all_rules().collect();
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(decoded[0].production_id, ProductionId(0));
+        assert_eq!(decoded[1].production_id, ProductionId(0));
+        assert_eq!(decoded[0].lhs, SymbolId(2));
+        assert_eq!(decoded[0].rhs, vec![IrSymbol::Terminal(SymbolId(1))]);
+        assert_eq!(
+            grammar.production_ids.get(&IrRuleId(0)),
+            Some(&ProductionId(0))
+        );
+        assert_eq!(
+            grammar.production_ids.get(&IrRuleId(1)),
+            Some(&ProductionId(0))
+        );
+
+        // The rules vector is RuleId-keyed: both slots describe A -> x.
+        assert_eq!(table.rules.len(), 2);
+        assert_eq!(table.rules[0].lhs, SymbolId(2));
+        assert_eq!(table.rules[0].rhs_len, 1);
+        assert_eq!(table.rules[1].lhs, SymbolId(2));
+        assert_eq!(table.rules[1].rhs_len, 1);
+
+        // Field metadata is keyed by real RuleIds, one entry per rule.
+        assert_eq!(table.field_map.len(), 2);
+        assert_eq!(table.field_map.get(&(IrRuleId(0), 0)), Some(&0));
+        assert_eq!(table.field_map.get(&(IrRuleId(1), 0)), Some(&0));
+
+        // Both reduce cells resolve to rules with matching lhs/rhs_len.
+        match table.action_table[1][0].first() {
+            Some(GlrAction::Reduce(rid)) => {
+                assert_eq!(*rid, IrRuleId(0));
+                assert_eq!(table.rules[rid.0 as usize].lhs, SymbolId(2));
+            }
+            other => panic!("expected reduce for rule 0, got {other:?}"),
+        }
+        match table.action_table[1][1].first() {
+            Some(GlrAction::Reduce(rid)) => {
+                assert_eq!(*rid, IrRuleId(1));
+                assert_eq!(table.rules[rid.0 as usize].rhs_len, 1);
+            }
+            other => panic!("expected reduce for rule 1, got {other:?}"),
+        }
+
+        // Drive "x" + EOF through the decoded tables to acceptance.
+        let mut stack = vec![GlrStateId(0)];
+        let input = [1u16, 0u16];
+        let mut pos = 0;
+        let accepted = loop {
+            let state = *stack.last().expect("non-empty stack");
+            let tok = SymbolId(input[pos]);
+            let col = *table.symbol_to_index.get(&tok).expect("known token");
+            let action = table.action_table[state.0 as usize][col]
+                .first()
+                .cloned()
+                .unwrap_or(GlrAction::Error);
+            match action {
+                GlrAction::Shift(next) => {
+                    stack.push(next);
+                    pos += 1;
+                }
+                GlrAction::Reduce(rid) => {
+                    let rule = &table.rules[rid.0 as usize];
+                    for _ in 0..rule.rhs_len {
+                        stack.pop();
+                    }
+                    let top = *stack.last().expect("non-empty stack");
+                    stack.push(table.goto_table[top.0 as usize][rule.lhs.0 as usize]);
+                }
+                GlrAction::Accept => break true,
+                GlrAction::Error | GlrAction::Recover | _ => break false,
+            }
+        };
+        assert!(accepted, "decoded shared-production tables must parse");
     }
 
     #[test]
