@@ -26,9 +26,7 @@ fn leaf_transforms(attrs: &[Attribute]) -> Result<LeafTransforms> {
         .iter()
         .find(|attr| attr.path() == &syn::parse_quote!(adze::leaf));
     let leaf_params = leaf_attr
-        .map(|attr| {
-            attr.parse_args_with(Punctuated::<NameValueExpr, Token![,]>::parse_terminated)
-        })
+        .map(|attr| attr.parse_args_with(Punctuated::<NameValueExpr, Token![,]>::parse_terminated))
         .transpose()?;
     let find_param = |name: &str| {
         leaf_params.as_ref().and_then(|params| {

@@ -84,7 +84,12 @@ fn authoring_valid_conversion_forms_still_expand() {
         r##"#[adze::leaf(pattern = "[0-9]+", transform = |s: &str| s.len() as u16)]"##,
     );
     let output = expand(&infallible).expect("valid infallible leaf");
-    assert!(output.to_token_stream().to_string().contains("extract_field"));
+    assert!(
+        output
+            .to_token_stream()
+            .to_string()
+            .contains("extract_field")
+    );
 }
 
 #[test]
@@ -100,5 +105,10 @@ mod grammar {
 }
 "##;
     let output = expand(source).expect("valid literal unit field");
-    assert!(output.to_token_stream().to_string().contains("struct Token"));
+    assert!(
+        output
+            .to_token_stream()
+            .to_string()
+            .contains("struct Token")
+    );
 }
