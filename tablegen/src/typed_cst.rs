@@ -26,6 +26,7 @@ struct FieldAccessor {
     method_ident: Ident,
     field_name: String,
     target_ident: Ident,
+    multiple: bool,
 }
 
 impl<'a> TypedCstGenerator<'a> {
@@ -38,7 +39,8 @@ impl<'a> TypedCstGenerator<'a> {
     #[must_use]
     pub fn generate(&self) -> TokenStream {
         let specs = self.wrapper_specs();
-        let accessors = self.field_accessors(&specs);
+        let schema = crate::field_schema::field_semantics_for_grammar(self.grammar);
+        let accessors = self.field_accessors(&specs, &schema);
         let root_fn = self.root_constructor(&specs);
 
         let wrappers = specs.values().map(|spec| {
@@ -53,10 +55,26 @@ impl<'a> TypedCstGenerator<'a> {
                     let method_ident = accessor.method_ident;
                     let field_name = accessor.field_name;
                     let target_ident = accessor.target_ident;
-                    quote! {
-                        pub fn #method_ident(&self) -> Option<#target_ident<'doc>> {
-                            let edge = self.edge_by_field_name(#field_name)?;
-                            #target_ident::cast(self.document, edge.child_id())
+                    if accessor.multiple {
+                        quote! {
+                            pub fn #method_ident(&self) -> Vec<#target_ident<'doc>> {
+                                let Some(node) = self.node() else {
+                                    return Vec::new();
+                                };
+                                node.child_edges()
+                                    .filter(|edge| edge.field_name() == Some(#field_name))
+                                    .filter_map(|edge| {
+                                        #target_ident::cast(self.document, edge.child_id())
+                                    })
+                                    .collect()
+                            }
+                        }
+                    } else {
+                        quote! {
+                            pub fn #method_ident(&self) -> Option<#target_ident<'doc>> {
+                                let edge = self.edge_by_field_name(#field_name)?;
+                                #target_ident::cast(self.document, edge.child_id())
+                            }
                         }
                     }
                 });
@@ -185,42 +203,99 @@ impl<'a> TypedCstGenerator<'a> {
     fn field_accessors(
         &self,
         specs: &BTreeMap<SymbolId, WrapperSpec>,
+        schema: &BTreeMap<SymbolId, BTreeMap<String, crate::field_schema::FieldSemantics>>,
     ) -> BTreeMap<String, Vec<FieldAccessor>> {
-        let mut by_wrapper = BTreeMap::<String, Vec<FieldAccessor>>::new();
-        let mut seen = BTreeSet::<(String, String)>::new();
+        let mut by_wrapper: BTreeMap<String, Vec<FieldAccessor>> = BTreeMap::new();
+        let mut used_method_names: BTreeSet<(String, String)> = BTreeSet::new();
 
-        for (lhs, rules) in &self.grammar.rules {
-            let Some(owner_spec) = specs.get(lhs) else {
+        for (owner, fields) in schema {
+            let Some(owner_spec) = specs.get(owner) else {
                 continue;
             };
-
-            for rule in rules {
-                for (field_id, position) in &rule.fields {
-                    let Some(field_name) = self.grammar.fields.get(field_id) else {
+            let owner_name = owner_spec.ident.to_string();
+            for (field_name, semantics) in fields {
+                // Map every admitted target kind to its wrapper. Targets
+                // without a wrapper keep the historical skip behavior.
+                let mut targets: Vec<(Ident, String)> = Vec::new();
+                for target in &semantics.targets {
+                    let (Some(target_ident), Some(kind_name)) = (
+                        symbol_wrapper_ident(target, specs),
+                        wrapper_kind_name(target, specs),
+                    ) else {
                         continue;
                     };
-                    let Some(symbol) = rule.rhs.get(*position) else {
-                        continue;
-                    };
-                    let Some(target_ident) = symbol_wrapper_ident(symbol, specs) else {
-                        continue;
-                    };
-
-                    let owner = owner_spec.ident.to_string();
-                    if !seen.insert((owner.clone(), field_name.clone())) {
-                        continue;
-                    }
-
-                    by_wrapper.entry(owner).or_default().push(FieldAccessor {
-                        method_ident: method_ident(field_name, "field"),
-                        field_name: field_name.clone(),
-                        target_ident,
-                    });
+                    targets.push((target_ident, kind_name));
+                }
+                if targets.is_empty() {
+                    continue;
+                }
+                if targets.len() == 1 {
+                    // Single admitted kind keeps the historical method name.
+                    let (target_ident, _) = targets.into_iter().next().expect("one target");
+                    let method_ident = unique_method_name(
+                        &owner_name,
+                        &method_ident(field_name, "field").to_string(),
+                        &mut used_method_names,
+                    );
+                    by_wrapper
+                        .entry(owner_name.clone())
+                        .or_default()
+                        .push(FieldAccessor {
+                            method_ident,
+                            field_name: field_name.clone(),
+                            target_ident,
+                            multiple: semantics.multiple,
+                        });
+                    continue;
+                }
+                // Multiple admitted kinds: one accessor per kind so every
+                // alternative is reachable without a first-type shortcut.
+                for (target_ident, kind_name) in targets {
+                    let method_ident = unique_method_name(
+                        &owner_name,
+                        &method_ident(&format!("{field_name}_{kind_name}"), "field").to_string(),
+                        &mut used_method_names,
+                    );
+                    by_wrapper
+                        .entry(owner_name.clone())
+                        .or_default()
+                        .push(FieldAccessor {
+                            method_ident,
+                            field_name: field_name.clone(),
+                            target_ident,
+                            multiple: semantics.multiple,
+                        });
                 }
             }
         }
 
         by_wrapper
+    }
+}
+
+/// Display name used for a target kind, matching the wrapper cast check.
+fn wrapper_kind_name(symbol: &Symbol, specs: &BTreeMap<SymbolId, WrapperSpec>) -> Option<String> {
+    match symbol {
+        Symbol::Terminal(id) | Symbol::NonTerminal(id) | Symbol::External(id) => {
+            specs.get(id).map(|spec| spec.kind_name.clone())
+        }
+        _ => None,
+    }
+}
+
+/// Claim a method name for one wrapper, disambiguating sanitization
+/// collisions deterministically.
+fn unique_method_name(owner: &str, base: &str, used: &mut BTreeSet<(String, String)>) -> Ident {
+    if used.insert((owner.to_string(), base.to_string())) {
+        return Ident::new(base, Span::call_site());
+    }
+    let mut counter = 0u32;
+    loop {
+        counter += 1;
+        let candidate = format!("{base}_{counter}");
+        if used.insert((owner.to_string(), candidate.clone())) {
+            return Ident::new(&candidate, Span::call_site());
+        }
     }
 }
 
@@ -538,6 +613,142 @@ mod tests {
         });
 
         grammar
+    }
+
+    fn repeat_grammar() -> Grammar {
+        let mut grammar = Grammar::new("repeat_fixture".to_string());
+
+        let number = SymbolId(1);
+        let list = SymbolId(2);
+        let source_file = SymbolId(3);
+
+        grammar.tokens.insert(
+            number,
+            Token {
+                name: "number".to_string(),
+                pattern: TokenPattern::Regex(r"\d+".to_string()),
+                fragile: false,
+            },
+        );
+
+        grammar
+            .rule_names
+            .insert(source_file, "source_file".to_string());
+        grammar.rule_names.insert(list, "list".to_string());
+
+        grammar.fields.insert(FieldId(0), "items".to_string());
+
+        grammar.add_rule(Rule {
+            lhs: source_file,
+            rhs: vec![Symbol::NonTerminal(list)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        grammar.add_rule(Rule {
+            lhs: list,
+            rhs: vec![Symbol::Repeat(Box::new(Symbol::Terminal(number)))],
+            precedence: None,
+            associativity: None,
+            fields: vec![(FieldId(0), 0)],
+            production_id: ProductionId(1),
+        });
+
+        grammar
+    }
+
+    fn choice_field_grammar() -> Grammar {
+        let mut grammar = Grammar::new("choice_fixture".to_string());
+
+        let num = SymbolId(1);
+        let word = SymbolId(2);
+        let pick = SymbolId(3);
+        let source_file = SymbolId(4);
+
+        for (id, name, pattern) in [
+            (num, "num", TokenPattern::Regex(r"\d+".to_string())),
+            (word, "word", TokenPattern::Regex(r"[a-z]+".to_string())),
+        ] {
+            grammar.tokens.insert(
+                id,
+                Token {
+                    name: name.to_string(),
+                    pattern,
+                    fragile: false,
+                },
+            );
+        }
+
+        grammar
+            .rule_names
+            .insert(source_file, "source_file".to_string());
+        grammar.rule_names.insert(pick, "pick".to_string());
+
+        grammar.fields.insert(FieldId(0), "value".to_string());
+
+        grammar.add_rule(Rule {
+            lhs: source_file,
+            rhs: vec![Symbol::NonTerminal(pick)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        grammar.add_rule(Rule {
+            lhs: pick,
+            rhs: vec![Symbol::Choice(vec![
+                Symbol::Terminal(num),
+                Symbol::Terminal(word),
+            ])],
+            precedence: None,
+            associativity: None,
+            fields: vec![(FieldId(0), 0)],
+            production_id: ProductionId(1),
+        });
+
+        grammar
+    }
+
+    #[test]
+    fn typed_cst_repeated_field_generates_vec_accessor() {
+        let grammar = repeat_grammar();
+        let generated = TypedCstGenerator::new(&grammar).generate().to_string();
+
+        // A repeated single-target field collects every child in order:
+        // one Vec accessor, no single-child shortcut.
+        assert!(
+            generated.contains("pub fn items"),
+            "items accessor must exist"
+        );
+        assert!(
+            generated.contains("-> Vec <"),
+            "repeated field must return a vector, not a single Option"
+        );
+        assert!(
+            generated.contains("child_edges"),
+            "repeated accessor must traverse child edges"
+        );
+    }
+
+    #[test]
+    fn typed_cst_multi_target_field_generates_per_target_accessors() {
+        let grammar = choice_field_grammar();
+        let generated = TypedCstGenerator::new(&grammar).generate().to_string();
+
+        // Every admitted target kind gets its own accessor.
+        assert!(
+            generated.contains("pub fn value_num"),
+            "num accessor must exist"
+        );
+        assert!(
+            generated.contains("pub fn value_word"),
+            "word accessor must exist"
+        );
+        assert!(
+            !generated.contains("pub fn value("),
+            "no bare first-type accessor may remain for a multi-target field"
+        );
     }
 
     fn duplicate_punctuation_token_grammar() -> Grammar {
