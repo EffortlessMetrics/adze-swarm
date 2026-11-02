@@ -591,15 +591,16 @@ fn match_rule_id(
         if parse_rule.lhs != lhs || parse_rule.rhs_len as usize != child_symbols.len() {
             continue;
         }
-        if let Some(candidates) = grammar.rules.get(&lhs) {
-            for rule in candidates {
-                if rule.production_id.0 as usize != rule_id {
-                    continue;
-                }
-                if rhs_symbol_ids(&rule.rhs) == child_symbols {
-                    return Some(rule_id);
-                }
-            }
+        // Resolve by RuleId identity (#1060): `parse_table.rules` is dense in
+        // RuleId order, so index `rule_id` names `RuleId(rule_id)`.
+        // ProductionId is shareable field/alias metadata and must never
+        // select the rule; rules sharing one slot keep independent behavior.
+        let rule_matches = u16::try_from(rule_id)
+            .ok()
+            .and_then(|id| grammar.rule_by_id(adze_ir::RuleId(id)))
+            .is_some_and(|rule| rule.lhs == lhs && rhs_symbol_ids(&rule.rhs) == child_symbols);
+        if rule_matches {
+            return Some(rule_id);
         }
     }
 
@@ -750,4 +751,72 @@ fn diagnostic_end_for_byte(source: &[u8], start: usize) -> usize {
         .and_then(|tail| tail.chars().next())
         .map(|ch| start + ch.len_utf8())
         .unwrap_or_else(|| (start + 1).min(source.len()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use adze_glr_core::ParseRule;
+    use adze_ir::{ProductionId, Rule, RuleId};
+
+    /// Grammar where two `A` alternatives share one production slot (#1060):
+    /// RuleId(0): S -> A (prod 5); RuleId(1): A -> a (prod 0);
+    /// RuleId(2): A -> b (prod 0). Parse-table rules are dense in RuleId order.
+    fn shared_production_fixture() -> (ParseTable, Grammar) {
+        let s = SymbolId(10);
+        let a = SymbolId(11);
+        let t_a = SymbolId(1);
+        let t_b = SymbolId(2);
+        let mut grammar = Grammar::new("shared_prod".to_string());
+        grammar.add_rule(Rule {
+            lhs: s,
+            rhs: vec![Symbol::NonTerminal(a)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(5),
+        });
+        grammar.add_rule(Rule {
+            lhs: a,
+            rhs: vec![Symbol::Terminal(t_a)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        grammar.add_rule(Rule {
+            lhs: a,
+            rhs: vec![Symbol::Terminal(t_b)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        let mut parse_table = ParseTable::default();
+        parse_table.rules = vec![
+            ParseRule { lhs: s, rhs_len: 1 },
+            ParseRule { lhs: a, rhs_len: 1 },
+            ParseRule { lhs: a, rhs_len: 1 },
+        ];
+        (parse_table, grammar)
+    }
+
+    #[test]
+    fn test_shared_production_rules_resolve_by_rule_identity() {
+        let (table, grammar) = shared_production_fixture();
+        // `A -> a` is RuleId(1) even though its production slot is 0.
+        assert_eq!(
+            match_rule_id(&table, &grammar, SymbolId(11), &[SymbolId(1)]),
+            Some(1)
+        );
+        // `A -> b` is RuleId(2); first-match production lookup mis-resolves to 1.
+        assert_eq!(
+            match_rule_id(&table, &grammar, SymbolId(11), &[SymbolId(2)]),
+            Some(2)
+        );
+        assert_eq!(
+            match_rule_id(&table, &grammar, SymbolId(10), &[SymbolId(11)]),
+            Some(0)
+        );
+    }
 }
