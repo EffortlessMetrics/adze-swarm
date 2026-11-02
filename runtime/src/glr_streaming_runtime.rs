@@ -802,7 +802,7 @@ mod tests {
     }
 
     #[test]
-    fn shared_production_rules_resolve_by_rule_identity() {
+    fn test_shared_production_rules_resolve_by_rule_identity() {
         let (table, grammar) = shared_production_fixture();
         // `A -> a` is RuleId(1) even though its production slot is 0.
         assert_eq!(

@@ -2536,7 +2536,7 @@ mod tests {
     /// rule carrying the shared slot.
     #[test]
     #[cfg(feature = "glr")]
-    fn shared_production_alias_rules_resolve_by_rule_identity() {
+    fn test_shared_production_alias_rules_resolve_by_rule_identity() {
         use adze_glr_core::{ParseRule, ParseTable};
         use adze_ir::{Grammar, ProductionId, Rule, RuleId, Symbol, SymbolId};
 

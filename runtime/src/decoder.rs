@@ -306,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn small_table_reduce_actions_preserve_rule_id_with_permuted_production_map() {
+    fn test_small_table_reduce_actions_preserve_rule_id_with_permuted_production_map() {
         static PRODUCTION_ID_MAP: [u16; 2] = [1, 0];
         static PRODUCTION_LHS_INDEX: [u16; 2] = [2, 2];
         static SMALL_PARSE_TABLE: [u16; 2] = [1, 0x8001];
