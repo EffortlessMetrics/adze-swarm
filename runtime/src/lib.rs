@@ -1384,32 +1384,22 @@ impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
                     child.end_byte
                 }
 
-                // Check if this node has exactly 2 children and the first is the same symbol
-                // This indicates a REPEAT1 recursive structure
-                if node.children.len() == 2
-                    && !node.children.is_empty()
-                    && node.children[0].symbol == node.symbol
-                {
-                    // Recursively process the first child (which contains earlier elements)
-                    flatten_repeat1::<T, U>(&node.children[0], source, last_idx, leaf_fn, out);
-                    // Then extract the second child (the last element)
-                    // eprintln!("  Extracting element from symbol={}", node.children[1].symbol);
-                    push_top_level::<T, U>(
-                        &node.children[1],
-                        source,
-                        node.children[0].end_byte,
-                        leaf_fn,
-                        out,
-                    );
-                } else if node.children.len() == 1 {
-                    // Base case: single element
-                    // eprintln!("  Base case: extracting single element from symbol={}", node.children[0].symbol);
-                    push_top_level::<T, U>(&node.children[0], source, last_idx, leaf_fn, out);
-                } else {
-                    // Fallback: extract all selected children
-                    for child in &node.children {
-                        // eprintln!("  Fallback: extracting child symbol={}", child.symbol);
-                        last_idx = push_top_level::<T, U>(child, source, last_idx, leaf_fn, out);
+                // Repeat recursion describes semantic RHS children. Native
+                // producers may interleave extras at this retained container.
+                let mut semantic = node.children.iter().filter(|child| !child.is_extra);
+                match (semantic.next(), semantic.next(), semantic.next()) {
+                    (Some(first), Some(second), None) if first.symbol == node.symbol => {
+                        flatten_repeat1::<T, U>(first, source, last_idx, leaf_fn, out);
+                        push_top_level::<T, U>(second, source, first.end_byte, leaf_fn, out);
+                    }
+                    (Some(first), None, None) => {
+                        push_top_level::<T, U>(first, source, last_idx, leaf_fn, out);
+                    }
+                    _ => {
+                        for child in node.children.iter().filter(|child| !child.is_extra) {
+                            last_idx =
+                                push_top_level::<T, U>(child, source, last_idx, leaf_fn, out);
+                        }
                     }
                 }
             }
@@ -1509,24 +1499,21 @@ impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
                 }
                 Ok(child.end_byte)
             }
-            if node.children.len() == 2
-                && !node.children.is_empty()
-                && node.children[0].symbol == node.symbol
-            {
-                flatten_repeat1_try::<T, U>(&node.children[0], source, last_idx, leaf_fn, out)?;
-                push_top_level_try::<T, U>(
-                    &node.children[1],
-                    source,
-                    node.children[0].end_byte,
-                    leaf_fn,
-                    out,
-                )?;
-            } else if node.children.len() == 1 {
-                push_top_level_try::<T, U>(&node.children[0], source, last_idx, leaf_fn, out)?;
-            } else {
-                let mut last_idx = last_idx;
-                for child in &node.children {
-                    last_idx = push_top_level_try::<T, U>(child, source, last_idx, leaf_fn, out)?;
+            let mut semantic = node.children.iter().filter(|child| !child.is_extra);
+            match (semantic.next(), semantic.next(), semantic.next()) {
+                (Some(first), Some(second), None) if first.symbol == node.symbol => {
+                    flatten_repeat1_try::<T, U>(first, source, last_idx, leaf_fn, out)?;
+                    push_top_level_try::<T, U>(second, source, first.end_byte, leaf_fn, out)?;
+                }
+                (Some(first), None, None) => {
+                    push_top_level_try::<T, U>(first, source, last_idx, leaf_fn, out)?;
+                }
+                _ => {
+                    let mut last_idx = last_idx;
+                    for child in node.children.iter().filter(|child| !child.is_extra) {
+                        last_idx =
+                            push_top_level_try::<T, U>(child, source, last_idx, leaf_fn, out)?;
+                    }
                 }
             }
             Ok(())
