@@ -1,48 +1,22 @@
 //! Content-addressed cache for compiled static parse runners (issue #1067).
 //!
-//! A cold supported parse builds one runner through the existing Cargo
-//! project generation; a warm parse of (possibly different) input executes
-//! the matching binary directly with zero Cargo invocations. Only compiled
-//! runners are cached, never parse results, so input text always parses fresh.
+//! Implements candidate-key and publication machinery; production reuse is
+//! refused until complete build-input custody exists. Only compiled runners
+//! are eligible for future caching, never parse results. Input parses fresh.
 //!
-//! # Safe reuse envelope
+//! # Admission boundary
 //!
-//! The cache key is a content hash over the complete build identity:
+//! Direct executable reuse is currently refused for production runners. The
+//! generated runner uses mutable Adze path dependencies or floating registry
+//! requirements, and this cache does not hold the complete resolved dependency,
+//! lock, Cargo configuration and build-script/environment identity. A source
+//! tree walk or a time-to-live cannot establish that identity. Every production
+//! parse therefore uses the existing Cargo checked temporary-project path.
 //!
-//! - grammar file bytes plus every reachable sibling (`mod foo;`,
-//!   `#[path = "..."] mod ...;`, literal `include!`/`include_str!`/
-//!   `include_bytes!` targets), recorded as `(relative-path, bytes)` pairs;
-//! - the rendered runner `Cargo.toml`, `build.rs` and `main.rs` (template +
-//!   protocol shape; protocol version [`RUNNER_PROTOCOL_VERSION`] is also
-//!   keyed and stored separately);
-//! - dependency identity: for in-workspace builds the recursive content of
-//!   every `path =` dependency manifest, `build.rs` and `src/**` tree
-//!   (covers `runtime`, `tool` and their transitive workspace members); for
-//!   published installs the rendered manifest requirement text;
-//! - toolchain (`rustc -vV` release/host), host target triple, `debug`
-//!   profile, the fixed runner feature set, `CARGO_PKG_VERSION`, and the
-//!   `RUSTFLAGS` / `CARGO_BUILD_TARGET` environment values.
-//!
-//! Neither grammar mtime nor CLI semver alone identifies the executable, so
-//! neither is trusted: same mtime with changed bytes is always a miss.
-//!
-//! # Fail-safe boundaries (explicit non-goals of the key)
-//!
-//! Anything that cannot be identified reliably disables direct reuse and
-//! falls back to the existing temporary-project `cargo run` path with
-//! correct output, never a silent stale hit:
-//!
-//! - single-file grammars cache on the root file bytes; module-backed
-//!   grammars additionally hash every resolved sibling file, so different
-//!   source paths with identical root bytes but different relative
-//!   resolution never collide;
-//! - dynamic `include!` arguments, unresolvable modules, unreadable files,
-//!   closure/file-count budgets being exceeded, or a missing `rustc`
-//!   fingerprint all refuse caching;
-//! - registry drift for floating version requirements, `CC`/`CFLAGS`-style
-//!   build-script inputs, and arbitrary user build environment beyond the
-//!   keyed variables are outside the envelope: entries additionally expire
-//!   after [`ENTRY_TTL_SECS`] and eviction keeps the cache bounded.
+//! The grammar candidate key and atomic entry machinery are retained for a
+//! future fully owned build envelope and exercised with isolated fixtures.
+//! Candidate keys alone never authorize execution. #1067 remains open for the
+//! complete build-input custody and zero-Cargo warm-hit acceptance.
 //!
 //! # Atomicity and concurrency
 //!
@@ -84,7 +58,7 @@ pub(crate) const RUNNER_PROTOCOL_VERSION: u32 = 1;
 const MAX_ENTRIES_DEFAULT: usize = 32;
 /// Entry directory names are 64-character lowercase hex digests.
 const ENTRY_NAME_LEN: usize = 64;
-/// Entries older than this are treated as misses (bounds registry drift).
+/// Entries older than this are treated as misses (retention policy only).
 const ENTRY_TTL_SECS: u64 = 7 * 24 * 3600;
 /// Fresh entries are never evicted, so active builds/runs are not raced.
 const ACTIVE_GRACE_SECS: u64 = 300;
@@ -95,8 +69,6 @@ const STALE_LOCK_SECS: u64 = 3600;
 /// Closure walk budgets; exceeding them refuses caching (fail safe).
 const MAX_CLOSURE_FILES: usize = 256;
 const MAX_CLOSURE_BYTES: u64 = 64 << 20;
-const MAX_DEP_FILES: usize = 4000;
-const MAX_DEP_BYTES: u64 = 128 << 20;
 /// Bounded tail kept in `build.log` for post-mortem diagnosis.
 const BUILD_LOG_TAIL: usize = 8192;
 /// Test-only hook: when `ADZE_TEST_CARGO_COUNT_FILE` names a file, every
@@ -162,8 +134,8 @@ struct CacheConfig {
 /// stale/corrupt entries, or any cache-internal I/O problem. A returned
 /// path names a complete entry whose executable hash was just verified.
 pub(crate) fn lookup(spec: &RunnerSpec<'_>) -> Option<PathBuf> {
-    let config = cache_config()?;
     let key = build_key(spec)?;
+    let config = cache_config()?;
     validate_entry(&config.root, &key).map(|entry| entry.exe)
 }
 
@@ -172,12 +144,12 @@ pub(crate) fn lookup(spec: &RunnerSpec<'_>) -> Option<PathBuf> {
 /// `Ok(CachedBuild::Unavailable)` means the caller should use the legacy
 /// temp-project path (disabled/unsupported envelope, lost race, stale lock,
 /// or any cache-internal I/O failure). `Err` carries either [`CargoFailed`]
-/// (downcastable, rendered by the caller) or an unexpected staging failure.
+/// (downcastable and rendered by the caller). Internal I/O failures fall back.
 pub(crate) fn build_cached(spec: &RunnerSpec<'_>) -> anyhow::Result<CachedBuild> {
-    let Some(config) = cache_config() else {
+    let Some(key) = build_key(spec) else {
         return Ok(CachedBuild::Unavailable);
     };
-    let Some(key) = build_key(spec) else {
+    let Some(config) = cache_config() else {
         return Ok(CachedBuild::Unavailable);
     };
     if let Some(entry) = validate_entry(&config.root, &key) {
@@ -190,11 +162,20 @@ pub(crate) fn build_cached(spec: &RunnerSpec<'_>) -> anyhow::Result<CachedBuild>
         }
         return Ok(CachedBuild::Unavailable);
     }
-    let staging = claim_staging_dir(&config.root);
+    let Some(staging) = claim_staging_dir(&config.root) else {
+        let _ = std::fs::remove_file(&lock_path);
+        return Ok(CachedBuild::Unavailable);
+    };
     let outcome = build_and_publish(spec, &config, &key, &staging);
     let _ = std::fs::remove_file(&lock_path);
     let _ = std::fs::remove_dir_all(&staging);
-    outcome
+    match outcome {
+        Err(error) if error.downcast_ref::<CargoFailed>().is_none() => {
+            log::debug!("runner cache unavailable: {error:#}");
+            Ok(CachedBuild::Unavailable)
+        }
+        other => other,
+    }
 }
 
 /// Resolve cache configuration from the environment.
@@ -210,7 +191,8 @@ fn cache_config() -> Option<CacheConfig> {
     let root = std::env::var_os("ADZE_RUNNER_CACHE_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::temp_dir().join("adze-cli-runner-cache"));
-    if std::fs::create_dir_all(&root).is_err() {
+    if !prepare_private_root(&root) {
+        log::debug!("runner cache skipped: cache root is not private and trusted");
         return None;
     }
     let max_entries = std::env::var("ADZE_RUNNER_CACHE_MAX_ENTRIES")
@@ -221,8 +203,74 @@ fn cache_config() -> Option<CacheConfig> {
     Some(CacheConfig { root, max_entries })
 }
 
+/// Cache contents are executable code. A self-consistent manifest is not
+/// authentication: require a private root owned by this user, reached through
+/// trusted ancestors. Unsupported ACL platforms refuse reuse until checked.
+#[cfg(unix)]
+fn prepare_private_root(root: &Path) -> bool {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+    let Ok(probe) = tempfile::tempdir() else {
+        return false;
+    };
+    let Ok(probe_meta) = std::fs::metadata(probe.path()) else {
+        return false;
+    };
+    let owner = probe_meta.uid();
+    if std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(root)
+        .is_err()
+    {
+        return false;
+    }
+    let absolute = if root.is_absolute() {
+        root.to_path_buf()
+    } else {
+        let Ok(cwd) = std::env::current_dir() else {
+            return false;
+        };
+        cwd.join(root)
+    };
+    for (index, ancestor) in absolute.ancestors().enumerate() {
+        let Ok(meta) = std::fs::symlink_metadata(ancestor) else {
+            return false;
+        };
+        if !meta.is_dir() || meta.file_type().is_symlink() {
+            return false;
+        }
+        if index == 0 {
+            if meta.uid() != owner || meta.mode() & 0o077 != 0 {
+                return false;
+            }
+        } else if (meta.uid() != owner && meta.uid() != 0)
+            || (meta.mode() & 0o022 != 0 && !(meta.uid() == 0 && meta.mode() & 0o1000 != 0))
+        {
+            return false;
+        }
+    }
+    true
+}
+
+#[cfg(not(unix))]
+fn prepare_private_root(_root: &Path) -> bool {
+    false
+}
+
 /// Compute the content-addressed key, or `None` outside the safe envelope.
 fn build_key(spec: &RunnerSpec<'_>) -> Option<String> {
+    // Do not promote a partial source hash to an executable identity. The
+    // selected dependency graph, immutable resolution and build configuration
+    // have no custody proof yet, including for published installs.
+    let _ = spec;
+    log::debug!(
+        "runner cache skipped: unresolved dependency/configuration custody; Cargo rebuild required"
+    );
+    None
+}
+
+/// Partial grammar/template identity. Never sufficient to authorize a hit.
+fn grammar_candidate_key(spec: &RunnerSpec<'_>) -> Option<String> {
     let grammar_abs = spec.grammar.canonicalize().ok()?;
     let grammar_base = grammar_abs.parent()?.to_path_buf();
     let mut closure = Vec::new();
@@ -230,6 +278,7 @@ fn build_key(spec: &RunnerSpec<'_>) -> Option<String> {
     let mut budget = MAX_CLOSURE_BYTES;
     if let Err(skip) = collect_closure(
         &grammar_abs,
+        &grammar_base,
         &grammar_base,
         &mut closure,
         &mut seen,
@@ -245,7 +294,7 @@ fn build_key(spec: &RunnerSpec<'_>) -> Option<String> {
         return None;
     };
     let mut hasher = Sha256::new();
-    hasher.update(b"adze-runner-cache-v1\0");
+    hasher.update(b"adze-runner-candidate-v2\0");
     hasher.update(RUNNER_PROTOCOL_VERSION.to_le_bytes());
     hasher.update(b"profile=debug\0features=serialization,glr\0");
     hasher.update(env!("CARGO_PKG_VERSION").as_bytes());
@@ -264,10 +313,6 @@ fn build_key(spec: &RunnerSpec<'_>) -> Option<String> {
         hasher.update(b"\0sha256=");
         hasher.update(hash_bytes(bytes));
     }
-    if hash_dependency_identity(&mut hasher).is_err() {
-        log::debug!("runner cache skipped: dependency identity unavailable");
-        return None;
-    }
     hasher.update(b"\0rustc=");
     hasher.update(toolchain.as_bytes());
     hash_opt_env(&mut hasher, "RUSTFLAGS");
@@ -275,121 +320,11 @@ fn build_key(spec: &RunnerSpec<'_>) -> Option<String> {
     Some(hex_digest(hasher.finalize()))
 }
 
-/// Hash the selected Adze/runtime/tool sources (or version requirements).
-fn hash_dependency_identity(hasher: &mut Sha256) -> Result<(), CacheSkip> {
-    let cli_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let runtime = cli_dir.join("../runtime").canonicalize().ok();
-    let tool = cli_dir.join("../tool").canonicalize().ok();
-    let (Some(runtime), Some(tool)) = (runtime, tool) else {
-        // Published install: only version requirements are visible; the
-        // rendered manifest text (already keyed) plus entry TTL bound drift.
-        hasher.update(b"\0deps=version\0");
-        return Ok(());
-    };
-    if !runtime.join("Cargo.toml").is_file() || !tool.join("Cargo.toml").is_file() {
-        hasher.update(b"\0deps=version\0");
-        return Ok(());
-    }
-    hasher.update(b"\0deps=path\0");
-    let mut visited = HashSet::new();
-    let mut budget = FileBudget::new(MAX_DEP_FILES, MAX_DEP_BYTES);
-    hash_path_dep_tree(&runtime, &mut budget, &mut visited, 0)?;
-    hash_path_dep_tree(&tool, &mut budget, &mut visited, 0)?;
-    Ok(())
-}
-
-/// Best-effort content walk of one `path =` dependency tree.
-fn hash_path_dep_tree(
-    dir: &Path,
-    budget: &mut FileBudget,
-    visited: &mut HashSet<PathBuf>,
-    depth: u8,
-) -> Result<(), CacheSkip> {
-    if depth > 16 {
-        return Err(CacheSkip("dependency tree too deep".to_string()));
-    }
-    let canonical = dir.canonicalize().map_err(|error| {
-        CacheSkip(format!(
-            "cannot canonicalize dep dir {}: {error}",
-            dir.display()
-        ))
-    })?;
-    if !visited.insert(canonical.clone()) {
-        return Ok(());
-    }
-    let manifest_path = canonical.join("Cargo.toml");
-    let manifest = std::fs::read_to_string(&manifest_path)
-        .map_err(|error| CacheSkip(format!("cannot read {}: {error}", manifest_path.display())))?;
-    budget.consume(manifest.len() as u64)?;
-    let mut hasher = Sha256::new();
-    hasher.update(b"manifest\0");
-    hasher.update(manifest.as_bytes());
-    let build_rs = canonical.join("build.rs");
-    if build_rs.is_file() {
-        let bytes = std::fs::read(&build_rs)
-            .map_err(|error| CacheSkip(format!("cannot read {}: {error}", build_rs.display())))?;
-        budget.consume(bytes.len() as u64)?;
-        hasher.update(b"build.rs\0");
-        hasher.update(hash_bytes(&bytes));
-    }
-    let src = canonical.join("src");
-    if src.is_dir() {
-        let mut files = Vec::new();
-        collect_rs_files(&src, &mut files)
-            .map_err(|error| CacheSkip(format!("cannot walk {}: {error}", src.display())))?;
-        files.sort();
-        for file in files {
-            let bytes = std::fs::read(&file)
-                .map_err(|error| CacheSkip(format!("cannot read {}: {error}", file.display())))?;
-            budget.consume(bytes.len() as u64)?;
-            hasher.update(b"src-file\0");
-            hasher.update(path_suffix(&file, &canonical).as_bytes());
-            hasher.update(b"\0sha256=");
-            hasher.update(hash_bytes(&bytes));
-        }
-    }
-    // Recurse into further `path = "..."` manifests (workspace members).
-    for dep in path_dep_targets(&manifest) {
-        let target = canonical.join(&dep);
-        let target_dir = if target.is_file() {
-            target.parent().map(|parent| parent.to_path_buf())
-        } else {
-            Some(target)
-        };
-        if let Some(target_dir) = target_dir
-            && target_dir.join("Cargo.toml").is_file()
-        {
-            hash_path_dep_tree(&target_dir, budget, visited, depth + 1)?;
-        }
-    }
-    Ok(())
-}
-
-/// Minimal `path = "..."` extractor for first-party manifests.
-///
-/// Double-quoted values only; anything else is ignored (never trusted).
-fn path_dep_targets(manifest: &str) -> Vec<String> {
-    let mut targets = Vec::new();
-    for line in manifest.lines() {
-        let Some(eq) = line.find('=') else { continue };
-        let (left, right) = line.split_at(eq);
-        if !left.trim_end().ends_with("path") {
-            continue;
-        }
-        let value = right[1..].trim_start();
-        if let Some(quoted) = value.strip_prefix('"')
-            && let Some(end) = quoted.find('"')
-        {
-            targets.push(quoted[..end].to_string());
-        }
-    }
-    targets
-}
-
 /// Collect one grammar file plus every reachable sibling module/include.
 fn collect_closure(
     file: &Path,
     root_base: &Path,
+    module_dir: &Path,
     closure: &mut Vec<(String, Vec<u8>)>,
     seen: &mut HashSet<PathBuf>,
     depth: u8,
@@ -435,65 +370,85 @@ fn collect_closure(
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_else(|| root_base.to_path_buf());
-    let mut nested: Vec<Vec<PathBuf>> = Vec::new();
-    collect_mods(&parsed.items, &base_dir, &mut nested);
-    for group in &mut nested {
-        group.sort();
-        group.dedup();
-    }
+    let mut nested = Vec::new();
+    collect_mods(&parsed.items, module_dir, &mut nested)?;
     nested.sort();
     nested.dedup();
-    for group in nested {
-        let target = group
-            .iter()
-            .find(|candidate| candidate.is_file() || candidate.is_dir())
-            .ok_or_else(|| {
-                CacheSkip(format!(
-                    "grammar module has no resolvable file among {}",
-                    group
-                        .iter()
-                        .map(|path| path.display().to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ))
-            })?;
-        collect_closure(target, root_base, closure, seen, depth + 1, budget)?;
+    for (target, child_dir) in nested {
+        collect_closure(
+            &target,
+            root_base,
+            &child_dir,
+            closure,
+            seen,
+            depth + 1,
+            budget,
+        )?;
     }
-    scan_includes(&parsed, &base_dir, root_base, closure, seen, depth, budget)?;
+    scan_includes(&parsed, &base_dir, root_base, closure, seen, budget)?;
     closure.sort_by(|left, right| left.0.cmp(&right.0));
     Ok(())
 }
 
-/// Find `mod ...;` targets (plain or `#[path]`-redirected) among items.
-///
-/// Each module contributes one candidate group in preference order: a
-/// `#[path]` literal resolves to exactly that file (or its `mod.rs`), while
-/// a plain `mod name;` tries `name.rs` before `name/mod.rs`. Callers use the
-/// first candidate that exists; an empty group is unresolvable.
-fn collect_mods(items: &[syn::Item], base_dir: &Path, nested: &mut Vec<Vec<PathBuf>>) {
+/// Resolve ordinary and inline modules using Rust's module directories.
+/// Explicit paths in inline modules and conditional path overrides are refused.
+fn collect_mods(
+    items: &[syn::Item],
+    module_dir: &Path,
+    nested: &mut Vec<(PathBuf, PathBuf)>,
+) -> Result<(), CacheSkip> {
     for item in items {
         let syn::Item::Mod(module) = item else {
             continue;
         };
-        if let Some(content) = &module.content {
-            collect_mods(&content.1, base_dir, nested);
-            continue;
+        if module
+            .attrs
+            .iter()
+            .any(|attr| attr.path().is_ident("cfg_attr"))
+        {
+            return Err(CacheSkip(
+                "conditional module paths require Cargo validation".into(),
+            ));
         }
-        if let Some(literal) = path_attr_literal(&module.attrs) {
-            let target = base_dir.join(&literal);
-            nested.push(vec![if target.is_dir() {
-                target.join("mod.rs")
-            } else {
-                target
-            }]);
+        if let Some(content) = &module.content {
+            if path_attr_literal(&module.attrs).is_some() {
+                return Err(CacheSkip(
+                    "inline module path override requires Cargo validation".into(),
+                ));
+            }
+            collect_mods(
+                &content.1,
+                &module_dir.join(module.ident.to_string()),
+                nested,
+            )?;
+        } else if let Some(literal) = path_attr_literal(&module.attrs) {
+            let target = module_dir.join(literal);
+            if !target.is_file() {
+                return Err(CacheSkip("explicit module path is not a file".into()));
+            }
+            let child_dir = target
+                .parent()
+                .ok_or_else(|| CacheSkip("missing module parent".into()))?
+                .to_path_buf();
+            nested.push((target, child_dir));
         } else {
             let name = module.ident.to_string();
-            nested.push(vec![
-                base_dir.join(format!("{name}.rs")),
-                base_dir.join(&name).join("mod.rs"),
-            ]);
+            let child_dir = module_dir.join(&name);
+            let candidates = [
+                module_dir.join(format!("{name}.rs")),
+                child_dir.join("mod.rs"),
+            ];
+            let found: Vec<_> = candidates
+                .into_iter()
+                .filter(|path| path.is_file())
+                .collect();
+            if found.len() != 1 {
+                return Err(CacheSkip("missing or ambiguous external module".into()));
+            }
+            nested.push((found[0].clone(), child_dir));
         }
     }
+    Ok(())
 }
 
 /// Extract a `#[path = "..."]` literal from attributes, if present.
@@ -514,19 +469,18 @@ fn path_attr_literal(attrs: &[syn::Attribute]) -> Option<String> {
     None
 }
 
-/// Fold literal `include!` targets into the closure; dynamic arguments
-/// refuse caching because their inputs cannot be identified.
+/// Hash literal raw-data includes. Rust include! fragments and dynamic
+/// arguments require Cargo validation because their contexts are unresolved.
 fn scan_includes(
     file: &syn::File,
     base_dir: &Path,
     root_base: &Path,
     closure: &mut Vec<(String, Vec<u8>)>,
     seen: &mut HashSet<PathBuf>,
-    depth: u8,
     budget: &mut u64,
 ) -> Result<(), CacheSkip> {
     struct Includes {
-        literals: Vec<String>,
+        literals: Vec<(String, bool)>,
         dynamic: bool,
     }
     impl<'ast> syn::visit::Visit<'ast> for Includes {
@@ -538,7 +492,9 @@ fn scan_includes(
                 )
             }) {
                 match node.parse_body::<syn::LitStr>() {
-                    Ok(literal) => self.literals.push(literal.value()),
+                    Ok(literal) => self
+                        .literals
+                        .push((literal.value(), node.path.is_ident("include"))),
                     Err(_) => self.dynamic = true,
                 }
             }
@@ -555,16 +511,27 @@ fn scan_includes(
             "grammar uses dynamic include! arguments that cannot be fingerprinted".to_string(),
         ));
     }
-    for literal in found.literals {
-        // `include!` paths resolve relative to the current file.
-        collect_closure(
-            &base_dir.join(&literal),
-            root_base,
-            closure,
-            seen,
-            depth + 1,
-            budget,
-        )?;
+    for (literal, rust_source) in found.literals {
+        let target = base_dir.join(literal);
+        if rust_source {
+            // include! can inject modules at the invocation's module context;
+            // expression/type fragments and nested contexts need Cargo validation.
+            return Err(CacheSkip("Rust include! requires Cargo validation".into()));
+        }
+        let canonical = target
+            .canonicalize()
+            .map_err(|error| CacheSkip(error.to_string()))?;
+        if !seen.insert(canonical.clone()) {
+            continue;
+        }
+        if closure.len() >= MAX_CLOSURE_FILES {
+            return Err(CacheSkip("grammar closure exceeds file budget".into()));
+        }
+        let bytes = std::fs::read(&canonical).map_err(|error| CacheSkip(error.to_string()))?;
+        *budget = budget
+            .checked_sub(bytes.len() as u64)
+            .ok_or_else(|| CacheSkip("grammar closure exceeds byte budget".into()))?;
+        closure.push((path_suffix(&canonical, root_base), bytes));
     }
     Ok(())
 }
@@ -609,10 +576,18 @@ struct ValidEntry {
 /// manifest, protocol mismatch, key mismatch, stale TTL, missing or
 /// hash-mismatched executable all yield `None` without side effects.
 fn validate_entry(root: &Path, key: &str) -> Option<ValidEntry> {
-    if key.len() != ENTRY_NAME_LEN || !key.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+    if !is_entry_name(key) {
         return None;
     }
     let dir = root.join(key);
+    if !std::fs::symlink_metadata(&dir).ok()?.is_dir()
+        || std::fs::symlink_metadata(dir.join("manifest.json"))
+            .ok()?
+            .file_type()
+            .is_symlink()
+    {
+        return None;
+    }
     let manifest_bytes = std::fs::read(dir.join("manifest.json")).ok()?;
     if manifest_bytes.len() > 1_048_576 {
         return None;
@@ -649,6 +624,9 @@ fn validate_entry(root: &Path, key: &str) -> Option<ValidEntry> {
         .and_then(|exe| exe.get("sha256"))
         .and_then(serde_json::Value::as_str)?;
     let exe = dir.join(exe_name);
+    if !std::fs::symlink_metadata(&exe).ok()?.is_file() {
+        return None;
+    }
     let bytes = std::fs::read(&exe).ok()?;
     if bytes.len() as u64 != expected_len || hex_digest(Sha256::digest(&bytes)) != expected_sha {
         return None;
@@ -709,7 +687,7 @@ fn lock_is_stale(lock_path: &Path) -> bool {
 }
 
 /// Exclusively claim a staging directory owned by this process.
-fn claim_staging_dir(root: &Path) -> PathBuf {
+fn claim_staging_dir(root: &Path) -> Option<PathBuf> {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let pid = std::process::id();
     for _ in 0..100 {
@@ -720,15 +698,10 @@ fn claim_staging_dir(root: &Path) -> PathBuf {
         // `create_dir` fails when the path exists, so a colliding path is
         // never removed or reused.
         if std::fs::create_dir(&candidate).is_ok() {
-            return candidate;
+            return Some(candidate);
         }
     }
-    // Degrade to a process-private temp dir rather than touching anything
-    // shared; the build then proceeds without any cache publication.
-    std::env::temp_dir().join(format!(
-        ".adze-runner-staging-{pid}-{}",
-        COUNTER.fetch_add(1, Ordering::Relaxed)
-    ))
+    None
 }
 
 /// Build in owned staging, verify, and publish atomically.
@@ -744,12 +717,15 @@ fn build_and_publish(
     std::fs::write(staging.join("build.rs"), &spec.build_rs)?;
     std::fs::write(src_dir.join("main.rs"), &spec.main_rs)?;
 
+    eprintln!("compiling parse runner...");
     note_cargo_spawn();
     let output = std::process::Command::new("cargo")
         .arg("build")
+        .arg("--message-format=json-render-diagnostics")
         .arg("--manifest-path")
         .arg(staging.join("Cargo.toml"))
         .env("ADZE_USE_PURE_RUST", "1")
+        .env("CARGO_TARGET_DIR", staging.join("target"))
         .output()?;
     if !output.status.success() {
         return Err(anyhow::Error::new(CargoFailed {
@@ -759,15 +735,19 @@ fn build_and_publish(
         }));
     }
     let exe_name = format!("adze-cli-parse-runner{}", std::env::consts::EXE_SUFFIX);
-    let built = cargo_target_dir(staging).join("debug").join(&exe_name);
-    let bytes = std::fs::read(&built).map_err(|error| {
-        anyhow::anyhow!(
-            "cached runner build produced no executable {}: {error}",
-            built.display()
-        )
-    })?;
+    let Some(built) = cargo_executable(&output.stdout) else {
+        return Ok(CachedBuild::Unavailable);
+    };
+    let Ok(bytes) = std::fs::read(&built) else {
+        return Ok(CachedBuild::Unavailable);
+    };
     if bytes.is_empty() {
-        anyhow::bail!("cached runner build produced an empty executable");
+        return Ok(CachedBuild::Unavailable);
+    }
+    // Files can change during Cargo's read. Refuse publication unless the
+    // observed grammar/template candidate still matches after compilation.
+    if grammar_candidate_key(spec).as_deref() != Some(key) {
+        return Ok(CachedBuild::Unavailable);
     }
     let exe_sha = hex_digest(Sha256::digest(&bytes));
 
@@ -775,7 +755,10 @@ fn build_and_publish(
     // rename, so readers only ever see absent-or-complete entries.
     let entry = staging.join("entry");
     std::fs::create_dir_all(&entry)?;
-    std::fs::write(entry.join(&exe_name), &bytes)?;
+    std::fs::copy(&built, entry.join(&exe_name))?;
+    if std::fs::read(entry.join(&exe_name))? != bytes {
+        return Ok(CachedBuild::Unavailable);
+    }
     let built_unix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|elapsed| elapsed.as_secs())
@@ -839,17 +822,17 @@ fn enforce_bounds(root: &Path, max_entries: usize) {
     let mut trash: Vec<PathBuf> = Vec::new();
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with(".trash-") {
+        if is_owned_trash_name(&name) {
             trash.push(entry.path());
             continue;
         }
-        if name.ends_with(".lock") {
+        if name.strip_suffix(".lock").is_some_and(is_entry_name) {
             if lock_is_stale(&entry.path()) {
                 let _ = std::fs::remove_file(entry.path());
             }
             continue;
         }
-        if name.starts_with(".staging-") || name.len() != ENTRY_NAME_LEN {
+        if !is_entry_name(&name) {
             continue;
         }
         let built = std::fs::read(entry.path().join("manifest.json"))
@@ -897,17 +880,47 @@ fn enforce_bounds(root: &Path, max_entries: usize) {
     }
 }
 
+fn is_entry_name(name: &str) -> bool {
+    name.len() == ENTRY_NAME_LEN
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn is_owned_trash_name(name: &str) -> bool {
+    let Some(suffix) = name.strip_prefix(".trash-") else {
+        return false;
+    };
+    let Some((pid, counter)) = suffix.split_once('-') else {
+        return false;
+    };
+    !pid.is_empty()
+        && !counter.is_empty()
+        && pid.bytes().all(|byte| byte.is_ascii_digit())
+        && counter.bytes().all(|byte| byte.is_ascii_digit())
+}
+
 /// Move an entry aside before deleting so a concurrent validator never sees
 /// a half-removed directory; deletion failures are left for a later pass.
 fn retire_entry(root: &Path, path: &Path) {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let pid = std::process::id();
-    let trash = root.join(format!(
-        ".trash-{pid}-{}",
-        COUNTER.fetch_add(1, Ordering::Relaxed)
-    ));
-    if std::fs::rename(path, &trash).is_ok() {
-        let _ = std::fs::remove_dir_all(&trash);
+    for _ in 0..100 {
+        let trash = root.join(format!(
+            ".trash-{pid}-{}",
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        // Claim an enclosing directory exclusively before moving anything.
+        // rename alone could replace somebody else's existing empty directory.
+        if std::fs::create_dir(&trash).is_err() {
+            continue;
+        }
+        if std::fs::rename(path, trash.join("entry")).is_ok() {
+            let _ = std::fs::remove_dir_all(&trash);
+        } else {
+            let _ = std::fs::remove_dir(&trash);
+        }
+        return;
     }
 }
 
@@ -978,61 +991,29 @@ fn tail_bytes(bytes: &[u8], limit: usize) -> Vec<u8> {
     bytes[bytes.len() - limit..].to_vec()
 }
 
-/// Where Cargo places build artifacts for a staging project.
-///
-/// Defaults to the staging-local `target/` directory; an explicit
-/// `CARGO_TARGET_DIR` is honored for placement only and never enters the
-/// cache key (a relative value resolves against the CLI's working directory,
-/// matching Cargo's own behavior).
-fn cargo_target_dir(staging: &Path) -> PathBuf {
-    if let Ok(dir) = std::env::var("CARGO_TARGET_DIR") {
-        let dir = PathBuf::from(dir);
-        if dir.is_absolute() {
-            return dir;
+/// Cargo reports the actual selected executable path, including target triples
+/// and target-dir configuration. Never guess the layout or a shared filename.
+fn cargo_executable(stdout: &[u8]) -> Option<PathBuf> {
+    let mut executable = None;
+    for line in stdout.split(|byte| *byte == b'\n') {
+        let Ok(message) = serde_json::from_slice::<serde_json::Value>(line) else {
+            continue;
+        };
+        if message["reason"] != "compiler-artifact"
+            || message["target"]["name"] != "adze-cli-parse-runner"
+            || !message["target"]["kind"]
+                .as_array()?
+                .iter()
+                .any(|kind| kind == "bin")
+        {
+            continue;
         }
-        return std::env::current_dir()
-            .unwrap_or_else(|_| staging.to_path_buf())
-            .join(dir);
-    }
-    staging.join("target")
-}
-/// Capped consumption budget; exhaustion refuses caching (fail safe).
-struct FileBudget {
-    files: usize,
-    bytes: u64,
-}
-
-impl FileBudget {
-    fn new(files: usize, bytes: u64) -> Self {
-        Self { files, bytes }
-    }
-
-    fn consume(&mut self, bytes: u64) -> Result<(), CacheSkip> {
-        if self.files == 0 {
-            return Err(CacheSkip("dependency walk exceeds file budget".to_string()));
-        }
-        self.files -= 1;
-        self.bytes = self
-            .bytes
-            .checked_sub(bytes)
-            .ok_or_else(|| CacheSkip("dependency walk exceeds byte budget".to_string()))?;
-        Ok(())
-    }
-}
-
-/// Recursively collect `*.rs` files (allocation-light pre-sort).
-fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
-    for entry in std::fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        let file_type = entry.file_type()?;
-        if file_type.is_dir() {
-            collect_rs_files(&path, out)?;
-        } else if file_type.is_file() && path.extension().is_some_and(|ext| ext == "rs") {
-            out.push(path);
+        let path = message["executable"].as_str()?;
+        if executable.replace(PathBuf::from(path)).is_some() {
+            return None;
         }
     }
-    Ok(())
+    executable
 }
 
 #[cfg(test)]
@@ -1059,11 +1040,259 @@ mod tests {
     const SINGLE: &str = "#[adze::grammar(\"tiny\")]\npub mod grammar {\n}\n";
 
     #[test]
+    fn incomplete_dependency_custody_never_admits_production_reuse() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let grammar = write_grammar(temp.path(), "grammar.rs", SINGLE);
+        let spec = test_spec(&grammar, "grammar");
+        assert!(super::grammar_candidate_key(&spec).is_some());
+        assert!(
+            super::build_key(&spec).is_none(),
+            "partial candidate identity cannot authorize execution"
+        );
+    }
+
+    #[test]
+    fn nested_modules_hash_the_actual_child_not_a_sibling_decoy() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let grammar = write_grammar(
+            temp.path(),
+            "grammar.rs",
+            "mod foo;
+",
+        );
+        write_grammar(
+            temp.path(),
+            "foo.rs",
+            "mod bar;
+",
+        );
+        write_grammar(
+            temp.path(),
+            "bar.rs",
+            "const V: u8 = 99;
+",
+        );
+        std::fs::create_dir(temp.path().join("foo")).expect("module dir");
+        let child = write_grammar(
+            &temp.path().join("foo"),
+            "bar.rs",
+            "const V: u8 = 1;
+",
+        );
+        let before = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
+        std::fs::write(
+            &child,
+            "const V: u8 = 2;
+",
+        )
+        .expect("edit actual child");
+        let after = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
+        assert_ne!(before, after);
+        write_grammar(
+            temp.path(),
+            "bar.rs",
+            "const V: u8 = 100;
+",
+        );
+        assert_eq!(
+            after,
+            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key")
+        );
+    }
+
+    #[test]
+    fn inline_modules_use_their_module_directory() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let grammar = write_grammar(
+            temp.path(),
+            "grammar.rs",
+            "mod foo { mod bar; }
+",
+        );
+        std::fs::create_dir(temp.path().join("foo")).expect("module dir");
+        let child = write_grammar(
+            &temp.path().join("foo"),
+            "bar.rs",
+            "const V: u8 = 1;
+",
+        );
+        let before = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
+        std::fs::write(
+            child,
+            "const V: u8 = 2;
+",
+        )
+        .expect("edit inline child");
+        assert_ne!(
+            before,
+            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key")
+        );
+    }
+
+    #[test]
+    fn raw_text_and_binary_includes_hash_bytes_without_rust_parsing() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let grammar = write_grammar(
+            temp.path(),
+            "grammar.rs",
+            "const T: &str = include_str!(\"data.txt\"); const B: &[u8] = include_bytes!(\"data.bin\");",
+        );
+        std::fs::write(temp.path().join("data.txt"), "this is not Rust!").expect("text");
+        std::fs::write(temp.path().join("data.bin"), [255, 0, 128]).expect("binary");
+        let before =
+            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("raw include key");
+        std::fs::write(temp.path().join("data.bin"), [254, 0, 128]).expect("changed binary");
+        assert_ne!(
+            before,
+            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key")
+        );
+    }
+
+    #[test]
+    fn conditional_path_overrides_refuse_candidate_reuse() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let grammar = write_grammar(
+            temp.path(),
+            "grammar.rs",
+            "#[cfg_attr(unix, path = \"other.rs\")] mod foo;",
+        );
+        write_grammar(temp.path(), "foo.rs", "");
+        write_grammar(temp.path(), "other.rs", "");
+        assert!(super::grammar_candidate_key(&test_spec(&grammar, "grammar")).is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn private_cache_root_rejects_writable_roots_and_symlinks() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path().join("private");
+        assert!(super::prepare_private_root(&root));
+        let link = temp.path().join("link");
+        symlink(&root, &link).expect("symlink");
+        assert!(!super::prepare_private_root(&link));
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o777))
+            .expect("permissions");
+        assert!(!super::prepare_private_root(&root));
+        assert_eq!(
+            std::fs::metadata(&root)
+                .expect("metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o777,
+            "never chmod an untrusted existing directory"
+        );
+        let insecure_parent = temp.path().join("insecure");
+        std::fs::create_dir(&insecure_parent).expect("parent");
+        std::fs::set_permissions(&insecure_parent, std::fs::Permissions::from_mode(0o777))
+            .expect("parent mode");
+        assert!(!super::prepare_private_root(&insecure_parent.join("cache")));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn self_consistent_entry_symlinks_are_not_trusted() {
+        use std::os::unix::fs::symlink;
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path().join("cache");
+        std::fs::create_dir(&root).expect("root");
+        let key = "d".repeat(64);
+        let entry = root.join(&key);
+        std::fs::create_dir(&entry).expect("entry");
+        let bytes = b"runner bytes";
+        std::fs::write(entry.join("runner"), bytes).expect("runner");
+        let manifest = serde_json::json!({
+            "protocol": RUNNER_PROTOCOL_VERSION, "key": key,
+            "built_unix": super::SystemTime::now().duration_since(super::UNIX_EPOCH).expect("now").as_secs(),
+            "exe": {"file": "runner", "sha256": super::hex_digest(super::hash_bytes(bytes)), "len": bytes.len()},
+        });
+        std::fs::write(
+            entry.join("manifest.json"),
+            serde_json::to_vec(&manifest).expect("json"),
+        )
+        .expect("manifest");
+        assert!(super::validate_entry(&root, &key).is_some());
+        let outside = temp.path().join("outside-entry");
+        std::fs::rename(&entry, &outside).expect("move entry");
+        symlink(&outside, &entry).expect("entry symlink");
+        assert!(super::validate_entry(&root, &key).is_none());
+        std::fs::remove_file(&entry).expect("unlink entry");
+        std::fs::rename(&outside, &entry).expect("restore entry");
+        let external_runner = temp.path().join("external-runner");
+        std::fs::rename(entry.join("runner"), &external_runner).expect("move runner");
+        symlink(&external_runner, entry.join("runner")).expect("runner symlink");
+        assert!(super::validate_entry(&root, &key).is_none());
+    }
+
+    #[test]
+    fn staging_failure_never_returns_an_unclaimed_path() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let file = temp.path().join("not-a-directory");
+        std::fs::write(&file, "sentinel").expect("file");
+        assert!(super::claim_staging_dir(&file).is_none());
+        assert_eq!(std::fs::read_to_string(file).expect("file"), "sentinel");
+    }
+
+    #[test]
+    fn cargo_artifact_messages_select_the_reported_target_executable() {
+        let message = serde_json::json!({"reason": "compiler-artifact", "target": {"name": "adze-cli-parse-runner", "kind": ["bin"]}, "executable": "/configured/target/host-triple/debug/adze-cli-parse-runner"});
+        let stdout = serde_json::to_vec(&message).expect("json");
+        assert_eq!(
+            super::cargo_executable(&stdout),
+            Some(PathBuf::from(
+                "/configured/target/host-triple/debug/adze-cli-parse-runner"
+            ))
+        );
+        assert!(super::cargo_executable(b"not an artifact").is_none());
+        let duplicate = [stdout.as_slice(), b"\n", stdout.as_slice()].concat();
+        assert!(
+            super::cargo_executable(&duplicate).is_none(),
+            "ambiguous artifacts require Cargo fallback"
+        );
+    }
+
+    #[test]
+    fn isolated_owned_fixture_build_publishes_an_executable() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let grammar = write_grammar(temp.path(), "grammar.rs", "");
+        let spec = super::RunnerSpec {
+            grammar: &grammar, module: "fixture",
+            cargo_toml: "[package]\nname = \"adze-cli-parse-runner\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n".into(),
+            build_rs: "fn main() {}".into(),
+            main_rs: "fn main() { println!(\"owned fixture\"); }".into(),
+        };
+        let key = super::grammar_candidate_key(&spec).expect("candidate key");
+        let root = temp.path().join("cache");
+        std::fs::create_dir(&root).expect("cache");
+        let config = super::CacheConfig {
+            root: root.clone(),
+            max_entries: 2,
+        };
+        let staging = super::claim_staging_dir(&root).expect("owned staging");
+        let built =
+            super::build_and_publish(&spec, &config, &key, &staging).expect("fixture build");
+        let super::CachedBuild::Ready(executable) = built else {
+            panic!("expected publication")
+        };
+        let output = std::process::Command::new(&executable)
+            .output()
+            .expect("executable mode retained");
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"owned fixture\n");
+        assert!(super::validate_entry(&root, &key).is_some());
+        assert!(
+            super::build_key(&spec).is_none(),
+            "fixture publication does not grant production admission"
+        );
+    }
+
+    #[test]
     fn key_is_stable_and_content_addressed() {
         let temp = tempfile::tempdir().expect("tempdir");
         let grammar = write_grammar(temp.path(), "grammar.rs", SINGLE);
-        let first = super::build_key(&test_spec(&grammar, "grammar")).expect("key");
-        let second = super::build_key(&test_spec(&grammar, "grammar")).expect("key");
+        let first = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
+        let second = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         assert_eq!(first, second, "same bytes must produce the same key");
         assert_eq!(first.len(), 64, "key must be a sha256 hex digest");
     }
@@ -1072,13 +1301,14 @@ mod tests {
     fn key_ignores_mtime_and_follows_bytes() {
         let temp = tempfile::tempdir().expect("tempdir");
         let grammar = write_grammar(temp.path(), "grammar.rs", SINGLE);
-        let before = super::build_key(&test_spec(&grammar, "grammar")).expect("key");
+        let before = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         // Rewrite identical bytes (mtime changes); then change one byte.
         write_grammar(temp.path(), "grammar.rs", SINGLE);
-        let same_bytes = super::build_key(&test_spec(&grammar, "grammar")).expect("key");
+        let same_bytes =
+            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         assert_eq!(before, same_bytes, "mtime alone must not change the key");
         write_grammar(temp.path(), "grammar.rs", &format!("{SINGLE}// v2\n"));
-        let changed = super::build_key(&test_spec(&grammar, "grammar")).expect("key");
+        let changed = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         assert_ne!(before, changed, "changed content with any mtime must miss");
     }
 
@@ -1096,15 +1326,16 @@ mod tests {
         std::fs::write(root_b.join("shared.rs"), "pub const V: u32 = 2;\n").expect("sibling b");
         let grammar_a = root_a.join("grammar.rs");
         let grammar_b = root_b.join("grammar.rs");
-        let key_a = super::build_key(&test_spec(&grammar_a, "grammar")).expect("key a");
-        let key_b = super::build_key(&test_spec(&grammar_b, "grammar")).expect("key b");
+        let key_a = super::grammar_candidate_key(&test_spec(&grammar_a, "grammar")).expect("key a");
+        let key_b = super::grammar_candidate_key(&test_spec(&grammar_b, "grammar")).expect("key b");
         assert_ne!(
             key_a, key_b,
             "identical root bytes with different sibling resolution must not collide"
         );
         // Identical layout and bytes share the key (same binary either way).
         std::fs::write(root_b.join("shared.rs"), "pub const V: u32 = 1;\n").expect("align sibling");
-        let key_b_aligned = super::build_key(&test_spec(&grammar_b, "grammar")).expect("key b2");
+        let key_b_aligned =
+            super::grammar_candidate_key(&test_spec(&grammar_b, "grammar")).expect("key b2");
         assert_eq!(key_a, key_b_aligned);
     }
 
@@ -1117,7 +1348,7 @@ mod tests {
             "#[adze::grammar(\"tiny\")]\npub mod grammar {\n}\nconst H: &str = include!(concat!(\"a\", \".txt\"));\n",
         );
         assert!(
-            super::build_key(&test_spec(&grammar, "grammar")).is_none(),
+            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).is_none(),
             "dynamic include! inputs cannot be fingerprinted"
         );
     }
@@ -1131,7 +1362,7 @@ mod tests {
             "#[adze::grammar(\"tiny\")]\npub mod grammar {\n}\nmod absent;\n",
         );
         assert!(
-            super::build_key(&test_spec(&grammar, "grammar")).is_none(),
+            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).is_none(),
             "unresolvable modules must fall back to the legacy build"
         );
     }
@@ -1192,6 +1423,13 @@ mod tests {
         // Unrelated files, another invocation's staging, and a fresh lock
         // must all survive eviction.
         std::fs::write(root.join("notes.txt"), "user file").expect("user file");
+        let unrelated_hex_length = root.join("z".repeat(64));
+        std::fs::create_dir(&unrelated_hex_length).expect("unrelated directory");
+        std::fs::write(unrelated_hex_length.join("sentinel"), "keep").expect("sentinel");
+        let unrelated_lock = root.join("notes.lock");
+        let file = std::fs::File::create(&unrelated_lock).expect("unrelated lock");
+        file.set_times(std::fs::FileTimes::new().set_modified(super::UNIX_EPOCH))
+            .expect("old timestamp");
         std::fs::create_dir_all(root.join(".staging-999-0")).expect("foreign staging");
         std::fs::write(root.join(".staging-999-0").join("wip"), "wip").expect("wip");
         let live_lock = root.join(format!("{}.lock", "b".repeat(64)));
@@ -1203,7 +1441,7 @@ mod tests {
             .expect("read cache")
             .flatten()
             .map(|entry| entry.file_name().to_string_lossy().into_owned())
-            .filter(|name| name.len() == 64)
+            .filter(|name| super::is_entry_name(name))
             .collect();
         assert!(
             remaining.len() <= 2,
@@ -1218,6 +1456,14 @@ mod tests {
             "another invocation's staging is never touched"
         );
         assert!(live_lock.is_file(), "fresh locks are preserved");
+        assert!(
+            unrelated_hex_length.join("sentinel").is_file(),
+            "nonhex names are not entries"
+        );
+        assert!(
+            unrelated_lock.is_file(),
+            "unrelated old locks are preserved"
+        );
     }
 
     #[test]
@@ -1274,7 +1520,7 @@ mod tests {
         let taken = root.join(format!(".staging-{pid}-0"));
         std::fs::create_dir_all(&taken).expect("colliding staging");
         std::fs::write(taken.join("sentinel"), "foreign").expect("sentinel");
-        let claimed = super::claim_staging_dir(&root);
+        let claimed = super::claim_staging_dir(&root).expect("owned staging");
         assert_ne!(claimed, taken);
         assert!(claimed.is_dir());
         assert_eq!(

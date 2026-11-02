@@ -73,40 +73,39 @@ Format map: `tree` renders the document tree; `json` prints the full
 selected tree; `document-json`/`tree-json`/`diagnostics-json`/`ambiguity-json`
 emit the named projection verbatim. `--format` and `--output` are aliases.
 
-## Static runner cache
+## Static runner builds and cache admission
 
-The first parse of a grammar compiles a dedicated runner; later parses of
-the same build reuse the cached binary directly with no Cargo invocation,
-and different input text always parses fresh. Only compiled runners are
-cached, never parse results, and cached output is byte-identical to an
-uncached build (progress chatter goes to stderr; document output owns
-stdout).
+Static parsing currently builds a temporary runner through Cargo on every
+invocation. Changing the input always parses fresh. Progress messages go to
+stderr; document output owns stdout.
 
-The cache key is a content hash over the full build identity: grammar bytes
-plus reachable sibling modules/includes, the rendered runner project,
-dependency sources (in-workspace `path =` trees are hashed recursively;
-published installs key version requirements and expire), the toolchain and
-target, profile, feature set, and relevant build environment. Grammar mtime
-alone never identifies an executable. Anything outside that envelope —
-dynamic `include!` arguments, unresolvable modules, unreadable inputs, or an
-unusable toolchain fingerprint — falls back to a fresh temporary build with
-correct output instead of a silent stale reuse. The private runner transport
-contract is still the current document-projection shape; issue #1066 owns
-its versioning, and the cache records a protocol version that a future #1066
-contract must bump.
+Direct cached-executable reuse is disabled while issue #1067 establishes
+complete build-input custody. The generated runner currently depends on
+mutable workspace packages or floating registry requirements, and a grammar
+hash plus a source-tree walk does not identify the resolved lock state,
+transitive dependencies, Cargo configuration, compiler wrappers or arbitrary
+build-script inputs. A seven-day expiry cannot make an incomplete key safe.
+The CLI therefore uses the checked temporary-project path instead of executing
+a potentially stale cache entry. This also applies to existing cache entries.
 
 ```bash
-adze parse src/grammar.rs input.txt          # cold: builds once, then reuses
-ADZE_RUNNER_CACHE=off adze parse src/grammar.rs input.txt   # always rebuild
-ADZE_RUNNER_CACHE_DIR=/path/to/dir adze parse src/grammar.rs input.txt
+adze parse src/grammar.rs input.txt
+ADZE_RUNNER_CACHE=off adze parse src/grammar.rs input.txt
 ```
 
-Entries live under `ADZE_RUNNER_CACHE_DIR` (default: a per-user temp
-directory), are published atomically so concurrent parses never observe
-partial artifacts, expire after 7 days, and are bounded to 32 entries by
-default (`ADZE_RUNNER_CACHE_MAX_ENTRIES`). Cleanup only removes
-cache-owned entries and never touches another invocation's staging or
-unrelated files.
+The candidate-key, atomic publication and integrity-check machinery remains
+covered by isolated fixtures for future admission work. It does not yet provide
+a supported zero-Cargo warm-hit path. Candidate scanning handles ordinary and
+inline modules and literal raw-data includes; uncertain conditional module
+paths and Rust `include!` fragments require Cargo validation. Production
+admission requires a separate complete dependency/configuration proof.
+
+Cache-root handling requires a private owned directory with trusted ancestors
+on Unix; other ACL platforms refuse cache use until equivalent checks exist.
+Cleanup's entry limit is best effort: recent entries have a grace period and
+old entries shrink on a later publication. Executable hashing is an integrity
+check, with no measured performance guarantee. #1066 owns the private runner
+transport/version contract; #869 owns performance reporting.
 
 ## Windows notes
 

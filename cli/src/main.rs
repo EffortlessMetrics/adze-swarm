@@ -960,7 +960,6 @@ fn run_static_parse_runner(grammar: &Path, input: &Path, output_format: &str) ->
         return Ok(output);
     }
 
-    eprintln!("compiling parse runner (first run may take a while; cached afterwards)...");
     let started = std::time::Instant::now();
     let executable = match runner_cache::build_cached(&spec) {
         Ok(runner_cache::CachedBuild::Ready(executable)) => executable,

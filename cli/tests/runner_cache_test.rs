@@ -1,5 +1,5 @@
-//! Runner-cache acceptance for issue #1067: one cold build, warm reuse with
-//! zero Cargo invocations, content-driven misses, and corrupt-entry recovery.
+//! Fail-closed cache admission for issue #1067: incomplete dependency/config
+//! custody must use Cargo on every parse and never execute existing entries.
 //!
 //! Uses a real `adze init` starter grammar (not a fake runner) and counts
 //! actual `cargo` spawns through `ADZE_TEST_CARGO_COUNT_FILE`.
@@ -34,30 +34,13 @@ fn parse_with_cache(
         .assert()
 }
 
-fn corrupt_every_entry_manifest(cache_dir: &Path) -> usize {
-    let mut corrupted = 0;
-    for entry in std::fs::read_dir(cache_dir)
-        .expect("read cache dir")
-        .flatten()
-    {
-        let manifest = entry.path().join("manifest.json");
-        if manifest.is_file() {
-            std::fs::write(&manifest, "definitely not a manifest").expect("corrupt manifest");
-            corrupted += 1;
-        }
-    }
-    corrupted
-}
-
 #[test]
-fn test_cached_runner_builds_once_reuses_binary_and_recovers() {
+fn test_unresolved_build_identity_rebuilds_and_parses_fresh_input() {
     let temp = tempfile::tempdir().expect("tempdir");
-    // Spaces and non-ASCII names exercise argv/path handling end to end.
     let spaced = temp.path().join("cache dir ♥");
     std::fs::create_dir_all(&spaced).expect("spaced dir");
     let cache_dir = spaced.join("runner-cache");
     let count_file = spaced.join("cargo-count.txt");
-
     let mut init = cargo_bin_cmd!("adze");
     init.arg("init")
         .arg("calc")
@@ -65,13 +48,12 @@ fn test_cached_runner_builds_once_reuses_binary_and_recovers() {
         .arg(&spaced)
         .assert()
         .success();
-    let grammar = spaced.join("calc").join("src").join("grammar.rs");
+    let grammar = spaced.join("calc/src/grammar.rs");
     let input_a = spaced.join("a.txt");
     let input_b = spaced.join("b input ♥.txt");
-    std::fs::write(&input_a, "123").expect("write input a");
-    std::fs::write(&input_b, "1 + 2").expect("write input b");
+    std::fs::write(&input_a, "123").expect("input a");
+    std::fs::write(&input_b, "1 + 2").expect("input b");
 
-    // Cold parse builds exactly once through Cargo.
     let first = parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
         .success()
         .stdout(predicate::str::contains("Expr"))
@@ -79,65 +61,31 @@ fn test_cached_runner_builds_once_reuses_binary_and_recovers() {
         .get_output()
         .stdout
         .clone();
-    assert_eq!(
-        cargo_spawns(&count_file),
-        1,
-        "cold parse must build the runner exactly once"
-    );
-
-    // Warm parse of DIFFERENT input reuses the binary: zero new Cargo
-    // invocations, fresh parse of the new text.
+    assert_eq!(cargo_spawns(&count_file), 1);
     parse_with_cache(&grammar, &input_b, &cache_dir, &count_file)
         .success()
         .stdout(predicate::str::contains("Expr_Add"))
         .stdout(predicate::str::contains("[0..5]"));
     assert_eq!(
         cargo_spawns(&count_file),
-        1,
-        "warm parse must execute the cached binary without Cargo"
+        2,
+        "unresolved dependencies/configuration require Cargo validation on every invocation"
     );
-
-    // Same input parses identically cold and warm: caching never changes the
-    // outcome or diagnostics.
-    let warm_same = parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
+    let repeated = parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
         .success()
         .stdout(predicate::str::contains("[0..3]"))
         .get_output()
         .stdout
         .clone();
-    assert_eq!(first, warm_same, "cached output must match the cold output");
-    assert_eq!(cargo_spawns(&count_file), 1);
-
-    // A corrupt entry is refused and rebuilt, never executed.
-    let corrupted = corrupt_every_entry_manifest(&cache_dir);
-    assert!(corrupted >= 1, "cold build must have published an entry");
-    parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
-        .success()
-        .stdout(predicate::str::contains("[0..3]"));
     assert_eq!(
-        cargo_spawns(&count_file),
-        2,
-        "corrupt entry must trigger exactly one rebuild"
+        first, repeated,
+        "fresh builds retain independently expected output"
     );
-
-    // Changed grammar bytes are a miss even though nothing else moved.
-    let mut source = std::fs::read_to_string(&grammar).expect("read grammar");
-    source.push_str("\n// cache-invalidation probe\n");
-    std::fs::write(&grammar, source).expect("rewrite grammar");
-    parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
-        .success()
-        .stdout(predicate::str::contains("[0..3]"));
-    assert_eq!(
-        cargo_spawns(&count_file),
-        3,
-        "changed grammar content must miss and rebuild once"
-    );
-
-    // The rebuilt entry is reused again with zero Cargo invocations.
-    parse_with_cache(&grammar, &input_b, &cache_dir, &count_file)
-        .success()
-        .stdout(predicate::str::contains("[0..5]"));
     assert_eq!(cargo_spawns(&count_file), 3);
+    assert!(
+        !cache_dir.exists(),
+        "unsupported admission must not read, create or publish entries"
+    );
 }
 
 #[test]
@@ -230,4 +178,113 @@ fn test_unsupported_closure_falls_back_to_fresh_build() {
                 .unwrap_or(true),
         "unsupported envelope must not publish entries"
     );
+}
+
+// Retain the requested zero-Cargo oracle as explicitly pending acceptance.
+// Passing fallback tests do not satisfy this obligation.
+fn corrupt_every_entry_manifest(cache_dir: &Path) -> usize {
+    let mut corrupted = 0;
+    for entry in std::fs::read_dir(cache_dir)
+        .expect("read cache dir")
+        .flatten()
+    {
+        let manifest = entry.path().join("manifest.json");
+        if manifest.is_file() {
+            std::fs::write(&manifest, "definitely not a manifest").expect("corrupt manifest");
+            corrupted += 1;
+        }
+    }
+    corrupted
+}
+
+#[test]
+#[ignore = "#1067: direct reuse requires complete dependency/configuration custody"]
+fn test_cached_runner_builds_once_reuses_binary_and_recovers() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    // Spaces and non-ASCII names exercise argv/path handling end to end.
+    let spaced = temp.path().join("cache dir ♥");
+    std::fs::create_dir_all(&spaced).expect("spaced dir");
+    let cache_dir = spaced.join("runner-cache");
+    let count_file = spaced.join("cargo-count.txt");
+
+    let mut init = cargo_bin_cmd!("adze");
+    init.arg("init")
+        .arg("calc")
+        .arg("--output")
+        .arg(&spaced)
+        .assert()
+        .success();
+    let grammar = spaced.join("calc").join("src").join("grammar.rs");
+    let input_a = spaced.join("a.txt");
+    let input_b = spaced.join("b input ♥.txt");
+    std::fs::write(&input_a, "123").expect("write input a");
+    std::fs::write(&input_b, "1 + 2").expect("write input b");
+
+    // Cold parse builds exactly once through Cargo.
+    let first = parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
+        .success()
+        .stdout(predicate::str::contains("Expr"))
+        .stdout(predicate::str::contains("[0..3]"))
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(
+        cargo_spawns(&count_file),
+        1,
+        "cold parse must build the runner exactly once"
+    );
+
+    // Warm parse of DIFFERENT input reuses the binary: zero new Cargo
+    // invocations, fresh parse of the new text.
+    parse_with_cache(&grammar, &input_b, &cache_dir, &count_file)
+        .success()
+        .stdout(predicate::str::contains("Expr_Add"))
+        .stdout(predicate::str::contains("[0..5]"));
+    assert_eq!(
+        cargo_spawns(&count_file),
+        1,
+        "warm parse must execute the cached binary without Cargo"
+    );
+
+    // Same input parses identically cold and warm: caching never changes the
+    // outcome or diagnostics.
+    let warm_same = parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
+        .success()
+        .stdout(predicate::str::contains("[0..3]"))
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(first, warm_same, "cached output must match the cold output");
+    assert_eq!(cargo_spawns(&count_file), 1);
+
+    // A corrupt entry is refused and rebuilt, never executed.
+    let corrupted = corrupt_every_entry_manifest(&cache_dir);
+    assert!(corrupted >= 1, "cold build must have published an entry");
+    parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
+        .success()
+        .stdout(predicate::str::contains("[0..3]"));
+    assert_eq!(
+        cargo_spawns(&count_file),
+        2,
+        "corrupt entry must trigger exactly one rebuild"
+    );
+
+    // Changed grammar bytes are a miss even though nothing else moved.
+    let mut source = std::fs::read_to_string(&grammar).expect("read grammar");
+    source.push_str("\n// cache-invalidation probe\n");
+    std::fs::write(&grammar, source).expect("rewrite grammar");
+    parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
+        .success()
+        .stdout(predicate::str::contains("[0..3]"));
+    assert_eq!(
+        cargo_spawns(&count_file),
+        3,
+        "changed grammar content must miss and rebuild once"
+    );
+
+    // The rebuilt entry is reused again with zero Cargo invocations.
+    parse_with_cache(&grammar, &input_b, &cache_dir, &count_file)
+        .success()
+        .stdout(predicate::str::contains("[0..5]"));
+    assert_eq!(cargo_spawns(&count_file), 3);
 }
