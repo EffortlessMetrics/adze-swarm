@@ -423,6 +423,110 @@ mod tests {
         assert_eq!(production_map[2].to_string(), "2u16");
     }
 
+    /// Shared production metadata must not change the rule→production map shape (#1060).
+    ///
+    /// The map is indexed by dense RuleId, so three rules whose production
+    /// slots are shared/sparse still produce exactly one entry per rule.
+    #[test]
+    fn test_production_id_map_is_rule_id_keyed_with_shared_production() {
+        let mut grammar = Grammar::new("shared_prod".to_string());
+        let s = SymbolId(10);
+        let a = SymbolId(11);
+        let t_a = SymbolId(1);
+        let t_b = SymbolId(2);
+        grammar.rule_names.insert(s, "s".to_string());
+        grammar.rule_names.insert(a, "a".to_string());
+        for (id, name) in [(t_a, "a"), (t_b, "b")] {
+            grammar.tokens.insert(
+                id,
+                Token {
+                    name: name.to_string(),
+                    pattern: TokenPattern::String(name.to_string()),
+                    fragile: false,
+                },
+            );
+        }
+        grammar.add_rule(Rule {
+            lhs: s,
+            rhs: vec![Symbol::NonTerminal(a)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(5),
+        });
+        grammar.add_rule(Rule {
+            lhs: a,
+            rhs: vec![Symbol::Terminal(t_a)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        grammar.add_rule(Rule {
+            lhs: a,
+            rhs: vec![Symbol::Terminal(t_b)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+
+        let table = crate::empty_table!(states: 1, terms: 2, nonterms: 2);
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let map = builder.generate_production_id_map();
+        let values: Vec<u16> = map.iter().map(token_stream_u16).collect();
+
+        assert_eq!(
+            values,
+            vec![5, 0, 0],
+            "one entry per RuleId in rule order, not one per production slot"
+        );
+    }
+
+    /// Sparse production slots must not pad the rule→production map (#1060).
+    #[test]
+    fn test_production_id_map_is_rule_id_keyed_with_sparse_production() {
+        let mut grammar = Grammar::new("sparse_prod".to_string());
+        let s = SymbolId(10);
+        let t = SymbolId(1);
+        grammar.rule_names.insert(s, "s".to_string());
+        grammar.tokens.insert(
+            t,
+            Token {
+                name: "t".to_string(),
+                pattern: TokenPattern::String("t".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.add_rule(Rule {
+            lhs: s,
+            rhs: vec![Symbol::Terminal(t)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        grammar.add_rule(Rule {
+            lhs: s,
+            rhs: vec![Symbol::Terminal(t)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(2),
+        });
+
+        let table = crate::empty_table!(states: 1, terms: 1, nonterms: 1);
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let map = builder.generate_production_id_map();
+        let values: Vec<u16> = map.iter().map(token_stream_u16).collect();
+
+        assert_eq!(
+            values,
+            vec![0, 2],
+            "map length follows rule count, not max production slot + 1"
+        );
+    }
+
     #[test]
     fn test_generate_lex_modes_uses_parse_table_modes() {
         let grammar = Grammar::new("lex_modes".to_string());

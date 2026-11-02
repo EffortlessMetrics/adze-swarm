@@ -8,18 +8,20 @@ impl<'a> AbiLanguageBuilder<'a> {
     pub(super) fn generate_production_id_map(&self) -> Vec<TokenStream> {
         // Tree-sitter uses 1-based production IDs in the parse table
         // After decoding to zero-based, runtime indexes this map by RULE ID from parse actions.
-        // Therefore this map must be: rule_id -> production_id.
+        // Therefore this map must be: rule_id -> production_id, with exactly
+        // one entry per RuleId in rule order (#1060). ProductionId is
+        // shareable metadata: several rules may map to one slot and slots may
+        // be sparse, so sizing by production count would pad or truncate.
         // PARSE_ACTIONS / TS_RULES are indexed by production_id.
-        let map_size = self.calculate_counts().production_id_count as usize;
+        let map_size = self.grammar.all_rules().count();
 
         // Initialize map with a sentinel value (u16::MAX)
         let mut rule_to_production = vec![u16::MAX; map_size];
 
         // Fill the map in the same rule-id order used by GLR action generation.
+        // `map_size` is the rule count, so every rule has its slot.
         for (rule_id, rule) in self.grammar.all_rules().enumerate() {
-            if rule_id < map_size {
-                rule_to_production[rule_id] = rule.production_id.0;
-            }
+            rule_to_production[rule_id] = rule.production_id.0;
         }
 
         // Convert to TokenStreams

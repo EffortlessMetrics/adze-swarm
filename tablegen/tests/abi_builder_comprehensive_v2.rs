@@ -981,6 +981,45 @@ fn production_id_count_matches_rules() {
 }
 
 // ===========================================================================
+// #1060: shared-production table leg (grammar -> automaton -> ABI emission)
+// ===========================================================================
+
+#[test]
+fn shared_production_table_emits_rule_id_keyed_map() {
+    // Two `middle` alternatives share ProductionId(1) with identical
+    // (empty) metadata. The ABI PRODUCTION_ID_MAP is indexed by RuleId, so
+    // it must still carry one entry per rule in rule order: [0, 1, 1].
+    // Production-sized emission would truncate the third entry to [0, 1].
+    let mut grammar = GrammarBuilder::new("shared_prod")
+        .token("a", "a")
+        .token("b", "b")
+        .rule("s", vec!["middle"])
+        .rule("middle", vec!["a"])
+        .rule("middle", vec!["b"])
+        .start("s")
+        .build();
+    for rules in grammar.rules.values_mut() {
+        for rule in rules.iter_mut() {
+            if rule.rhs.len() == 1 && matches!(&rule.rhs[0], Symbol::Terminal(_)) {
+                rule.production_id = ProductionId(1);
+            }
+        }
+    }
+    grammar.refresh_production_ids().unwrap();
+    assert_eq!(grammar.all_rules().count(), 3);
+    let (code, table) = full_pipeline(grammar);
+    assert_eq!(
+        table.rules.len(),
+        3,
+        "automaton keeps both shared alternatives distinct"
+    );
+    assert!(
+        code.contains("0u16 , 1u16 , 1u16"),
+        "PRODUCTION_ID_MAP must carry one entry per RuleId in rule order"
+    );
+}
+
+// ===========================================================================
 // Additional: Public symbol map and primary state IDs
 // ===========================================================================
 
