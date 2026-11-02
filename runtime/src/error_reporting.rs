@@ -8,7 +8,13 @@ use adze_ir::SymbolId;
 use std::fmt;
 use std::sync::Arc;
 
-/// Parse error with location and context
+/// Parse error with location and context (display-oriented diagnostic shape).
+///
+/// This is a different type from the facade-canonical
+/// [`errors::ParseError`](crate::errors::ParseError) (reason + byte range),
+/// despite the shared name — a known collision tracked by #871 §d. In-repo
+/// query/display tests import this type directly, so no alias is introduced
+/// here; unification belongs to the #871 facade decision, not this module.
 #[derive(Debug, Clone)]
 pub struct ParseError {
     /// Line number (1-indexed)
