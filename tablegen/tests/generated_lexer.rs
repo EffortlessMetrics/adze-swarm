@@ -157,7 +157,7 @@ fn legacy_generate_lexer_entry_still_available() {
 }
 
 #[test]
-fn generated_lexer_executes_config_numeric_whitespace_and_comment_patterns() {
+fn test_generated_lexer_executes_config_numeric_whitespace_and_comment_patterns() {
     use adze_ir::{Token, TokenPattern};
     use std::process::Command;
 
