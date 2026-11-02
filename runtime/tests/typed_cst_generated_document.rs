@@ -605,17 +605,15 @@ fn generated_document_field_grants_validate_for_public_grammar_ids() {
         })
         .collect();
     assert_eq!(fields, vec![("left", Some("123")), ("right", Some("+"))]);
-    assert!(
-        document
+    assert_eq!(pair.grammar_id(), adze_ir::SymbolId(4));
+    for (name, target) in [("left", 5), ("right", 6)] {
+        let fact = document
             .language()
-            .field_semantics(pair.grammar_id(), "left")
-            .is_some()
-    );
-    assert!(
-        document
-            .language()
-            .field_semantics(pair.grammar_id(), "right")
-            .is_some()
-    );
+            .field_semantics(pair.grammar_id(), name)
+            .expect("generated field has canonical semantics");
+        assert_eq!(fact.target_kinds, vec![adze_ir::SymbolId(target)], "{name}");
+        assert!(fact.required, "{name}");
+        assert!(!fact.multiple, "{name}");
+    }
     assert_eq!(document.validate_fields(), Ok(()));
 }

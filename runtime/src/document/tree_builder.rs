@@ -198,6 +198,7 @@ mod tests {
             symbols: Vec::new(),
             fields: fields.iter().map(ToString::to_string).collect(),
             field_semantics: Default::default(),
+            field_schema_availability: crate::document::FieldSchemaAvailability::Unavailable,
         }
     }
 

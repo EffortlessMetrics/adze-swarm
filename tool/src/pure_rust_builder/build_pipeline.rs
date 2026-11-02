@@ -111,18 +111,65 @@ impl BuildPipeline {
         first_follow: &FirstFollowSets,
     ) -> Result<TokenStream> {
         let language_code = self.generate_abi_language_code(parse_table, first_follow)?;
+        // Project the canonical authority while the complete prepared grammar
+        // is available. Native production metadata cannot reconstruct these facts.
+        let mut schema_facts = Vec::new();
+        for (owner, fields) in
+            adze_tablegen::field_schema::field_semantics_for_grammar(&self.grammar)
+        {
+            let owner = owner.0;
+            for (name, fact) in fields {
+                let required = fact.required;
+                let multiple = fact.multiple;
+                let targets: Vec<_> = fact
+                    .targets
+                    .iter()
+                    .filter_map(|target| match target {
+                        adze_ir::Symbol::Terminal(id)
+                        | adze_ir::Symbol::NonTerminal(id)
+                        | adze_ir::Symbol::External(id) => Some(id.0),
+                        _ => None,
+                    })
+                    .collect();
+                schema_facts.push(quote::quote! {
+                    ::adze::generated_schema::GeneratedFieldFact {
+                        owner: #owner, name: #name, required: #required,
+                        multiple: #multiple, targets: &[#(#targets),*],
+                    }
+                });
+            }
+        }
+        let mut schema_fields: Vec<_> = self.grammar.fields.values().collect();
+        schema_fields.sort();
+        let schema_revision = adze_tablegen::field_schema::FIELD_SCHEMA_REVISION;
+        let descriptor_code = quote::quote! {
+            /// Native language paired with its canonical generated field schema.
+            pub static LANGUAGE_DESCRIPTOR: ::adze::generated_schema::GeneratedLanguageDescriptor =
+                ::adze::generated_schema::GeneratedLanguageDescriptor {
+                    language: &LANGUAGE,
+                    field_schema: ::adze::generated_schema::GeneratedFieldSchemaV1 {
+                        format_version: 1,
+                        schema_revision: #schema_revision,
+                        language: &LANGUAGE,
+                        public_symbols: PUBLIC_SYMBOL_MAP,
+                        field_names: &[#(#schema_fields),*],
+                        facts: &[#(#schema_facts),*],
+                    },
+                };
+        };
         let parse_document_code = quote::quote! {
             /// Parse source into the native Adze document alpha.
             pub fn parse_document(
                 input: &str,
             ) -> core::result::Result<::adze::document::AdzeDocument, Vec<::adze::errors::ParseError>> {
-                ::adze::__private::parse_document(input, || &LANGUAGE, GRAMMAR_NAME)
+                ::adze::__private::parse_document_with_descriptor(input, &LANGUAGE_DESCRIPTOR, GRAMMAR_NAME)
             }
         };
         let typed_cst_code = TypedCstGenerator::new(&self.grammar).generate();
 
         Ok(quote::quote! {
             #language_code
+            #descriptor_code
             #parse_document_code
             #typed_cst_code
         })

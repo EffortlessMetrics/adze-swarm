@@ -22,7 +22,7 @@ use changed_ranges::conservative_changed_ranges;
 use diagnostics::{attach_related_nodes, build_diagnostics, source_line};
 #[cfg(feature = "serialization")]
 use json_projection::{ambiguity_to_json, diagnostic_to_json, node_to_document_json};
-pub(crate) use runtime_metadata::DocumentRuntime;
+pub(crate) use runtime_metadata::{DocumentFieldSchema, DocumentRuntime};
 pub use runtime_metadata::{IncrementalFallbackReason, ParseMetadata};
 #[cfg(feature = "ts-compat")]
 pub(crate) use source_position::SourceLineIndex;
@@ -111,6 +111,7 @@ impl AdzeDocument {
             language_name,
             grammar,
             parse_table,
+            field_schema: DocumentFieldSchema::CompleteIr,
             pure_language: None,
         };
         let language = LanguageMetadata::from_runtime(
@@ -157,10 +158,11 @@ impl AdzeDocument {
         diagnostics: Vec<ParseDiagnostic>,
         ambiguities: Vec<crate::glr_parser::AmbiguitySummary>,
     ) -> Self {
-        let language = LanguageMetadata::from_runtime(
+        let language = LanguageMetadata::from_runtime_with_schema(
             runtime.language_name,
             runtime.grammar,
             runtime.parse_table,
+            runtime.field_schema,
         );
         let syntax = SyntaxTree::from_parse_root(&root, source, &language, error_count);
         Self::from_parse_result_with_built_parts(
@@ -819,6 +821,9 @@ impl SyntaxTree {
     /// Structural symmetry is out of scope here; run [`validate`](Self::validate)
     /// for the node/edge/parent diagnosis.
     pub fn validate_fields(&self, language: &LanguageMetadata) -> Result<(), FieldValidationError> {
+        if language.field_schema_availability == FieldSchemaAvailability::Unavailable {
+            return Err(FieldValidationError::SchemaUnavailable);
+        }
         for (edge_index, edge) in self.edges.iter().enumerate() {
             let parent = edge.parent_id;
             let child = edge.child_id;
@@ -1012,7 +1017,29 @@ pub struct LanguageMetadata {
     /// facts the table generator emits, keyed for direct lookup during
     /// native traversal and query validation instead of re-derivation.
     field_semantics: BTreeMap<SymbolId, BTreeMap<String, FieldSemantics>>,
+    field_schema_availability: FieldSchemaAvailability,
 }
+
+/// Provenance and availability of canonical field facts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FieldSchemaAvailability {
+    /// Facts computed from a complete, explicitly supplied IR grammar.
+    CompleteIr,
+    /// Facts transported by a validated co-generated Rust descriptor.
+    Generated {
+        /// Sidecar format version, independent of the native ABI version.
+        format_version: u32,
+        /// Canonical generator schema revision.
+        schema_revision: u32,
+    },
+    /// The caller supplied only native ABI tables, which omit canonical facts.
+    Unavailable,
+}
+
+/// Native ABI tables alone do not supply canonical field semantics.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("canonical field schema unavailable for this language")]
+pub struct FieldSchemaUnavailable;
 
 /// Canonical field cardinality facts for one node's field, as recorded on
 /// the document's language metadata.
@@ -1036,6 +1063,9 @@ pub struct FieldSemantics {
 /// projection result downstream.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum FieldValidationError {
+    /// Canonical facts were not supplied; absence is not a negative field grant.
+    #[error("canonical field schema unavailable for this language")]
+    SchemaUnavailable,
     /// An edge carries a field id the language's field table does not know.
     #[error(
         "edge {edge_index} from node {parent:?} to node {child:?} carries unknown field id {field_id}"
@@ -1100,6 +1130,20 @@ impl LanguageMetadata {
         grammar: &Grammar,
         parse_table: &ParseTable,
     ) -> Self {
+        Self::from_runtime_with_schema(
+            language_name,
+            grammar,
+            parse_table,
+            DocumentFieldSchema::CompleteIr,
+        )
+    }
+
+    fn from_runtime_with_schema(
+        language_name: &str,
+        grammar: &Grammar,
+        parse_table: &ParseTable,
+        schema: DocumentFieldSchema,
+    ) -> Self {
         let mut symbols = Vec::new();
 
         for metadata in &parse_table.symbol_metadata {
@@ -1146,40 +1190,70 @@ impl LanguageMetadata {
         // Canonical per-node field facts, resolved once per language through
         // the same schema the table generator consumes. Targets keep their
         // grammar identities; only leaf symbols are stored.
-        let field_semantics = adze_tablegen::field_schema::field_semantics_for_grammar(grammar)
-            .into_iter()
-            .map(|(owner, fields)| {
-                let semantics = fields
+        let (field_schema_availability, field_semantics) = match schema {
+            DocumentFieldSchema::Unavailable => {
+                (FieldSchemaAvailability::Unavailable, BTreeMap::new())
+            }
+            DocumentFieldSchema::Generated(schema) => {
+                let mut facts: BTreeMap<SymbolId, BTreeMap<String, FieldSemantics>> =
+                    BTreeMap::new();
+                for fact in schema.facts {
+                    facts.entry(SymbolId(fact.owner)).or_default().insert(
+                        fact.name.to_owned(),
+                        FieldSemantics {
+                            required: fact.required,
+                            multiple: fact.multiple,
+                            target_kinds: fact.targets.iter().copied().map(SymbolId).collect(),
+                        },
+                    );
+                }
+                (
+                    FieldSchemaAvailability::Generated {
+                        format_version: schema.format_version,
+                        schema_revision: schema.schema_revision,
+                    },
+                    facts,
+                )
+            }
+            DocumentFieldSchema::CompleteIr => {
+                let facts = adze_tablegen::field_schema::field_semantics_for_grammar(grammar)
                     .into_iter()
-                    .map(|(name, fact)| {
-                        let mut targets = Vec::with_capacity(fact.targets.len());
-                        for target in &fact.targets {
-                            match target {
-                                adze_ir::Symbol::Terminal(id)
-                                | adze_ir::Symbol::NonTerminal(id)
-                                | adze_ir::Symbol::External(id) => targets.push(*id),
-                                _ => {}
-                            }
-                        }
-                        (
-                            name,
-                            FieldSemantics {
-                                required: fact.required,
-                                multiple: fact.multiple,
-                                target_kinds: targets,
-                            },
-                        )
+                    .map(|(owner, fields)| {
+                        let semantics = fields
+                            .into_iter()
+                            .map(|(name, fact)| {
+                                let mut targets = Vec::with_capacity(fact.targets.len());
+                                for target in &fact.targets {
+                                    match target {
+                                        adze_ir::Symbol::Terminal(id)
+                                        | adze_ir::Symbol::NonTerminal(id)
+                                        | adze_ir::Symbol::External(id) => targets.push(*id),
+                                        _ => {}
+                                    }
+                                }
+                                (
+                                    name,
+                                    FieldSemantics {
+                                        required: fact.required,
+                                        multiple: fact.multiple,
+                                        target_kinds: targets,
+                                    },
+                                )
+                            })
+                            .collect();
+                        (owner, semantics)
                     })
                     .collect();
-                (owner, semantics)
-            })
-            .collect();
+                (FieldSchemaAvailability::CompleteIr, facts)
+            }
+        };
 
         Self {
             name: language_name.to_string(),
             symbols,
             fields: parse_table.field_names.clone(),
             field_semantics,
+            field_schema_availability,
         }
     }
 
@@ -1241,9 +1315,28 @@ impl LanguageMetadata {
     ///
     /// This is the document-side projection of the canonical field schema:
     /// the same required/multiple/target facts the table generator emits,
-    /// keyed by owning node kind and field name.
+    /// keyed by owning node kind and field name. `None` also covers unavailable
+    /// metadata; use [`Self::checked_field_semantics`] to distinguish it from
+    /// an absent grant.
     pub fn field_semantics(&self, owner: SymbolId, field_name: &str) -> Option<&FieldSemantics> {
         self.field_semantics.get(&owner)?.get(field_name)
+    }
+
+    /// Return whether canonical facts are available and how they were obtained.
+    pub fn field_schema_availability(&self) -> FieldSchemaAvailability {
+        self.field_schema_availability
+    }
+
+    /// Look up a field while distinguishing unavailable schema from an absent grant.
+    pub fn checked_field_semantics(
+        &self,
+        owner: SymbolId,
+        field_name: &str,
+    ) -> Result<Option<&FieldSemantics>, FieldSchemaUnavailable> {
+        if self.field_schema_availability == FieldSchemaAvailability::Unavailable {
+            return Err(FieldSchemaUnavailable);
+        }
+        Ok(self.field_semantics(owner, field_name))
     }
 
     /// Return whether any node kind in the schema is granted this field name.
@@ -2264,6 +2357,7 @@ mod tests {
                 language_name: "fielded",
                 grammar: &grammar,
                 parse_table: &table,
+                field_schema: DocumentFieldSchema::CompleteIr,
                 pure_language: None,
             },
             Vec::new(),
