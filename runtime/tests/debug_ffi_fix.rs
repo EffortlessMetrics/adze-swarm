@@ -11,27 +11,40 @@ fn debug_unified_json_helper_disabled() {
 
 #[test]
 fn test_safe_mock_language_creation() {
-    // Test the safe alternative to FFI-based language creation
-    // This test verifies we can create parsers without FFI dependencies
-    use adze::unified_parser::Parser;
+    // The retired `unified_parser::Parser` had a no-language state whose
+    // `parse` returned `None`. `parser_v4::Parser` always binds a
+    // grammar/table, so this test uses an empty grammar/table instead:
+    // `parse` degrades gracefully (recovery tree or `Err`) without crashing.
+    use adze::parser_v4::Parser;
+    use adze_glr_core::ParseTable;
+    use adze_ir::Grammar;
 
-    // Create parser and test basic functionality without language
-    let mut parser = Parser::new();
-    println!("Parser created successfully without FFI dependencies");
+    // Create parser and test basic functionality with an empty table
+    let mut parser = Parser::new(
+        Grammar::new("test".to_string()),
+        ParseTable::default(),
+        "test".to_string(),
+    );
+    println!("Parser created successfully with an empty grammar/table");
 
     // Test timeout setting (infrastructure test)
     parser.set_timeout_micros(1000);
     println!("Timeout setting works");
 
-    // Test parsing without language (should handle gracefully)
+    // Test parsing with an empty table (should handle gracefully)
     let source = "test";
-    let tree = parser.parse(source, None);
+    let result = parser.parse(source);
 
-    if let Some(tree) = tree {
-        println!("Unexpected: tree created without language");
-        println!("Tree error count: {}", tree.error_count());
-    } else {
-        println!("Expected: parsing returned None without language");
+    match result {
+        Ok(tree) => {
+            println!(
+                "Parse returned a recovery tree (error_count: {})",
+                tree.error_count()
+            );
+        }
+        Err(e) => {
+            println!("Parse returned a graceful error: {}", e);
+        }
     }
 
     println!("Safe mock language creation test completed without segfaults");

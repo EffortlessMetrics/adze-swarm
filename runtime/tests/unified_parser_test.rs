@@ -1,8 +1,8 @@
 #[cfg(test)]
 #[cfg(all(feature = "pure-rust", not(feature = "incremental_glr")))]
 mod tests {
+    use adze::parser_v4::Parser;
     use adze::pure_parser::{ExternalScanner, TSLanguage, TSParseAction};
-    use adze::unified_parser::Parser;
     use std::ptr;
 
     // Parse actions for mock language
@@ -126,39 +126,44 @@ mod tests {
     };
 
     #[test]
-    #[ignore = "unified parser not fully implemented"]
+    #[ignore = "mock TSLanguage is undecodable (decoder subtract-overflow panic); decoder/ is owned outside this migration"]
     fn test_parser_creation() {
-        let mut parser = Parser::new();
-        assert!(parser.set_language(&TEST_LANGUAGE).is_ok());
+        // `from_language` is the `parser_v4` equivalent of the retired
+        // unified `Parser::new` + `set_language`: decode tables and bind them.
+        // It is infallible, so construction success plus fresh-parser state
+        // is the ported assertion (same strength as the old `is_ok`).
+        let parser = Parser::from_language(&TEST_LANGUAGE, "test".to_string());
+        // `from_language` is infallible: reaching here means the language
+        // bound successfully (the ported equivalent of the old
+        // `set_language(...).is_ok()`). Exercise the binding:
+        let _ = parser.get_glr_stats();
     }
 
     #[test]
-    #[ignore = "unified parser not fully implemented"]
+    #[ignore = "mock TSLanguage is undecodable (decoder subtract-overflow panic); decoder/ is owned outside this migration"]
     fn test_parser_reset() {
-        let mut parser = Parser::new();
-        parser.set_language(&TEST_LANGUAGE).unwrap();
+        let mut parser = Parser::from_language(&TEST_LANGUAGE, "test".to_string());
 
         // Parse some input
         let input = "test input";
-        let _result = parser.parse(input, None);
+        let _ = parser.parse(input);
 
         // Reset should clear state
         parser.reset();
 
         // Should be able to parse again
-        let _result2 = parser.parse(input, None);
+        let _ = parser.parse(input);
     }
 
     #[test]
-    #[ignore = "unified parser not fully implemented"]
+    #[ignore = "mock TSLanguage is undecodable (decoder subtract-overflow panic); decoder/ is owned outside this migration"]
     fn test_parser_with_timeout() {
-        let mut parser = Parser::new();
-        parser.set_language(&TEST_LANGUAGE).unwrap();
+        let mut parser = Parser::from_language(&TEST_LANGUAGE, "test".to_string());
 
         // Set a timeout
         parser.set_timeout_micros(100_000);
 
         let input = "test";
-        let _result = parser.parse(input, None);
+        let _ = parser.parse(input);
     }
 }
