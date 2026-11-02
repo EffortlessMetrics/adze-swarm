@@ -126,8 +126,12 @@ pub fn run_generate(
         );
     }
 
+    let Some(out_dir) = output.to_str() else {
+        anyhow::bail!("--output path is not valid UTF-8: {}", output.display());
+    };
+
     let options = BuildOptions {
-        out_dir: output.to_str().unwrap().to_string(),
+        out_dir: out_dir.to_string(),
         emit_artifacts: debug,
         compress_tables: !debug,
     };
@@ -205,4 +209,62 @@ pub fn run_info(path: &PathBuf, node_types: bool, rules: bool) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    /// Build a `--output` path that is not valid UTF-8 on this platform.
+    fn non_utf8_output_path() -> PathBuf {
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStringExt;
+            PathBuf::from(OsString::from_vec(vec![0xff, 0xfe, b'o', b'u', b't']))
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::ffi::OsStringExt;
+            // Lone surrogate: not valid Unicode, so `Path::to_str` is `None`.
+            PathBuf::from(OsString::from_wide(&[0xD800]))
+        }
+    }
+
+    #[test]
+    fn run_generate_rejects_non_utf8_output_with_structured_error() {
+        let output = non_utf8_output_path();
+        assert!(
+            output.to_str().is_none(),
+            "test fixture must not be valid UTF-8"
+        );
+
+        let result = std::panic::catch_unwind(|| {
+            run_generate(&PathBuf::from("grammar.js"), &output, false, true)
+        });
+
+        match result {
+            Ok(Err(err)) => assert!(
+                err.to_string().contains("--output"),
+                "error must name the offending --output argument, got: {err}"
+            ),
+            Ok(Ok(())) => panic!("expected a structured error for non-UTF8 --output"),
+            Err(_) => panic!("panicked on non-UTF8 --output instead of returning an error"),
+        }
+    }
+
+    #[test]
+    fn run_generate_rejects_disabled_pure_rust_before_output_handling() {
+        let err = run_generate(
+            &PathBuf::from("grammar.js"),
+            &PathBuf::from("src"),
+            false,
+            false,
+        )
+        .expect_err("expected --no-pure-rust to be rejected");
+        assert!(
+            err.to_string().contains("pure-rust"),
+            "unexpected error: {err}"
+        );
+    }
 }
