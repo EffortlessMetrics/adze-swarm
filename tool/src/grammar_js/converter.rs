@@ -521,7 +521,7 @@ impl GrammarJsConverter {
         // Create new token
         let id = self.alloc_symbol_id();
         let token = Token {
-            name: format!("/{}/", pattern),
+            name: adze_common::pattern_token_name(pattern),
             pattern: TokenPattern::Regex(pattern.to_string()),
             fragile: false,
         };

@@ -8,3 +8,11 @@
 pub mod syntax;
 
 pub use syntax::*;
+
+/// Canonical public token-kind name for an inline regex leaf.
+///
+/// Generation and typed extraction share this name so dispatch follows the
+/// selected native token identity rather than re-evaluating the regex.
+pub fn pattern_token_name(pattern: &str) -> String {
+    format!("/{pattern}/")
+}
