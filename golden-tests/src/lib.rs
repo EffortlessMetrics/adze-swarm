@@ -210,7 +210,7 @@ mod tests {
                 if strict_parse {
                     anyhow::bail!("Parse failed for {}: {}", test.fixture_name, e);
                 }
-                eprintln!("Skipping {}: {}", test.fixture_name, e);
+                eprintln!("GOLDEN SKIP [parse-failed] {}: {}", test.fixture_name, e);
                 return Ok(());
             }
         };
@@ -287,7 +287,7 @@ mod tests {
         } else {
             // No reference file exists
             anyhow::bail!(
-                "No golden reference found for {}. \
+                "GOLDEN FAIL [missing-expected] No golden reference found for {}. \
                  Run ./generate_references.sh to create reference files.",
                 test.fixture_name
             );
@@ -513,6 +513,63 @@ mod tests {
             names.iter().any(|name| name == "canary_expression.js"),
             "Expected the canary_expression.js fixture, found {:?}",
             names
+        );
+    }
+
+    /// Honest-denominator summary: classify every golden fixture on disk by
+    /// the disposition that fires at runtime, without changing pass/fail
+    /// semantics. A fixture only genuinely compares when it both parses AND
+    /// owns an expected file; parse failures return before any comparison.
+    #[test]
+    #[cfg(any(feature = "python-grammar", feature = "javascript-grammar"))]
+    fn golden_disposition_summary() {
+        let mut languages: Vec<&'static str> = Vec::new();
+        #[cfg(feature = "python-grammar")]
+        languages.push("python");
+        #[cfg(feature = "javascript-grammar")]
+        languages.push("javascript");
+
+        let mut compared = 0u32;
+        let mut parse_failed = 0u32;
+        let mut missing_expected = 0u32;
+        for language in languages {
+            let (ext, dir) = match language {
+                "python" => ("py", "python/fixtures"),
+                _ => ("js", "javascript/fixtures"),
+            };
+            let fixtures_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(dir);
+            let expected_dir = fixtures_dir
+                .parent()
+                .expect("fixtures dir has a parent")
+                .join("expected");
+            let mut names: Vec<String> = fs::read_dir(&fixtures_dir)
+                .expect("Cannot read fixtures dir")
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|n| n.ends_with(&format!(".{ext}")))
+                .collect();
+            names.sort();
+            for name in names {
+                let stem = name.trim_end_matches(&format!(".{ext}"));
+                let source =
+                    fs::read_to_string(fixtures_dir.join(&name)).expect("fixture readable");
+                let parsed = parse_with_adze(language, &source).is_ok();
+                let has_expected = expected_dir.join(format!("{stem}.sha256")).exists();
+                let disposition = if !parsed {
+                    parse_failed += 1;
+                    "parse-failed"
+                } else if !has_expected {
+                    missing_expected += 1;
+                    "missing-expected"
+                } else {
+                    compared += 1;
+                    "compared"
+                };
+                eprintln!("GOLDEN DISPOSITION [{disposition}] {language}/{name}");
+            }
+        }
+        eprintln!(
+            "GOLDEN SUMMARY compared={compared} parse_failed={parse_failed} missing_expected={missing_expected}"
         );
     }
 
