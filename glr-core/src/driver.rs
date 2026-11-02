@@ -1234,15 +1234,19 @@ impl<'t> Driver<'t> {
         stacks
     }
 
-    /// Convert internal parse forest to public Forest
+    /// Convert internal parse forest to public Forest.
+    ///
+    /// Root-selection rule (#1031, shared with
+    /// [`ParseForest::to_single_tree`](crate::parse_forest::ParseForest::to_single_tree)):
+    /// roots are ordered by [`ForestNode::selection_rank`](crate::parse_forest::ForestNode::selection_rank) —
+    /// largest span first, then earliest start, then smallest symbol id, then
+    /// smallest node id. Node ids are unique arena counters, so the key is
+    /// total and the selected root (`roots()[0]`) no longer depends on stack
+    /// frontier or `roots` insertion order.
     pub(crate) fn wrap_forest(mut forest: ParseForest) -> Forest {
-        // Deterministic root selection: prefer largest span, then earliest start position
-        forest.roots.sort_by_key(|n| {
-            (
-                std::cmp::Reverse(n.span.1.saturating_sub(n.span.0)), // Largest span first
-                n.span.0, // Then earliest start position
-            )
-        });
+        // Deterministic root selection: largest span, earliest start, then
+        // symbol/node id tie-breaks (see `ForestNode::selection_rank`).
+        forest.roots.sort_by_key(|n| n.selection_rank());
         // Remove duplicate roots by ID
         forest.roots.dedup_by_key(|n| n.id);
 
@@ -1268,12 +1272,13 @@ impl ParseForestView {
     fn new(forest: ParseForest) -> Self {
         let roots_cache = forest.roots.iter().map(|n| n.id as u32).collect();
 
-        // Pre-compute children cache
+        // Pre-compute children cache from the canonical best alternative
+        // (`ForestNode::best_alternative_index`), so `best_children` agrees
+        // with `to_single_tree` and never depends on alternatives order.
         let mut children_cache = HashMap::new();
         for (&id, node) in &forest.nodes {
-            if !node.alternatives.is_empty() {
-                // Take first alternative (best)
-                let children: Vec<u32> = node.alternatives[0]
+            if let Some(best) = node.best_alternative_index() {
+                let children: Vec<u32> = node.alternatives[best]
                     .children
                     .iter()
                     .map(|&c| c as u32)

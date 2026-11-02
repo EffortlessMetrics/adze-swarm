@@ -123,6 +123,46 @@ impl ForestNode {
         // A node is complete if it has at least one alternative
         !self.alternatives.is_empty()
     }
+
+    /// Canonical rank for ambiguity-root selection (#1031).
+    ///
+    /// Roots are ordered by this key, in ascending order:
+    ///
+    /// 1. largest span first (widest coverage wins),
+    /// 2. earliest span start (leftmost wins),
+    /// 3. smallest symbol id (structural; stable across processes),
+    /// 4. smallest node id (arena creation order: deterministic within one
+    ///    single-threaded parse and stable across processes — never an
+    ///    address, hash seed, or insertion accident).
+    ///
+    /// Rules 3–4 are pure tie-breaks: they only decide among roots that
+    /// already cover the same span, so they cannot change which input region
+    /// won. Node ids are unique, so this key is total and the selected root
+    /// no longer depends on `roots` vector order.
+    pub fn selection_rank(&self) -> (std::cmp::Reverse<usize>, usize, u16, usize) {
+        (
+            std::cmp::Reverse(self.span.1.saturating_sub(self.span.0)),
+            self.span.0,
+            self.symbol.0,
+            self.id,
+        )
+    }
+
+    /// Index of the canonical best alternative (#1031).
+    ///
+    /// Alternatives are ordered by lexicographically smallest `children`-id
+    /// sequence, with the lowest alternative index breaking any remaining tie
+    /// (alternative storage order is itself deterministic within one
+    /// single-threaded parse). Child ids are arena creation counters, not
+    /// addresses or hashes, so the choice is stable across processes.
+    /// Returns `None` when the node has no alternatives.
+    pub fn best_alternative_index(&self) -> Option<usize> {
+        self.alternatives
+            .iter()
+            .enumerate()
+            .min_by(|(i, a), (j, b)| a.children.cmp(&b.children).then_with(|| i.cmp(j)))
+            .map(|(i, _)| i)
+    }
 }
 
 /// A single parse tree extracted from the forest
