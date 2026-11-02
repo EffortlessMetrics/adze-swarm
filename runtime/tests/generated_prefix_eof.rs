@@ -5,6 +5,173 @@
 use adze::document::ParseOutcome;
 use adze_example::typed_ast_contract::grammar as deterministic;
 
+fn assert_native_containment(node: &adze::pure_parser::ParsedNode, source_len: usize) {
+    assert!(node.start_byte() <= node.end_byte());
+    assert!(node.end_byte() <= source_len);
+    for child in node.children() {
+        assert!(
+            node.start_byte() <= child.start_byte() && child.end_byte() <= node.end_byte(),
+            "child {:?} {}..{} outside parent {:?} {}..{}",
+            child.kind(),
+            child.start_byte(),
+            child.end_byte(),
+            node.kind(),
+            node.start_byte(),
+            node.end_byte(),
+        );
+        assert!(
+            (node.start_point().row, node.start_point().column)
+                <= (child.start_point().row, child.start_point().column)
+        );
+        assert!(
+            (child.end_point().row, child.end_point().column)
+                <= (node.end_point().row, node.end_point().column)
+        );
+        assert_native_containment(child, source_len);
+    }
+}
+
+fn assert_document_containment(document: &adze::document::AdzeDocument, source_len: usize) {
+    for index in 0..document.tree().node_count() {
+        let node = document
+            .tree()
+            .node(adze::document::NodeId::new(index))
+            .unwrap();
+        assert!(node.start_byte() <= node.end_byte());
+        assert!(node.end_byte() <= source_len);
+        if let Some(parent) = node.parent() {
+            assert!(parent.start_byte() <= node.start_byte());
+            assert!(node.end_byte() <= parent.end_byte());
+        }
+    }
+}
+
+fn assert_number_leaf_span(
+    root: &adze::pure_parser::ParsedNode,
+    document: &adze::document::AdzeDocument,
+    expected: std::ops::Range<usize>,
+) {
+    let mut pending = vec![root];
+    let mut native_spans = Vec::new();
+    while let Some(node) = pending.pop() {
+        if node.kind() == r"/\d+/" {
+            native_spans.push(node.start_byte()..node.end_byte());
+        }
+        pending.extend(node.children());
+    }
+    assert_eq!(native_spans, vec![expected.clone()]);
+    let document_spans: Vec<_> = (0..document.tree().node_count())
+        .map(|index| {
+            document
+                .tree()
+                .node(adze::document::NodeId::new(index))
+                .unwrap()
+        })
+        .filter(|node| node.grammar_name() == Some(r"/\d+/"))
+        .map(|node| node.byte_range())
+        .collect();
+    assert_eq!(document_spans, vec![expected]);
+}
+
+#[test]
+fn test_leading_extras_are_contained_without_widening_semantic_leaves() {
+    use adze::pure_parser::{Parser, Point};
+    for (source, end_point) in [
+        ("  17", Point { row: 0, column: 4 }),
+        ("\n 17", Point { row: 1, column: 3 }),
+    ] {
+        let mut parser = Parser::new();
+        parser.set_language(deterministic::language()).unwrap();
+        let parsed = parser.parse_string(source);
+        assert!(parsed.errors.is_empty(), "{source:?}");
+        let root = parsed.root.unwrap();
+        let document = deterministic::parse_document(source).unwrap();
+        assert_eq!(document.outcome(), ParseOutcome::Complete);
+        assert!(document.diagnostics().is_empty());
+        assert_eq!(
+            deterministic::parse(source).unwrap(),
+            deterministic::Expr::Number(17)
+        );
+        assert_eq!(
+            document.ast::<deterministic::Expr>().unwrap(),
+            deterministic::Expr::Number(17)
+        );
+        assert_number_leaf_span(&root, &document, 2..4);
+        assert!(
+            root.children()
+                .iter()
+                .any(|node| node.is_extra() && node.start_byte() == 0)
+        );
+        assert_eq!(root.start_byte()..root.end_byte(), 0..source.len());
+        assert_eq!(root.start_point(), Point { row: 0, column: 0 });
+        assert_eq!(root.end_point(), end_point);
+        assert_eq!(document.tree().root().byte_range(), 0..source.len());
+        assert_native_containment(&root, source.len());
+        assert_document_containment(&document, source.len());
+    }
+}
+
+#[test]
+fn test_leading_and_trailing_extras_remain_inside_native_and_document_parents() {
+    use adze::pure_parser::{Parser, Point};
+    for (source, end_point) in [
+        ("  17  ", Point { row: 0, column: 6 }),
+        ("\n17\n", Point { row: 2, column: 0 }),
+    ] {
+        let mut parser = Parser::new();
+        parser.set_language(deterministic::language()).unwrap();
+        let parsed = parser.parse_string(source);
+        assert!(parsed.errors.is_empty());
+        let root = parsed.root.unwrap();
+        let document = deterministic::parse_document(source).unwrap();
+        assert_eq!(document.outcome(), ParseOutcome::Complete);
+        assert!(document.diagnostics().is_empty());
+        assert_eq!(
+            document.ast::<deterministic::Expr>().unwrap(),
+            deterministic::Expr::Number(17)
+        );
+        assert_eq!(root.start_byte()..root.end_byte(), 0..source.len());
+        assert_eq!(root.start_point(), Point { row: 0, column: 0 });
+        assert_eq!(root.end_point(), end_point);
+        assert_eq!(document.tree().root().byte_range(), 0..source.len());
+        assert_native_containment(&root, source.len());
+        assert_document_containment(&document, source.len());
+        // Exact trailing-extra placement and leaf spans remain a separate
+        // #898 defect; this control establishes parent containment only.
+    }
+}
+
+#[test]
+fn test_leading_errors_are_contained_with_exact_diagnostics_and_leaf_spans() {
+    use adze::pure_parser::{Parser, Point};
+    for (source, error_span, found, number_span, end_point) in [
+        ("x17", 0..1, "x", 1..3, Point { row: 0, column: 3 }),
+        ("\nλ17", 1..3, "λ", 3..5, Point { row: 1, column: 4 }),
+    ] {
+        let mut parser = Parser::new();
+        parser.set_language(deterministic::language()).unwrap();
+        let parsed = parser.parse_string(source);
+        assert_eq!(parsed.errors.len(), 1, "{source:?}");
+        assert_eq!(parsed.errors[0].position, error_span.start);
+        let root = parsed.root.expect("retain the selected recovery tree");
+        let document = deterministic::parse_document(source).unwrap();
+        assert_ne!(document.outcome(), ParseOutcome::Complete);
+        assert_eq!(document.diagnostics().len(), 1);
+        assert_eq!(document.diagnostics()[0].byte_span(), error_span);
+        assert_eq!(document.diagnostics()[0].found.as_deref(), Some(found));
+        assert!(deterministic::parse(source).is_err());
+        assert!(document.ast::<deterministic::Expr>().is_err());
+        assert_number_leaf_span(&root, &document, number_span);
+        assert!(root.has_error());
+        assert_eq!(root.start_byte()..root.end_byte(), 0..source.len());
+        assert_eq!(root.start_point(), Point { row: 0, column: 0 });
+        assert_eq!(root.end_point(), end_point);
+        assert_eq!(document.tree().root().byte_range(), 0..source.len());
+        assert_native_containment(&root, source.len());
+        assert_document_containment(&document, source.len());
+    }
+}
+
 #[test]
 fn test_deterministic_complete_input_retains_exact_values_and_true_eof() {
     assert_eq!(

@@ -294,22 +294,12 @@ fn build_lex_state_eligibility(parse_table: &ParseTable) -> BTreeMap<u16, BTreeS
         for (col_idx, cell) in row.iter().enumerate() {
             // Lexing precedes reduction: a real lookahead may first drive a
             // Reduce action before it becomes shiftable (#1174).
-            if cell.iter().any(action_uses_lookahead) {
+            if cell.iter().any(Action::uses_lookahead) {
                 entry.insert(col_idx);
             }
         }
     }
     map
-}
-
-fn action_uses_lookahead(action: &Action) -> bool {
-    match action {
-        Action::Shift(_) | Action::Reduce(_) | Action::Accept => true,
-        Action::Fork(actions) => actions.iter().any(action_uses_lookahead),
-        // Error, recovery-only, and future unknown actions do not license
-        // an ordinary grammar token.
-        _ => false,
-    }
 }
 
 impl CandidatePattern {

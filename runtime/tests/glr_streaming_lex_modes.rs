@@ -22,10 +22,9 @@ use adze_example::external_word_example::grammar as external_word_grammar;
 use adze_example::streaming_lex_modes::grammar as streaming_lex_modes_grammar;
 use adze_glr_core::conflict_inspection::cell_has_conflict;
 use adze_glr_core::ts_lexer::NextToken;
-use adze_glr_core::{Action, Driver, LexMode, build_lex_modes_from_shiftable_terminals};
+use adze_glr_core::{Action, Driver, LexMode, build_lex_modes_from_usable_lookahead};
 use adze_ir::StateId;
 use core::ffi::c_void;
-use std::collections::BTreeSet;
 
 fn streaming_lex_modes_language() -> &'static TSLanguage {
     streaming_lex_modes_grammar::language()
@@ -33,10 +32,8 @@ fn streaming_lex_modes_language() -> &'static TSLanguage {
 
 fn streaming_lex_modes_contract_table() -> adze_glr_core::ParseTable {
     let mut table = decode_parse_table(streaming_lex_modes_language());
-    table.lex_modes = build_lex_modes_from_shiftable_terminals(
-        &table.action_table,
-        &table.external_scanner_states,
-    );
+    table.lex_modes =
+        build_lex_modes_from_usable_lookahead(&table.action_table, &table.external_scanner_states);
     table
 }
 
@@ -83,7 +80,7 @@ fn streaming_lex_modes_fixed_mode_bridge_ignores_distinct_lex_states() {
 }
 
 #[test]
-fn streaming_lex_modes_fixed_bridge_drops_meaningful_newline_token() {
+fn test_fixed_mode_bridge_rejects_an_out_of_mode_operator() {
     let language = streaming_lex_modes_language();
     let table = streaming_lex_modes_contract_table();
     let source = b"1+2\n";
@@ -99,17 +96,15 @@ fn streaming_lex_modes_fixed_bridge_drops_meaningful_newline_token() {
     let lex_fn = language
         .lex_fn
         .expect("streaming_lex_modes fixture should expose generated lexer");
-    let tokens = tokenize_with_fixed_mode_bridge(language, lex_fn, source)
-        .expect("bridge tokenization should succeed for audit fixture");
-    let offsets = tokens
-        .iter()
-        .map(|token| token.byte_offset)
-        .collect::<BTreeSet<_>>();
-
-    assert!(
-        !offsets.contains(&3),
-        "current fixed-mode bridge drops the meaningful newline at byte 3; tokens={tokens:?}"
-    );
+    let errors = tokenize_with_fixed_mode_bridge(language, lex_fn, source)
+        .expect_err("state-zero mode cannot lex an operator after the initial number");
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].start..errors[0].end, 1..2);
+    assert!(matches!(
+        &errors[0].reason,
+        adze::errors::ParseErrorReason::UnexpectedToken(message)
+            if message == "unexpected token while lexing"
+    ));
 }
 
 #[test]
@@ -244,10 +239,8 @@ fn streaming_lex_modes_extras_are_grammar_defined_not_hard_coded_ascii() {
 fn streaming_lex_modes_external_scanner_mask_union_contract() {
     let language = external_word_grammar::language();
     let mut table = decode_parse_table(language);
-    table.lex_modes = build_lex_modes_from_shiftable_terminals(
-        &table.action_table,
-        &table.external_scanner_states,
-    );
+    table.lex_modes =
+        build_lex_modes_from_usable_lookahead(&table.action_table, &table.external_scanner_states);
 
     let active_states = (0..table.state_count)
         .map(|state| StateId(state as u16))
@@ -293,10 +286,8 @@ fn streaming_lex_modes_streaming_driver_contract_smoke_uses_contract_table() {
 fn streaming_lex_modes_ambiguous_expr_fixture_retains_conflicts_for_ladder() {
     let language = ambiguous_expr_grammar::language();
     let mut table = decode_parse_table(language);
-    table.lex_modes = build_lex_modes_from_shiftable_terminals(
-        &table.action_table,
-        &table.external_scanner_states,
-    );
+    table.lex_modes =
+        build_lex_modes_from_usable_lookahead(&table.action_table, &table.external_scanner_states);
 
     let has_conflict = table.action_table.iter().any(|row| {
         row.iter()
@@ -316,15 +307,40 @@ fn streaming_lex_modes_generated_lexer_fn_is_available_for_adapter_slices() {
 }
 
 #[test]
-fn streaming_lex_modes_internal_adapter_preserves_meaningful_newline_token() {
+fn test_streaming_adapter_licenses_newline_only_in_actual_lookahead_mode() {
     let language = streaming_lex_modes_language();
     let table = streaming_lex_modes_contract_table();
-    let mode = table.lex_mode(StateId(0));
-
+    let initial_mode = table.lex_mode(table.initial_state);
+    assert_eq!(
+        lex_generated_internal_at(language, "1+2\n", 3, initial_mode),
+        Err(StreamingInternalLexError::NoProgress { pos: 3 })
+    );
+    let newline = table
+        .symbol_metadata
+        .iter()
+        .find(|metadata| metadata.is_terminal && metadata.name == "\n")
+        .expect("fixture has an explicit newline terminal")
+        .symbol_id;
+    let column = table.symbol_to_index[&newline];
+    // This is a unit check of an actually licensed mode, not a claim that
+    // this row is reached by a parser walk over the source prefix.
+    let state = table
+        .action_table
+        .iter()
+        .position(|row| {
+            row[column].iter().any(|action| {
+                matches!(
+                    action,
+                    Action::Shift(_) | Action::Reduce(_) | Action::Accept
+                )
+            })
+        })
+        .expect("an actual ACTION row must license newline lookahead");
+    let mode = table.lex_mode(StateId(state as u16));
     let token = lex_generated_internal_at(language, "1+2\n", 3, mode)
-        .expect("adapter should lex newline token")
+        .expect("licensed adapter mode should lex newline token")
         .expect("newline token expected at byte 3");
-
+    assert_eq!(token.kind, column as u32);
     assert_eq!(token.start, 3);
     assert_eq!(token.end, 4);
 }
@@ -376,7 +392,7 @@ fn streaming_lex_modes_internal_adapter_closure_lexes_without_pretokenization() 
     let language = streaming_lex_modes_language();
     let table = streaming_lex_modes_contract_table();
     let mode = table.lex_mode(StateId(0));
-    let mut lexer = make_generated_internal_streaming_lexer(language);
+    let (mut lexer, _) = make_generated_internal_streaming_lexer(language);
 
     let token = lexer("1+2", 0, mode).expect("adapter closure should lex first token");
     assert_eq!(token.start, 0);

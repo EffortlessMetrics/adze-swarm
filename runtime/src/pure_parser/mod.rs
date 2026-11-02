@@ -614,6 +614,10 @@ impl Parser {
                             let mut max_end_point = root.end_point;
 
                             for extra in extra_nodes.drain(..) {
+                                if extra.start_byte < root.start_byte {
+                                    root.start_byte = extra.start_byte;
+                                    root.start_point = extra.start_point;
+                                }
                                 if extra.end_byte > max_end_byte {
                                     max_end_byte = extra.end_byte;
                                     max_end_point = extra.end_point;
@@ -627,6 +631,10 @@ impl Parser {
                         }
                         if !error_nodes.is_empty() {
                             for error in error_nodes.drain(..) {
+                                if error.start_byte < root.start_byte {
+                                    root.start_byte = error.start_byte;
+                                    root.start_point = error.start_point;
+                                }
                                 if error.end_byte > root.end_byte {
                                     root.end_byte = error.end_byte;
                                     root.end_point = error.end_point;
