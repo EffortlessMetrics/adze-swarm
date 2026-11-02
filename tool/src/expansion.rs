@@ -1230,7 +1230,7 @@ mod tests {
     }
 
     #[test]
-    fn generate_grammar_rejects_non_string_grammar_name() {
+    fn test_generate_grammar_rejects_non_string_grammar_name() {
         let m: syn::ItemMod = parse_quote! {
             #[adze::grammar(42)]
             mod grammar {
@@ -1245,7 +1245,7 @@ mod tests {
     }
 
     #[test]
-    fn generate_grammar_rejects_missing_grammar_name() {
+    fn test_generate_grammar_rejects_missing_grammar_name() {
         let m: syn::ItemMod = parse_quote! {
             mod grammar {
                 #[adze::language]
@@ -1259,7 +1259,7 @@ mod tests {
     }
 
     #[test]
-    fn generate_grammar_rejects_out_of_line_module() {
+    fn test_generate_grammar_rejects_out_of_line_module() {
         let m: syn::ItemMod = parse_quote! {
             #[adze::grammar("test")]
             mod grammar;
@@ -1268,7 +1268,7 @@ mod tests {
     }
 
     #[test]
-    fn generate_grammar_rejects_missing_language_root() {
+    fn test_generate_grammar_rejects_missing_language_root() {
         let m: syn::ItemMod = parse_quote! {
             #[adze::grammar("test")]
             mod grammar {
