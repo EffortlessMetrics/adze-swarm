@@ -617,10 +617,15 @@ impl ErrorRecoveryState {
             }
         }
 
-        // Find expected tokens in this state
+        // Find expected tokens in this state. Table lookups are fallible:
+        // a state or column missing from a mismatched/corrupt table yields
+        // no expected token (or no suggestion) instead of panicking.
         let mut expected_tokens = Vec::new();
+        let row = table.action_table.get(state.0 as usize)?;
         for (symbol_id, &symbol_idx) in &table.symbol_to_index {
-            let action = &table.action_table[state.0 as usize][symbol_idx];
+            let Some(action) = row.get(symbol_idx) else {
+                continue;
+            };
             if !action.is_empty() {
                 expected_tokens.push(*symbol_id);
             }
@@ -826,5 +831,32 @@ mod tests2 {
             4,
             &delimiters
         ));
+    }
+
+    #[test]
+    fn test_suggest_recovery_missing_state_row_returns_none() {
+        // Mismatched table: symbol map is non-empty but the action table has
+        // no row for the requested state. Must return None, not panic.
+        let mut table = ParseTable::default();
+        table.symbol_to_index.insert(SymbolId(1), 0);
+        let grammar = Grammar::new("test".to_string());
+        let mut state = ErrorRecoveryState::new(ErrorRecoveryConfig::default());
+
+        let result = state.suggest_recovery(StateId(0), SymbolId(99), &table, &grammar);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_suggest_recovery_stale_column_index_is_skipped() {
+        // Corrupt table: column index in the symbol map exceeds the row width.
+        // The stale entry is skipped instead of panicking.
+        let mut table = ParseTable::default();
+        table.action_table = vec![vec![]];
+        table.symbol_to_index.insert(SymbolId(1), 3);
+        let grammar = Grammar::new("test".to_string());
+        let mut state = ErrorRecoveryState::new(ErrorRecoveryConfig::default());
+
+        let result = state.suggest_recovery(StateId(0), SymbolId(99), &table, &grammar);
+        assert_eq!(result, Some(RecoveryAction::DeleteToken));
     }
 }
