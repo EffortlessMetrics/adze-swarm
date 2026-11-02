@@ -1250,7 +1250,7 @@ mod none_node_error_tests {
     }
 
     #[test]
-    fn fallible_struct_none_node_returns_missing_token() {
+    fn test_fallible_struct_none_node_returns_missing_token() {
         let text = fallible_struct_text();
         assert!(
             text.contains("try_extract"),
@@ -1267,7 +1267,7 @@ mod none_node_error_tests {
     }
 
     #[test]
-    fn fallible_enum_none_node_returns_missing_token() {
+    fn test_fallible_enum_none_node_returns_missing_token() {
         let text = fallible_enum_text();
         assert!(
             text.contains("try_extract"),
@@ -1284,7 +1284,7 @@ mod none_node_error_tests {
     }
 
     #[test]
-    fn infallible_struct_keeps_expect_without_error_channel() {
+    fn test_infallible_struct_keeps_expect_without_error_channel() {
         // `extract() -> Self` cannot return `ParseError`; changing that is a
         // trait-signature decision owned under ADR-0008, so the infallible
         // path keeps its historical `expect` until that decision lands.
@@ -1300,7 +1300,7 @@ mod none_node_error_tests {
     }
 
     #[test]
-    fn infallible_enum_keeps_expect_without_error_channel() {
+    fn test_infallible_enum_keeps_expect_without_error_channel() {
         let text = infallible_enum_text();
         assert!(
             !text.contains("try_extract"),
