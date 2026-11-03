@@ -158,7 +158,7 @@ fn main() -> Result<()> {
         match result {
             Ok(code) => std::process::exit(code as i32),
             Err(error) => {
-                eprintln!("static runner bootstrap failed: {error}");
+                eprintln!("error: static runner bootstrap failed: {error}");
                 std::process::exit(1);
             }
         }

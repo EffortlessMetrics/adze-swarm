@@ -317,7 +317,20 @@ fn test_request_rejects_bad_counts_versions_extents_and_nul_without_unicode_loss
 #[test]
 fn test_native_readonly_mapping_and_malformed_bootstrap_refusal() {
     let _serial = serial();
-    let bytes = request(&["inspect"]).encode().unwrap();
+    let request = request(&["inspect"]);
+    let bytes = request.encode().unwrap();
+    // The program's UTF-16 length follows the two policy words. The argv
+    // count follows those program units; offset 24 alone is not a count.
+    let program_units = request.program.encode_wide().count();
+    let args_count_offset = 28 + 2 * program_units;
+    assert_eq!(
+        &bytes[24..28],
+        &u32::try_from(program_units).unwrap().to_le_bytes()
+    );
+    assert_eq!(
+        &bytes[args_count_offset..args_count_offset + 4],
+        &1_u32.to_le_bytes()
+    );
     let mapping = runner_windows_handles::request_mapping(&bytes).unwrap();
     // SAFETY: this test owns the mapping; an unexpected writable view is
     // immediately unmapped before the assertion reports the regression.
@@ -331,7 +344,14 @@ fn test_native_readonly_mapping_and_malformed_bootstrap_refusal() {
         "request handle retained writable access"
     );
     assert_eq!(error.raw_os_error(), Some(ERROR_ACCESS_DENIED as i32));
-    for change in ["version", "oversize", "short mapping", "count", "trailing"] {
+    for change in [
+        "version",
+        "oversize",
+        "short mapping",
+        "program length",
+        "count",
+        "trailing",
+    ] {
         let mut malformed = bytes.clone();
         match change {
             "version" => malformed[8..12].copy_from_slice(&2_u32.to_le_bytes()),
@@ -342,7 +362,11 @@ fn test_native_readonly_mapping_and_malformed_bootstrap_refusal() {
                 let length = malformed.len() as u32 + 65536;
                 malformed[12..16].copy_from_slice(&length.to_le_bytes());
             }
-            "count" => malformed[24..28].copy_from_slice(&u32::MAX.to_le_bytes()),
+            "program length" => malformed[24..28].copy_from_slice(&u32::MAX.to_le_bytes()),
+            "count" => {
+                malformed[args_count_offset..args_count_offset + 4]
+                    .copy_from_slice(&u32::MAX.to_le_bytes());
+            }
             "trailing" => {
                 malformed.push(0);
                 let length = malformed.len() as u32;
@@ -357,7 +381,52 @@ fn test_native_readonly_mapping_and_malformed_bootstrap_refusal() {
             String::from_utf8_lossy(&output.stderr).contains("request decode:"),
             "{change}: {output:?}"
         );
+        if change == "count" {
+            assert!(
+                String::from_utf8_lossy(&output.stderr)
+                    .contains("request count exceeds remaining extent"),
+                "{change}: {output:?}"
+            );
+        }
     }
+}
+
+#[test]
+fn test_cli_reports_bootstrap_cargo_spawn_failure() {
+    let _serial = serial();
+    let directory = tempfile::tempdir().unwrap();
+    let empty_path = directory.path().join("empty executable path");
+    std::fs::create_dir(&empty_path).unwrap();
+    let grammar = directory.path().join("grammar.rs");
+    let input = directory.path().join("input.txt");
+    std::fs::write(&grammar, "#[adze::grammar(\"fixture\")] mod grammar {}\n").unwrap();
+    std::fs::write(&input, "hello").unwrap();
+    // On the supported CI image, Cargo lives outside the application and system
+    // search directories. The owned empty PATH must therefore cause the real
+    // bootstrap's spawn to fail; the exact stage assertion below checks that
+    // precondition without depending on localized OS wording.
+    let output = assert_cmd::Command::new(adze())
+        .arg("parse")
+        .arg(&grammar)
+        .arg(&input)
+        .args(["--output", "document-json"])
+        .current_dir(directory.path())
+        .env("PATH", &empty_path)
+        .timeout(Duration::from_secs(20))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(output.stdout.is_empty(), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("static parse failed for"), "{output:?}");
+    assert!(
+        stderr.contains("error: static runner bootstrap failed: external spawn:"),
+        "{output:?}"
+    );
+    assert!(
+        !stderr.contains("the runner produced no error output"),
+        "{output:?}"
+    );
 }
 
 #[test]
@@ -696,6 +765,10 @@ fn test_no_progress_and_closed_external_streams_cannot_outlive_absolute_deadline
         assert!(
             matches!(&error.cause, CaptureCause::Deadline),
             "{mode}: {error:?}"
+        );
+        assert!(
+            error.cancellation().is_none(),
+            "deadline refusal became console cancellation: {error:?}"
         );
         assert!(
             error.natural_status.is_none(),
