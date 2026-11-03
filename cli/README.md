@@ -164,6 +164,16 @@ Cleanup's entry limit is best effort: recent entries have a grace period and
 old entries shrink on a later publication. Executable hashing is an integrity
 check, with no measured performance guarantee. #869 owns performance reporting.
 
+Dormant cache IO now refuses over-budget files while reading: manifests are
+limited to 1 MiB, executables to 256 MiB, retained lockfiles to 4 MiB, and the
+grammar closure to 64 MiB across at most 256 files. Executable hashing and
+exclusive publication copies stream through an 8 KiB buffer. A length reported
+by the filesystem is only an early check; the read loop enforces the limit if
+a file grows. These are refusal thresholds, with no claim that every generated
+runner fits them. They do not reserve cache disk space, bound Cargo scratch or
+filesystem latency, establish immutable compiled inputs, or qualify active
+leases. Those admission requirements remain open under #1067.
+
 The dormant direct-runner and Cargo-build paths, fresh Cargo execution and
 rustc fingerprint acquisition share the same process boundary. On Linux and
 Windows its existing 64 MiB stdout / 1 MiB stderr capture limits, 600-second

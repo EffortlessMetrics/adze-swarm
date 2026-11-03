@@ -8,6 +8,7 @@ use walkdir::WalkDir;
 
 mod grammar_analysis;
 mod runner_cache;
+mod runner_cache_io;
 mod runner_invocation;
 mod runner_output;
 #[cfg(target_os = "linux")]

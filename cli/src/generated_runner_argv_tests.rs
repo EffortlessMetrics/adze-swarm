@@ -158,8 +158,10 @@ fn build_once(fixture: &Path) -> (PathBuf, Vec<u8>) {
 
     // Preparing this standalone root may adjust its copied lock. The subsequent
     // single native build must use that exact prepared lock unchanged.
+    // Unfiltered metadata requests packages for unrelated target platforms.
+    // Resolve and build for pinned Cargo's native host while staying offline.
     let mut metadata_command = cargo("metadata");
-    metadata_command.args(["--format-version", "1"]);
+    metadata_command.args(["--format-version", "1", "--filter-platform", "host-tuple"]);
     let metadata_output = capture_owned(
         &mut metadata_command,
         fixture,
@@ -200,6 +202,8 @@ fn build_once(fixture: &Path) -> (PathBuf, Vec<u8>) {
 
     let mut build_command = cargo("build");
     build_command.args([
+        "--target",
+        "host-tuple",
         "--locked",
         "--bin",
         "adze-cli-parse-runner",

@@ -7,6 +7,8 @@
 
 #[path = "../src/runner_cache.rs"]
 mod runner_cache;
+#[path = "../src/runner_cache_io.rs"]
+mod runner_cache_io;
 #[path = "../src/runner_invocation.rs"]
 mod runner_invocation;
 #[cfg(target_os = "linux")]

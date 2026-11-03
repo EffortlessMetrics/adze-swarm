@@ -41,6 +41,7 @@
 //! This transport repair does not authorize reuse or prove the compiled-input
 //! envelope. [`RUNNER_PROTOCOL_VERSION`] is the shared protocol authority.
 
+use crate::runner_cache_io;
 use crate::runner_invocation::{ProcessFailure, ProcessRunner, RunnerInvocation};
 use anyhow::Context;
 use sha2::{Digest, Sha256};
@@ -68,6 +69,11 @@ const STALE_LOCK_SECS: u64 = 3600;
 /// Closure walk budgets; exceeding them refuses caching (fail safe).
 const MAX_CLOSURE_FILES: usize = 256;
 const MAX_CLOSURE_BYTES: u64 = 64 << 20;
+/// Byte caps for dormant entry IO; exceeding one refuses this cache entry.
+/// These do not reserve disk space or bound Cargo's build scratch directory.
+const MAX_MANIFEST_BYTES: u64 = 1 << 20;
+const MAX_EXECUTABLE_BYTES: u64 = 256 << 20;
+const MAX_LOCKFILE_BYTES: u64 = 4 << 20;
 /// Bounded tail kept in `build.log` for post-mortem diagnosis.
 const BUILD_LOG_TAIL: usize = 8192;
 /// Test-only hook: when `ADZE_TEST_CARGO_COUNT_FILE` names a file, every
@@ -387,7 +393,7 @@ fn collect_closure(
     if !seen.insert(canonical.clone()) {
         return Ok(());
     }
-    let bytes = std::fs::read(&canonical).map_err(|error| {
+    let bytes = runner_cache_io::read_regular(&canonical, *budget).map_err(|error| {
         CacheSkip(format!(
             "cannot read grammar file {}: {error}",
             canonical.display()
@@ -569,7 +575,8 @@ fn scan_includes(
         if closure.len() >= MAX_CLOSURE_FILES {
             return Err(CacheSkip("grammar closure exceeds file budget".into()));
         }
-        let bytes = std::fs::read(&canonical).map_err(|error| CacheSkip(error.to_string()))?;
+        let bytes = runner_cache_io::read_regular(&canonical, *budget)
+            .map_err(|error| CacheSkip(error.to_string()))?;
         *budget = budget
             .checked_sub(bytes.len() as u64)
             .ok_or_else(|| CacheSkip("grammar closure exceeds byte budget".into()))?;
@@ -655,10 +662,8 @@ pub(crate) fn validate_entry(root: &Path, key: &str) -> Option<ValidEntry> {
     {
         return None;
     }
-    let manifest_bytes = std::fs::read(dir.join("manifest.json")).ok()?;
-    if manifest_bytes.len() > 1_048_576 {
-        return None;
-    }
+    let manifest_bytes =
+        runner_cache_io::read_regular(&dir.join("manifest.json"), MAX_MANIFEST_BYTES).ok()?;
     let manifest: serde_json::Value = serde_json::from_slice(&manifest_bytes).ok()?;
     if manifest.get("protocol").and_then(serde_json::Value::as_u64)
         != Some(u64::from(RUNNER_PROTOCOL_VERSION))
@@ -686,6 +691,9 @@ pub(crate) fn validate_entry(root: &Path, key: &str) -> Option<ValidEntry> {
         .get("exe")
         .and_then(|exe| exe.get("len"))
         .and_then(serde_json::Value::as_u64)?;
+    if expected_len == 0 || expected_len > MAX_EXECUTABLE_BYTES {
+        return None;
+    }
     let expected_sha = manifest
         .get("exe")
         .and_then(|exe| exe.get("sha256"))
@@ -694,8 +702,8 @@ pub(crate) fn validate_entry(root: &Path, key: &str) -> Option<ValidEntry> {
     if !std::fs::symlink_metadata(&exe).ok()?.is_file() {
         return None;
     }
-    let bytes = std::fs::read(&exe).ok()?;
-    if bytes.len() as u64 != expected_len || hex_digest(Sha256::digest(&bytes)) != expected_sha {
+    let digest = runner_cache_io::digest_regular(&exe, expected_len).ok()?;
+    if digest.len != expected_len || hex_digest(digest.sha256) != expected_sha {
         return None;
     }
     Some(ValidEntry { exe })
@@ -817,25 +825,23 @@ pub(crate) fn build_and_publish(
     let Some(built) = cargo_executable(&output.stdout) else {
         return Ok(CachedBuild::Unavailable);
     };
-    let Ok(bytes) = std::fs::read(&built) else {
-        return Ok(CachedBuild::Unavailable);
-    };
-    if bytes.is_empty() {
-        return Ok(CachedBuild::Unavailable);
-    }
     // Files can change during Cargo's read. Refuse publication unless the
     // observed grammar/template candidate still matches after compilation.
     if grammar_candidate_key(spec, process)?.as_deref() != Some(key) {
         return Ok(CachedBuild::Unavailable);
     }
-    let exe_sha = hex_digest(Sha256::digest(&bytes));
-
     // Assemble the complete entry inside staging and commit it with a single
     // rename, so readers only ever see absent-or-complete entries.
     let entry = staging.join("entry");
     std::fs::create_dir_all(&entry).context(CacheStorageFailure)?;
-    std::fs::copy(&built, entry.join(&exe_name)).context(CacheStorageFailure)?;
-    if std::fs::read(entry.join(&exe_name)).context(CacheStorageFailure)? != bytes {
+    let executable = entry.join(&exe_name);
+    let copied = runner_cache_io::copy_regular(&built, &executable, MAX_EXECUTABLE_BYTES)
+        .context(CacheStorageFailure)?;
+    if copied.len == 0
+        || runner_cache_io::digest_regular(&executable, MAX_EXECUTABLE_BYTES)
+            .context(CacheStorageFailure)?
+            != copied
+    {
         return Ok(CachedBuild::Unavailable);
     }
     let built_unix = SystemTime::now()
@@ -847,7 +853,7 @@ pub(crate) fn build_and_publish(
         "key": key,
         "cli_version": env!("CARGO_PKG_VERSION"),
         "built_unix": built_unix,
-        "exe": {"file": exe_name, "sha256": exe_sha, "len": bytes.len() as u64},
+        "exe": {"file": exe_name, "sha256": hex_digest(copied.sha256), "len": copied.len},
     });
     std::fs::write(
         entry.join("manifest.json"),
@@ -856,7 +862,8 @@ pub(crate) fn build_and_publish(
     .context(CacheStorageFailure)?;
     let lock_src = staging.join("Cargo.lock");
     if lock_src.is_file() {
-        let _ = std::fs::copy(&lock_src, entry.join("Cargo.lock"));
+        runner_cache_io::copy_regular(&lock_src, &entry.join("Cargo.lock"), MAX_LOCKFILE_BYTES)
+            .context(CacheStorageFailure)?;
     }
     let tail = tail_bytes(&output.stderr, BUILD_LOG_TAIL);
     let _ = std::fs::write(entry.join("build.log"), tail);
@@ -915,7 +922,10 @@ fn enforce_bounds(root: &Path, max_entries: usize) {
         if !is_entry_name(&name) {
             continue;
         }
-        let built = std::fs::read(entry.path().join("manifest.json"))
+        let built = runner_cache_io::read_regular(
+            &entry.path().join("manifest.json"),
+            MAX_MANIFEST_BYTES,
+        )
             .ok()
             .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
             .and_then(|manifest| {
@@ -933,7 +943,7 @@ fn enforce_bounds(root: &Path, max_entries: usize) {
         .unwrap_or(0);
     let excess = ranked.len().saturating_sub(max_entries);
     for (_, path) in ranked.into_iter().take(excess) {
-        let fresh = std::fs::read(path.join("manifest.json"))
+        let fresh = runner_cache_io::read_regular(&path.join("manifest.json"), MAX_MANIFEST_BYTES)
             .ok()
             .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
             .and_then(|manifest| {
@@ -1348,6 +1358,78 @@ mod tests {
         let second = candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         assert_eq!(first, second, "same bytes must produce the same key");
         assert_eq!(first.len(), 64, "key must be a sha256 hex digest");
+    }
+
+    #[test]
+    fn test_grammar_and_raw_include_reads_share_the_remaining_byte_budget() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let grammar = temp.path().join("grammar.rs");
+        std::fs::File::create(&grammar)
+            .unwrap()
+            .set_len(super::MAX_CLOSURE_BYTES + 1)
+            .unwrap();
+        assert!(candidate_key(&test_spec(&grammar, "grammar")).is_none());
+
+        std::fs::write(
+            &grammar,
+            format!("{SINGLE}const DATA: &[u8] = include_bytes!(\"data.bin\");\n"),
+        )
+        .unwrap();
+        let included = temp.path().join("data.bin");
+        std::fs::File::create(&included)
+            .unwrap()
+            .set_len(super::MAX_CLOSURE_BYTES)
+            .unwrap();
+        assert!(candidate_key(&test_spec(&grammar, "grammar")).is_none());
+        std::fs::write(&included, b"literal data").unwrap();
+        assert!(candidate_key(&test_spec(&grammar, "grammar")).is_some());
+        assert!(super::build_key(&test_spec(&grammar, "grammar")).is_none());
+    }
+
+    #[test]
+    fn test_bounded_entry_validation_refuses_partial_or_oversized_files_without_mutation() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let key = "e".repeat(64);
+        let entry = temp.path().join(&key);
+        std::fs::create_dir(&entry).unwrap();
+        let executable = entry.join("runner");
+        let manifest_path = entry.join("manifest.json");
+        std::fs::write(&executable, b"abc").unwrap();
+        let mut manifest = serde_json::json!({
+            "protocol": RUNNER_PROTOCOL_VERSION,
+            "key": key,
+            "built_unix": super::SystemTime::now()
+                .duration_since(super::UNIX_EPOCH).unwrap().as_secs(),
+            "exe": {
+                "file": "runner", "len": 3,
+                "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            },
+        });
+        std::fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(super::validate_entry(temp.path(), &key).is_some());
+        std::fs::write(&executable, b"abc excess").unwrap();
+        assert!(super::validate_entry(temp.path(), &key).is_none());
+        assert_eq!(std::fs::read(&executable).unwrap(), b"abc excess");
+        std::fs::write(&executable, b"abc").unwrap();
+
+        for invalid_len in [0, super::MAX_EXECUTABLE_BYTES + 1] {
+            manifest["exe"]["len"] = invalid_len.into();
+            std::fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+            assert!(super::validate_entry(temp.path(), &key).is_none());
+        }
+        std::fs::write(&manifest_path, b"{\"protocol\":").unwrap();
+        assert!(super::validate_entry(temp.path(), &key).is_none());
+        assert_eq!(std::fs::read(&manifest_path).unwrap(), b"{\"protocol\":");
+        std::fs::File::create(&manifest_path)
+            .unwrap()
+            .set_len(super::MAX_MANIFEST_BYTES + 1)
+            .unwrap();
+        assert!(super::validate_entry(temp.path(), &key).is_none());
+        assert_eq!(
+            std::fs::metadata(&manifest_path).unwrap().len(),
+            super::MAX_MANIFEST_BYTES + 1,
+        );
+        assert_eq!(std::fs::read(&executable).unwrap(), b"abc");
     }
 
     #[test]
