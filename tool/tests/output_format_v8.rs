@@ -1140,9 +1140,15 @@ fn test_parser_code_has_at_least_one_line() {
 
 #[test]
 fn test_parser_code_no_very_long_lines() {
-    let r = build(single_token("of_v8_line_len"));
-    // Allow generous line length but flag absurdly long lines (>10k chars)
-    for (i, line) in r.parser_code.lines().enumerate() {
+    let (_dir, options) = opts();
+    let r = build_parser(single_token("of_v8_line_len"), options).expect("build should succeed");
+    // parser_code is intentionally TokenStream display; the emitted file is
+    // the formatted Rust artifact, and its TempDir must remain live to read it.
+    let written = std::fs::read_to_string(&r.parser_path).expect("read generated Rust file");
+    let parsed = syn::parse_file(&written).expect("generated file remains valid Rust");
+    assert!(!parsed.items.is_empty(), "generated parser must contain items");
+    // Retain the same line-length bound on the actual formatted output.
+    for (i, line) in written.lines().enumerate() {
         assert!(
             line.len() < 10_000,
             "line {i} unexpectedly long ({} chars)",
