@@ -70,6 +70,7 @@ same_length_and_capacity = "deny"
 tree-sitter = "=0.26.7"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
+sha2 = "0.10.9"
 proptest = "1.4"
 insta = "1.39"
 criterion = { version = "0.8.2", features = ["html_reports"] }
@@ -86,7 +87,6 @@ rayon = "1.10"
 rustc-hash = "2.1"
 smallvec = "1.13"
 regex = "1.11"
-sha2 = "0.10"
 libc = "0.2.186"
 rustix = { version = "1.1.4", features = ["fs", "process"] }
 windows-sys = { version = "=0.61.2", default-features = false }

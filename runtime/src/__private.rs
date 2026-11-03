@@ -803,6 +803,16 @@ pub(crate) fn parse_document_with_decoded_table(
         errors: parser_errors,
     } = parser.parse_string(input);
 
+    // Resource refusal cannot produce a trustworthy syntax document. Preserve
+    // the same native errors/order as typed parsing, including any earlier
+    // syntax errors; never infer this class from token IDs or display text.
+    if parser_errors.iter().any(|error| error.work_limit.is_some()) {
+        return Err(parser_errors
+            .into_iter()
+            .map(|error| map_lr_parse_error(input, lang, error))
+            .collect());
+    }
+
     let error_count = parser_errors.len();
     let diagnostics = document_diagnostics_for_parse_errors(input, lang, &parser_errors);
     let root = root
@@ -1762,7 +1772,18 @@ fn parse_document_from_glr_errors(
     )
 }
 
-/// Map one deterministic LR parser error to the public diagnostic shape.
+/// One interpretation of a native LR failure, shared by typed errors and
+/// document diagnostics. Rendering and document point lookup happen afterward.
+#[cfg(feature = "pure-rust")]
+struct LrDiagnosticFacts {
+    start_byte: usize,
+    end_byte: usize,
+    found: String,
+    expected: Vec<String>,
+    unexpected_eof: bool,
+}
+
+/// Interpret one deterministic LR failure before projecting either public view.
 ///
 /// A trailing list delimiter at end of input is reported at the delimiter
 /// itself when the parser was only awaiting a new element after it: the
@@ -1772,17 +1793,20 @@ fn parse_document_from_glr_errors(
 /// delimiter or end-of-input among other tokens, the parser state is
 /// reported unchanged.
 #[cfg(feature = "pure-rust")]
-fn map_lr_parse_error(
+fn lr_diagnostic_facts(
     input: &str,
     lang: &crate::pure_parser::TSLanguage,
-    e: crate::pure_parser::ParseError,
-) -> crate::errors::ParseError {
-    let symbol_name = diagnostic_found_name_for_error(input, lang, e.found, e.position);
+    e: &crate::pure_parser::ParseError,
+) -> LrDiagnosticFacts {
     let mut expected = expected_symbol_names_for_diagnostic(lang, &e.expected);
     let mut start = e.position;
     let mut end = diagnostic_end_for_byte(input.as_bytes(), e.position);
-    let mut found_name = symbol_name.clone();
-    if symbol_name == "end of input" {
+    let mut found_name = diagnostic_found_name_for_error(input, lang, e.found, e.position);
+    // Preserve the existing public classification, including a non-EOF symbol
+    // whose display name is "end of input". Document-to-AST conversion uses the
+    // same found-name convention; changing that contract is separate work.
+    let mut unexpected_eof = found_name == "end of input";
+    if unexpected_eof {
         let bytes = input.as_bytes();
         let mut sep_end = e.position.min(bytes.len());
         while sep_end > 0 && bytes[sep_end - 1].is_ascii_whitespace() {
@@ -1799,20 +1823,50 @@ fn map_lr_parse_error(
             end = sep_end;
             found_name = (bytes[sep_end - 1] as char).to_string();
             expected = vec![symbol_name_for_diagnostic(lang, lang.eof_symbol)];
+            unexpected_eof = false;
         }
     }
-    let reason = if found_name == "end of input" {
+
+    LrDiagnosticFacts {
+        start_byte: start,
+        end_byte: end,
+        found: found_name,
+        expected,
+        unexpected_eof,
+    }
+}
+
+#[cfg(feature = "pure-rust")]
+fn map_lr_parse_error(
+    input: &str,
+    lang: &crate::pure_parser::TSLanguage,
+    error: crate::pure_parser::ParseError,
+) -> crate::errors::ParseError {
+    if let Some(work_limit) = error.work_limit {
+        let mut checkpoint = error.position.min(input.len());
+        while !input.is_char_boundary(checkpoint) {
+            checkpoint -= 1;
+        }
+        return crate::errors::ParseError {
+            reason: crate::errors::ParseErrorReason::ParserWorkLimit(work_limit),
+            start: checkpoint,
+            end: checkpoint,
+            expected: Vec::new(),
+        };
+    }
+    let facts = lr_diagnostic_facts(input, lang, &error);
+    let reason = if facts.unexpected_eof {
         crate::errors::ParseErrorReason::UnexpectedEof
     } else {
         crate::errors::ParseErrorReason::UnexpectedToken(
-            crate::diagnostic_format::unexpected_token_message(found_name, expected.clone()),
+            crate::diagnostic_format::unexpected_token_message(facts.found, facts.expected.clone()),
         )
     };
     crate::errors::ParseError {
         reason,
-        start,
-        end,
-        expected,
+        start: facts.start_byte,
+        end: facts.end_byte,
+        expected: facts.expected,
     }
 }
 
@@ -2545,12 +2599,32 @@ fn convert_parsed_node_to_document_node(
     node: &crate::pure_parser::ParsedNode,
     lang: &crate::pure_parser::TSLanguage,
 ) -> crate::parser_v4::ParseNode {
-    let children = node
-        .children
-        .iter()
-        .map(|child| convert_parsed_node_to_document_node(child, lang))
-        .collect();
+    let mut frames = vec![(node, Vec::with_capacity(node.children.len()))];
+    loop {
+        let (node, child_index) = {
+            let (node, children) = frames.last().expect("root frame exists");
+            (*node, children.len())
+        };
+        if let Some(child) = node.children.get(child_index) {
+            frames.push((child, Vec::with_capacity(child.children.len())));
+            continue;
+        }
+        let (node, children) = frames.pop().expect("completed frame exists");
+        let converted = parsed_node_with_document_children(node, lang, children);
+        if let Some((_, siblings)) = frames.last_mut() {
+            siblings.push(converted);
+        } else {
+            return converted;
+        }
+    }
+}
 
+#[cfg(feature = "pure-rust")]
+fn parsed_node_with_document_children(
+    node: &crate::pure_parser::ParsedNode,
+    lang: &crate::pure_parser::TSLanguage,
+    children: Vec<crate::parser_v4::ParseNode>,
+) -> crate::parser_v4::ParseNode {
     // Preserve error/missing facts (#875): encode them as symbol-0 nodes,
     // the document layer's error-node identity, instead of keeping only
     // the recognised grammar symbol and dropping the flag.
@@ -2581,20 +2655,23 @@ fn document_diagnostics_for_parse_errors(
     parser_errors
         .iter()
         .map(|error| {
-            let found = diagnostic_found_name_for_error(input, lang, error.found, error.position);
-            let expected = expected_symbol_names_for_diagnostic(lang, &error.expected);
-            let start_byte = error.position;
-            let end_byte = diagnostic_end_for_byte(input.as_bytes(), error.position);
-            let point_range =
-                crate::document::PointRange::from_byte_range(input, start_byte..end_byte);
+            let facts = lr_diagnostic_facts(input, lang, error);
+            let point_range = crate::document::PointRange::from_byte_range(
+                input,
+                facts.start_byte..facts.end_byte,
+            );
+            let message = crate::diagnostic_format::unexpected_token_message(
+                facts.found.clone(),
+                facts.expected.clone(),
+            );
             crate::document::ParseDiagnostic {
-                start_byte,
-                end_byte,
+                start_byte: facts.start_byte,
+                end_byte: facts.end_byte,
                 point_range,
-                found: Some(found.clone()),
-                expected: expected.clone(),
+                found: Some(facts.found),
+                expected: facts.expected,
                 related_nodes: Vec::new(),
-                message: crate::diagnostic_format::unexpected_token_message(found, expected),
+                message,
             }
         })
         .collect()
@@ -3253,6 +3330,156 @@ mod tests {
         assert_eq!(diagnostic_end_for_byte(source, 1), 3);
         assert_eq!(diagnostic_end_for_byte(source, 3), 4);
         assert_eq!(diagnostic_end_for_byte(source, 4), 4);
+    }
+
+    #[test]
+    fn test_lr_work_limit_uses_explicit_cause_and_bounded_checkpoint() {
+        let input = "λ!";
+        let limit = crate::errors::ParserWorkLimit {
+            limit: 10_000,
+            completed_iterations: 10_000,
+        };
+        for (position, span) in [(1, 0..0), (usize::MAX, 3..3)] {
+            let native = crate::pure_parser::ParseError {
+                work_limit: Some(limit),
+                position,
+                point: Point { row: 0, column: 0 },
+                // These cannot be token facts for a work refusal. In
+                // particular, a nonzero found ID must not change its cause.
+                expected: vec![u16::MAX],
+                found: 1,
+            };
+            let typed = map_lr_parse_error(input, &FIELD_LANGUAGE, native);
+            assert!(matches!(
+                typed.reason,
+                crate::errors::ParseErrorReason::ParserWorkLimit(actual) if actual == limit
+            ));
+            assert_eq!(typed.byte_span(), span);
+            assert!(typed.expected.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_lr_diagnostic_views_preserve_trailing_delimiter_and_genuine_eof_facts() {
+        let names = [
+            c"end".as_ptr() as *const u8,
+            c"identifier".as_ptr() as *const u8,
+            c",".as_ptr() as *const u8,
+            c";".as_ptr() as *const u8,
+        ];
+        let language = TSLanguage {
+            symbol_count: 4,
+            token_count: 4,
+            symbol_names: names.as_ptr(),
+            ..FIELD_LANGUAGE
+        };
+
+        for (source, native_expected, span, found, expected) in [
+            ("alpha;\n \t", vec![1], 5..6, ";", vec!["end"]),
+            (
+                "alpha,",
+                vec![0, 1],
+                6..6,
+                "end of input",
+                vec!["end", "identifier"],
+            ),
+            (
+                "alpha,",
+                vec![1, 2],
+                6..6,
+                "end of input",
+                vec![",", "identifier"],
+            ),
+        ] {
+            let native = crate::pure_parser::ParseError {
+                work_limit: None,
+                position: source.len(),
+                point: byte_to_point(source.as_bytes(), source.len()),
+                expected: native_expected,
+                found: language.eof_symbol,
+            };
+            let typed = map_lr_parse_error(source, &language, native.clone());
+            let diagnostics = document_diagnostics_for_parse_errors(source, &language, &[native]);
+            assert_eq!(diagnostics.len(), 1);
+            let diagnostic = &diagnostics[0];
+
+            assert_eq!(typed.byte_span(), span);
+            assert_eq!(diagnostic.byte_span(), span);
+            assert_eq!(typed.expected, expected);
+            assert_eq!(diagnostic.expected, expected);
+            assert_eq!(diagnostic.found.as_deref(), Some(found));
+            assert_eq!(
+                diagnostic.point_range,
+                crate::document::PointRange::from_byte_range(source, span)
+            );
+            assert_eq!(
+                matches!(typed.reason, crate::errors::ParseErrorReason::UnexpectedEof),
+                found == "end of input"
+            );
+        }
+    }
+
+    #[test]
+    fn test_lr_diagnostic_views_preserve_legacy_eof_display_name_classification() {
+        // Compatibility control, not a new native-symbol classification rule:
+        // the old typed mapper and document projection both treated this
+        // display-name collision as UnexpectedEof even before source EOF.
+        let source = "x";
+        let names = [
+            c"end".as_ptr() as *const u8,
+            c"end of input".as_ptr() as *const u8,
+            c"identifier".as_ptr() as *const u8,
+        ];
+        let language = TSLanguage {
+            symbol_count: 3,
+            token_count: 3,
+            symbol_names: names.as_ptr(),
+            ..FIELD_LANGUAGE
+        };
+        let native = crate::pure_parser::ParseError {
+            work_limit: None,
+            position: 0,
+            point: Point { row: 0, column: 0 },
+            expected: vec![2],
+            found: 1,
+        };
+        assert_ne!(native.found, language.eof_symbol);
+        assert!(native.position < source.len());
+        let typed = map_lr_parse_error(source, &language, native.clone());
+        let diagnostics = document_diagnostics_for_parse_errors(source, &language, &[native]);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].found.as_deref(), Some("end of input"));
+        assert_eq!(diagnostics[0].byte_span(), 0..1);
+        assert_eq!(diagnostics[0].expected, ["identifier"]);
+
+        let grammar = adze_ir::Grammar::new("legacy_eof_name".to_string());
+        let table = adze_glr_core::ParseTable::default();
+        let root = synthetic_document_root_for_errors(source, adze_ir::SymbolId(2), &diagnostics);
+        let document = crate::document::AdzeDocument::from_parse_result_with_diagnostics(
+            source,
+            root,
+            diagnostics.len(),
+            crate::document::DocumentRuntime {
+                language_name: "legacy_eof_name",
+                grammar: &grammar,
+                parse_table: &table,
+                field_schema: crate::document::DocumentFieldSchema::Unavailable,
+                pure_language: None,
+            },
+            diagnostics,
+        );
+        let projected = document
+            .ast::<()>()
+            .expect_err("recorded diagnostics reject extraction before the converter");
+        assert_eq!(projected.len(), 1);
+        for error in [&typed, &projected[0]] {
+            assert!(matches!(
+                error.reason,
+                crate::errors::ParseErrorReason::UnexpectedEof
+            ));
+            assert_eq!(error.byte_span(), 0..1);
+            assert_eq!(error.expected, ["identifier"]);
+        }
     }
 
     #[test]

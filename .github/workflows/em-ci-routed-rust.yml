@@ -858,6 +858,47 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: supported-proof
+      - name: Qualify generated LR diagnostics with GLR enabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/lib/required-test-output.sh
+
+          run_required_glr_test() {
+            local label="$1"
+            shift
+            local output status
+            printf '==> %s\n' "$label"
+            if output=$("$@" 2>&1); then
+              printf '%s\n' "$output"
+            else
+              status=$?
+              printf '%s\n' "$output"
+              return "$status"
+            fi
+            required_test_output "$output" "$label"
+          }
+
+          # #1240: default supported proof does not select the GLR profile.
+          run_required_glr_test 'generated LR diagnostic parity (pure-rust,glr)' \
+            cargo test --locked -p adze --no-default-features --features pure-rust,glr \
+            --test generated_lr_diagnostic_parity -- --nocapture
+          run_required_glr_test 'native LR diagnostic views (pure-rust,glr)' \
+            cargo test --locked -p adze --no-default-features --features pure-rust,glr \
+            --lib __private::tests::test_lr_diagnostic_views_preserve_trailing_delimiter_and_genuine_eof_facts \
+            -- --exact --nocapture
+          run_required_glr_test 'legacy EOF display-name classification (pure-rust,glr)' \
+            cargo test --locked -p adze --no-default-features --features pure-rust,glr \
+            --lib __private::tests::test_lr_diagnostic_views_preserve_legacy_eof_display_name_classification \
+            -- --exact --nocapture
+          # #1251/#1252: these real streaming EOF regressions need GLR.
+          run_required_glr_test 'generated streaming physical EOF (pure-rust,glr)' \
+            cargo test --locked -p adze --no-default-features --features pure-rust,glr \
+            --test generated_streaming_extra_eof -- --nocapture
+          # #1211: exercise actual LR cycles and deep EOF lifecycle with GLR enabled.
+          run_required_glr_test 'native LR work-budget and lifecycle (pure-rust,glr)' \
+            cargo test --locked -p adze --no-default-features --features pure-rust,glr \
+            --lib pure_parser::work_budget_tests:: -- --nocapture
       - name: Run supported proof (fmt + clippy + tests on 7 core crates)
         run: just ci-supported
 

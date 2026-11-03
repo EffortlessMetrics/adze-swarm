@@ -193,9 +193,13 @@ impl AdzeDocument {
     ) -> Self {
         let mut diagnostics = diagnostics;
         attach_related_nodes(&syntax, &mut diagnostics);
-        // `root` is consumed once by flat construction above and dropped:
-        // no persistent recursive tree is retained.
-        let _ = root;
+        // Flat construction has consumed the facts above. Dispose of its
+        // temporary recursive input iteratively as well; a long valid LR
+        // unwind must not overflow the call stack while returning a document.
+        let mut pending = vec![root];
+        while let Some(mut node) = pending.pop() {
+            pending.append(&mut node.children);
+        }
         let mut document = Self {
             source: source.to_string(),
             projection: field_projection::ProjectionIndex::default(),

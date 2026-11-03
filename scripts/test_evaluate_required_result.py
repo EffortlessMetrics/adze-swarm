@@ -327,6 +327,133 @@ class WorkflowWiring(unittest.TestCase):
         self.assertIn(command, block)
         self.assertLess(block.index(command), block.index("- id: detect"))
 
+    def _native_dependency_preparation(self, platform: str) -> tuple[str, str, str]:
+        import textwrap
+
+        job = "ci-product-stable" if platform == "Linux" else "ci-product-windows"
+        block = self._job_block(".github/workflows/product-proof.yml", job)
+        name = f"Prepare locked native dependencies online for {platform} consumers"
+        step = block[block.index(f"      - name: {name}\n"):]
+        step = step.split("\n      - ", 1)[0]
+        run_lines = []
+        for line in step.split("        run: |\n", 1)[1].splitlines():
+            if line and not line.startswith("          "):
+                break
+            run_lines.append(line)
+        script = textwrap.dedent("\n".join(run_lines))
+        if platform == "Linux":
+            self.assertIn("shell: bash\n", step)
+            self.assertTrue(script.startswith("set -euo pipefail\n"))
+            program, suffix = script.split("python3 - <<'PY'\n", 1)[1].split("\nPY", 1)
+            self.assertEqual("", suffix.strip())
+        else:
+            self.assertNotIn("shell: bash", step)
+            program, suffix = script.split("@'\n", 1)[1].split("\n'@ | python -", 1)
+            self.assertEqual("exit $LASTEXITCODE", suffix.strip())
+        return block, step, program
+
+    def test_native_dependency_preparation_is_finite_and_precedes_consumers(self) -> None:
+        for platform, first_consumer in (
+            ("Linux", "Qualify Linux static runner process and output contracts"),
+            ("Windows", "Strict Clippy for native Windows runner contracts"),
+        ):
+            with self.subTest(platform=platform):
+                block, step, _ = self._native_dependency_preparation(platform)
+                self.assertIn("        timeout-minutes: 5\n", step)
+                self.assertNotIn("continue-on-error", step)
+                self.assertNotIn("        if:", step)
+                self.assertLess(block.index("Swatinem/rust-cache@v2"), block.index(step))
+                self.assertLess(block.index(step), block.index(first_consumer))
+
+    def test_native_dependency_preparation_preserves_failures_and_lock_bytes(self) -> None:
+        """Execute both workflow programs with an actual fake Cargo subprocess.
+
+        Only Cargo's executable is substituted; the embedded hash, failure and
+        lock-refusal code runs unchanged. This is not native Cargo or PowerShell
+        qualification.
+        """
+        import hashlib
+        import json
+        import tempfile
+        import textwrap
+
+        fake_cargo = textwrap.dedent('''\
+            import json
+            import os
+            import pathlib
+            import sys
+
+            pathlib.Path("cargo-argv.json").write_text(json.dumps(sys.argv[1:]))
+            change = os.environ["ADZE_PREP_TEST_CHANGE"]
+            if change == "changed":
+                with pathlib.Path("Cargo.lock").open("ab") as lock:
+                    lock.write(b"# changed\\n")
+            elif change == "removed":
+                pathlib.Path("Cargo.lock").unlink()
+            status = int(os.environ["ADZE_PREP_TEST_STATUS"])
+            if status:
+                print("fixture Cargo failure", file=sys.stderr)
+            raise SystemExit(status)
+        ''')
+        lock_bytes = b"version = 4\r\n"
+        lock_hash = hashlib.sha256(lock_bytes).hexdigest()
+        cases = (
+            ("unchanged", 0, 0), ("unchanged", 37, 37),
+            ("changed", 0, 1), ("changed", 37, 37),
+            ("removed", 0, 1), ("removed", 37, 37),
+            ("missing-before", 0, 1),
+        )
+        for platform, target in (("Linux", "host-tuple"), ("Windows", "x86_64-pc-windows-msvc")):
+            _, _, program = self._native_dependency_preparation(platform)
+            # This adapter preserves the workflow's exact Cargo argument list
+            # and check policy while using a portable executable fake child.
+            harness = textwrap.dedent('''\
+                import subprocess
+                import sys
+
+                real_run = subprocess.run
+                def invoke(command, *, check):
+                    assert command[0] == "cargo", command
+                    assert check is False
+                    return real_run([sys.executable, "fake-cargo.py", *command[1:]], check=check)
+                subprocess.run = invoke
+            ''') + "\nexec(" + repr(program) + ")\n"
+            for change, cargo_status, expected_status in cases:
+                with self.subTest(platform=platform, change=change, cargo_status=cargo_status):
+                    with tempfile.TemporaryDirectory(prefix="adze-dependency-preparation-") as directory:
+                        fixture = Path(directory)
+                        (fixture / "fake-cargo.py").write_text(fake_cargo, encoding="utf-8")
+                        if change != "missing-before":
+                            (fixture / "Cargo.lock").write_bytes(lock_bytes)
+                        result = subprocess.run(
+                            [sys.executable, "-c", harness], cwd=fixture,
+                            env={**os.environ, "ADZE_PREP_TEST_CHANGE": change,
+                                 "ADZE_PREP_TEST_STATUS": str(cargo_status)},
+                            capture_output=True, text=True, timeout=10,
+                        )
+                        self.assertEqual(expected_status, result.returncode, result.stdout + result.stderr)
+                        argv = fixture / "cargo-argv.json"
+                        if change == "missing-before":
+                            self.assertFalse(argv.exists(), "unreadable lock must prevent preparation")
+                            continue
+                        self.assertEqual(
+                            ["fetch", "--locked", "--target", target],
+                            json.loads(argv.read_text(encoding="utf-8")),
+                        )
+                        self.assertIn(f"dependency_preparation_lock_before_sha256={lock_hash}", result.stdout)
+                        self.assertIn(f"dependency_preparation_fetch_status={cargo_status}", result.stdout)
+                        if cargo_status:
+                            self.assertIn("fixture Cargo failure", result.stderr)
+                        if change == "unchanged":
+                            self.assertEqual(lock_bytes, (fixture / "Cargo.lock").read_bytes())
+                            self.assertIn(f"dependency_preparation_lock_after_sha256={lock_hash}", result.stdout)
+                        elif change == "changed":
+                            changed_hash = hashlib.sha256(lock_bytes + b"# changed\n").hexdigest()
+                            self.assertIn(f"dependency_preparation_lock_after_sha256={changed_hash}", result.stdout)
+                            self.assertIn("changed Cargo.lock bytes", result.stderr)
+                        else:
+                            self.assertIn("could not read Cargo.lock afterward", result.stderr)
+
     def test_windows_job_is_selected_with_the_existing_non_pr_product_proof(self) -> None:
         import re
 
