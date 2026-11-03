@@ -1,0 +1,17 @@
+[package]
+name = "adze-build-invalidation-fixture"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[features]
+default = ["pure-rust"]
+pure-rust = []
+
+[dependencies]
+adze = { path = "../../../../runtime", default-features = false, features = ["pure-rust"] }
+
+[build-dependencies]
+adze-tool = { path = "../../.." }
