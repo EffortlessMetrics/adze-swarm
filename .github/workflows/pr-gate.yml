@@ -1,5 +1,7 @@
 name: PR Gate
 
+# Optional planning, docs-only formatting, and per-run cost telemetry (#1027).
+# Rust Small Result and Product Proof Result own integration qualification.
 on:
   merge_group:
   workflow_dispatch:
@@ -16,30 +18,6 @@ jobs:
   plan:
     name: PR Plan
     uses: ./.github/workflows/pr-plan.yml
-
-  supported:
-    name: Supported Rust Gate
-    needs: plan
-    if: |
-      always() &&
-      (needs.plan.result == 'skipped' ||
-        (needs.plan.result == 'success' && needs.plan.outputs.docs_only != 'true'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: adze-supported-${{ hashFiles('Cargo.lock') }}
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Install just
-        run: cargo install just --locked || true
-      - name: Run supported lane
-        timeout-minutes: 40
-        run: just ci-supported
 
   docs-gate:
     name: Docs Gate
@@ -59,50 +37,60 @@ jobs:
         run: cargo fmt --all -- --check
 
   success:
-    name: PR Gate Success
-    needs: [plan, supported, docs-gate]
-    if: >-
-      always() &&
-      needs.plan.result != 'cancelled' &&
-      needs.supported.result != 'cancelled' &&
-      needs.docs-gate.result != 'cancelled'
+    name: PR Planning Result
+    needs: [plan, docs-gate]
+    # Report failed/cancelled/missing prerequisites rather than skipping green.
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Test planning result contract
+        run: python3 scripts/test_pr_planning_gate.py
       - name: Aggregate gate result
+        env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          DOCS_ONLY: ${{ needs.plan.outputs.docs_only }}
+          DOCS_RESULT: ${{ needs.docs-gate.result }}
         run: |
           set -euo pipefail
-          PLAN='${{ needs.plan.result }}'
-          SUPPORTED='${{ needs.supported.result }}'
-          DOCS='${{ needs.docs-gate.result }}'
-          echo "plan=$PLAN supported=$SUPPORTED docs=$DOCS"
-          # Plan must not fail (it can be skipped in merge_group).
-          if [ "$PLAN" = "failure" ] || [ "$PLAN" = "cancelled" ]; then
-            echo "::error::PR Plan failed"; exit 1
+          echo "plan=$PLAN_RESULT docs_only=$DOCS_ONLY docs=$DOCS_RESULT"
+          if [ "$PLAN_RESULT" != "success" ]; then
+            echo "::error::PR Plan did not succeed"; exit 1
           fi
-          # Exactly one of supported / docs must succeed; the other is
-          # skipped based on the docs_only output.
-          if [ "$SUPPORTED" = "success" ] && [ "$DOCS" = "skipped" ]; then
-            echo "Supported Rust Gate passed."
-            exit 0
-          fi
-          if [ "$DOCS" = "success" ] && [ "$SUPPORTED" = "skipped" ]; then
-            echo "Docs Gate passed."
-            exit 0
-          fi
-          echo "::error::Required gate did not pass (supported=$SUPPORTED, docs=$DOCS)"; exit 1
+          case "$DOCS_ONLY" in
+            true)
+              if [ "$DOCS_RESULT" != "success" ]; then
+                echo "::error::Selected docs formatting did not succeed"; exit 1
+              fi
+              echo "Planning and selected workspace formatting passed."
+              ;;
+            false)
+              if [ "$DOCS_RESULT" != "skipped" ]; then
+                echo "::error::Unselected Docs Gate has an inconsistent result"; exit 1
+              fi
+              echo "Planning passed; docs-only workspace formatting was not selected."
+              ;;
+            *)
+              echo "::error::PR Plan docs_only output is missing or malformed"; exit 1
+              ;;
+          esac
+          echo "Rust/product qualification is reported separately by Rust Small Result and Product Proof Result."
       - name: Append summary
         if: always()
+        env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          DOCS_ONLY: ${{ needs.plan.outputs.docs_only }}
+          DOCS_RESULT: ${{ needs.docs-gate.result }}
         run: |
           {
-            echo "## PR Gate Success";
+            echo "## PR Planning Result";
             echo "";
-            echo "- plan: ${{ needs.plan.result }}";
-            echo "- supported: ${{ needs.supported.result }}";
-            echo "- docs-gate: ${{ needs.docs-gate.result }}";
+            echo "Optional planning and selected docs-only formatting; no Rust qualification claim.";
+            echo "- plan: $PLAN_RESULT";
+            echo "- docs-only: $DOCS_ONLY";
+            echo "- docs-gate: $DOCS_RESULT";
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/checkout@v6.0.2
-        if: always()
       - name: Verify reporting tools
         if: always()
         run: command -v python3
