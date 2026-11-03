@@ -117,7 +117,10 @@ pub(super) struct PreparedArchive {
 
 impl PreparedArchive {
     pub(super) fn verify_extraction(&self) -> Result<()> {
-        let root = self.manifest_path.parent().context("served manifest has no parent")?;
+        let root = self
+            .manifest_path
+            .parent()
+            .context("served manifest has no parent")?;
         if file_inventory(root)? != self.inventory {
             bail!("served extraction changed before metadata could be bound to its archive");
         }
@@ -139,14 +142,18 @@ impl Provenance {
             } else {
                 std::env::current_dir()?.join(requested)
             };
-            let parent = fs::canonicalize(absolute.parent().context("artifact path has no parent")?)
-                .context("artifact parent must already exist")?;
-            let name = absolute.file_name().context("artifact path has no directory name")?;
+            let parent =
+                fs::canonicalize(absolute.parent().context("artifact path has no parent")?)
+                    .context("artifact parent must already exist")?;
+            let name = absolute
+                .file_name()
+                .context("artifact path has no directory name")?;
             let root = parent.join(name);
             if root.starts_with(&source_root) {
                 bail!("release artifacts must be outside the source workspace");
             }
-            fs::create_dir(&root).context("artifact directory must be new and exclusively owned")?;
+            fs::create_dir(&root)
+                .context("artifact directory must be new and exclusively owned")?;
             root
         } else {
             let owned = tempfile::Builder::new()
@@ -197,7 +204,12 @@ impl Provenance {
     }
 
     pub(super) fn source_commit(&self) -> Result<&str> {
-        Ok(&self.receipt.source.as_ref().context("source not captured")?.commit)
+        Ok(&self
+            .receipt
+            .source
+            .as_ref()
+            .context("source not captured")?
+            .commit)
     }
 
     pub(super) fn stage(&mut self, stage: impl Into<String>) -> Result<()> {
@@ -222,7 +234,8 @@ impl Provenance {
         serde_json::to_writer_pretty(&mut pending, &self.receipt)?;
         pending.write_all(b"\n")?;
         pending.as_file().sync_all()?;
-        pending.persist(self.root.join(RECEIPT))
+        pending
+            .persist(self.root.join(RECEIPT))
             .context("committing archive provenance checkpoint")?;
         Ok(())
     }
@@ -286,21 +299,31 @@ impl Provenance {
         snapshot: &Path,
         package_roots: &BTreeMap<String, PathBuf>,
     ) -> Result<()> {
-        let source = self.receipt.source.as_mut().context("source not captured")?;
+        let source = self
+            .receipt
+            .source
+            .as_mut()
+            .context("source not captured")?;
         source.gitlinks_outside_selected_packages = false;
         source.selected_package_roots.clear();
         let snapshot = fs::canonicalize(snapshot)?;
         for (name, root) in package_roots {
             let root = fs::canonicalize(root)?;
-            let relative = root.strip_prefix(&snapshot)
-                .with_context(|| format!("selected package `{name}` is outside the source snapshot"))?;
+            let relative = root.strip_prefix(&snapshot).with_context(|| {
+                format!("selected package `{name}` is outside the source snapshot")
+            })?;
             for gitlink in &source.gitlinks {
                 let path = Path::new(&gitlink.path);
                 if path.starts_with(relative) || relative.starts_with(path) {
-                    bail!("selected package `{name}` intersects unexported gitlink `{}`", gitlink.path);
+                    bail!(
+                        "selected package `{name}` intersects unexported gitlink `{}`",
+                        gitlink.path
+                    );
                 }
             }
-            source.selected_package_roots.insert(name.clone(), path_text(relative)?);
+            source
+                .selected_package_roots
+                .insert(name.clone(), path_text(relative)?);
         }
         source.gitlinks_outside_selected_packages = true;
         self.checkpoint()
@@ -308,7 +331,11 @@ impl Provenance {
 
     pub(super) fn verify_source(&mut self, snapshot: &Path) -> Result<()> {
         let (commit, tree) = clean_source_identity(&self.source_root)?;
-        let source = self.receipt.source.as_ref().context("source not captured")?;
+        let source = self
+            .receipt
+            .source
+            .as_ref()
+            .context("source not captured")?;
         if (commit.as_str(), tree.as_str()) != (source.commit.as_str(), source.tree.as_str()) {
             bail!("source commit/tree changed during archive preparation");
         }
@@ -318,7 +345,11 @@ impl Provenance {
         if self.artifact(&self.root.join(&source.archive.path))? != source.archive {
             bail!("preserved source archive changed during preparation");
         }
-        self.receipt.source.as_mut().expect("checked source").checked_after_packaging = true;
+        self.receipt
+            .source
+            .as_mut()
+            .expect("checked source")
+            .checked_after_packaging = true;
         self.checkpoint()
     }
 
@@ -344,30 +375,48 @@ impl Provenance {
             lock_claim: "preserved archive contents only; no resolution or locked-install claim",
         });
         self.stage(format!("archive:{name}:preserve"))?;
-        let original = self.root.join("original").join(format!("{archive_root}.crate"));
+        let original = self
+            .root
+            .join("original")
+            .join(format!("{archive_root}.crate"));
         copy_new(packaged, &original)?;
         self.receipt.archives[slot].original = Some(self.artifact(&original)?);
         self.checkpoint()?;
         let before = extract_archive(&original, &archive_root)?;
         let before_root = before.path().join(&archive_root);
         let before_files = file_inventory(&before_root)?;
-        let original_members = self.write_json(&format!("metadata/{archive_root}/original-files.json"), &before_files)?;
-        let original_manifest_path = self.root.join(format!("metadata/{archive_root}/Cargo.toml.original"));
+        let original_members = self.write_json(
+            &format!("metadata/{archive_root}/original-files.json"),
+            &before_files,
+        )?;
+        let original_manifest_path = self
+            .root
+            .join(format!("metadata/{archive_root}/Cargo.toml.original"));
         copy_new(&before_root.join("Cargo.toml"), &original_manifest_path)?;
         let original_manifest = self.artifact(&original_manifest_path)?;
         self.receipt.archives[slot].original_members = Some(original_members);
         self.receipt.archives[slot].original_manifest = Some(original_manifest);
         self.receipt.archives[slot].state = "transforming_copy";
         self.stage(format!("archive:{name}:transform"))?;
-        let download = self.root.join("registry/crates").join(name).join(version).join("download");
+        let download = self
+            .root
+            .join("registry/crates")
+            .join(name)
+            .join(version)
+            .join("download");
         copy_new(&original, &download)?;
         transform(&download)?;
         let extracted = extract_archive(&download, &archive_root)?;
         let served_root = extracted.path().join(&archive_root);
         let after_files = file_inventory(&served_root)?;
         let changes = manifest_only_changes(&before_files, &after_files)?;
-        let served_members = self.write_json(&format!("metadata/{archive_root}/served-files.json"), &after_files)?;
-        let served_manifest_path = self.root.join(format!("metadata/{archive_root}/Cargo.toml.served"));
+        let served_members = self.write_json(
+            &format!("metadata/{archive_root}/served-files.json"),
+            &after_files,
+        )?;
+        let served_manifest_path = self
+            .root
+            .join(format!("metadata/{archive_root}/Cargo.toml.served"));
         copy_new(&served_root.join("Cargo.toml"), &served_manifest_path)?;
         let served_manifest = self.artifact(&served_manifest_path)?;
         let served = self.artifact(&download)?;
@@ -382,13 +431,24 @@ impl Provenance {
         self.verify_archive_artifacts()?;
         Ok(PreparedArchive {
             manifest_path: served_root.join("Cargo.toml"),
-            extracted, download, checksum, slot, inventory: after_files,
+            extracted,
+            download,
+            checksum,
+            slot,
+            inventory: after_files,
         })
     }
 
-    pub(super) fn record_metadata(&mut self, slot: usize, output: &std::process::Output) -> Result<()> {
+    pub(super) fn record_metadata(
+        &mut self,
+        slot: usize,
+        output: &std::process::Output,
+    ) -> Result<()> {
         let archive = &self.receipt.archives[slot];
-        let path = self.root.join(format!("metadata/{}-{}/cargo-metadata.json", archive.name, archive.version));
+        let path = self.root.join(format!(
+            "metadata/{}-{}/cargo-metadata.json",
+            archive.name, archive.version
+        ));
         fs::write(&path, &output.stdout)?;
         self.receipt.archives[slot].cargo_metadata = Some(self.artifact(&path)?);
         let stderr_path = path.with_extension("stderr");
@@ -399,8 +459,7 @@ impl Provenance {
     }
 
     pub(super) fn metadata_validated(&mut self, slot: usize) -> Result<()> {
-        self.receipt.archives[slot].metadata_claim =
-            "actual cargo metadata --no-deps: exact served root manifest interpretation; resolve absent";
+        self.receipt.archives[slot].metadata_claim = "actual cargo metadata --no-deps: exact served root manifest interpretation; resolve absent";
         self.checkpoint()
     }
 
@@ -420,11 +479,19 @@ impl Provenance {
         }
         for archive in &self.receipt.archives {
             for recorded in [
-                &archive.original, &archive.served, &archive.original_manifest,
-                &archive.served_manifest, &archive.original_members,
-                &archive.served_members, &archive.cargo_metadata,
-                &archive.cargo_metadata_stderr, &archive.sparse_index,
-            ].into_iter().flatten() {
+                &archive.original,
+                &archive.served,
+                &archive.original_manifest,
+                &archive.served_manifest,
+                &archive.original_members,
+                &archive.served_members,
+                &archive.cargo_metadata,
+                &archive.cargo_metadata_stderr,
+                &archive.sparse_index,
+            ]
+            .into_iter()
+            .flatten()
+            {
                 if self.artifact(&self.root.join(&recorded.path))? != *recorded {
                     bail!("preserved release artifact changed: {}", recorded.path);
                 }
@@ -435,7 +502,11 @@ impl Provenance {
 
     pub(super) fn archives_prepared(&mut self) -> Result<()> {
         if self.receipt.archives.len() != self.receipt.ordered_crates.len()
-            || self.receipt.archives.iter().any(|a| a.state != "indexed_from_served_manifest")
+            || self
+                .receipt
+                .archives
+                .iter()
+                .any(|a| a.state != "indexed_from_served_manifest")
         {
             bail!("archive preparation did not cover the complete selected release graph");
         }
@@ -446,16 +517,23 @@ impl Provenance {
 }
 
 fn path_text(path: &Path) -> Result<String> {
-    Ok(path.to_str().context("release evidence requires UTF-8 path names")?.replace('\\', "/"))
+    Ok(path
+        .to_str()
+        .context("release evidence requires UTF-8 path names")?
+        .replace('\\', "/"))
 }
 
 fn relative_name(path: &Path, root: &Path) -> Result<String> {
-    path_text(path.strip_prefix(root).context("artifact is outside owned evidence root")?)
+    path_text(
+        path.strip_prefix(root)
+            .context("artifact is outside owned evidence root")?,
+    )
 }
 
 fn single_component(name: &str) -> Result<()> {
     let mut components = Path::new(name).components();
-    if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some()
+    if !matches!(components.next(), Some(Component::Normal(_)))
+        || components.next().is_some()
         || name.contains('\\')
     {
         bail!("invalid release artifact component `{name}`");
@@ -467,7 +545,10 @@ fn copy_new(source: &Path, dest: &Path) -> Result<()> {
     fs::create_dir_all(dest.parent().context("copy destination has no parent")?)?;
     let before = sha256_hex_file(source)?;
     let mut input = File::open(source)?;
-    let mut output = fs::OpenOptions::new().write(true).create_new(true).open(dest)?;
+    let mut output = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(dest)?;
     std::io::copy(&mut input, &mut output)?;
     output.sync_all()?;
     if sha256_hex_file(source)? != before || sha256_hex_file(dest)? != before {
@@ -477,16 +558,25 @@ fn copy_new(source: &Path, dest: &Path) -> Result<()> {
 }
 
 fn git_output(root: &Path, args: &[&str]) -> Result<Vec<u8>> {
-    let output = Command::new("git").env("GIT_NO_REPLACE_OBJECTS", "1")
-        .args(args).current_dir(root).output()?;
+    let output = Command::new("git")
+        .env("GIT_NO_REPLACE_OBJECTS", "1")
+        .args(args)
+        .current_dir(root)
+        .output()?;
     if !output.status.success() {
-        bail!("git {} failed: {}", args.join(" "), String::from_utf8_lossy(&output.stderr));
+        bail!(
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
     Ok(output.stdout)
 }
 
 fn git_text(root: &Path, args: &[&str]) -> Result<String> {
-    Ok(String::from_utf8(git_output(root, args)?)?.trim().to_string())
+    Ok(String::from_utf8(git_output(root, args)?)?
+        .trim()
+        .to_string())
 }
 
 fn clean_source_identity(root: &Path) -> Result<(String, String)> {
@@ -494,26 +584,46 @@ fn clean_source_identity(root: &Path) -> Result<(String, String)> {
     if fs::canonicalize(top)? != fs::canonicalize(root)? {
         bail!("source root must be the Git working-tree root");
     }
-    let status = git_output(root, &["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignore-submodules=none"])?;
+    let status = git_output(
+        root,
+        &[
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--ignore-submodules=none",
+        ],
+    )?;
     if !status.is_empty() {
         bail!("release qualification requires clean tracked, submodule and untracked source state");
     }
-    Ok((git_text(root, &["rev-parse", "HEAD"])? , git_text(root, &["rev-parse", "HEAD^{tree}"])?))
+    Ok((
+        git_text(root, &["rev-parse", "HEAD"])?,
+        git_text(root, &["rev-parse", "HEAD^{tree}"])?,
+    ))
 }
 
 fn source_gitlinks(root: &Path, commit: &str) -> Result<Vec<Gitlink>> {
     let raw = git_output(root, &["ls-tree", "-r", "-z", commit])?;
     let mut result = Vec::new();
-    for entry in raw.split(|byte| *byte == 0).filter(|entry| !entry.is_empty()) {
+    for entry in raw
+        .split(|byte| *byte == 0)
+        .filter(|entry| !entry.is_empty())
+    {
         let entry = std::str::from_utf8(entry).context("non-UTF-8 Git tree path")?;
-        let (header, path) = entry.split_once('\t').context("invalid git ls-tree record")?;
+        let (header, path) = entry
+            .split_once('\t')
+            .context("invalid git ls-tree record")?;
         let fields: Vec<_> = header.split_whitespace().collect();
         if fields.len() != 3 {
             bail!("invalid git ls-tree header");
         }
         if fields[0] == "160000" {
-            result.push(Gitlink { path: path.into(), commit: fields[2].into(),
-                disposition: "not recursively exported; must be outside selected package roots" });
+            result.push(Gitlink {
+                path: path.into(),
+                commit: fields[2].into(),
+                disposition: "not recursively exported; must be outside selected package roots",
+            });
         }
     }
     Ok(result)
@@ -527,7 +637,10 @@ fn file_inventory(root: &Path) -> Result<BTreeMap<String, FileIdentity>> {
             continue;
         }
         if !entry.file_type().is_file() {
-            bail!("release snapshot/archive contains unsupported non-file entry {}", entry.path().display());
+            bail!(
+                "release snapshot/archive contains unsupported non-file entry {}",
+                entry.path().display()
+            );
         }
         let metadata = entry.metadata()?;
         #[cfg(unix)]
@@ -537,9 +650,14 @@ fn file_inventory(root: &Path) -> Result<BTreeMap<String, FileIdentity>> {
         };
         #[cfg(not(unix))]
         let unix_mode = None;
-        result.insert(relative_name(entry.path(), root)?, FileIdentity {
-            bytes: metadata.len(), sha256: sha256_hex_file(entry.path())?, unix_mode,
-        });
+        result.insert(
+            relative_name(entry.path(), root)?,
+            FileIdentity {
+                bytes: metadata.len(),
+                sha256: sha256_hex_file(entry.path())?,
+                unix_mode,
+            },
+        );
     }
     Ok(result)
 }
@@ -554,7 +672,9 @@ fn run_archive_helper(
 ) -> Result<std::process::Output> {
     for interpreter in ["python3", "python"] {
         let mut command = Command::new(interpreter);
-        command.args(["-c", ARCHIVE_HELPER, operation]).arg(archive)
+        command
+            .args(["-c", ARCHIVE_HELPER, operation])
+            .arg(archive)
             .env("PYTHONUTF8", "1");
         if let Some(destination) = destination {
             command.arg(destination);
@@ -567,8 +687,11 @@ fn run_archive_helper(
             Err(error) => return Err(error).context("starting release archive validator"),
             Ok(output) => {
                 if !output.status.success() {
-                    bail!("release archive helper {operation} failed with status {}: {}",
-                        output.status, String::from_utf8_lossy(&output.stderr));
+                    bail!(
+                        "release archive helper {operation} failed with status {}: {}",
+                        output.status,
+                        String::from_utf8_lossy(&output.stderr)
+                    );
                 }
                 return Ok(output);
             }
@@ -587,13 +710,24 @@ pub(super) fn archive_manifest_member(archive: &Path) -> Result<String> {
     Ok(manifest.to_string())
 }
 
-pub(super) fn extract_package_to(archive: &Path, destination: &Path, expected_root: &str) -> Result<()> {
-    run_archive_helper("extract-package", archive, Some(destination), Some(expected_root))?;
+pub(super) fn extract_package_to(
+    archive: &Path,
+    destination: &Path,
+    expected_root: &str,
+) -> Result<()> {
+    run_archive_helper(
+        "extract-package",
+        archive,
+        Some(destination),
+        Some(expected_root),
+    )?;
     Ok(())
 }
 
 fn extract_archive(archive: &Path, expected_root: &str) -> Result<TempDir> {
-    let extracted = tempfile::Builder::new().prefix("adze-release-extract-").tempdir()?;
+    let extracted = tempfile::Builder::new()
+        .prefix("adze-release-extract-")
+        .tempdir()?;
     extract_package_to(archive, extracted.path(), expected_root)?;
     Ok(extracted)
 }
@@ -613,7 +747,8 @@ fn manifest_only_changes(
                 bail!("local-registry transformation changed unapproved member `{member}`");
             }
             changes.push(MemberChange {
-                member: member.clone(), before_sha256: previous.sha256.clone(),
+                member: member.clone(),
+                before_sha256: previous.sha256.clone(),
                 after_sha256: current.sha256.clone(),
                 reason: "existing local-registry exact-version manifest rewrite",
             });

@@ -103,14 +103,15 @@ impl IsolatedRegistry {
         version: &str,
         ordered_crates: &[String],
     ) -> Result<Self> {
-        let mut provenance = provenance::Provenance::create(
-            workspace_root, artifacts_out, version, ordered_crates,
-        )?;
+        let mut provenance =
+            provenance::Provenance::create(workspace_root, artifacts_out, version, ordered_crates)?;
         let mut registry = match Self::new() {
             Ok(registry) => registry,
             Err(error) => {
                 if let Err(checkpoint) = provenance.failed(&error) {
-                    return Err(error.context(format!("also failed to retain provenance: {checkpoint:#}")));
+                    return Err(
+                        error.context(format!("also failed to retain provenance: {checkpoint:#}"))
+                    );
                 }
                 return Err(error);
             }
@@ -122,26 +123,41 @@ impl IsolatedRegistry {
     }
 
     pub fn evidence_stage(&mut self, stage: &str) -> Result<()> {
-        self.provenance.as_mut().context("qualified source evidence is required")?.stage(stage)
+        self.provenance
+            .as_mut()
+            .context("qualified source evidence is required")?
+            .stage(stage)
     }
 
     pub fn evidence_root(&self) -> Result<&Path> {
-        Ok(self.provenance.as_ref().context("qualified source evidence is required")?.root())
+        Ok(self
+            .provenance
+            .as_ref()
+            .context("qualified source evidence is required")?
+            .root())
     }
 
     pub fn bound_source_commit(&self) -> Result<&str> {
-        self.provenance.as_ref().context("qualified source evidence is required")?.source_commit()
+        self.provenance
+            .as_ref()
+            .context("qualified source evidence is required")?
+            .source_commit()
     }
 
     pub fn finish_evidence(&mut self, result: Result<()>) -> Result<()> {
-        let provenance = self.provenance.as_mut().context("qualified source evidence is required")?;
+        let provenance = self
+            .provenance
+            .as_mut()
+            .context("qualified source evidence is required")?;
         let result = result.and_then(|()| {
             provenance.verify_archive_artifacts()?;
             provenance.finished()
         });
         if let Err(error) = result {
             if let Err(checkpoint) = provenance.failed(&error) {
-                return Err(error.context(format!("also failed to retain provenance: {checkpoint:#}")));
+                return Err(
+                    error.context(format!("also failed to retain provenance: {checkpoint:#}"))
+                );
             }
             return Err(error);
         }
@@ -157,8 +173,11 @@ impl IsolatedRegistry {
         ordered_crates: &[String],
         selected_version: &str,
     ) -> Result<()> {
-        let snapshot = self.provenance.as_mut()
-            .context("qualified source evidence is required")?.snapshot()?;
+        let snapshot = self
+            .provenance
+            .as_mut()
+            .context("qualified source evidence is required")?
+            .snapshot()?;
         if crate::release_graph::ordered_crate_names(&snapshot)? != ordered_crates {
             bail!("selected release graph does not match the committed source snapshot");
         }
@@ -166,73 +185,126 @@ impl IsolatedRegistry {
         let metadata = load_cargo_metadata(&snapshot)?;
         let expected_versions = expected_release_versions(&metadata, ordered_crates)?;
         check_selected_versions(&expected_versions, selected_version)?;
-        let package_roots = ordered_crates.iter().map(|name| {
-            let package = metadata.packages.iter().find(|p| p.name == *name)
-                .with_context(|| format!("selected package `{name}` missing from metadata"))?;
-            let root = Path::new(&package.manifest_path).parent()
-                .context("selected package manifest has no parent")?;
-            Ok((name.clone(), root.to_path_buf()))
-        }).collect::<Result<BTreeMap<_, _>>>()?;
-        self.provenance.as_mut().expect("checked provenance")
+        let package_roots = ordered_crates
+            .iter()
+            .map(|name| {
+                let package = metadata
+                    .packages
+                    .iter()
+                    .find(|p| p.name == *name)
+                    .with_context(|| format!("selected package `{name}` missing from metadata"))?;
+                let root = Path::new(&package.manifest_path)
+                    .parent()
+                    .context("selected package manifest has no parent")?;
+                Ok((name.clone(), root.to_path_buf()))
+            })
+            .collect::<Result<BTreeMap<_, _>>>()?;
+        self.provenance
+            .as_mut()
+            .expect("checked provenance")
             .check_package_roots(&snapshot, &package_roots)?;
         fs::create_dir_all(&self.index_dir)?;
         fs::create_dir_all(&self.crate_dir)?;
         let mut staged = Vec::new();
         for crate_name in ordered_crates {
             self.evidence_stage(&format!("archive:{crate_name}:cargo_package"))?;
-            let package = metadata.packages.iter().find(|p| p.name == *crate_name)
+            let package = metadata
+                .packages
+                .iter()
+                .find(|p| p.name == *crate_name)
                 .context("selected package disappeared from metadata")?;
             let crate_path = package_crate(
-                &snapshot, self.cargo_home.path(), self.target_dir.path(),
-                crate_name, ordered_crates, &metadata,
+                &snapshot,
+                self.cargo_home.path(),
+                self.target_dir.path(),
+                crate_name,
+                ordered_crates,
+                &metadata,
             )?;
-            let prepared = self.provenance.as_mut().expect("checked provenance")
+            let prepared = self
+                .provenance
+                .as_mut()
+                .expect("checked provenance")
                 .prepare_archive(crate_name, &package.version, &crate_path, |copy| {
                     inject_registry_deps_into_crate(copy, &expected_versions)?;
                     let manifest = packaged_manifest_text(copy)?;
                     let violations = manifest_isolation_violations(&manifest, &expected_versions);
                     if !violations.is_empty() {
-                        bail!("packaged crate `{crate_name}` failed {REGISTRY_NAME} isolation: {}",
-                            violations.join("; "));
+                        bail!(
+                            "packaged crate `{crate_name}` failed {REGISTRY_NAME} isolation: {}",
+                            violations.join("; ")
+                        );
                     }
                     Ok(())
                 })?;
             staged.push((crate_name.clone(), package.version.clone(), prepared));
         }
-        self.provenance.as_mut().expect("checked provenance").verify_source(&snapshot)?;
+        self.provenance
+            .as_mut()
+            .expect("checked provenance")
+            .verify_source(&snapshot)?;
         let index_url = self.activate_http_registry()?;
         for (name, version, prepared) in staged {
             self.evidence_stage(&format!("archive:{name}:served_metadata"))?;
             prepared.verify_extraction()?;
             let output = served_metadata_output(
-                &prepared.manifest_path, self.cargo_home.path(), self.target_dir.path(),
+                &prepared.manifest_path,
+                self.cargo_home.path(),
+                self.target_dir.path(),
             )?;
-            self.provenance.as_mut().expect("checked provenance").record_metadata(prepared.slot, &output)?;
+            self.provenance
+                .as_mut()
+                .expect("checked provenance")
+                .record_metadata(prepared.slot, &output)?;
             if !output.status.success() {
-                bail!("served-manifest metadata for `{name}` failed with status {}: {}",
-                    output.status, String::from_utf8_lossy(&output.stderr));
+                bail!(
+                    "served-manifest metadata for `{name}` failed with status {}: {}",
+                    output.status,
+                    String::from_utf8_lossy(&output.stderr)
+                );
             }
             prepared.verify_extraction()?;
             let served = validate_served_metadata(
-                &output.stdout, &prepared.manifest_path, &name, &version,
-                &expected_versions, &index_url,
+                &output.stdout,
+                &prepared.manifest_path,
+                &name,
+                &version,
+                &expected_versions,
+                &index_url,
             )?;
-            self.provenance.as_mut().expect("checked provenance").metadata_validated(prepared.slot)?;
+            self.provenance
+                .as_mut()
+                .expect("checked provenance")
+                .metadata_validated(prepared.slot)?;
             if sha256_hex_file(&prepared.download)? != prepared.checksum {
                 bail!("served archive changed while interpreting `{name}` metadata");
             }
-            write_sparse_index_entry(&self.index_dir, &served, &expected_versions, &prepared.checksum)?;
-            self.provenance.as_mut().expect("checked provenance").record_index(
-                prepared.slot, &sparse_index_file(&self.index_dir, &name),
+            write_sparse_index_entry(
+                &self.index_dir,
+                &served,
+                &expected_versions,
+                &prepared.checksum,
             )?;
+            self.provenance
+                .as_mut()
+                .expect("checked provenance")
+                .record_index(prepared.slot, &sparse_index_file(&self.index_dir, &name))?;
             self.published.push(PublishedCrate {
-                name: name.clone(), version: version.clone(), checksum: prepared.checksum.clone(),
+                name: name.clone(),
+                version: version.clone(),
+                checksum: prepared.checksum.clone(),
             });
-            println!("published to {REGISTRY_NAME}: {name} {version} ({})", prepared.checksum);
+            println!(
+                "published to {REGISTRY_NAME}: {name} {version} ({})",
+                prepared.checksum
+            );
             // Own the exact extraction through metadata validation and index emission.
             drop(prepared.extracted);
         }
-        self.provenance.as_mut().expect("checked provenance").archives_prepared()
+        self.provenance
+            .as_mut()
+            .expect("checked provenance")
+            .archives_prepared()
     }
 
     fn activate_http_registry(&mut self) -> Result<String> {
@@ -1058,13 +1130,15 @@ fn package_patch_config_args(
             .with_context(|| format!("missing parent for {}", manifest_path.display()))?;
         let package_dir = fs::canonicalize(package_dir)?;
         let canonical_workspace = fs::canonicalize(workspace_root)?;
-        let relative = package_dir.strip_prefix(&canonical_workspace).with_context(|| {
-            format!(
-                "package path {} is outside workspace {}",
-                package_dir.display(),
-                workspace_root.display()
-            )
-        })?;
+        let relative = package_dir
+            .strip_prefix(&canonical_workspace)
+            .with_context(|| {
+                format!(
+                    "package path {} is outside workspace {}",
+                    package_dir.display(),
+                    workspace_root.display()
+                )
+            })?;
         let relative = relative.to_string_lossy().replace('\\', "/");
         args.push(format!("patch.crates-io.{}.path=\"{relative}\"", sibling));
     }
@@ -1093,7 +1167,6 @@ fn packaged_manifest_text(crate_path: &Path) -> Result<String> {
 fn packaged_manifest_member(crate_path: &Path) -> Result<String> {
     provenance::archive_manifest_member(crate_path)
 }
-
 
 const DEPENDENCY_TABLE_NAMES: [&str; 3] =
     ["dependencies", "dev-dependencies", "build-dependencies"];
@@ -1391,8 +1464,10 @@ fn repack_crate_with_manifest(
         .prefix("adze-local-crate-repack-")
         .tempdir()
         .context("creating crate repack extraction directory")?;
-    let expected_root = manifest_member.split_once('/')
-        .context("packaged manifest has no package root")?.0;
+    let expected_root = manifest_member
+        .split_once('/')
+        .context("packaged manifest has no package root")?
+        .0;
     provenance::extract_package_to(crate_path, extract_dir.path(), expected_root)?;
 
     let manifest_path = extract_dir.path().join(manifest_member);
@@ -1517,11 +1592,16 @@ fn load_cargo_metadata(workspace_root: &Path) -> Result<CargoMetadata> {
     serde_json::from_slice(&output.stdout).context("parsing cargo metadata output")
 }
 
-fn check_selected_versions(expected_versions: &BTreeMap<String, String>, selected: &str) -> Result<()> {
+fn check_selected_versions(
+    expected_versions: &BTreeMap<String, String>,
+    selected: &str,
+) -> Result<()> {
     semver::Version::parse(selected).context("selected release version must be exact semver")?;
     for (name, version) in expected_versions {
         if version != selected {
-            bail!("selected release version `{selected}` does not match `{name}` version `{version}`");
+            bail!(
+                "selected release version `{selected}` does not match `{name}` version `{version}`"
+            );
         }
     }
     Ok(())
@@ -1534,7 +1614,14 @@ fn served_metadata_output(
 ) -> Result<std::process::Output> {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
     Command::new(cargo)
-        .args(["metadata", "--no-deps", "--offline", "--format-version", "1", "--manifest-path"])
+        .args([
+            "metadata",
+            "--no-deps",
+            "--offline",
+            "--format-version",
+            "1",
+            "--manifest-path",
+        ])
         .arg(manifest)
         .current_dir(manifest.parent().context("served manifest has no parent")?)
         .env("CARGO_HOME", cargo_home)
@@ -1551,12 +1638,21 @@ fn validate_served_metadata(
     expected_versions: &BTreeMap<String, String>,
     local_index_url: &str,
 ) -> Result<CargoPackage> {
-    let mut metadata: CargoMetadata = serde_json::from_slice(raw).context("parsing served metadata")?;
-    if metadata.resolve.is_some() || metadata.packages.len() != 1 || metadata.workspace_members.len() != 1 {
+    let mut metadata: CargoMetadata =
+        serde_json::from_slice(raw).context("parsing served metadata")?;
+    if metadata.resolve.is_some()
+        || metadata.packages.len() != 1
+        || metadata.workspace_members.len() != 1
+    {
         bail!("served metadata must describe exactly one root package without a resolve graph");
     }
-    let package = metadata.packages.pop().context("served root package absent")?;
-    if package.name != name || package.version != version || package.id.is_empty()
+    let package = metadata
+        .packages
+        .pop()
+        .context("served root package absent")?;
+    if package.name != name
+        || package.version != version
+        || package.id.is_empty()
         || metadata.workspace_members[0] != package.id
         || fs::canonicalize(&package.manifest_path)? != fs::canonicalize(manifest)?
         || fs::canonicalize(&metadata.workspace_root)?
@@ -1566,27 +1662,43 @@ fn validate_served_metadata(
     }
     for dependency in &package.dependencies {
         if !dependency_counts_for_index(dependency) {
-            bail!("unsupported dependency kind in served metadata for `{}`", dependency.name);
+            bail!(
+                "unsupported dependency kind in served metadata for `{}`",
+                dependency.name
+            );
         }
         if dependency.path.is_some() {
-            bail!("served metadata contains path dependency `{}`", dependency.name);
+            bail!(
+                "served metadata contains path dependency `{}`",
+                dependency.name
+            );
         }
         if let Some(selected) = expected_versions.get(&dependency.name) {
             if dependency.registry.as_deref() != Some(local_index_url)
                 || dependency.source.as_deref() != Some(local_index_url)
                 || dependency.req != format!("={selected}")
             {
-                bail!("served dependency `{}` does not name the exact selected local registry/version", dependency.name);
+                bail!(
+                    "served dependency `{}` does not name the exact selected local registry/version",
+                    dependency.name
+                );
             }
         } else {
-            let source_is_crates_io = matches!(dependency.source.as_deref(),
+            let source_is_crates_io = matches!(
+                dependency.source.as_deref(),
                 Some("registry+https://github.com/rust-lang/crates.io-index")
-                    | Some("sparse+https://index.crates.io/"));
-            let registry_is_crates_io = matches!(dependency.registry.as_deref(),
+                    | Some("sparse+https://index.crates.io/")
+            );
+            let registry_is_crates_io = matches!(
+                dependency.registry.as_deref(),
                 None | Some("https://github.com/rust-lang/crates.io-index")
-                    | Some("sparse+https://index.crates.io/"));
+                    | Some("sparse+https://index.crates.io/")
+            );
             if !source_is_crates_io || !registry_is_crates_io {
-                bail!("served dependency `{}` has an unsupported or unknown registry/Git origin", dependency.name);
+                bail!(
+                    "served dependency `{}` has an unsupported or unknown registry/Git origin",
+                    dependency.name
+                );
             }
         }
     }

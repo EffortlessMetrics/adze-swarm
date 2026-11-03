@@ -69,7 +69,10 @@ pub fn run(
     println!();
 
     let mut registry = local_registry::IsolatedRegistry::new_for_release(
-        &root, artifacts_out, version, &plan.ordered_crates,
+        &root,
+        artifacts_out,
+        version,
+        &plan.ordered_crates,
     )?;
     let result = execute(&root, &plan, &mut registry, receipt_out);
     registry.finish_evidence(result)
@@ -133,7 +136,8 @@ fn execute(
         &starter_commands,
     )?;
     local_release_receipt::write_receipt(
-        &registry.evidence_root()?.join("journey-observations.json"), &receipt,
+        &registry.evidence_root()?.join("journey-observations.json"),
+        &receipt,
     )?;
     emit_receipt(&receipt, receipt_out)?;
 
@@ -178,7 +182,9 @@ fn print_plan(plan: &LocalReleasePlan) {
             idx + 1
         );
     }
-    println!("  preserve each original archive, rewrite a separate copy, then index its served manifest");
+    println!(
+        "  preserve each original archive, rewrite a separate copy, then index its served manifest"
+    );
     println!();
     println!("install:");
     println!(
@@ -227,13 +233,21 @@ mod tests {
     fn dry_run_entry_point_prints_plan_and_returns_ok() {
         // Regression guard for #1098: the dry-run must reach print_plan
         // and exit successfully without touching any registry.
-        run("0.10.0", DEFAULT_CLI_CRATE, DEFAULT_CLI_BIN, true, None, None)
-            .expect("dry-run should succeed");
+        run(
+            "0.10.0",
+            DEFAULT_CLI_CRATE,
+            DEFAULT_CLI_BIN,
+            true,
+            None,
+            None,
+        )
+        .expect("dry-run should succeed");
     }
 
     #[test]
     fn missing_version_is_rejected() {
-        let err = run("", DEFAULT_CLI_CRATE, DEFAULT_CLI_BIN, true, None, None).expect_err("version");
+        let err =
+            run("", DEFAULT_CLI_CRATE, DEFAULT_CLI_BIN, true, None, None).expect_err("version");
         assert!(err.to_string().contains("--version is required"));
     }
 
