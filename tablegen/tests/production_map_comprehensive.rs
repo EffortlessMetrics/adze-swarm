@@ -548,7 +548,7 @@ fn production_id_map_preserves_rule_id_order() {
 }
 
 #[test]
-fn ts_rules_are_dense_for_sparse_production_ids() {
+fn test_ts_rules_are_rule_ordered_for_sparse_production_ids() {
     let t = SymbolId(1);
     let table = make_empty_table(1, 1, 2, 0);
     let nt1 = table.start_symbol;
@@ -567,14 +567,11 @@ fn ts_rules_are_dense_for_sparse_production_ids() {
     let lens = extract_rhs_lens(&code);
     let lhs = extract_production_lhs_index(&code);
 
-    assert_eq!(lens.len(), 8);
-    assert_eq!(lhs.len(), 8);
-    assert_eq!(lens[0], 2);
-    assert_eq!(lens[7], 1);
-    assert!(
-        lens[1..7].iter().all(|len| *len == 0),
-        "gapped TS_RULES slots should be explicit zero sentinels"
-    );
+    assert_eq!(extract_production_id_map(&code), vec![7, 0]);
+    assert_eq!(lens, vec![1, 2], "TS_RULES stores syntax in RuleId order");
+    assert_eq!(lhs.len(), 8, "production metadata keeps sparse slots");
+    assert_eq!(lhs[7], table.symbol_to_index[&nt1] as u16);
+    assert_eq!(lhs[0], table.symbol_to_index[&nt2] as u16);
 }
 
 #[test]

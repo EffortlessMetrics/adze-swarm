@@ -81,6 +81,17 @@ pub struct TSLanguage {
     pub production_lhs_index: *const u16, // LHS symbols in table index space
     pub production_count: u16,            // Number of productions
     pub eof_symbol: u16,                  // Column index of EOF (usually 0)
+    pub rules: *const TSRule,             // Syntax metadata indexed by RuleId
+    pub rule_count: u16,                  // Length of rules and production_id_map
+}
+
+/// Syntax metadata, indexed by RuleId rather than shared ProductionId.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct TSRule {
+    pub lhs: u16,
+    pub rhs_len: u8,
+    pub _pad: u8,
 }
 
 /// External scanner structure

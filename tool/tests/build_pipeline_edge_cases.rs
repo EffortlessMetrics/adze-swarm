@@ -259,16 +259,23 @@ fn empty_grammar_attribute_is_valid() {
 }
 
 #[test]
-#[should_panic(expected = "adze::language")]
-fn module_without_language_attribute_panics() {
-    let _result = grammars_from_rust(
+fn test_module_without_language_attribute_returns_spanned_error() {
+    let error = grammars_from_rust(
         r#"
         #[adze::grammar("no_language")]
         mod grammar {
             pub struct SomeType;
         }
         "#,
-    );
+    )
+    .expect_err("a grammar without a language root must be rejected");
+    match error {
+        adze_tool::ToolError::SynError { syn_error } => assert_eq!(
+            syn_error.to_string(),
+            "Each parser must have the root type annotated with `#[adze::language]`; add `#[adze::language]` to the enum or struct that is the parse entry point"
+        ),
+        other => panic!("expected a spanned syntax error, got {other}"),
+    }
 }
 
 // =========================================================================

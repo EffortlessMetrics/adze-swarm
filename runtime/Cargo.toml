@@ -30,7 +30,6 @@ tree-sitter-standard = ["dep:tree-sitter-runtime-standard", "adze-bdd-governance
 wasm = ["wasm-bindgen", "pure-rust"]
 simd = ["pure-rust"]
 serialization = ["serde", "serde_json", "adze-glr-core/serialization"] # Enable tree serialization
-legacy-parsers = [] # Enable to access deprecated parser_v2 and parser_v3 modules
 incremental_glr = [] # Enable GLR incremental parsing support
 debug_glr = [] # Enable debug output for GLR parser
 ts-compat = ["adze-example/ts-compat"] # Enable Tree-sitter compatibility API
@@ -38,7 +37,7 @@ debug_incremental = [] # Enable debug output for incremental parsing
 experimental_examples = [] # Enable experimental examples that use internal APIs
 json_example = [] # Enable JSON parser example (separate from other examples)
 external_scanners = [] # Enable external scanner support (feature-gated)
-query = [] # Enable query predicates support
+query = [] # Marker only: selects document-backed query paths (matcher_v2 DocumentQueryMatch); enables no dependencies
 runtime-e2e = [] # Opt-in integration tests that exercise end-to-end parsing paths
 strict_docs = [] # Enable strict documentation requirements
 strict_api = [] # Enable strict API surface checking
@@ -114,11 +113,6 @@ required-features = ["unstable-benches"]
 
 [[bench]]
 name = "parser_bench"
-harness = false
-required-features = ["unstable-benches"]
-
-[[bench]]
-name = "perf_benchmark"
 harness = false
 required-features = ["unstable-benches"]
 

@@ -281,21 +281,14 @@ pub fn build_parser_for_crate(root_file: &Path, options: BuildOptions) -> Result
 }
 
 #[cfg(feature = "build_parsers")]
-pub(crate) struct CrateBuildWithInputs {
-    pub(crate) parsers: Vec<BuildResult>,
-    pub(crate) inputs: crate::GrammarInputs,
-}
-
-#[cfg(feature = "build_parsers")]
 pub(crate) fn build_parser_for_crate_with_inputs(
     root_file: &Path,
     options: BuildOptions,
-) -> Result<CrateBuildWithInputs> {
-    let traced = crate::generate_grammars_with_inputs(root_file)?;
-    Ok(CrateBuildWithInputs {
-        parsers: build_crate_grammars(root_file, traced.grammars, options)?,
-        inputs: traced.inputs,
-    })
+    on_inputs: impl FnOnce(&crate::GrammarInputs) -> Result<()>,
+) -> Result<Vec<BuildResult>> {
+    let traced = crate::generate_grammars_with_inputs(root_file);
+    on_inputs(&traced.inputs)?;
+    build_crate_grammars(root_file, traced.grammars?, options)
 }
 
 fn build_crate_grammars(

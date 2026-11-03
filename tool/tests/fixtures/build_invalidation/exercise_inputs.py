@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Manual real-Cargo input invalidation controls; one tiny generated grammar."""
+import argparse
 import hashlib
 import json
 import os
@@ -14,10 +15,14 @@ import time
 def main():
     if os.name != "posix":
         raise SystemExit("Initial owned-process-group controls require POSIX; Windows is unproved.")
+    options = argparse.ArgumentParser()
+    options.add_argument("--target-dir", type=Path, help="explicitly owned reusable target")
+    args = options.parse_args()
     template = Path(__file__).resolve().parent
     workspace = template.parents[3]
     receipt_dir = Path(tempfile.mkdtemp(prefix="adze-build-inputs-proof-"))
-    project, target = receipt_dir / "project", receipt_dir / "target"
+    project = receipt_dir / "project"
+    target = args.target_dir.resolve() if args.target_dir else receipt_dir / "target"
     shutil.copytree(template, project, ignore=shutil.ignore_patterns("__pycache__"))
     manifest = project / "Cargo.toml"
     text = manifest.read_text().replace('"../../../../runtime"', json.dumps(str(workspace / "runtime")))
@@ -30,7 +35,7 @@ def main():
                CARGO_PROFILE_TEST_DEBUG="0", CARGO_TARGET_DIR=str(target),
                ADZE_TEST_BUILD_COUNT_FILE=str(counter), CARGO_LOG="cargo::core::compiler::fingerprint=info")
     cargo = env.get("CARGO", "cargo")
-    base = [cargo, "run", "--offline", "--locked", "--quiet", "--manifest-path", str(manifest)]
+    base = [cargo, "run", "--offline", "--locked", "--quiet", "--message-format=json", "--manifest-path", str(manifest)]
     # Runtime argv changes the independent oracle, not the build-script inputs.
     (project / "src/main.rs").write_text('''use adze_build_invalidation_fixture::grammar::{Word, parse};
 fn main() {
@@ -72,6 +77,13 @@ fn main() {
         row = {"label": label, "command": command, "exit_code": code, "termination": termination,
                "correctness_marker": "tiny-fixture-ok" in out, "build_script_invocations": count,
                "input_hashes": inputs, "stdout": str(stdout_path), "stderr": str(stderr_path)}
+        for line in out.splitlines():
+            try:
+                message = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if message.get("reason") == "build-script-executed" and "adze-build-invalidation-fixture" in message.get("package_id", ""):
+                row["build_script_out_dir"] = message["out_dir"]
         receipt["runs"].append(row)
         print(json.dumps({key: row[key] for key in ["label", "exit_code", "correctness_marker", "build_script_invocations"]}), flush=True)
         assert termination == "exit", f"{label}: timeout is not qualification"
@@ -87,7 +99,7 @@ fn main() {
         if failure is None:
             assert code == 0 and "tiny-fixture-ok" in out, f"{label}: correct parse not established: {err[-3000:]}"
         else:
-            assert code != 0 and "tiny-fixture-ok" not in out and failure in err, f"{label}: expected explicit {failure} failure: {err[-3000:]}"
+            assert code != 0 and "tiny-fixture-ok" not in out and failure in out + err, f"{label}: expected explicit {failure} failure: {err[-3000:]}"
         return result
 
     try:
@@ -122,7 +134,7 @@ fn main() {
         parse_case("external_unchanged", rebuild=False)
         env["ADZE_EMIT_ARTIFACTS"] = "true"
         parse_case("debug_option_changed")
-        outputs = list(target.glob("debug/build/adze-build-invalidation-fixture-*/out/grammar_tiny_build_invalidation/parser_tiny_build_invalidation.rs"))
+        outputs = [Path(receipt["runs"][-1]["build_script_out_dir"]) / "grammar_tiny_build_invalidation/parser_tiny_build_invalidation.rs"]
         assert len(outputs) == 1, "one active default-profile generated output"
         assert (outputs[0].parent / "NODE_TYPES.json").is_file()
         assert (outputs[0].parent / "grammar.ir.json").is_file()
@@ -135,7 +147,7 @@ fn main() {
             receipt["output_removal"] = "regenerated"
         else:
             assert count == expected_count and "tiny-fixture-ok" not in out
-            assert "couldn't read" in err and "parser_tiny_build_invalidation.rs" in err
+            assert "couldn't read" in out + err and "parser_tiny_build_invalidation.rs" in out + err
             receipt["output_removal"] = "explicit_compiler_refusal"
             clean = [cargo, "clean", "--offline", "--locked", "--manifest-path", str(manifest), "-p", "adze-build-invalidation-fixture"]
             code, _, err, count = run("owned_package_clean", clean)
@@ -156,15 +168,18 @@ fn main() {
         parse_case("backend_env_restores_pure_rust", flags=("--no-default-features",))
         # An admitted external root can contain OUT_DIR in its parent tree.
         # It remains correct but explicitly opts for conservative regeneration.
-        (receipt_dir / "root.rs").write_text("mod authored;\npub use authored::grammar;\n")
+        # Keep this oracle genuinely overlapping even with an explicitly
+        # reused target outside the new proof directory. Both files are owned.
+        overlap_root = target / ("overlap-" + receipt_dir.name + ".rs")
         shutil.copyfile(external, receipt_dir / "authored.rs")
-        manifest.write_text(manifest.read_text() + '\n[lib]\npath = "../root.rs"\n')
+        overlap_root.write_text("#[path = " + json.dumps(str(receipt_dir / "authored.rs")) + "]\nmod authored;\npub use authored::grammar;\n")
+        manifest.write_text(manifest.read_text() + '\n[lib]\npath = ' + json.dumps(str(overlap_root)) + '\n')
         build_script = project / "build.rs"
-        build_script.write_text(build_script.read_text().replace('"src/lib.rs"', '"../root.rs"'))
+        build_script.write_text(build_script.read_text().replace('"src/lib.rs"', json.dumps(str(overlap_root))))
         parse_case("overlapping_source_output_layout", flags=("--no-default-features",))
         parse_case("overlap_conservative_rerun", flags=("--no-default-features",))
-        build_outputs = list(target.glob("debug/build/adze-build-invalidation-fixture-*/output"))
-        assert any("source/output directories overlap; retaining conservative regeneration" in path.read_text() for path in build_outputs)
+        build_outputs = [Path(receipt["runs"][-1]["build_script_out_dir"]).parent / "output"]
+        assert any("source tracking is incomplete or overlaps output; retaining conservative regeneration" in path.read_text() for path in build_outputs)
     except Exception as error:
         problem = str(error)
     finally:

@@ -2,7 +2,14 @@
 use super::ast::*;
 use crate::parser_v4::ParseNode;
 
-/// A match of a query pattern
+/// A match of a query pattern against a source-free parse tree.
+///
+/// This is the legacy tree-matcher shape: captures hold [`ParseNode`]s and
+/// predicates that need source text fail closed. It shares its name — but not
+/// its definition — with [`matcher_v2::QueryMatch`](super::matcher_v2::QueryMatch)
+/// (source-aware; the recommended primary, see #861) and with
+/// [`glr_query::QueryMatch`](crate::glr_query::QueryMatch) (GLR-forest
+/// `Subtree` captures). Do not unify these types here; unification is #861's scope.
 #[derive(Debug, Clone)]
 pub struct QueryMatch {
     /// Pattern index that matched
@@ -11,7 +18,12 @@ pub struct QueryMatch {
     pub captures: Vec<QueryCapture>,
 }
 
-/// A captured node in a query match
+/// A captured node in a source-free query match.
+///
+/// Pairs a capture index with its [`ParseNode`]. Distinct from
+/// [`matcher_v2::QueryCapture`](super::matcher_v2::QueryCapture) and
+/// [`glr_query::QueryCapture`](crate::glr_query::QueryCapture), which share
+/// the name but capture different node representations.
 #[derive(Debug, Clone)]
 pub struct QueryCapture {
     /// Capture index
@@ -27,6 +39,8 @@ pub struct QueryCapture {
 /// capture-to-capture equality/inequality, fail closed: spans are not text.
 /// Use `matcher_v2::QueryMatcher` with source or `matches_document` for text.
 /// Result shapes retain owned node payloads for public API compatibility only.
+/// The two matchers (and their `QueryMatch`/`QueryMatches` types) are
+/// intentionally distinct; do not merge them in this module (#861 scope).
 pub struct QueryMatcher<'a> {
     query: &'a Query,
 }
@@ -66,7 +80,13 @@ impl<'a> QueryMatcher<'a> {
     }
 }
 
-/// Iterator over query matches
+/// Iterator over source-free query matches.
+///
+/// Yields [`QueryMatch`] items produced by [`QueryMatcher`]. Distinct from
+/// [`matcher_v2::QueryMatches`](super::matcher_v2::QueryMatches)
+/// (source-aware) and the private GLR-forest iterator in
+/// [`glr_query`](crate::glr_query); the shared name is a known collision
+/// tracked by #871 §d, not an alias.
 pub struct QueryMatches<'a> {
     #[allow(dead_code)]
     matcher: QueryMatcher<'a>,

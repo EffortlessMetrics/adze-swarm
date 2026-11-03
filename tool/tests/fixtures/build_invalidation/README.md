@@ -128,3 +128,31 @@ Two independently retained profile failures remain outside this repair:
   compilation refuses the missing include. The matrix qualifies the ordinary
   backend switch with artifacts disabled; the failing combination remains a
   separate executed product defect, not a successful parsing case.
+
+## Optional generation failure and C fallback
+
+Run `python3 tool/tests/fixtures/build_invalidation/exercise_optional_failure.py`
+in the same offline Rust environment. Its unique proof directory contains the
+standalone project, Cargo logs, build-script directives, grammar JSON, actual
+compiled C archive snapshots and a JSON receipt. `--target-dir` permits explicit
+reuse of a caller-owned target; otherwise the target belongs to that proof.
+
+The empty Rust consumer loads grammar-only root/child files outside rustc's
+module graph. Its build script makes the owned Rust parser output path a
+directory, producing an actual write failure after source loading; optional
+Rust generation warns while ordinary C compilation succeeds. An unchanged build
+must stay fresh. Editing only the child token must rerun the build script and
+refresh both grammar JSON and the C archive despite that optional failure.
+Removing the blocker and legitimately editing build.rs proves recovery.
+The expected invocation counts are 1, 1, 2, 3. `--expect-stale` instead asserts
+the original 1, 1, 1, 2 counterexample with unchanged stale C artifacts after the
+source-only edit, when this driver is run against the original tool source.
+
+Source watches are now emitted from discovered inputs even if later expansion
+or parser generation fails. Fatal loading/normalization or an unrepresentable
+watch cannot establish a complete graph and retains conservative revalidation;
+root-only knowledge is not presented as a complete dependency closure. Actual
+loaded external paths and resolution-parent watches remain in the same graph.
+The public library and CLI generation APIs emit no Cargo directives. This does
+not cover arbitrary Rust includes/env dependencies, output-removal recovery,
+Windows qualification, or executable-cache admission.

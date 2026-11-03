@@ -44,6 +44,7 @@ pub use error::{Result as ToolResult, ToolError};
 
 // Use tree-sitter-generate's version for compatibility
 // Version 0.25.1 is what we depend on in Cargo.toml
+#[cfg(any(feature = "build_parsers", test))]
 pub(crate) const GENERATED_SEMANTIC_VERSION: Option<(u8, u8, u8)> = Some((0, 25, 1));
 
 /// Generates JSON strings defining Tree Sitter grammars for every Adze
@@ -68,19 +69,23 @@ fn grammar_values(items: &[Item]) -> ToolResult<Vec<Value>> {
 pub(crate) struct GrammarInputs {
     pub(crate) files: std::collections::BTreeSet<std::path::PathBuf>,
     pub(crate) directories: std::collections::BTreeSet<std::path::PathBuf>,
+    // A failed load/normalization cannot establish a complete discovered graph.
+    pub(crate) incomplete: bool,
 }
 
 #[cfg(feature = "build_parsers")]
 pub(crate) struct TracedGrammars {
-    pub(crate) grammars: Vec<Value>,
+    pub(crate) grammars: ToolResult<Vec<Value>>,
     pub(crate) inputs: GrammarInputs,
 }
 
 /// Cargo-only tracing reuses the inliner's actual reads. Public generation
 /// keeps its existing API/error path and never emits build-script directives.
 #[cfg(feature = "build_parsers")]
-pub(crate) fn generate_grammars_with_inputs(root_file: &Path) -> ToolResult<TracedGrammars> {
+pub(crate) fn generate_grammars_with_inputs(root_file: &Path) -> TracedGrammars {
     let mut inputs = GrammarInputs::default();
+    // Keep the attempted root even when loading/parsing fails before a callback.
+    inputs.files.insert(root_file.to_path_buf());
     let inlined = syn_inline_mod::InlinerBuilder::default()
         .inline_with_callback(root_file, |path, _contents| {
             inputs.files.insert(path.to_path_buf());
@@ -88,24 +93,37 @@ pub(crate) fn generate_grammars_with_inputs(root_file: &Path) -> ToolResult<Trac
         .map_err(|error| match error {
             syn_inline_mod::Error::Io(error) => ToolError::Io(error),
             syn_inline_mod::Error::Parse(syn_error) => ToolError::SynError { syn_error },
-        })?;
-    // Preserve the existing best-effort nested-inlining policy. Failed paths
-    // and the actual source parents still participate in invalidation, so a
-    // missing/alternative module becoming available cannot leave stale output.
-    for error in inlined.errors() {
-        inputs.files.insert(error.src_path().to_path_buf());
-        add_existing_source_parent(&mut inputs.directories, &std::path::absolute(error.path())?);
-    }
-    inputs.files = inputs
-        .files
-        .into_iter()
-        .map(std::path::absolute)
-        .collect::<std::io::Result<_>>()?;
-    for file in &inputs.files {
-        add_existing_source_parent(&mut inputs.directories, file);
-    }
-    let grammars = grammar_values(&inlined.output().items)?;
-    Ok(TracedGrammars { grammars, inputs })
+        });
+    inputs.incomplete = inlined.is_err();
+    let normalized = (|| -> ToolResult<()> {
+        // Preserve the existing best-effort nested-inlining policy, including
+        // attempted external paths and parents that can change resolution.
+        if let Ok(inlined) = &inlined {
+            for error in inlined.errors() {
+                inputs.files.insert(error.src_path().to_path_buf());
+                add_existing_source_parent(
+                    &mut inputs.directories,
+                    &std::path::absolute(error.path())?,
+                );
+            }
+        }
+        inputs.files = inputs
+            .files
+            .iter()
+            .map(std::path::absolute)
+            .collect::<std::io::Result<_>>()?;
+        for file in &inputs.files {
+            add_existing_source_parent(&mut inputs.directories, file);
+        }
+        Ok(())
+    })();
+    inputs.incomplete |= normalized.is_err();
+    // Return custody of discovered inputs even when expansion fails. Cargo's
+    // caller emits them before admitting optional generation failure/C fallback.
+    let grammars = normalized
+        .and(inlined)
+        .and_then(|inlined| grammar_values(&inlined.output().items));
+    TracedGrammars { grammars, inputs }
 }
 
 #[cfg(feature = "build_parsers")]
@@ -1044,5 +1062,64 @@ mod grammar {
             result.is_ok(),
             "build_parsers should not panic with ADZE_EMIT_ARTIFACTS=true"
         );
+    }
+}
+
+#[cfg(all(test, feature = "build_parsers"))]
+mod traced_failure_tests {
+    use super::*;
+
+    #[test]
+    fn test_expansion_failure_preserves_loaded_external_inputs() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source");
+        let external = dir.path().join("external");
+        std::fs::create_dir_all(&source).unwrap();
+        std::fs::create_dir_all(&external).unwrap();
+        let root = source.join("root.rs");
+        let child = external.join("child.rs");
+        std::fs::write(&root, "#[path = \"../external/child.rs\"] mod child;").unwrap();
+        std::fs::write(
+            &child,
+            r#"#[adze::grammar("failure")]
+            mod grammar { #[adze::language] pub struct Word {} }"#,
+        )
+        .unwrap();
+        let traced = generate_grammars_with_inputs(&root);
+        assert!(
+            matches!(
+                traced.grammars,
+                Err(ToolError::StructHasNoFields { ref name }) if name == "Word"
+            ),
+            "actual expansion result: {:?}",
+            traced.grammars
+        );
+        assert!(!traced.inputs.incomplete);
+        assert!(traced.inputs.files.contains(&root));
+        assert!(
+            traced
+                .inputs
+                .files
+                .iter()
+                .any(|path| path.canonicalize().ok().as_ref() == Some(&child))
+        );
+        assert!(
+            traced
+                .inputs
+                .directories
+                .iter()
+                .any(|path| path.canonicalize().ok().as_ref() == Some(&external))
+        );
+    }
+
+    #[test]
+    fn test_failed_root_load_retains_attempt_and_requires_revalidation() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("absent.rs");
+        let traced = generate_grammars_with_inputs(&root);
+        assert!(matches!(traced.grammars, Err(ToolError::Io(_))));
+        assert!(traced.inputs.files.contains(&root));
+        assert!(traced.inputs.directories.contains(dir.path()));
+        assert!(traced.inputs.incomplete);
     }
 }

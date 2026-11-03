@@ -184,7 +184,6 @@ build-pipeline and infrastructure microbenchmarks. For the
 | `runtime/benches/parser_benchmark.rs` | real parser workload | Pure-Rust parser over expression inputs. |
 | `runtime/benches/parser_bench.rs` | utility microbenchmark | Lexer/parser/incremental microbench routines on synthetic grammar setup. |
 | `runtime/benches/simple_bench.rs` | utility microbenchmark | Lexer-focused microbenchmarks. |
-| `runtime/benches/perf_benchmark.rs` | utility microbenchmark | Lexer SIMD vs standard and single vs parallel parser utility comparisons. |
 | `runtime/benches/incremental_benchmark.rs` | GLR forest/fork workload | Incremental parsing with edits against tokenized inputs. |
 | `runtime/benches/incremental_parsing.rs` | placeholder/mock | Contains TODO-disabled edit API paths (`parse_incremental(..., &[])`). |
 | `runtime/benches/incremental_simple.rs` | placeholder/mock | Similar TODO-disabled incremental-edit paths. |

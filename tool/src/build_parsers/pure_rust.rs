@@ -17,9 +17,14 @@ pub(crate) fn run_pure_rust_builder(root_file: &Path, strict: bool) {
     ] {
         println!("cargo:rerun-if-env-changed={variable}");
     }
-    let built = build_parser_for_crate_with_inputs(root_file, options.clone()).and_then(|built| {
-        emit_input_watches(&built.inputs, Path::new(&options.out_dir))?;
-        Ok(built.parsers)
+    let built = build_parser_for_crate_with_inputs(root_file, options.clone(), |inputs| {
+        if let Err(error) = emit_input_watches(inputs, Path::new(&options.out_dir)) {
+            // Optional generation may still fall through to C. Never admit an
+            // untracked success if a discovered path cannot be represented.
+            emit_revalidation_watch(Path::new(&options.out_dir))?;
+            return Err(error);
+        }
+        Ok(())
     });
     match built {
         Ok(results) => {
@@ -53,7 +58,7 @@ pub(crate) fn run_pure_rust_builder(root_file: &Path, strict: bool) {
 /// layouts retain conservative regeneration instead of a false freshness claim.
 fn emit_input_watches(inputs: &crate::GrammarInputs, out_dir: &Path) -> anyhow::Result<()> {
     let output = std::fs::canonicalize(out_dir)?;
-    let mut overlap = false;
+    let mut overlap = inputs.incomplete;
     for directory in &inputs.directories {
         let directory = std::fs::canonicalize(directory)?;
         if output.starts_with(&directory) {
@@ -66,20 +71,23 @@ fn emit_input_watches(inputs: &crate::GrammarInputs, out_dir: &Path) -> anyhow::
         emit_file_watch(file)?;
     }
     if overlap {
-        // Do not recursively watch Cargo's target tree. A uniquely owned,
-        // removed temporary path intentionally forces revalidation instead;
-        // only this unsupported layout pays the conservative rerun cost.
-        let trigger = tempfile::Builder::new()
-            .prefix("adze-revalidate-")
-            .tempfile_in(&output)?;
-        let trigger_path = trigger.path().to_path_buf();
-        drop(trigger);
-        emit_file_watch(&trigger_path)?;
+        emit_revalidation_watch(&output)?;
         println!(
-            "cargo:warning=adze source/output directories overlap; retaining conservative regeneration for this layout"
+            "cargo:warning=adze source tracking is incomplete or overlaps output; retaining conservative regeneration for this layout"
         );
     }
     Ok(())
+}
+
+fn emit_revalidation_watch(output: &Path) -> anyhow::Result<()> {
+    // Do not recursively watch Cargo's target tree. An owned removed path
+    // forces fresh validation when tracking cannot support a no-change claim.
+    let trigger = tempfile::Builder::new()
+        .prefix("adze-revalidate-")
+        .tempfile_in(output)?;
+    let trigger_path = trigger.path().to_path_buf();
+    drop(trigger);
+    emit_file_watch(&trigger_path)
 }
 
 fn emit_file_watch(path: &Path) -> anyhow::Result<()> {
