@@ -211,6 +211,20 @@ pub fn make_generated_internal_streaming_lexer(
         language, input, pos, mode,
     ) {
         Ok(token) => {
+            // None is successful exhaustion, including after recognized grammar
+            // extras. Preserve that proof for Driver instead of making it look
+            // like a failed candidate at the pre-extras request position.
+            let token = match token {
+                Some(token) => Some(token),
+                None if pos <= input.len() => {
+                    u32::try_from(input.len()).ok().map(|end| NextToken {
+                        kind: u32::from(language.eof_symbol),
+                        start: end,
+                        end,
+                    })
+                }
+                None => None,
+            };
             // A successful lex in any mode clears an earlier mode's stall
             // so a later diagnostic cannot reuse a stale byte.
             if token.is_some() {
