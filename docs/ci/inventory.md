@@ -22,7 +22,7 @@ See `adze-rollout-status.md` for status of each item.
 | `em-ci-routed-rust.yml` | Routed `Rust Small Result` base gate for `adze-swarm` PRs and merge groups | Active required context |
 | `cx53-rust-large-diagnostic.yml` | Manual CX53 `rust-large` probe and selected host-smoke diagnostic for #598 | Active dispatch |
 | `pr-plan.yml` | Reusable; computes LEM/band/docs_only from `xtask ci-plan` | Active reusable/dispatch only; no direct PR trigger |
-| `pr-gate.yml` | Aggregates Supported + Docs Gate → `PR Gate Success` | Active on `merge_group`/dispatch only (#1027); no PR trigger |
+| `pr-gate.yml` | Optional plan + selected docs-only workspace formatting → `PR Planning Result`, with `ci-actuals` | Active on `merge_group`/dispatch only (#1027); supported core qualification runs once in the required routed workflow |
 | `ci.yml` | Legacy public full-CI support lane; schedule/dispatch in swarm | Active scheduled/manual; already had no PR trigger at #1027 base |
 | `ci-policy.yml` | CI lane whitelist advisory lint | Active on push to `main`/dispatch only (#1027); no PR trigger |
 | `ripr.yml` | ripr advisory with workspace MSRV install and stub fallback | Dispatch only (#1027); no PR trigger |

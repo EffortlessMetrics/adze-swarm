@@ -5,6 +5,20 @@ Last review: 2026-05-14.
 This file is a status snapshot, not a live source of truth. Before using it for
 execution, refresh with `gh pr list` and the current workflow state.
 
+## Bounded #1027 update (2026-11-03)
+
+The legacy `pr-gate.yml` supported-core job is retired. Its planning,
+selected docs-only workspace formatting, and per-run `ci-actuals` remain
+on merge-group/manual events, reported as optional `PR Planning Result`.
+The canonical `ci-supported` ledger id now points to the existing required
+`em-ci-routed-rust.yml` supported-proof job; its static 20 LEM estimate is
+retained, not recalibrated from one run.
+
+The F04/B02/B03 and default-PR cost rows below describe the historical
+rollout. The old promotion proposal is retired; the planning result does
+not qualify Rust/product behavior. See [branch-protection.md](branch-protection.md)
+and [ci-actuals.md](ci-actuals.md) for the current scope and telemetry boundary.
+
 ## Status legend
 
 - ✅ landed — present on `main` and working

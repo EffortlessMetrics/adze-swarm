@@ -53,6 +53,10 @@ env:
     docs/how-to/use-playground.md
     docs/how-to/optimize-performance.md
     cli/tests/readme_quickstart.rs
+    cli/Cargo.toml
+    cli/tests/cli_test.rs
+    cli/tests/runner_output_contract.rs
+    cli/tests/runner_process_contract.rs
     docs/product/ACCEPTANCE_MATRIX.md
     docs/README.md
     docs/reference/diagnostics-and-recovery.md
@@ -75,6 +79,7 @@ env:
     scripts/ci-product.sh
     scripts/ci-product-stable.sh
     scripts/lib/required-test-output.sh
+    scripts/test_required_test_output.py
     .github/workflows/product-proof.yml
     runtime/**
     macro/**
@@ -201,12 +206,47 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Test required-proof output guards
+        run: python3 scripts/test_required_test_output.py
+
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Show stable canary plan (dry-run)
         run: scripts/ci-product-stable.sh --dry-run
+
+      # #1066 qualifies the Linux CLI boundary separately from the README
+      # Stable claims. These checks do not promote CLI/platform support tiers.
+      - name: Qualify Linux static runner process and output contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/lib/required-test-output.sh
+          cargo clippy --locked -p adze-cli --bin adze --test runner_process_contract --test runner_output_contract -- -D warnings
+
+          run_contract() {
+            local label="$1" output status
+            shift
+            printf '\n[static runner] %s\n' "$label"
+            if output="$("$@" 2>&1)"; then
+              status=0
+            else
+              status=$?
+            fi
+            printf '%s\n' "$output"
+            if (( status != 0 )); then
+              printf '%s failed with exit %s.\n' "$label" "$status" >&2
+              return "$status"
+            fi
+            required_test_output "$output" "$label"
+          }
+
+          run_contract 'Linux process custody' cargo test --locked -p adze-cli --test runner_process_contract -- --nocapture
+          run_contract 'unchanged output interpretation' cargo test --locked -p adze-cli --test runner_output_contract -- --nocapture
+          run_contract 'actual generated tree output' cargo test --locked -p adze-cli --test cli_test test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture
+          run_contract 'actual generated document projections' cargo test --locked -p adze-cli --test cli_test test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
+          run_contract 'actual generated recovery diagnostics' cargo test --locked -p adze-cli --test cli_test parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture
 
       - name: Run stable product lane
         run: scripts/ci-product-stable.sh

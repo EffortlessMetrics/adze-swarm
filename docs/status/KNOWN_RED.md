@@ -1,6 +1,7 @@
 # Known red
 
-**Last updated:** 2026-06-05
+**Last updated:** 2026-11-03
+**Update scope:** CLI dynamic-mode refusal canary reference only; the remaining exclusions and proof rows were not requalified by this update.
 
 This file tracks intentional exclusions from the supported lane:
 
@@ -185,7 +186,7 @@ Current canaries:
 - `adze-cli` clean-room init dependency smoke — **behavior** (`cargo test -p adze-cli test_init_cargo_toml_references_adze_dependency -- --exact --nocapture`)
 - `adze-cli` check rejects non-grammar Rust files — **behavior** (`cargo test -p adze-cli test_check_rejects_file_without_adze_grammar -- --exact --nocapture`)
 - `adze-cli` stats rejects non-grammar Rust files — **behavior** (`cargo test -p adze-cli test_stats_rejects_file_without_adze_grammar -- --exact --nocapture`)
-- `adze-cli` parse unsupported-mode truthfulness — **behavior** (`cargo test -p adze-cli test_parse_static_mode_is_explicitly_unimplemented -- --exact --nocapture`)
+- `adze-cli` dynamic parse rejected before any library load — **behavior** (`cargo test -p adze-cli --test cli_test test_parse_dynamic_rejected_before_loading_any_library -- --exact --nocapture`)
 - `adze-cli` parse help output-mode documentation — **behavior** (`cargo test -p adze-cli test_parse_help_documents_available_modes -- --exact --nocapture`)
 - `adze-cli` static document projection output modes — **behavior** (`cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture`)
 - `adze-cli` document JSON recovery diagnostics — **behavior** (`cargo test -p adze-cli parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture`)

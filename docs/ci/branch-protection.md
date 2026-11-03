@@ -56,31 +56,28 @@ The promotion PR only:
    [PRODUCT_OBJECTIVE_AUDIT.md](../status/PRODUCT_OBJECTIVE_AUDIT.md); and
 3. recorded rollback to `Rust Small Result` only.
 
-### PR Gate Success promotion
+### Optional PR planning result (#1027)
 
-The public-era rollout also defines an aggregated check called
-**PR Gate Success** (see `.github/workflows/pr-gate.yml`). It depends on:
+`.github/workflows/pr-gate.yml` now emits **PR Planning Result** on
+`merge_group` and manual dispatch. It retains `PR Plan`, selected docs-only
+`cargo fmt --all -- --check`, and `ci-actuals` telemetry. The duplicate
+`Supported Rust Gate` is retired; the existing required routed workflow
+continues to execute supported proof on the integration composition.
 
-- `PR Plan` (advisory)
-- `Supported Rust Gate` (= `just ci-supported`)
-- `Docs Gate` (fmt only, runs only on docs-only PRs)
+The optional result requires a successful plan and an exact `docs_only`
+output. `true` requires a successful Docs Gate; `false` requires that job
+to be skipped. Missing, malformed, failed, or cancelled prerequisites do
+not pass. This result describes planning and selected formatting only.
 
-`PR Gate Success` succeeds when exactly one of `Supported Rust Gate` /
-`Docs Gate` succeeded and the other was skipped. PR Plan must not fail.
+`Rust Small Result` and `Product Proof Result` remain the two required
+contexts. Neither their producer jobs nor `.github/settings.yml` changes
+as part of this retirement. An external consumer of the historical
+`PR Gate Success` name must migrate to the appropriate current obligation;
+the planning result is not a replacement Rust qualification check.
 
-In `adze-swarm`, this remains optional signal unless a later PR explicitly
-updates both `.github/settings.yml` and [CI_LANES.md](../../.github/CI_LANES.md).
-`pull_request.closed` events are cancellation-only for this workflow: they
-share the same PR-number concurrency group, cancel older same-PR PR Gate runs,
-and skip the plan, supported, docs, and success jobs. Closed-event runs do not
-count toward future promotion burn-in receipts.
-Downstream PR Gate jobs also skip when an upstream advisory job is cancelled,
-so force-cancelling a stale optional PR Gate run does not enqueue replacement
-self-hosted work.
+## Retired PR 17 promotion criteria
 
-## PR 17 — promotion criteria
-
-Any future branch-protection promotion away from `Rust Small Result` is gated on:
+The public-era proposal to promote `PR Gate Success` used this burn-in table:
 
 | Criterion | Target |
 | --- | --- |
@@ -90,12 +87,11 @@ Any future branch-protection promotion away from `Rust Small Result` is gated on
 | `ci-actuals.json` artifacts uploaded | ≥ 30 PRs |
 | Manual review of band/LEM accuracy | passes |
 
-When all five gates clear, the promotion PR itself only:
-
-1. updates `.github/settings.yml` (and any equivalent platform config) to
-   require the new context and stop requiring `Rust Small Result`, **and**
-2. updates this file and [CI_LANES.md](../../.github/CI_LANES.md) in the same
-   PR.
+This table is retained as historical rollout context. It cannot authorize
+promotion of `PR Planning Result`, whose proof scope is deliberately
+different. Any future required-check change needs its own reviewed contract
+and cutover evidence; planning success does not replace required Rust or
+Product Proof.
 
 ## Rollback
 

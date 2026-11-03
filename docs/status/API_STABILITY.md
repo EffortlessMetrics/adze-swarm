@@ -85,7 +85,6 @@ The main user-facing crate. Re-exports `adze-macro` proc-macros at the top level
 | `document` | Experimental | `pure-rust` | ✅ | ✅ |
 | `grammar_json` | Experimental | `pure-rust` | ✅ | ✅ |
 | `parser_v4` | Experimental | `pure-rust` | ✅ | ✅ |
-| `unified_parser` | Experimental | `pure-rust` | ✅ | — |
 | `query` | Experimental | `pure-rust` | ✅ | ✅ |
 | `serialization` | Unstable | `serialization` | ✅ | ✅ |
 | `visitor` | Unstable | — | ✅ | ✅ |
