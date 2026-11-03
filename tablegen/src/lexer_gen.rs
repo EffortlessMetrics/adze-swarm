@@ -410,6 +410,7 @@ fn pattern_to_candidate(pattern: &TokenPattern, is_word_token: bool) -> Option<C
             match regex.as_str() {
                 r"\d+" | r"[0-9]+" => Some(CandidatePattern::DigitPlus),
                 r"\w+" => Some(CandidatePattern::WordPlus),
+                r"[a-z]" => Some(CandidatePattern::CharClass(b"abcdefghijklmnopqrstuvwxyz")),
                 r"[a-z]+" => Some(CandidatePattern::LowerPlus),
                 r"[-+*/]" => Some(CandidatePattern::CharClass(b"-+*/")),
                 r"\s" | r"\s+" | r"\s*" => Some(CandidatePattern::Whitespace),
