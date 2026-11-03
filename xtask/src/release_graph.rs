@@ -33,8 +33,9 @@ struct CargoMetadata {
 #[derive(Debug, Clone, Deserialize)]
 struct CargoPackage {
     name: String,
-    #[serde(default)]
-    version: String,
+    // Preserve Cargo metadata's version field/type even though ordering ignores it.
+    #[serde(default, rename = "version")]
+    _version: String,
     #[serde(default)]
     dependencies: Vec<CargoDependency>,
 }
@@ -131,36 +132,6 @@ pub fn load_committed(root: &Path) -> Result<ReleaseGraph> {
 
 pub fn ordered_crate_names(root: &Path) -> Result<Vec<String>> {
     Ok(load_committed(root)?.ordered_crates)
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct OrderedCrateVersion {
-    pub name: String,
-    pub version: String,
-}
-
-/// Release-graph order paired with each crate's `cargo metadata` version.
-pub fn ordered_crate_versions(root: &Path) -> Result<Vec<OrderedCrateVersion>> {
-    let graph = compute_release_graph(root)?;
-    let metadata = load_cargo_metadata(root)?;
-    let versions: BTreeMap<&str, &str> = metadata
-        .packages
-        .iter()
-        .map(|p| (p.name.as_str(), p.version.as_str()))
-        .collect();
-    graph
-        .ordered_crates
-        .iter()
-        .map(|name| {
-            let version = versions
-                .get(name.as_str())
-                .with_context(|| format!("release crate `{name}` missing from cargo metadata"))?;
-            Ok(OrderedCrateVersion {
-                name: name.clone(),
-                version: (*version).to_string(),
-            })
-        })
-        .collect()
 }
 
 fn write_release_crates_txt(root: &Path, ordered_crates: &[String]) -> Result<()> {
@@ -394,12 +365,12 @@ mod tests {
             packages: vec![
                 CargoPackage {
                     name: "published-a".to_string(),
-                    version: "0.10.0".to_string(),
+                    _version: "0.10.0".to_string(),
                     dependencies: vec![],
                 },
                 CargoPackage {
                     name: "published-b".to_string(),
-                    version: "0.10.0".to_string(),
+                    _version: "0.10.0".to_string(),
                     dependencies: vec![CargoDependency {
                         name: "published-a".to_string(),
                         kind: Some(DependencyKind::Single("normal".to_string())),
@@ -408,7 +379,7 @@ mod tests {
                 },
                 CargoPackage {
                     name: "published-c".to_string(),
-                    version: "0.10.0".to_string(),
+                    _version: "0.10.0".to_string(),
                     dependencies: vec![CargoDependency {
                         name: "dev-only".to_string(),
                         kind: Some(DependencyKind::Single("dev".to_string())),
@@ -499,7 +470,7 @@ mod tests {
         let versions: BTreeMap<&str, &str> = metadata
             .packages
             .iter()
-            .map(|package| (package.name.as_str(), package.version.as_str()))
+            .map(|package| (package.name.as_str(), package._version.as_str()))
             .collect();
 
         assert_eq!(graph.ordered_crates.len(), 12);
