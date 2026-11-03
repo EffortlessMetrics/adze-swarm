@@ -105,7 +105,8 @@ impl ReleaseCommand {
         // its hex/display strings. The later JSON writer enforces exact bytes.
         let mut size = self.name.len();
         let mut account = |value: &OsStr| -> Result<()> {
-            size = size.checked_add(value.as_encoded_bytes().len())
+            size = size
+                .checked_add(value.as_encoded_bytes().len())
                 .and_then(|value| value.checked_add(32))
                 .context("release command request size overflow")?;
             if size > limit {
@@ -115,7 +116,9 @@ impl ReleaseCommand {
         };
         account(&self.program)?;
         account(self.cwd.as_os_str())?;
-        for value in &self.arguments { account(value)?; }
+        for value in &self.arguments {
+            account(value)?;
+        }
         for change in &self.environment {
             match change {
                 EnvironmentChange::Set { name, value, .. } => {
@@ -132,12 +135,20 @@ impl ReleaseCommand {
         RecordedRequest {
             name: self.name.clone(),
             program: NativeString::from_os(&self.program),
-            arguments: self.arguments.iter().map(|v| NativeString::from_os(v)).collect(),
+            arguments: self
+                .arguments
+                .iter()
+                .map(|v| NativeString::from_os(v))
+                .collect(),
             cwd: NativeString::from_os(self.cwd.as_os_str()),
             environment_policy: "inherit_with_ordered_changes",
             inherited_environment_values: "not_recorded",
             inherited_environment_identity: "unknown",
-            environment: self.environment.iter().map(RecordedEnvironmentChange::from).collect(),
+            environment: self
+                .environment
+                .iter()
+                .map(RecordedEnvironmentChange::from)
+                .collect(),
             requested_policy: self.policy,
         }
     }
@@ -190,7 +201,11 @@ enum RecordedEnvironmentChange {
 impl From<&EnvironmentChange> for RecordedEnvironmentChange {
     fn from(change: &EnvironmentChange) -> Self {
         match change {
-            EnvironmentChange::Set { name, value, record_value } => Self::Set {
+            EnvironmentChange::Set {
+                name,
+                value,
+                record_value,
+            } => Self::Set {
                 name: NativeString::from_os(name),
                 value: (*record_value).then(|| NativeString::from_os(value)),
                 value_redacted: !*record_value,
@@ -238,9 +253,13 @@ struct Timestamp {
 
 impl Timestamp {
     fn now() -> Result<Self> {
-        let elapsed = SystemTime::now().duration_since(UNIX_EPOCH)
+        let elapsed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .context("recording release command time")?;
-        Ok(Self { unix_seconds: elapsed.as_secs(), subsecond_nanoseconds: elapsed.subsec_nanos() })
+        Ok(Self {
+            unix_seconds: elapsed.as_secs(),
+            subsecond_nanoseconds: elapsed.subsec_nanos(),
+        })
     }
 }
 
@@ -291,7 +310,13 @@ impl CommandJournal {
             .context("canonicalizing retained release artifact root")?;
         let root = artifact_root.join("commands");
         fs::create_dir(&root).context("release command journal must be newly owned")?;
-        Ok(Self { root, source, limits, next_id: 1, failed_recording: false })
+        Ok(Self {
+            root,
+            source,
+            limits,
+            next_id: 1,
+            failed_recording: false,
+        })
     }
 
     pub(crate) fn begin(&mut self, request: ReleaseCommand) -> Result<PendingCommand> {
@@ -320,7 +345,10 @@ impl CommandJournal {
         self.failed_recording = true;
         fs::create_dir(&directory).context("creating release command entry")?;
         write_atomic_new(&directory.join("intent.json"), &raw)?;
-        self.next_id = self.next_id.checked_add(1).context("release command id overflow")?;
+        self.next_id = self
+            .next_id
+            .checked_add(1)
+            .context("release command id overflow")?;
         self.failed_recording = false;
         Ok(PendingCommand {
             id,
@@ -355,7 +383,12 @@ pub(crate) struct CommandObservation {
 
 impl CommandObservation {
     pub(crate) fn natural(status: ExitStatus, stdout: Vec<u8>, stderr: Vec<u8>) -> Self {
-        Self { natural_status: Some(status), stdout, stderr, failure: None }
+        Self {
+            natural_status: Some(status),
+            stdout,
+            stderr,
+            failure: None,
+        }
     }
 
     pub(crate) fn failed(
@@ -364,7 +397,12 @@ impl CommandObservation {
         stdout: Vec<u8>,
         stderr: Vec<u8>,
     ) -> Self {
-        Self { natural_status, stdout, stderr, failure: Some(error) }
+        Self {
+            natural_status,
+            stdout,
+            stderr,
+            failure: Some(error),
+        }
     }
 }
 
@@ -372,7 +410,11 @@ impl CommandObservation {
 #[serde(tag = "platform", rename_all = "snake_case")]
 enum NativeStatus {
     #[cfg(unix)]
-    Unix { code: Option<i32>, signal: Option<i32>, core_dumped: bool },
+    Unix {
+        code: Option<i32>,
+        signal: Option<i32>,
+        core_dumped: bool,
+    },
     #[cfg(windows)]
     Windows { code: u32 },
 }
@@ -382,12 +424,18 @@ impl NativeStatus {
         #[cfg(unix)]
         {
             use std::os::unix::process::ExitStatusExt;
-            Self::Unix { code: status.code(), signal: status.signal(), core_dumped: status.core_dumped() }
+            Self::Unix {
+                code: status.code(),
+                signal: status.signal(),
+                core_dumped: status.core_dumped(),
+            }
         }
         #[cfg(windows)]
         {
             // Windows always has an exit code. Preserve its unsigned bit pattern.
-            Self::Windows { code: status.code().expect("Windows exit status has a code") as u32 }
+            Self::Windows {
+                code: status.code().expect("Windows exit status has a code") as u32,
+            }
         }
     }
 }
@@ -432,14 +480,26 @@ pub(crate) struct RecordedObservation {
 }
 
 impl RecordedObservation {
-    pub(crate) fn request(&self) -> &ReleaseCommand { &self.request }
-    pub(crate) fn completion_path(&self) -> &Path { &self.completion_path }
-    pub(crate) fn natural_status(&self) -> Option<ExitStatus> { self.natural_status }
-    pub(crate) fn stdout(&self) -> &[u8] { &self.stdout }
-    pub(crate) fn stderr(&self) -> &[u8] { &self.stderr }
+    pub(crate) fn request(&self) -> &ReleaseCommand {
+        &self.request
+    }
+    pub(crate) fn completion_path(&self) -> &Path {
+        &self.completion_path
+    }
+    pub(crate) fn natural_status(&self) -> Option<ExitStatus> {
+        self.natural_status
+    }
+    pub(crate) fn stdout(&self) -> &[u8] {
+        &self.stdout
+    }
+    pub(crate) fn stderr(&self) -> &[u8] {
+        &self.stderr
+    }
 
     pub(crate) fn verify_artifacts(&self) -> Result<()> {
-        for artifact in &self.artifacts { artifact.verify()?; }
+        for artifact in &self.artifacts {
+            artifact.verify()?;
+        }
         Ok(())
     }
 }
@@ -454,34 +514,50 @@ impl RetainedArtifact {
     fn verify(&self) -> Result<()> {
         let metadata = fs::symlink_metadata(&self.path)
             .with_context(|| format!("reading release command artifact {}", self.path.display()))?;
-        let expected_bytes = u64::try_from(self.bytes).context("command artifact byte count overflow")?;
+        let expected_bytes =
+            u64::try_from(self.bytes).context("command artifact byte count overflow")?;
         if !metadata.file_type().is_file() || metadata.len() != expected_bytes {
-            bail!("release command artifact type/length changed: {}", self.path.display());
+            bail!(
+                "release command artifact type/length changed: {}",
+                self.path.display()
+            );
         }
-        let limit = expected_bytes.checked_add(1).context("command artifact read bound overflow")?;
+        let limit = expected_bytes
+            .checked_add(1)
+            .context("command artifact read bound overflow")?;
         let mut input = File::open(&self.path)?.take(limit);
         let mut digest = Sha256::new();
         let mut bytes = 0_u64;
         let mut buffer = [0_u8; 8192];
         loop {
             let count = input.read(&mut buffer)?;
-            if count == 0 { break; }
+            if count == 0 {
+                break;
+            }
             bytes += count as u64;
             digest.update(&buffer[..count]);
         }
         if bytes != expected_bytes || hex(&digest.finalize()) != self.sha256 {
-            bail!("release command artifact bytes changed: {}", self.path.display());
+            bail!(
+                "release command artifact bytes changed: {}",
+                self.path.display()
+            );
         }
         Ok(())
     }
 }
 
 impl PendingCommand {
-    pub(crate) fn request(&self) -> &ReleaseCommand { &self.request }
+    pub(crate) fn request(&self) -> &ReleaseCommand {
+        &self.request
+    }
 
     /// No backend report exists in this independent seam. Even a natural zero
     /// status therefore records unknown launch/custody/enforcement evidence.
-    pub(crate) fn complete(self, mut observation: CommandObservation) -> Result<RecordedObservation> {
+    pub(crate) fn complete(
+        self,
+        mut observation: CommandObservation,
+    ) -> Result<RecordedObservation> {
         let persisted = self.persist(&observation);
         if let Some(original) = observation.failure.take() {
             return match persisted {
@@ -509,18 +585,30 @@ impl PendingCommand {
             sha256: self.intent_sha256.clone(),
         };
         intent.verify()?;
-        let stdout = self.write_output("stdout.bin", &observation.stdout, self.request.policy.stdout_bytes)?;
-        let stderr = self.write_output("stderr.bin", &observation.stderr, self.request.policy.stderr_bytes)?;
+        let stdout = self.write_output(
+            "stdout.bin",
+            &observation.stdout,
+            self.request.policy.stdout_bytes,
+        )?;
+        let stderr = self.write_output(
+            "stderr.bin",
+            &observation.stderr,
+            self.request.policy.stderr_bytes,
+        )?;
         let exceeds_policy = stdout.truncated_by_journal || stderr.truncated_by_journal;
-        let mut artifacts = vec![intent, RetainedArtifact {
-            path: self.directory.join("stdout.bin"),
-            bytes: stdout.retained_bytes,
-            sha256: stdout.sha256.clone(),
-        }, RetainedArtifact {
-            path: self.directory.join("stderr.bin"),
-            bytes: stderr.retained_bytes,
-            sha256: stderr.sha256.clone(),
-        }];
+        let mut artifacts = vec![
+            intent,
+            RetainedArtifact {
+                path: self.directory.join("stdout.bin"),
+                bytes: stdout.retained_bytes,
+                sha256: stdout.sha256.clone(),
+            },
+            RetainedArtifact {
+                path: self.directory.join("stderr.bin"),
+                bytes: stderr.retained_bytes,
+                sha256: stderr.sha256.clone(),
+            },
+        ];
         let failure_text = observation.failure.as_ref().map(bounded_error_text);
         let record = CompletionRecord {
             schema_version: 1,
@@ -532,7 +620,9 @@ impl PendingCommand {
             elapsed_since_intent_millis: self.intent_time.elapsed().as_millis(),
             natural_status: observation.natural_status.map(NativeStatus::from_status),
             observed_failure: failure_text.as_ref().map(|(text, _)| text.clone()),
-            observed_failure_text_truncated: failure_text.as_ref().is_some_and(|(_, truncated)| *truncated),
+            observed_failure_text_truncated: failure_text
+                .as_ref()
+                .is_some_and(|(_, truncated)| *truncated),
             stdout,
             stderr,
             launch_evidence: "unknown_pending_backend_report",
@@ -548,7 +638,9 @@ impl PendingCommand {
             sha256: sha256(&raw),
         });
         if exceeds_policy {
-            bail!("release command observation exceeded its recorded capture policy; bounded raw evidence retained");
+            bail!(
+                "release command observation exceeded its recorded capture policy; bounded raw evidence retained"
+            );
         }
         Ok(artifacts)
     }
@@ -567,25 +659,41 @@ impl PendingCommand {
 }
 
 fn json_bytes(value: &impl Serialize, limit: usize) -> Result<Vec<u8>> {
-    struct BoundedBytes { bytes: Vec<u8>, limit: usize }
+    struct BoundedBytes {
+        bytes: Vec<u8>,
+        limit: usize,
+    }
     impl Write for BoundedBytes {
         fn write(&mut self, data: &[u8]) -> io::Result<usize> {
             if data.len() > self.limit.saturating_sub(self.bytes.len()) {
-                return Err(io::Error::other("release command record exceeds its journal byte limit"));
+                return Err(io::Error::other(
+                    "release command record exceeds its journal byte limit",
+                ));
             }
             self.bytes.extend_from_slice(data);
             Ok(data.len())
         }
-        fn flush(&mut self) -> io::Result<()> { Ok(()) }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
     }
-    let mut output = BoundedBytes { bytes: Vec::new(), limit };
-    serde_json::to_writer_pretty(&mut output, value).context("serializing release command record")?;
-    output.write_all(b"\n").context("terminating release command record")?;
+    let mut output = BoundedBytes {
+        bytes: Vec::new(),
+        limit,
+    };
+    serde_json::to_writer_pretty(&mut output, value)
+        .context("serializing release command record")?;
+    output
+        .write_all(b"\n")
+        .context("terminating release command record")?;
     Ok(output.bytes)
 }
 
 fn bounded_error_text(error: &anyhow::Error) -> (String, bool) {
-    struct BoundedText { text: String, truncated: bool }
+    struct BoundedText {
+        text: String,
+        truncated: bool,
+    }
     impl fmt::Write for BoundedText {
         fn write_str(&mut self, text: &str) -> fmt::Result {
             let capacity = 8192_usize.saturating_sub(self.text.len());
@@ -594,33 +702,51 @@ fn bounded_error_text(error: &anyhow::Error) -> (String, bool) {
                 return Ok(());
             }
             let mut end = capacity;
-            while !text.is_char_boundary(end) { end -= 1; }
+            while !text.is_char_boundary(end) {
+                end -= 1;
+            }
             self.text.push_str(&text[..end]);
             self.truncated = true;
             Err(fmt::Error)
         }
     }
-    let mut output = BoundedText { text: String::new(), truncated: false };
+    let mut output = BoundedText {
+        text: String::new(),
+        truncated: false,
+    };
     let _ = fmt::write(&mut output, format_args!("{error:#}"));
     (output.text, output.truncated)
 }
 
 fn write_atomic_new(path: &Path, raw: &[u8]) -> Result<()> {
-    let parent = path.parent().context("release command artifact has no parent")?;
+    let parent = path
+        .parent()
+        .context("release command artifact has no parent")?;
     let mut pending = tempfile::NamedTempFile::new_in(parent)
         .context("creating pending release command record")?;
-    pending.write_all(raw).context("writing pending release command record")?;
-    pending.as_file().sync_all().context("flushing pending release command record")?;
-    pending.persist_noclobber(path)
+    pending
+        .write_all(raw)
+        .context("writing pending release command record")?;
+    pending
+        .as_file()
+        .sync_all()
+        .context("flushing pending release command record")?;
+    pending
+        .persist_noclobber(path)
         .with_context(|| format!("publishing new release command record {}", path.display()))?;
     Ok(())
 }
 
 fn write_exclusive(path: &Path, raw: &[u8]) -> Result<()> {
-    let mut file = OpenOptions::new().write(true).create_new(true).open(path)
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
         .with_context(|| format!("creating new release command artifact {}", path.display()))?;
-    file.write_all(raw).with_context(|| format!("writing release command artifact {}", path.display()))?;
-    file.sync_all().with_context(|| format!("flushing release command artifact {}", path.display()))?;
+    file.write_all(raw)
+        .with_context(|| format!("writing release command artifact {}", path.display()))?;
+    file.sync_all()
+        .with_context(|| format!("flushing release command artifact {}", path.display()))?;
     Ok(())
 }
 
