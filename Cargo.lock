@@ -96,9 +96,11 @@ dependencies = [
  "rustix",
  "serde",
  "serde_json",
+ "sha2",
  "syn 2.0.117",
  "tempfile",
  "walkdir",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

@@ -359,12 +359,19 @@ serde_json = {{ version = "1.0", features = ["preserve_order"] }}
     std::fs::write(fixture.join("build.rs"), build_source).unwrap();
     std::fs::write(fixture.join("src/lib.rs"), library_source).unwrap();
 
-    // Prepare the standalone consumer's lockfile offline from the reviewed
-    // repository lock, then require it unchanged during native compilation/tests.
+    // Prepare the standalone consumer's lockfile offline for this native host
+    // from the reviewed repository lock, then require it unchanged during tests.
     // This unique target also excludes a previous fixture's generated binary.
     let target = fixture.join("target");
     let preparation = std::process::Command::new(env!("CARGO"))
-        .args(["metadata", "--offline", "--format-version", "1"])
+        .args([
+            "metadata",
+            "--offline",
+            "--format-version",
+            "1",
+            "--filter-platform",
+            "host-tuple",
+        ])
         .arg("--manifest-path")
         .arg(fixture.join("Cargo.toml"))
         .current_dir(&fixture)
@@ -400,6 +407,7 @@ serde_json = {{ version = "1.0", features = ["preserve_order"] }}
         "features": ["pure-rust"],
         "preparation_args": [
             "metadata", "--offline", "--format-version", "1",
+            "--filter-platform", "host-tuple",
             "--manifest-path", "Cargo.toml",
         ],
         "native_args": [

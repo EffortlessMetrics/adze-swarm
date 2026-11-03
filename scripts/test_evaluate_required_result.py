@@ -40,6 +40,7 @@ PRODUCT_PASS = {
     "RUN_STABLE": "true",
     "DETECT_REASON": "stable_surface:runtime/lib.rs",
     "STABLE_RESULT": "success",
+    "WINDOWS_RESULT": "success",
     "PR_CANARY_RESULT": "skipped",
 }
 
@@ -67,6 +68,10 @@ class ValidPassRows(unittest.TestCase):
     def test_valid_no_work_passes(self) -> None:
         self.assertEqual(0, rust(RUST_NEEDED="false", DETECT_REASON="no_rust_surface_changed"))
         self.assertEqual(0, product(RUN_STABLE="false", DETECT_REASON="no_stable_product_surface_changed"))
+        self.assertEqual(0, product(RUN_STABLE="false", DETECT_REASON="no_stable_product_surface_changed",
+                                    STABLE_RESULT="skipped", WINDOWS_RESULT="skipped"))
+        self.assertEqual(0, product(RUN_STABLE="false", DETECT_REASON="no_stable_product_surface_changed",
+                                    STABLE_RESULT="", WINDOWS_RESULT=""))
 
     def test_selected_proof_succeeds_passes(self) -> None:
         self.assertEqual(0, rust())
@@ -82,7 +87,14 @@ class ValidPassRows(unittest.TestCase):
         self.assertEqual(0, rust(EVENT_NAME="pull_request", PR_ADMISSION_RESULT="success",
                                  SUPPORTED_RESULT="skipped", GITHUB_RESULT="skipped"))
         self.assertEqual(0, product(EVENT_NAME="pull_request", PR_CANARY_RESULT="success",
-                                    STABLE_RESULT="skipped"))
+                                    STABLE_RESULT="skipped", WINDOWS_RESULT="skipped"))
+        self.assertEqual(0, product(EVENT_NAME="pull_request", PR_CANARY_RESULT="success",
+                                    STABLE_RESULT="", WINDOWS_RESULT=""))
+
+    def test_each_selected_non_pr_event_requires_and_accepts_windows_success(self) -> None:
+        for event in ("merge_group", "workflow_dispatch", "schedule"):
+            with self.subTest(event=event):
+                self.assertEqual(0, product(EVENT_NAME=event))
 
 
 class FailRows(unittest.TestCase):
@@ -119,6 +131,16 @@ class FailRows(unittest.TestCase):
         self.assertEqual(1, product(STABLE_RESULT="failure"))
         self.assertEqual(1, rust(EVENT_NAME="pull_request", PR_ADMISSION_RESULT="failure"))
         self.assertEqual(1, product(EVENT_NAME="pull_request", PR_CANARY_RESULT="failure"))
+
+    def test_selected_windows_proof_missing_skipped_cancelled_failed_or_malformed(self) -> None:
+        for event in ("merge_group", "workflow_dispatch", "schedule"):
+            for bad in ("", "skipped", "cancelled", "failure", "succ", "Success", "success ", "success\n"):
+                with self.subTest(event=event, windows_result=bad):
+                    self.assertEqual(1, product(EVENT_NAME=event, WINDOWS_RESULT=bad))
+            omitted = {key: value for key, value in PRODUCT_PASS.items() if key != "WINDOWS_RESULT"}
+            omitted["EVENT_NAME"] = event
+            with self.subTest(event=event, windows_result="omitted"):
+                self.assertEqual(1, run("product", omitted))
 
     def test_route_unavailable(self) -> None:
         for bad in ["failure", "cancelled", "skipped", ""]:
@@ -225,6 +247,27 @@ class WorkflowWiring(unittest.TestCase):
             "cli/tests/runner_output_contract.rs",
             "cli/tests/runner_process_contract.rs",
             "cli/tests/runner_protocol_contract.rs",
+            "cli/tests/runner_windows_process_contract.rs",
+            "cli/tests/runner_windows_output_contract.rs",
+            "cli/tests/runner_windows_protocol_contract.rs",
+            "cli/tests/fixtures/windows_runner_fixture.rs",
+            "cli/tests/support/windows_fixture.rs",
+            "cli/tests/support/windows_output.rs",
+        )
+        for event in ("merge_group", "pull_request"):
+            for change in ("modify", "delete", "rename"):
+                for path in paths:
+                    with self.subTest(event=event, change=change, path=path):
+                        result = self._product_path_selection(path, event=event, change=change)
+                        self.assertEqual("true", result["run_stable"])
+                        self.assertEqual(f"stable_surface:{path}", result["reason"])
+
+    def test_portable_guard_and_evaluator_changes_select_product_qualification(self) -> None:
+        paths = (
+            "scripts/run-required-test.py",
+            "scripts/test_run_required_test.py",
+            "scripts/evaluate-required-result.py",
+            "scripts/test_evaluate_required_result.py",
         )
         for event in ("merge_group", "pull_request"):
             for change in ("modify", "delete", "rename"):
@@ -282,6 +325,201 @@ class WorkflowWiring(unittest.TestCase):
         command = "run: python3 scripts/test_evaluate_required_result.py"
         self.assertIn(command, block)
         self.assertLess(block.index(command), block.index("- id: detect"))
+
+    def _native_dependency_preparation(self, platform: str) -> tuple[str, str, str]:
+        import textwrap
+
+        if platform == "Supported Proof":
+            block = self._job_block(".github/workflows/em-ci-routed-rust.yml", "supported-proof")
+        else:
+            job = "ci-product-stable" if platform == "Linux" else "ci-product-windows"
+            block = self._job_block(".github/workflows/product-proof.yml", job)
+        name = f"Prepare locked native dependencies online for {platform} consumers"
+        step = block[block.index(f"      - name: {name}\n"):]
+        step = step.split("\n      - ", 1)[0]
+        run_lines = []
+        for line in step.split("        run: |\n", 1)[1].splitlines():
+            if line and not line.startswith("          "):
+                break
+            run_lines.append(line)
+        script = textwrap.dedent("\n".join(run_lines))
+        if platform != "Windows":
+            self.assertIn("shell: bash\n", step)
+            self.assertTrue(script.startswith("set -euo pipefail\n"))
+            program, suffix = script.split("python3 - <<'PY'\n", 1)[1].split("\nPY", 1)
+            self.assertEqual("", suffix.strip())
+        else:
+            self.assertNotIn("shell: bash", step)
+            program, suffix = script.split("@'\n", 1)[1].split("\n'@ | python -", 1)
+            self.assertEqual("exit $LASTEXITCODE", suffix.strip())
+        return block, step, program
+
+    def test_native_dependency_preparation_is_finite_and_precedes_consumers(self) -> None:
+        for platform, first_consumer in (
+            ("Linux", "Qualify Linux static runner process and output contracts"),
+            ("Windows", "Strict Clippy for native Windows runner contracts"),
+            ("Supported Proof", "Qualify generated LR diagnostics with GLR enabled"),
+        ):
+            with self.subTest(platform=platform):
+                block, step, _ = self._native_dependency_preparation(platform)
+                self.assertIn("        timeout-minutes: 5\n", step)
+                self.assertNotIn("continue-on-error", step)
+                self.assertNotIn("        if:", step)
+                self.assertLess(block.index("Swatinem/rust-cache@v2"), block.index(step))
+                self.assertLess(block.index(step), block.index(first_consumer))
+
+    def test_native_dependency_preparation_preserves_failures_and_lock_bytes(self) -> None:
+        """Execute all three workflow programs with an actual fake Cargo subprocess.
+
+        Only Cargo's executable is substituted; the embedded hash, failure and
+        lock-refusal code runs unchanged. This is not native Cargo or PowerShell
+        qualification.
+        """
+        import hashlib
+        import json
+        import tempfile
+        import textwrap
+
+        fake_cargo = textwrap.dedent('''\
+            import json
+            import os
+            import pathlib
+            import sys
+
+            pathlib.Path("cargo-argv.json").write_text(json.dumps(sys.argv[1:]))
+            change = os.environ["ADZE_PREP_TEST_CHANGE"]
+            if change == "changed":
+                with pathlib.Path("Cargo.lock").open("ab") as lock:
+                    lock.write(b"# changed\\n")
+            elif change == "removed":
+                pathlib.Path("Cargo.lock").unlink()
+            status = int(os.environ["ADZE_PREP_TEST_STATUS"])
+            if status:
+                print("fixture Cargo failure", file=sys.stderr)
+            raise SystemExit(status)
+        ''')
+        lock_bytes = b"version = 4\r\n"
+        lock_hash = hashlib.sha256(lock_bytes).hexdigest()
+        cases = (
+            ("unchanged", 0, 0), ("unchanged", 37, 37),
+            ("changed", 0, 1), ("changed", 37, 37),
+            ("removed", 0, 1), ("removed", 37, 37),
+            ("missing-before", 0, 1),
+        )
+        for platform, target in (
+            ("Linux", "host-tuple"),
+            ("Windows", "x86_64-pc-windows-msvc"),
+            ("Supported Proof", "host-tuple"),
+        ):
+            _, _, program = self._native_dependency_preparation(platform)
+            # This adapter preserves the workflow's exact Cargo argument list
+            # and check policy while using a portable executable fake child.
+            harness = textwrap.dedent('''\
+                import subprocess
+                import sys
+
+                real_run = subprocess.run
+                def invoke(command, *, check):
+                    assert command[0] == "cargo", command
+                    assert check is False
+                    return real_run([sys.executable, "fake-cargo.py", *command[1:]], check=check)
+                subprocess.run = invoke
+            ''') + "\nexec(" + repr(program) + ")\n"
+            for change, cargo_status, expected_status in cases:
+                with self.subTest(platform=platform, change=change, cargo_status=cargo_status):
+                    with tempfile.TemporaryDirectory(prefix="adze-dependency-preparation-") as directory:
+                        fixture = Path(directory)
+                        (fixture / "fake-cargo.py").write_text(fake_cargo, encoding="utf-8")
+                        if change != "missing-before":
+                            (fixture / "Cargo.lock").write_bytes(lock_bytes)
+                        result = subprocess.run(
+                            [sys.executable, "-c", harness], cwd=fixture,
+                            env={**os.environ, "ADZE_PREP_TEST_CHANGE": change,
+                                 "ADZE_PREP_TEST_STATUS": str(cargo_status)},
+                            capture_output=True, text=True, timeout=10,
+                        )
+                        self.assertEqual(expected_status, result.returncode, result.stdout + result.stderr)
+                        argv = fixture / "cargo-argv.json"
+                        if change == "missing-before":
+                            self.assertFalse(argv.exists(), "unreadable lock must prevent preparation")
+                            continue
+                        self.assertEqual(
+                            ["fetch", "--locked", "--target", target],
+                            json.loads(argv.read_text(encoding="utf-8")),
+                        )
+                        self.assertIn(f"dependency_preparation_lock_before_sha256={lock_hash}", result.stdout)
+                        self.assertIn(f"dependency_preparation_fetch_status={cargo_status}", result.stdout)
+                        if cargo_status:
+                            self.assertIn("fixture Cargo failure", result.stderr)
+                        if change == "unchanged":
+                            self.assertEqual(lock_bytes, (fixture / "Cargo.lock").read_bytes())
+                            self.assertIn(f"dependency_preparation_lock_after_sha256={lock_hash}", result.stdout)
+                        elif change == "changed":
+                            changed_hash = hashlib.sha256(lock_bytes + b"# changed\n").hexdigest()
+                            self.assertIn(f"dependency_preparation_lock_after_sha256={changed_hash}", result.stdout)
+                            self.assertIn("changed Cargo.lock bytes", result.stderr)
+                        else:
+                            self.assertIn("could not read Cargo.lock afterward", result.stderr)
+
+    def test_windows_job_is_selected_with_the_existing_non_pr_product_proof(self) -> None:
+        import re
+
+        path = ".github/workflows/product-proof.yml"
+        linux = self._job_block(path, "ci-product-stable")
+        windows = self._job_block(path, "ci-product-windows")
+        self.assertEqual(
+            re.search(r"^    if: (.+)$", linux, re.M).group(1),
+            re.search(r"^    if: (.+)$", windows, re.M).group(1),
+        )
+        self.assertIn("needs: detect-stable-product-paths", windows)
+        self.assertIn("runs-on: windows-2022", windows)
+        self.assertNotIn("continue-on-error", windows)
+        self.assertNotIn("shell: bash", windows)
+        self.assertIn("toolchain: 1.95.0", windows)
+        self.assertIn("components: clippy,rustfmt", windows)
+        self.assertIn("targets: x86_64-pc-windows-msvc", windows)
+        self.assertIn("EXPECTED_SHA: ${{ github.sha }}", windows)
+        self.assertIn("$actualSha -cne $env:EXPECTED_SHA", windows)
+        self.assertEqual(2, windows.count("if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"))
+        for token in ("ImageOS", "ImageVersion", "windows_build", "rustc -vV", "lock_sha256"):
+            self.assertIn(token, windows)
+        self.assertIn("run: python scripts/test_run_required_test.py\n", windows)
+        self.assertNotIn("test_run_required_test.py SyntheticProcessControls", windows)
+
+    def test_windows_guards_each_native_contract_and_strict_targeted_clippy(self) -> None:
+        block = self._job_block(".github/workflows/product-proof.yml", "ci-product-windows")
+        commands = [line.strip() for line in block.splitlines()
+                    if "run: python scripts/run-required-test.py " in line]
+        self.assertEqual(7, len(commands))
+        targets = [
+            "--test runner_windows_process_contract -- --nocapture",
+            "--test runner_windows_output_contract -- --nocapture",
+            "--test runner_windows_protocol_contract -- --nocapture",
+            "--test cli_test test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture",
+            "--test cli_test test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture",
+            "--test cli_test parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture",
+            "--bin adze generated_runner_argv_tests::test_generated_runner_protocol_args_precede_input_io -- --exact --nocapture",
+        ]
+        for command, target in zip(commands, targets):
+            self.assertIn("--label ", command)
+            self.assertIn("-- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc ", command)
+            self.assertTrue(command.endswith(target), command)
+        clippy = (
+            "cargo clippy --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze "
+            "--test runner_windows_process_contract --test runner_windows_output_contract "
+            "--test runner_windows_protocol_contract -- -D warnings"
+        )
+        self.assertIn(clippy, block)
+
+    def test_required_product_aggregate_receives_the_windows_result(self) -> None:
+        block = self._job_block(".github/workflows/product-proof.yml", "product-proof-result")
+        self.assertIn(
+            "needs: [detect-stable-product-paths, pr-canary-plan, ci-product-stable, ci-product-windows]",
+            block,
+        )
+        self.assertIn("WINDOWS_RESULT: ${{ needs.ci-product-windows.result }}", block)
+        self.assertIn("name: Product Proof Result", block)
+        self.assertIn("always() &&", block)
 
     def test_ready_for_review_triggers_both_workflows(self) -> None:
         import re

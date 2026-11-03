@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::fs;
 use std::path::{Path, PathBuf};
+#[cfg(not(windows))]
 use std::process::Command;
 use walkdir::WalkDir;
 
@@ -12,6 +13,12 @@ mod runner_output;
 #[cfg(target_os = "linux")]
 mod runner_process;
 mod runner_protocol;
+#[cfg(windows)]
+mod runner_windows;
+#[cfg(windows)]
+mod runner_windows_handles;
+#[cfg(windows)]
+mod runner_windows_request;
 
 use grammar_analysis::analyze_grammar_file;
 
@@ -146,6 +153,16 @@ impl OutputFormat {
 }
 
 fn main() -> Result<()> {
+    #[cfg(windows)]
+    if let Some(result) = runner_windows::bootstrap_if_requested() {
+        match result {
+            Ok(code) => std::process::exit(code as i32),
+            Err(error) => {
+                eprintln!("error: static runner bootstrap failed: {error}");
+                std::process::exit(1);
+            }
+        }
+    }
     let result = run_cli();
     #[cfg(target_os = "linux")]
     if let Err(error) = &result
@@ -157,6 +174,17 @@ fn main() -> Result<()> {
         // boundary restored dispositions after bounded child cleanup.
         eprintln!("{error:#}");
         runner_process::exit_after_cancellation(signal);
+    }
+    #[cfg(windows)]
+    if let Err(error) = &result
+        && let Some(event) = error
+            .downcast_ref::<runner_windows::CaptureError>()
+            .and_then(runner_windows::CaptureError::cancellation)
+    {
+        // run_cli has released the temporary runner after bounded job cleanup.
+        // Exit this process only; do not broadcast a console event to the shell.
+        eprintln!("{error:#}");
+        std::process::exit(event.exit_code());
     }
     result
 }
@@ -938,27 +966,59 @@ fn run_static_parse_runner(
 
     let mut output = {
         eprintln!("compiling temporary parse runner (first run may take a while)...");
-        let mut command = Command::new("cargo");
-        command
-            .arg("run")
-            .arg("--quiet")
-            .arg("--manifest-path")
-            .arg(runner.path().join("Cargo.toml"))
-            .arg("--")
-            .arg(&input)
-            .arg(output_format)
-            .arg(runner_protocol::request_token())
-            .env("ADZE_USE_PURE_RUST", "1");
-        // Preserve input/operation positions, environment and inherited Cargo
-        // cwd; the explicit private version token follows the existing args.
-        // Linux owns bounded group/pipe custody. Other platforms retain the
-        // existing path and are not qualified for those bounds by this slice.
-        #[cfg(target_os = "linux")]
-        let output = runner_process::capture(&mut command, runner_process::CARGO_RUN_POLICY)
-            .with_context(|| format!("static runner process for {}", grammar.display()))?;
-        #[cfg(not(target_os = "linux"))]
-        let output = command.output()?;
-        output
+        #[cfg(windows)]
+        {
+            use runner_windows_request::{EnvironmentChange, EnvironmentPolicy, RunnerRequest};
+            let request = RunnerRequest {
+                program: "cargo".into(),
+                args: vec![
+                    "run".into(),
+                    "--quiet".into(),
+                    "--manifest-path".into(),
+                    runner.path().join("Cargo.toml").into_os_string(),
+                    "--".into(),
+                    input.clone().into_os_string(),
+                    output_format.into(),
+                    runner_protocol::request_token().into(),
+                ],
+                environment: EnvironmentPolicy::Inherit,
+                changes: vec![EnvironmentChange::Set(
+                    "ADZE_USE_PURE_RUST".into(),
+                    "1".into(),
+                )],
+                cwd: None,
+            };
+            runner_windows::capture(
+                &request,
+                &std::env::current_exe()?,
+                runner_windows::CARGO_RUN_POLICY,
+            )
+            .with_context(|| format!("static runner process for {}", grammar.display()))?
+        }
+        #[cfg(not(windows))]
+        {
+            let mut command = Command::new("cargo");
+            command
+                .arg("run")
+                .arg("--quiet")
+                .arg("--manifest-path")
+                .arg(runner.path().join("Cargo.toml"))
+                .arg("--")
+                .arg(&input)
+                .arg(output_format)
+                .arg(runner_protocol::request_token())
+                .env("ADZE_USE_PURE_RUST", "1");
+            // Preserve input/operation positions, environment and inherited Cargo
+            // cwd; the explicit private version token follows the existing args.
+            // Linux owns bounded group/pipe custody. Other non-Windows platforms
+            // retain the existing path and are not qualified for those bounds.
+            #[cfg(target_os = "linux")]
+            let output = runner_process::capture(&mut command, runner_process::CARGO_RUN_POLICY)
+                .with_context(|| format!("static runner process for {}", grammar.display()))?;
+            #[cfg(not(target_os = "linux"))]
+            let output = command.output()?;
+            output
+        }
     };
 
     // A failed child keeps actual status/root-cause precedence even if it
@@ -1679,6 +1739,9 @@ fn print_stats_summary(result: &BuildResult) {
 fn print_version() {
     println!("adze {}", env!("CARGO_PKG_VERSION"));
 }
+
+#[cfg(test)]
+mod generated_runner_argv_tests;
 
 #[cfg(test)]
 mod tests {
