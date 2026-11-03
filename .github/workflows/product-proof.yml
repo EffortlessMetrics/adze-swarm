@@ -92,6 +92,8 @@ env:
     xtask/src/local_release_archive.py
     xtask/src/local_release_install.rs
     xtask/src/local_release_receipt.rs
+    xtask/src/local_release_command.rs
+    xtask/tests/local_release_command_contract.rs
     xtask/src/release_graph.rs
     policy/release-graph.toml
     policy/package-boundary.toml
@@ -338,6 +340,7 @@ jobs:
           run_release_contract 'source archive index and existing registry controls' cargo test --locked -p xtask --bin xtask local_registry:: -- --nocapture
           run_release_contract 'local release planning' cargo test --locked -p xtask --bin xtask local_release_install:: -- --nocapture
           run_release_contract 'local release receipt boundaries' cargo test --locked -p xtask --bin xtask local_release_receipt:: -- --nocapture
+          run_release_contract 'Linux release command journal data' cargo test --locked -p xtask --test local_release_command_contract -- --nocapture
 
       - name: Run stable product lane
         run: scripts/ci-product-stable.sh
@@ -454,6 +457,12 @@ jobs:
 
       - name: Qualify Windows actual generated child argv rejection
         run: python scripts/run-required-test.py --label "Windows actual generated child argv rejection" -- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze generated_runner_argv_tests::test_generated_runner_protocol_args_precede_input_io -- --exact --nocapture
+
+      - name: Strict Clippy for native Windows release command journal
+        run: cargo clippy --locked -p xtask --target x86_64-pc-windows-msvc --test local_release_command_contract -- -D warnings
+
+      - name: Qualify Windows release command journal data
+        run: python scripts/run-required-test.py --label "Windows release command journal data" -- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --test local_release_command_contract -- --nocapture
 
   product-proof-result:
     timeout-minutes: 5

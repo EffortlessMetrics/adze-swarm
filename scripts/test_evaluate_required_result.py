@@ -310,6 +310,8 @@ class WorkflowWiring(unittest.TestCase):
             "xtask/src/local_release_archive.py",
             "xtask/src/local_release_install.rs",
             "xtask/src/local_release_receipt.rs",
+            "xtask/src/local_release_command.rs",
+            "xtask/tests/local_release_command_contract.rs",
             "xtask/src/release_graph.rs",
             "policy/release-graph.toml",
             "policy/package-boundary.toml",
@@ -332,6 +334,31 @@ class WorkflowWiring(unittest.TestCase):
         self.assertIn("python3 scripts/test_local_release_archive.py", block)
         self.assertNotIn("verify-local-release-install", block)
         self.assertNotIn("continue-on-error", block)
+
+    def test_release_command_journal_has_independent_native_target_selection(self) -> None:
+        path = ".github/workflows/product-proof.yml"
+        linux = self._job_block(path, "ci-product-stable")
+        windows = self._job_block(path, "ci-product-windows")
+        self.assertIn("cargo clippy --locked -p xtask --bin xtask --tests -- -D warnings", linux)
+        self.assertIn(
+            "run_release_contract 'Linux release command journal data' "
+            "cargo test --locked -p xtask --test local_release_command_contract -- --nocapture",
+            linux,
+        )
+        self.assertIn(
+            "run: cargo clippy --locked -p xtask --target x86_64-pc-windows-msvc "
+            "--test local_release_command_contract -- -D warnings",
+            windows,
+        )
+        expected = (
+            'run: python scripts/run-required-test.py --label "Windows release command journal data" '
+            "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc "
+            "--test local_release_command_contract -- --nocapture"
+        )
+        self.assertIn(expected, windows)
+        for block in (linux, windows):
+            self.assertNotIn("--test local_release_command_contract -- --ignored", block)
+            self.assertNotIn("continue-on-error", block)
 
     def test_runtime_change_selects_stable_product_lane(self) -> None:
         for event in ("merge_group", "pull_request"):
@@ -517,7 +544,7 @@ class WorkflowWiring(unittest.TestCase):
         block = self._job_block(".github/workflows/product-proof.yml", "ci-product-windows")
         commands = [line.strip() for line in block.splitlines()
                     if "run: python scripts/run-required-test.py " in line]
-        self.assertEqual(7, len(commands))
+        self.assertEqual(8, len(commands))
         targets = [
             "--test runner_windows_process_contract -- --nocapture",
             "--test runner_windows_output_contract -- --nocapture",
@@ -527,10 +554,16 @@ class WorkflowWiring(unittest.TestCase):
             "--test cli_test parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture",
             "--bin adze generated_runner_argv_tests::test_generated_runner_protocol_args_precede_input_io -- --exact --nocapture",
         ]
-        for command, target in zip(commands, targets):
+        for command, target in zip(commands[:7], targets):
             self.assertIn("--label ", command)
             self.assertIn("-- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc ", command)
             self.assertTrue(command.endswith(target), command)
+        self.assertEqual(
+            'run: python scripts/run-required-test.py --label "Windows release command journal data" '
+            "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc "
+            "--test local_release_command_contract -- --nocapture",
+            commands[7],
+        )
         clippy = (
             "cargo clippy --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze "
             "--test runner_windows_process_contract --test runner_windows_output_contract "
