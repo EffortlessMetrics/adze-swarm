@@ -38,8 +38,11 @@ impl<'a> TypedCstGenerator<'a> {
     /// Generate a `syntax` module containing typed CST wrappers.
     #[must_use]
     pub fn generate(&self) -> TokenStream {
-        let specs = self.wrapper_specs();
+        // Single derivation: field facts come from the canonical schema, and
+        // wrapper retention follows the same facts (no locally re-derived
+        // cardinality or target walk).
         let schema = crate::field_schema::field_semantics_for_grammar(self.grammar);
+        let specs = self.wrapper_specs(&schema);
         let accessors = self.field_accessors(&specs, &schema);
         let root_fn = self.root_constructor(&specs);
 
@@ -135,10 +138,13 @@ impl<'a> TypedCstGenerator<'a> {
         }
     }
 
-    fn wrapper_specs(&self) -> BTreeMap<SymbolId, WrapperSpec> {
+    fn wrapper_specs(
+        &self,
+        schema: &BTreeMap<SymbolId, BTreeMap<String, crate::field_schema::FieldSemantics>>,
+    ) -> BTreeMap<SymbolId, WrapperSpec> {
         let mut specs = BTreeMap::new();
         let mut used_idents = BTreeSet::new();
-        let field_target_terminals = self.field_target_terminals();
+        let field_target_terminals = schema_field_terminals(schema);
 
         for (symbol_id, name) in &self.grammar.rule_names {
             if name.starts_with('_') {
@@ -182,22 +188,6 @@ impl<'a> TypedCstGenerator<'a> {
         }
 
         specs
-    }
-
-    fn field_target_terminals(&self) -> BTreeSet<SymbolId> {
-        let mut terminals = BTreeSet::new();
-
-        for rules in self.grammar.rules.values() {
-            for rule in rules {
-                for (_, position) in &rule.fields {
-                    if let Some(symbol) = rule.rhs.get(*position) {
-                        collect_terminal_symbols(symbol, &mut terminals);
-                    }
-                }
-            }
-        }
-
-        terminals
     }
 
     fn field_accessors(
@@ -299,35 +289,42 @@ fn unique_method_name(owner: &str, base: &str, used: &mut BTreeSet<(String, Stri
     }
 }
 
-fn collect_terminal_symbols(symbol: &Symbol, terminals: &mut BTreeSet<SymbolId>) {
-    match symbol {
-        Symbol::Terminal(id) => {
-            terminals.insert(*id);
-        }
-        Symbol::Optional(inner) | Symbol::Repeat(inner) | Symbol::RepeatOne(inner) => {
-            collect_terminal_symbols(inner, terminals);
-        }
-        Symbol::Choice(choices) | Symbol::Sequence(choices) => {
-            for choice in choices {
-                collect_terminal_symbols(choice, terminals);
+/// Terminal symbols admitted as field targets by the canonical schema.
+///
+/// Single derivation for hidden-token wrapper retention: a `_`-hidden token
+/// keeps its wrapper exactly when the schema names it as a field target, so
+/// retention agrees with node-types and accessor generation even after
+/// normalization replaces wrappers with helper non-terminals.
+fn schema_field_terminals(
+    schema: &BTreeMap<SymbolId, BTreeMap<String, crate::field_schema::FieldSemantics>>,
+) -> BTreeSet<SymbolId> {
+    let mut terminals = BTreeSet::new();
+    for fields in schema.values() {
+        for semantics in fields.values() {
+            for target in &semantics.targets {
+                if let Symbol::Terminal(id) = target {
+                    terminals.insert(*id);
+                }
             }
         }
-        Symbol::NonTerminal(_) | Symbol::External(_) | Symbol::Epsilon => {}
     }
+    terminals
 }
 
 fn symbol_wrapper_ident(symbol: &Symbol, specs: &BTreeMap<SymbolId, WrapperSpec>) -> Option<Ident> {
+    // Inputs are canonical schema targets, which are leaves by contract:
+    // helper wrappers are resolved away before they reach this mapping, so
+    // composite shapes (and the old first-choice shortcut) have no mapping.
     match symbol {
         Symbol::Terminal(id) | Symbol::NonTerminal(id) | Symbol::External(id) => {
             specs.get(id).map(|spec| spec.ident.clone())
         }
-        Symbol::Optional(inner) | Symbol::Repeat(inner) | Symbol::RepeatOne(inner) => {
-            symbol_wrapper_ident(inner, specs)
-        }
-        Symbol::Choice(choices) => choices
-            .iter()
-            .find_map(|choice| symbol_wrapper_ident(choice, specs)),
-        Symbol::Sequence(_) | Symbol::Epsilon => None,
+        Symbol::Optional(_)
+        | Symbol::Repeat(_)
+        | Symbol::RepeatOne(_)
+        | Symbol::Choice(_)
+        | Symbol::Sequence(_)
+        | Symbol::Epsilon => None,
     }
 }
 
