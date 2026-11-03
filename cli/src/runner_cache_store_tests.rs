@@ -481,9 +481,9 @@ fn test_permanent_lock_identity_and_policy_are_not_rewritten() {
     assert_eq!(record(&store), before);
 }
 
-// This controller launches only this exact libtest binary and a known helper
-// that never spawns descendants. Its bounded wait/kill proves fixture control,
-// not the product's arbitrary-child/descendant ownership contract.
+// This controller owns/reaps only the exact direct libtest helper. The two
+// fork modes use their own exact-child guards and finite bounds below. These
+// fixture controls do not qualify arbitrary descendant cleanup for the product.
 struct LockChild {
     child: Option<Child>,
     directory: PathBuf,
@@ -642,6 +642,8 @@ fn test_store_process_helper() {
     let slots = if mode == "reserve" { 2 } else { 1 };
     let store = open_test_store(&root, slots, 1024);
     match mode.as_str() {
+        #[cfg(target_os = "linux")]
+        "fork-namespace" | "fork-slot" => fork_controls::run(&store, &controller, &mode),
         "reserve" => {
             let writer = store.reserve(&key(1), 64).unwrap();
             hold(&controller);
@@ -775,5 +777,242 @@ fn test_real_process_contention_and_interrupted_owners_fail_closed() {
         let retained = fixture.keep();
         eprintln!("retained failed store fixture: {}", retained.display());
         std::panic::resume_unwind(error);
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn test_namespace_guard_releases_before_a_forked_descriptor_closes() {
+    fork_controls::controller("fork-namespace");
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn test_slot_handoff_releases_forked_description_without_releasing_durable_owner() {
+    fork_controls::controller("fork-slot");
+}
+
+#[cfg(target_os = "linux")]
+mod fork_controls {
+    use super::*;
+    use std::io::Read;
+    use std::os::fd::{AsRawFd, FromRawFd};
+    use std::os::unix::process::ExitStatusExt;
+
+    pub(super) fn controller(mode: &str) {
+        // The real fork happens in a fresh exact-test helper, outside the
+        // original libtest process and its concurrently held store locks.
+        let fixture = tempfile::Builder::new().prefix("adze fork lock ").tempdir().unwrap();
+        let result = std::panic::catch_unwind(|| {
+            let mut child = LockChild::start(fixture.path(), mode);
+            let status = child.wait_status();
+            assert!(status.success(), "{mode}: {status}; {}", retained_logs(&child.directory));
+            let bytes = runner_cache_io::read_regular(&child.directory.join("stdout.log"), 64 << 10).unwrap();
+            let stdout = String::from_utf8(bytes).unwrap();
+            assert!(stdout.contains("test result: ok. 1 passed; 0 failed; 0 ignored;"));
+            let marker = if mode == "fork-namespace" {
+                "namespace reacquired while inherited descriptor remained open"
+            } else {
+                "slot handed off while inherited descriptor remained open; durable owner retained"
+            };
+            assert!(stdout.contains(marker), "{mode}: {stdout}");
+        });
+        if let Err(error) = result {
+            let retained = fixture.keep();
+            eprintln!("retained fork-lock fixture: {}", retained.display());
+            std::panic::resume_unwind(error);
+        }
+    }
+
+    pub(super) fn run(store: &Store, directory: &Path, mode: &str) {
+        if mode == "fork-namespace" {
+            // Paired mechanism control: CLOEXEC is insufficient before exec.
+            // This raw File intentionally uses the former close-only lifetime.
+            let path = directory.join("raw-flock.lock");
+            let raw = File::create_new(&path).unwrap();
+            raw.try_lock().unwrap();
+            let mut inherited = ForkHold::start(&raw);
+            drop(raw);
+            inherited.assert_alive();
+            let fresh = OpenOptions::new().read(true).write(true).open(&path).unwrap();
+            assert!(matches!(fresh.try_lock(), Err(TryLockError::WouldBlock)));
+            inherited.finish();
+            fresh.try_lock().unwrap();
+            fresh.unlock().unwrap();
+
+            let namespace = store.namespace().unwrap();
+            let mut inherited = ForkHold::start(&namespace._lock._file);
+            drop(namespace);
+            inherited.assert_alive();
+            // No retry: a separately opened description must acquire now,
+            // while the known fork child still retains the original FD.
+            let next = store.namespace().unwrap();
+            assert_eq!(next.state.identity, store.0.identity);
+            drop(next);
+            inherited.assert_alive();
+            inherited.finish();
+            println!("namespace reacquired while inherited descriptor remained open");
+        } else {
+            assert_eq!(mode, "fork-slot");
+            let mut writer = store.reserve(&key(1), 64).unwrap();
+            writer.write(Artifact::Executable, b"abc").unwrap();
+            writer.write(Artifact::Manifest, b"literal manifest").unwrap();
+            let mut inherited = ForkHold::start(&writer.lock._file);
+            // publish drops the old exclusive slot owner, then reacquires a
+            // fresh slot description under namespace. Close-only fails Busy.
+            writer.publish().unwrap();
+            inherited.assert_alive();
+            assert_eq!(store.inspect(&key(1)).unwrap(), Some(b"literal manifest".to_vec()));
+            inherited.finish();
+
+            let active = store.acquire(&key(1)).unwrap().unwrap().start().unwrap();
+            let token = active.token;
+            let before = record(store);
+            let mut inherited = ForkHold::start(&active.lock._file);
+            assert!(matches!(active.finish(None), Err(StoreError::OwnershipUnknown)));
+            inherited.assert_alive();
+            assert_eq!(record(store), before);
+            assert!(matches!(store.reserve(&key(2), 64), Err(StoreError::Capacity)));
+            let namespace = store.namespace().unwrap();
+            let Some(Entry::Published { runs, .. }) = &namespace.state.slots[0].entry else {
+                panic!("the unknown execution owner lost its published entry");
+            };
+            assert_eq!(runs.len(), 1);
+            assert_eq!(runs[0].token, token);
+            assert!(runs[0].started);
+            drop(namespace);
+            inherited.finish();
+            println!("slot handed off while inherited descriptor remained open; durable owner retained");
+        }
+    }
+
+    struct ForkHold {
+        pid: libc::pid_t,
+        release: File,
+        ready: File,
+        status: Option<i32>,
+        wait_custody: bool,
+    }
+
+    fn pipe() -> (File, File) {
+        let mut fds = [-1; 2];
+        // SAFETY: pipe2 initializes two fresh owned descriptors on success.
+        assert_eq!(unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) }, 0);
+        unsafe { (File::from_raw_fd(fds[0]), File::from_raw_fd(fds[1])) }
+    }
+
+    impl ForkHold {
+        fn start(held: &File) -> Self {
+            let (release_read, release_write) = pipe();
+            let (ready_read, ready_write) = pipe();
+            let raw = held.as_raw_fd();
+            let flags = unsafe { libc::fcntl(raw, libc::F_GETFD) };
+            assert!(flags >= 0 && flags & libc::FD_CLOEXEC != 0);
+            // SAFETY: the child below invokes only async-signal-safe syscalls
+            // and _exit; it never allocates, unwinds or runs Rust destructors.
+            let pid = unsafe { libc::fork() };
+            assert!(pid >= 0, "fork failed: {}", io::Error::last_os_error());
+            if pid == 0 {
+                unsafe {
+                    libc::close(release_write.as_raw_fd());
+                    libc::close(ready_read.as_raw_fd());
+                    let flags = libc::fcntl(raw, libc::F_GETFD);
+                    if flags < 0 || flags & libc::FD_CLOEXEC == 0 { libc::_exit(90); }
+                    let ready = b"R";
+                    if libc::write(ready_write.as_raw_fd(), ready.as_ptr().cast(), 1) != 1 { libc::_exit(91); }
+                    let mut poll = libc::pollfd { fd: release_read.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+                    if libc::poll(&mut poll, 1, 5000) != 1 { libc::_exit(92); }
+                    let mut release = 0_u8;
+                    if libc::read(release_read.as_raw_fd(), (&mut release as *mut u8).cast(), 1) != 1 || release != b'X' { libc::_exit(93); }
+                    // Parent operations happened before this release. The
+                    // inherited description is still live at this instant.
+                    if libc::fcntl(raw, libc::F_GETFD) < 0 { libc::_exit(94); }
+                    let held = b"H";
+                    if libc::write(ready_write.as_raw_fd(), held.as_ptr().cast(), 1) != 1 { libc::_exit(95); }
+                    libc::_exit(0);
+                }
+            }
+            drop(release_read);
+            drop(ready_write);
+            // Establish the parent-owned wait/cleanup guard before readiness
+            // can fail. No other code waits for this fresh exact PID.
+            let mut child = Self { pid, release: release_write, ready: ready_read, status: None, wait_custody: true };
+            assert_eq!(child.byte(), b'R');
+            child.assert_alive();
+            child
+        }
+
+        fn byte(&mut self) -> u8 {
+            let until = Instant::now() + Duration::from_secs(5);
+            loop {
+                assert!(Instant::now() < until, "fork-lock pipe deadline");
+                let mut poll = libc::pollfd { fd: self.ready.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+                // SAFETY: one live initialized pollfd, bounded 10-ms wait.
+                let result = unsafe { libc::poll(&mut poll, 1, 10) };
+                if result < 0 {
+                    assert_eq!(io::Error::last_os_error().kind(), io::ErrorKind::Interrupted);
+                    continue;
+                }
+                if result != 0 {
+                    let mut byte = [0];
+                    self.ready.read_exact(&mut byte).unwrap();
+                    return byte[0];
+                }
+            }
+        }
+
+        fn observe(&mut self) -> io::Result<Option<i32>> {
+            if self.status.is_some() { return Ok(self.status); }
+            let mut status = 0;
+            // SAFETY: the status pointer is valid; only this exact owned child
+            // is queried. WNOHANG never waits beyond the fixture's deadline.
+            let result = unsafe { libc::waitpid(self.pid, &mut status, libc::WNOHANG) };
+            if result == self.pid { self.status = Some(status); }
+            else if result < 0 {
+                let error = io::Error::last_os_error();
+                if error.raw_os_error() == Some(libc::ECHILD) { self.wait_custody = false; }
+                if error.kind() != io::ErrorKind::Interrupted { return Err(error); }
+            }
+            Ok(self.status)
+        }
+
+        fn assert_alive(&mut self) {
+            assert!(self.observe().unwrap().is_none(), "fork holder exited before the ownership assertion");
+        }
+
+        fn finish(mut self) {
+            self.assert_alive();
+            self.release.write_all(b"X").unwrap();
+            assert_eq!(self.byte(), b'H');
+            let until = Instant::now() + Duration::from_secs(2);
+            loop {
+                if let Some(status) = self.observe().unwrap() {
+                    assert!(std::process::ExitStatus::from_raw(status).success(), "fork holder status {status}");
+                    return;
+                }
+                assert!(Instant::now() < until, "fork holder did not exit");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+    }
+
+    impl Drop for ForkHold {
+        fn drop(&mut self) {
+            if !self.wait_custody || self.status.is_some() { return; }
+            // SAFETY: this PID is still an unreaped owned child; the guard has
+            // never observed ECHILD. Do not signal after releasing that custody.
+            unsafe { libc::kill(self.pid, libc::SIGKILL) };
+            let until = Instant::now() + Duration::from_secs(2);
+            loop {
+                match self.observe() {
+                    Ok(Some(_)) => return,
+                    Ok(None) if Instant::now() < until => std::thread::sleep(Duration::from_millis(5)),
+                    _ => {
+                        eprintln!("UNCONFIRMED fork-lock fixture cleanup for owned child {}", self.pid);
+                        return;
+                    }
+                }
+            }
+        }
     }
 }

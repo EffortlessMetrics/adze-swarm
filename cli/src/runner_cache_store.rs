@@ -3,7 +3,7 @@
 //! Permanent coordination files are never renamed or removed. Every mutation
 //! acquires namespace, then an independently opened nonblocking slot lock.
 //! Filesystem writes occur only after their full artifact allowance is recorded.
-//! Drop releases OS handles only; durable owners survive uncertain completion.
+//! Drop releases coordination locks/handles only; durable owners survive uncertain completion.
 //! Compiler scratch, immutable build inputs and platform release authority are
 //! separate gates. This module does not enable runtime reuse.
 
@@ -181,14 +181,33 @@ fn open_coordination(path: &Path, create: bool) -> Result<File> {
     Ok(file)
 }
 
-fn lock(file: File, shared: bool, scope: &'static str) -> Result<File> {
+/// One successful, independently opened coordination lock. It is never cloned
+/// or transferred to external code. Accidental fork inheritance is not ownership.
+struct CoordinationLock {
+    _file: File,
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for CoordinationLock {
+    fn drop(&mut self) {
+        // Linux flock belongs to the open file description. Closing our File
+        // alone can leave the lock live in a concurrent fork before exec,
+        // despite CLOEXEC. Relinquish this owner's lock before closing its FD.
+        // Drop cannot report an unlock error: attempt once, then let File close.
+        // A failed unlock can retain contention through inherited descriptors;
+        // it never deletes a durable reservation/run or grants cleanup authority.
+        let _ = self._file.unlock();
+    }
+}
+
+fn lock(file: File, shared: bool, scope: &'static str) -> Result<CoordinationLock> {
     let result = if shared {
         file.try_lock_shared()
     } else {
         file.try_lock()
     };
     match result {
-        Ok(()) => Ok(file),
+        Ok(()) => Ok(CoordinationLock { _file: file }),
         Err(TryLockError::WouldBlock) => Err(StoreError::Busy(scope)),
         Err(TryLockError::Error(error)) => Err(StoreError::Io("lock coordination", error)),
     }
@@ -502,18 +521,20 @@ pub(crate) struct Store(Arc<StoreInner>);
 
 struct NamespaceGuard {
     store: Store,
-    _lock: File,
+    _lock: CoordinationLock,
     state: Namespace,
 }
 
 fn create_private_directory(path: &Path) -> io::Result<()> {
-    let mut builder = std::fs::DirBuilder::new();
     #[cfg(unix)]
     {
         use std::os::unix::fs::DirBuilderExt;
-        builder.mode(0o700);
+        std::fs::DirBuilder::new().mode(0o700).create(path)
     }
-    builder.create(path)
+    #[cfg(not(unix))]
+    {
+        std::fs::DirBuilder::new().create(path)
+    }
 }
 
 fn sync_directory(path: &Path) -> Result<()> {
@@ -597,7 +618,7 @@ impl Store {
         Ok(store)
     }
 
-    fn namespace_lock(&self) -> Result<File> {
+    fn namespace_lock(&self) -> Result<CoordinationLock> {
         let file = self.current_coordination()?;
         lock(file, false, "namespace")
     }
@@ -794,7 +815,7 @@ impl Store {
 }
 
 impl NamespaceGuard {
-    fn slot_lock(&self, index: usize, shared: bool) -> Result<File> {
+    fn slot_lock(&self, index: usize, shared: bool) -> Result<CoordinationLock> {
         let slot = self
             .state
             .slots
@@ -1024,7 +1045,7 @@ fn verify_artifacts(directory: &Path, files: &[ArtifactRecord]) -> Result<()> {
 pub(crate) struct ArtifactReservation {
     store: Store,
     token: Token,
-    lock: File,
+    lock: CoordinationLock,
     allowance: u64,
     files: Vec<ArtifactRecord>,
     claimed: Vec<(Artifact, FileIdentity)>,
@@ -1205,7 +1226,7 @@ pub(crate) struct UnstartedLease {
     token: Token,
     entry: Token,
     files: Vec<ArtifactRecord>,
-    lock: File,
+    lock: CoordinationLock,
 }
 
 impl UnstartedLease {
@@ -1285,7 +1306,7 @@ pub(crate) struct ActiveLease {
     store: Store,
     token: Token,
     entry: Token,
-    lock: File,
+    lock: CoordinationLock,
 }
 
 impl ActiveLease {
