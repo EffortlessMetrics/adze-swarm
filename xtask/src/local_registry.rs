@@ -224,6 +224,7 @@ impl IsolatedRegistry {
         let status = command
             .args([
                 "install",
+                "--locked",
                 "--registry",
                 REGISTRY_NAME,
                 cli_crate,
@@ -1723,7 +1724,10 @@ binary.write_text('installed fixture')
         let install = registry
             .install_cli_with_command("adze-cli", "adze fixture", "0.10.0", command)
             .expect("locked install request");
-        assert_eq!(fs::read_to_string(install.binary_path).unwrap(), "installed fixture");
+        assert_eq!(
+            fs::read_to_string(install.binary_path).unwrap(),
+            "installed fixture"
+        );
 
         let error = registry
             .install_cli_with_command(
