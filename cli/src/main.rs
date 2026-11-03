@@ -985,7 +985,9 @@ fn run_static_parse_runner(
                     &failed.stderr,
                 );
                 if let Some(finalization) = error.downcast_ref::<runner_cache_store::StoreError>() {
-                    return Err(semantic.context(format!("runner cache finalization: {finalization}")));
+                    return Err(
+                        semantic.context(format!("runner cache finalization: {finalization}"))
+                    );
                 }
                 return Err(semantic);
             }

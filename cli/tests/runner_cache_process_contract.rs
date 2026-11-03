@@ -211,12 +211,17 @@ fn native_contract(directory: &Path) {
     let Err(completion) = runner_cache::finalize_execution(active, Ok(output), None) else {
         panic!("generic successful Output fabricated empty-owner release")
     };
-    assert!(completion.downcast_ref::<runner_cache_store::StoreError>().is_some());
+    assert!(
+        completion
+            .downcast_ref::<runner_cache_store::StoreError>()
+            .is_some()
+    );
     let Err(completion) = runner_cache::finish_cached_build(Err(completion)) else {
         panic!("successful fixture execution followed by finalization refusal became a fresh retry")
     };
     save_error(directory, &completion);
-    let inspected = require(runner_cache::validate_entry(&config, &key), directory).expect("published fixture");
+    let inspected =
+        require(runner_cache::validate_entry(&config, &key), directory).expect("published fixture");
     inspected.cancel().unwrap();
     // Preserve the prior oracle: isolated publication never grants production
     // lookup/build admission, even after a complete fixture entry exists.
@@ -232,7 +237,9 @@ fn native_contract(directory: &Path) {
         "--adze-static-runner-protocol=2"
     );
     let framed_lease = require(runner_cache::validate_entry(&config, &key), directory)
-        .expect("framed fixture lease").start().unwrap();
+        .expect("framed fixture lease")
+        .start()
+        .unwrap();
     let framed_executable = framed_lease.executable().unwrap();
     let mut framed = capture_fixture(
         &process,
@@ -254,15 +261,28 @@ fn native_contract(directory: &Path) {
         directory,
     );
     assert_eq!(framed.stdout, PAYLOAD.as_bytes());
-    assert!(matches!(framed_lease.finish(None), Err(runner_cache_store::StoreError::OwnershipUnknown)));
+    assert!(matches!(
+        framed_lease.finish(None),
+        Err(runner_cache_store::StoreError::OwnershipUnknown)
+    ));
     let failed_lease = require(runner_cache::validate_entry(&config, &key), directory)
-        .expect("failure fixture lease").start().unwrap();
+        .expect("failure fixture lease")
+        .start()
+        .unwrap();
     let failed_executable = failed_lease.executable().unwrap();
-    let failure = capture_fixture(&process, &failed_executable, vec!["--failure".into()], directory);
+    let failure = capture_fixture(
+        &process,
+        &failed_executable,
+        vec!["--failure".into()],
+        directory,
+    );
     assert_eq!(failure.status.code(), Some(37));
     assert_eq!(failure.stdout, b"purported success bytes\n");
     assert_eq!(failure.stderr, b"Error: owned fixture failure\n");
-    assert!(matches!(failed_lease.finish(None), Err(runner_cache_store::StoreError::OwnershipUnknown)));
+    assert!(matches!(
+        failed_lease.finish(None),
+        Err(runner_cache_store::StoreError::OwnershipUnknown)
+    ));
 
     // NUL is a concrete OS/request setup refusal on both platforms. It must
     // remain typed through caller context and cache fallback classification.
@@ -313,7 +333,8 @@ fn native_contract(directory: &Path) {
     let bad_staging = runner_cache::claim_staging_dir(&root).expect("second owned staging");
     let failed_key = "f".repeat(64);
     assert_ne!(failed_key, key);
-    let outcome = runner_cache::build_and_publish(&bad_spec, &config, &failed_key, &bad_staging, &process);
+    let outcome =
+        runner_cache::build_and_publish(&bad_spec, &config, &failed_key, &bad_staging, &process);
     let Err(error) = runner_cache::finish_cached_build(outcome) else {
         panic!("actual failed Cargo build became a miss or successful publication")
     };
@@ -323,7 +344,13 @@ fn native_contract(directory: &Path) {
     assert!(!failed.status.success());
     assert!(!failed.stderr.is_empty());
     assert!(!bad_staging.join("entry").exists());
-    assert!(require(runner_cache::validate_entry(&config, &failed_key), directory).is_none());
+    assert!(
+        require(
+            runner_cache::validate_entry(&config, &failed_key),
+            directory
+        )
+        .is_none()
+    );
     std::fs::write(directory.join("failed-cargo.stdout"), &failed.stdout).unwrap();
     std::fs::write(directory.join("failed-cargo.stderr"), &failed.stderr).unwrap();
     eprintln!(
@@ -353,5 +380,8 @@ fn test_cache_process_custody_preserves_refusal_and_owned_publication() {
         );
         std::panic::resume_unwind(failure);
     }
-    eprintln!("retained unqualified native cache ownership fixture: {}", retained.display());
+    eprintln!(
+        "retained unqualified native cache ownership fixture: {}",
+        retained.display()
+    );
 }

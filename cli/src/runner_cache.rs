@@ -38,7 +38,9 @@
 
 use crate::runner_cache_io;
 use crate::runner_cache_store::{self, ActiveLease, Artifact, Limits, Store, UnstartedLease};
-use crate::runner_invocation::{OwnedCleanupReceipt, ProcessFailure, ProcessRunner, RunnerInvocation};
+use crate::runner_invocation::{
+    OwnedCleanupReceipt, ProcessFailure, ProcessRunner, RunnerInvocation,
+};
 use anyhow::Context;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -655,7 +657,9 @@ pub(crate) fn validate_entry(
     let manifest = lease.manifest().context(CacheStorageFailure);
     let identity = lease.executable_identity().context(CacheStorageFailure);
     let valid = manifest.as_ref().is_ok_and(|bytes| {
-        identity.as_ref().is_ok_and(|identity| valid_manifest(bytes, key, identity))
+        identity
+            .as_ref()
+            .is_ok_and(|identity| valid_manifest(bytes, key, identity))
     });
     if !valid {
         lease.cancel().context(CacheStorageFailure)?;
@@ -715,7 +719,9 @@ pub(crate) fn finalize_execution<T>(
         (Ok(value), Ok(())) => Ok(value),
         (Ok(_), Err(error)) => Err(anyhow::Error::new(error)).context(CacheExecutionAttempted),
         (Err(error), Ok(())) => Err(error).context(CacheExecutionAttempted),
-        (Err(error), Err(completion)) => Err(error.context(completion)).context(CacheExecutionAttempted),
+        (Err(error), Err(completion)) => {
+            Err(error.context(completion)).context(CacheExecutionAttempted)
+        }
     }
 }
 
@@ -754,7 +760,8 @@ pub(crate) fn build_and_publish(
     let setup = (|| -> anyhow::Result<()> {
         let src_dir = staging.join("src");
         std::fs::create_dir_all(&src_dir).context(CacheStorageFailure)?;
-        std::fs::write(staging.join("Cargo.toml"), &spec.cargo_toml).context(CacheStorageFailure)?;
+        std::fs::write(staging.join("Cargo.toml"), &spec.cargo_toml)
+            .context(CacheStorageFailure)?;
         std::fs::write(staging.join("build.rs"), &spec.build_rs).context(CacheStorageFailure)?;
         std::fs::write(src_dir.join("main.rs"), &spec.main_rs).context(CacheStorageFailure)
     })();
@@ -777,7 +784,10 @@ pub(crate) fn build_and_publish(
         ],
         environment: vec![
             ("ADZE_USE_PURE_RUST".into(), "1".into()),
-            ("CARGO_TARGET_DIR".into(), staging.join("target").into_os_string()),
+            (
+                "CARGO_TARGET_DIR".into(),
+                staging.join("target").into_os_string(),
+            ),
         ],
     };
     let assembly = (|| -> anyhow::Result<()> {
@@ -827,8 +837,12 @@ pub(crate) fn build_and_publish(
             Err(completion) => Err(error.context(completion)),
         };
     }
-    reservation.publish().context(CacheStorageFailure).context(CacheExecutionAttempted)?;
-    let lease = validate_entry(config, key).context(CacheExecutionAttempted)?
+    reservation
+        .publish()
+        .context(CacheStorageFailure)
+        .context(CacheExecutionAttempted)?;
+    let lease = validate_entry(config, key)
+        .context(CacheExecutionAttempted)?
         .ok_or_else(|| anyhow::anyhow!("published runner artifact failed validation"))
         .context(CacheExecutionAttempted)?;
     Ok(CachedBuild::Ready(lease))
@@ -967,20 +981,35 @@ mod tests {
                 "sha256": super::hex_digest(super::hash_bytes(bytes)),
                 "len": bytes.len(),
             },
-        })).unwrap()
+        }))
+        .unwrap()
     }
 
-    fn publish_fixture(root: &Path, key: &str, bytes: &[u8], manifest: &[u8]) -> (super::CacheConfig, PathBuf) {
-        let config = super::CacheConfig { root: root.to_path_buf(), max_entries: 2 };
+    fn publish_fixture(
+        root: &Path,
+        key: &str,
+        bytes: &[u8],
+        manifest: &[u8],
+    ) -> (super::CacheConfig, PathBuf) {
+        let config = super::CacheConfig {
+            root: root.to_path_buf(),
+            max_entries: 2,
+        };
         let store = super::open_store(&config).unwrap();
         let mut writer = store.reserve(key, 4096).unwrap();
         writer.write(super::Artifact::Executable, bytes).unwrap();
         writer.write(super::Artifact::Manifest, manifest).unwrap();
         writer.publish().unwrap();
         // Observe the actual store directory; expected contents stay literal.
-        let entries: Vec<_> = std::fs::read_dir(root.join("owned-store-v1")).unwrap()
+        let entries: Vec<_> = std::fs::read_dir(root.join("owned-store-v1"))
+            .unwrap()
             .map(|entry| entry.unwrap().path())
-            .filter(|path| path.file_name().unwrap().to_string_lossy().starts_with("entry-"))
+            .filter(|path| {
+                path.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("entry-")
+            })
             .collect();
         assert_eq!(entries.len(), 1);
         (config, entries.into_iter().next().unwrap())
@@ -1250,9 +1279,13 @@ mod tests {
         assert_eq!(std::fs::read(&executable).unwrap(), b"abc excess");
         std::fs::write(&executable, b"abc").unwrap();
         let identity = super::runner_cache_io::digest_regular(&executable, 3).unwrap();
-        assert_eq!(super::hex_digest(identity.sha256), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        assert_eq!(
+            super::hex_digest(identity.sha256),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
 
-        let mut invalid: serde_json::Value = serde_json::from_slice(&manifest(&key, bytes)).unwrap();
+        let mut invalid: serde_json::Value =
+            serde_json::from_slice(&manifest(&key, bytes)).unwrap();
         for invalid_len in [0, super::MAX_EXECUTABLE_BYTES + 1] {
             invalid["exe"]["len"] = invalid_len.into();
             let encoded = serde_json::to_vec(&invalid).unwrap();
@@ -1263,9 +1296,15 @@ mod tests {
         std::fs::write(&manifest_path, b"{\"protocol\":").unwrap();
         assert!(!validates(&config, &key));
         assert_eq!(std::fs::read(&manifest_path).unwrap(), b"{\"protocol\":");
-        std::fs::File::create(&manifest_path).unwrap().set_len(super::MAX_MANIFEST_BYTES + 1).unwrap();
+        std::fs::File::create(&manifest_path)
+            .unwrap()
+            .set_len(super::MAX_MANIFEST_BYTES + 1)
+            .unwrap();
         assert!(!validates(&config, &key));
-        assert_eq!(std::fs::metadata(&manifest_path).unwrap().len(), super::MAX_MANIFEST_BYTES + 1);
+        assert_eq!(
+            std::fs::metadata(&manifest_path).unwrap().len(),
+            super::MAX_MANIFEST_BYTES + 1
+        );
         assert_eq!(std::fs::read(&executable).unwrap(), b"abc");
     }
 
@@ -1346,7 +1385,8 @@ mod tests {
             let encoded = if malformed {
                 b"not json".to_vec()
             } else {
-                let mut value: serde_json::Value = serde_json::from_slice(&manifest(&key, bytes)).unwrap();
+                let mut value: serde_json::Value =
+                    serde_json::from_slice(&manifest(&key, bytes)).unwrap();
                 value["exe"]["sha256"] = "0".repeat(64).into();
                 serde_json::to_vec(&value).unwrap()
             };
@@ -1355,7 +1395,10 @@ mod tests {
             // runner-level manifest must independently refuse invalid claims.
             assert!(!validates(&config, &key));
             assert_eq!(std::fs::read(entry.join("manifest.json")).unwrap(), encoded);
-            assert_eq!(std::fs::read(entry.join(super::Artifact::Executable.name())).unwrap(), bytes);
+            assert_eq!(
+                std::fs::read(entry.join(super::Artifact::Executable.name())).unwrap(),
+                bytes
+            );
         }
     }
 
@@ -1479,13 +1522,17 @@ mod tests {
             panic!("outer storage context must not consume a process refusal")
         };
         assert!(process.downcast_ref::<super::ProcessFailure>().is_some());
-        let Err(after_execution) = super::finish_cached_build(Err(
-            anyhow::anyhow!("fixture finalization failure")
+        let Err(after_execution) =
+            super::finish_cached_build(Err(anyhow::anyhow!("fixture finalization failure")
                 .context(super::CacheExecutionAttempted)
-                .context(super::CacheStorageFailure)
-        )) else {
+                .context(super::CacheStorageFailure)))
+        else {
             panic!("a completed semantic operation must not trigger fresh fallback")
         };
-        assert!(after_execution.downcast_ref::<super::CacheExecutionAttempted>().is_some());
+        assert!(
+            after_execution
+                .downcast_ref::<super::CacheExecutionAttempted>()
+                .is_some()
+        );
     }
 }
