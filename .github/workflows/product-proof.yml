@@ -64,6 +64,7 @@ env:
     samples/downstream-demo/**
     scripts/ci-product.sh
     scripts/ci-product-stable.sh
+    scripts/lib/required-test-output.sh
     .github/workflows/product-proof.yml
     runtime/**
     macro/**

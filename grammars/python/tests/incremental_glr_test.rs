@@ -1,43 +1,41 @@
-use adze::pure_incremental::Edit;
-use adze::tree_sitter::Point;
-use adze::unified_parser::Parser;
+use adze::parser_v4::Parser;
+
+// `from_language` is the `parser_v4` equivalent of the retired unified
+// `Parser::new` + `set_language`: it decodes the tables and binds them.
+// The `"unknown"` name preserves the old default-name wiring exactly
+// (unified `set_language` used it), so scanner-registry effects are
+// preserved at the constructor boundary. These ignored scenarios provide no
+// executed scanner, selected-tree or incremental-reuse parity evidence (#897).
+fn python_parser() -> Parser {
+    Parser::from_language(adze_python::get_language(), "unknown".to_string())
+}
 
 #[test]
-#[ignore = "Incremental GLR parsing needs parse_with_old_tree implementation"]
+#[ignore = "Python grammar expression parsing fails via parser_v4 (tracking: GH-74); reparse assertions not yet satisfiable"]
 fn test_incremental_edit_simple() {
     // Register the Python scanner for indentation tracking
     adze_python::register_scanner();
 
-    let mut parser = Parser::new();
-    parser
-        .set_language(adze_python::get_language())
-        .expect("Failed to set language");
+    let mut parser = python_parser();
 
     // Start with simple assignment - parse then let old tree go out of scope
     let old_source = "x = 1";
     {
         let _old_tree = parser
-            .parse(old_source, None)
+            .parse(old_source)
             .expect("Failed to parse original source");
     }
 
     // Edit to add an incomplete expression: "x = 1 + 2"
     let new_source = "x = 1 + 2";
 
-    // Create edit: insert " + 2" at position 5
-    let edit = Edit {
-        start_byte: 5,
-        old_end_byte: 5,
-        new_end_byte: 9,
-        start_point: Point { row: 0, column: 5 },
-        old_end_point: Point { row: 0, column: 5 },
-        new_end_point: Point { row: 0, column: 9 },
-    };
-
-    // This will test incremental parsing
-    // Currently will fallback to full reparse, but we'll enhance this
+    // The old `parse_with_old_tree(bytes, None, Some(&edit))` ignored its
+    // old-tree/edit arguments and fell back to a full reparse; `parse` is
+    // the same full-reparse mechanism. This ignored scenario does not prove
+    // selected-result equivalence or incremental reuse; the Edit construction
+    // is no longer passed to this adapter.
     let new_tree = parser
-        .parse_with_old_tree(new_source.as_bytes(), None, Some(&edit))
+        .parse(new_source)
         .expect("Failed to reparse with edit");
 
     // Verify the new tree is valid
@@ -45,21 +43,18 @@ fn test_incremental_edit_simple() {
 }
 
 #[test]
-#[ignore = "Incremental GLR parsing needs parse_with_old_tree implementation"]
+#[ignore = "Python grammar expression parsing fails via parser_v4 (tracking: GH-74); reparse assertions not yet satisfiable"]
 fn test_incremental_edit_into_ambiguity() {
     // Register the Python scanner
     adze_python::register_scanner();
 
-    let mut parser = Parser::new();
-    parser
-        .set_language(adze_python::get_language())
-        .expect("Failed to set language");
+    let mut parser = python_parser();
 
     // Start with simple expression - parse then let old tree go out of scope
     let old_source = "x = 1 + 2";
     {
         let _old_tree = parser
-            .parse(old_source, None)
+            .parse(old_source)
             .expect("Failed to parse original source");
     }
 
@@ -67,19 +62,10 @@ fn test_incremental_edit_into_ambiguity() {
     // This tests operator precedence handling
     let new_source = "x = 1 + 2 * 3";
 
-    // Create edit: insert " * 3" at position 9
-    let edit = Edit {
-        start_byte: 9,
-        old_end_byte: 9,
-        new_end_byte: 13,
-        start_point: Point { row: 0, column: 9 },
-        old_end_point: Point { row: 0, column: 9 },
-        new_end_point: Point { row: 0, column: 13 },
-    };
-
-    // Test incremental parsing with ambiguous grammar
+    // Full reparse API mapping only; this scenario remains ignored and does
+    // not qualify ambiguity, recovery, scanner state or incremental reuse.
     let new_tree = parser
-        .parse_with_old_tree(new_source.as_bytes(), None, Some(&edit))
+        .parse(new_source)
         .expect("Failed to reparse with edit");
 
     // The reparse should succeed
@@ -91,40 +77,28 @@ fn test_incremental_edit_into_ambiguity() {
 }
 
 #[test]
-#[ignore = "Incremental GLR parsing needs parse_with_old_tree implementation"]
+#[ignore = "Python grammar expression parsing fails via parser_v4 (tracking: GH-74); reparse assertions not yet satisfiable"]
 fn test_incremental_edit_multi_line() {
     // Register the Python scanner
     adze_python::register_scanner();
 
-    let mut parser = Parser::new();
-    parser
-        .set_language(adze_python::get_language())
-        .expect("Failed to set language");
+    let mut parser = python_parser();
 
     // Start with a function - parse then let old tree go out of scope
     let old_source = "def foo():\n    return 1";
     {
         let _old_tree = parser
-            .parse(old_source, None)
+            .parse(old_source)
             .expect("Failed to parse original source");
     }
 
     // Edit to add a parameter: "def foo(x):\n    return 1"
     let new_source = "def foo(x):\n    return 1";
 
-    // Create edit: insert "x" at position 8
-    let edit = Edit {
-        start_byte: 8,
-        old_end_byte: 8,
-        new_end_byte: 9,
-        start_point: Point { row: 0, column: 8 },
-        old_end_point: Point { row: 0, column: 8 },
-        new_end_point: Point { row: 0, column: 9 },
-    };
-
-    // Test incremental parsing with structural change
+    // Full reparse API mapping only; this scenario remains ignored and does
+    // not qualify ambiguity, recovery, scanner state or incremental reuse.
     let new_tree = parser
-        .parse_with_old_tree(new_source.as_bytes(), None, Some(&edit))
+        .parse(new_source)
         .expect("Failed to reparse with edit");
 
     // Should successfully parse the modified function
@@ -141,30 +115,25 @@ fn test_incremental_glr_fork_tracking() {
     // Register the Python scanner
     adze_python::register_scanner();
 
-    let mut parser = Parser::new();
-    parser
-        .set_language(adze_python::get_language())
-        .expect("Failed to set language");
+    let mut parser = python_parser();
 
     // Parse a complex expression that might trigger GLR forks
     let source = "x = 1 + 2 * 3 + 4";
     let error_count = {
-        let tree = parser.parse(source, None).expect("Failed to parse");
+        let tree = parser.parse(source).expect("Failed to parse");
         tree.error_count()
     };
 
-    // Get GLR stats to verify fork behavior (tree is dropped, parser is free)
+    // `parser_v4::get_glr_stats` returns the stats by reference (always
+    // present); the old `Option` existed only on the retired adapter, so
+    // the `is_some` assertion retires with it — availability is structural.
     let stats = parser.get_glr_stats();
 
     // For debugging: print stats
     println!("GLR Stats for complex expression:");
-    if let Some(stats) = stats {
-        println!("  Total forks: {}", stats.total_forks);
-        println!("  Total merges: {}", stats.total_merges);
-        println!("  Max active heads: {}", stats.max_active_heads);
-    } else {
-        println!("  No GLR stats available");
-    }
+    println!("  Total forks: {}", stats.total_forks);
+    println!("  Total merges: {}", stats.total_merges);
+    println!("  Max active heads: {}", stats.max_active_heads);
 
     // Debug: print error count
     println!("  Error count: {}", error_count);
@@ -173,6 +142,12 @@ fn test_incremental_glr_fork_tracking() {
     // TODO: Fix Python grammar to properly parse simple expressions
     assert!(error_count <= 3, "Should have minimal errors");
 
-    // GLR stats should be available (though forks/merges may be 0 for deterministic input)
-    assert!(stats.is_some(), "GLR stats should be available");
+    // GLR stats are always available by reference from `parser_v4`
+    // (forks/merges may be 0 for deterministic input); touching the
+    // counters keeps the availability claim executable.
+    let _ = (
+        stats.total_forks,
+        stats.total_merges,
+        stats.max_active_heads,
+    );
 }

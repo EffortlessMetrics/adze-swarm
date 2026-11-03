@@ -1,11 +1,14 @@
 # CLI Reference
 
-Complete reference for the adze command-line interface.
+Reference for the current adze command-line interface.
 
 > **Current support note:** `adze init`, `adze check`, `adze stats`, `adze build`,
-> `adze test`, and `adze doc` are implemented. `adze parse` is present in the
-> CLI shape, but static parsing and dynamic parse output are not implemented yet;
-> both modes fail with explicit errors.
+> `adze test`, and `adze doc` are implemented. Static `adze parse` emits
+> document-backed tree, S-expression, DOT, and JSON representations from a Rust
+> grammar file. The CLI remains **Stabilizing**, and public JSON projections
+> remain **Experimental**; see [Support Tiers](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/status/SUPPORT_TIERS.md).
+> Dynamic (`--dynamic`) parsing is unavailable and rejects the request before
+> loading a library.
 
 ## Installation
 
@@ -56,14 +59,14 @@ adze init <NAME> [OPTIONS]
 ```
 
 **Arguments:**
-- `<NAME>` - Name of the grammar project
+- `<NAME>` - A single project-directory name; existing non-empty destinations are refused
 
 **Options:**
 - `--output, -o <DIR>` - Output directory (default: current directory)
 
 **Example:**
 ```bash
-# Create a new JSON grammar
+# Create an arithmetic starter project named json-parser
 adze init json-parser
 
 # Create in specific directory
@@ -79,8 +82,9 @@ json-parser/
 │   ├── lib.rs
 │   └── grammar.rs
 ├── tests/
-│   └── basic.rs
+│   └── parse.rs
 ├── examples/
+│   └── parse.rs
 └── README.md
 ```
 
@@ -97,6 +101,7 @@ adze build [PATH] [OPTIONS]
 - `[PATH]` - Path to grammar file or directory (default: current directory)
 
 **Options:**
+- `--output, -o <DIR>` - Parser artifact directory (default: `<project>/target/adze-build`)
 - `--watch, -w` - Watch for changes and rebuild automatically
 
 **Examples:**
@@ -118,12 +123,26 @@ Automatically rebuilds when `.rs` files change. Useful during grammar developmen
 
 Parse input files using adze grammars.
 
-**Status:** experimental command shape only. The current CLI accepts these
-arguments so scripts can detect the intended interface, but it does not yet
-produce parse trees. Static mode returns `static parse mode is currently
-unimplemented`. Dynamic mode can attempt to load a library symbol when compiled
-with `--features dynamic`, then returns `dynamic parse mode is currently
-unimplemented`.
+**Status:** `adze parse <grammar.rs> <input>` implements the following static
+representations through the generated grammar's document path:
+
+| Format | Output |
+| --- | --- |
+| `tree` (default) | Indented selected tree with node kinds and byte ranges. |
+| `sexp` | Selected-tree S-expression. |
+| `dot` | Selected-tree Graphviz graph. |
+| `json`, `document-json` | Full document JSON (`adze.document.v1`). |
+| `tree-json` | Tree projection (`adze.tree.v1`). |
+| `diagnostics-json` | Diagnostic projection (`adze.diagnostics.v1`). |
+| `ambiguity-json` | Ambiguity projection (`adze.ambiguity.v1`). |
+
+Static parsing compiles a temporary runner. Build progress goes to stderr;
+stdout contains the selected representation. The CLI is Stabilizing and these
+public JSON projections are Experimental. Their implementation does not change
+those [support tiers](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/status/SUPPORT_TIERS.md).
+
+Dynamic mode is unavailable: `--dynamic` returns an error before loading any
+library.
 
 **Usage:**
 ```bash
@@ -131,31 +150,41 @@ adze parse <GRAMMAR> <INPUT> [OPTIONS]
 ```
 
 **Arguments:**
-- `<GRAMMAR>` - Grammar file path, or library path when using `--dynamic`
+- `<GRAMMAR>` - Rust grammar file path; shared-library parsing is unavailable
 - `<INPUT>` - Input file to parse
 
 **Options:**
-- `--format, -f <FORMAT>` - Output format: `tree` (default), `json`, `sexp`, `dot`
-- `--dynamic` - Use dynamic loading from shared library
-- `--symbol <SYMBOL>` - Symbol name for dynamic loading (default: "language")
+- `--format, -f <FORMAT>` - Output format (alias `--output`): `tree` (default), `json`, `sexp`, `dot`, `document-json`, `tree-json`, `diagnostics-json`, `ambiguity-json`
+- `--dynamic` - Request dynamic parsing (currently rejected before library loading)
+- `--symbol <SYMBOL>` - Reserved dynamic symbol name (default: "language"); dynamic parsing remains unavailable
 
-**Static Parsing Example:**
+**Static Parsing Examples:**
+
 ```bash
+# Print the selected tree
 adze parse grammar.rs input.txt
+
+# Choose another static representation
+adze parse grammar.rs input.txt --format sexp
+adze parse grammar.rs input.txt --output dot
+adze parse grammar.rs input.txt --output document-json
 ```
 
-Expected result today: a non-zero exit with a message that static parse mode is
-not implemented. Use `adze check` to validate a grammar, `adze build` to
-generate parsers, and call `grammar::parse(input)` from Rust code.
+On success, the command writes the requested representation to stdout and exits
+zero. That reports command completion, not an error-free parse: a document can
+contain recovery diagnostics or extraction errors. Inspect its canonical outcome
+and diagnostics rather than inferring clean parsing from the exit code alone.
+Use `adze check` to validate a grammar or `adze build` to generate parsers for a
+Rust application.
 
-**Dynamic Loading Example:**
+**Dynamic Mode Boundary:**
+
 ```bash
 adze parse --dynamic libtree-sitter-json.so input.json
 ```
 
-Expected result today: a non-zero exit unless dynamic support is unavailable
-even earlier. Dynamic loading is a developing surface and is not a supported
-parse-output path.
+This command returns a nonzero exit with an unavailable-mode error. It does not
+load the library or emit a parse result.
 
 ### `test`
 
@@ -167,7 +196,7 @@ adze test [PATH] [OPTIONS]
 ```
 
 **Arguments:**
-- `[PATH]` - Path to grammar directory (default: current directory)
+- `[PATH]` - Grammar project directory or its `Cargo.toml` (default: current directory)
 
 **Options:**
 - `--update, -u` - Update test snapshots
@@ -263,94 +292,36 @@ Useful for tracking grammar complexity and growth.
 
 ## Dynamic Loading
 
-### Supported Formats
+Dynamic parsing is unavailable. `--dynamic` rejects the request before loading
+any shared library or resolving a symbol. Changing `--symbol`, choosing a
+platform-specific library suffix, or rebuilding with the `dynamic` feature does
+not provide a working CLI dynamic parser. Use a trusted Rust grammar with the
+static path instead.
 
-Dynamic loading support is developing. The CLI currently accepts standard
-Tree-sitter library paths, but parse output is not implemented.
+The remaining dynamic-mode contract is tracked in
+[#872](https://github.com/EffortlessMetrics/adze-swarm/issues/872). No supported
+plugin ABI, library validation or platform coverage is implied by the flag.
 
-**Linux:**
-- `.so` files (shared objects)
-- Example: `libtree-sitter-json.so`
+## Execution Trust and Resource Limits
 
-**macOS:**
-- `.dylib` files (dynamic libraries)  
-- Example: `libtree-sitter-json.dylib`
+Static parsing compiles and executes a temporary Rust runner that includes the
+supplied grammar. Treat the grammar, its dependencies and the Cargo build
+configuration as executable code under your normal local trust boundary. This
+is **not a sandbox**; do not run an untrusted grammar on the assumption that Adze
+restricts its filesystem access or prevents code execution.
 
-**Windows:**
-- `.dll` files (dynamic link libraries)
-- Example: `tree-sitter-json.dll`
+The current CLI has no enforced input-size cap, process deadline, bounded
+stdout/stderr capture or process-tree teardown guarantee. It collects the child
+process output before validating it. Output validation is not a memory, CPU,
+stack-depth or arbitrary-code safety guarantee. These process-boundary gaps
+remain tracked in
+[#1066](https://github.com/EffortlessMetrics/adze-swarm/issues/1066).
 
-### Common Library Locations
-
-**System Package Locations:**
-```bash
-# Ubuntu/Debian
-/usr/lib/x86_64-linux-gnu/libtree-sitter-*.so
-
-# Fedora/CentOS
-/usr/lib64/libtree-sitter-*.so
-
-# macOS (Homebrew)
-/opt/homebrew/lib/libtree-sitter-*.dylib
-
-# macOS (MacPorts)
-/opt/local/lib/libtree-sitter-*.dylib
-```
-
-**Language-Specific Locations:**
-```bash
-# Node.js installations
-node_modules/tree-sitter-*/bindings/node/
-
-# Python installations  
-~/.local/lib/python*/site-packages/tree_sitter_*/
-
-# Cargo target directory
-target/release/deps/libtree_sitter_*.so
-```
-
-### Symbol Names
-
-Common symbol naming patterns:
-
-```bash
-# Standard pattern: tree_sitter_{language}
-tree_sitter_json
-tree_sitter_python  
-tree_sitter_javascript
-tree_sitter_rust
-tree_sitter_cpp
-
-# Alternative patterns
-language                    # Generic name
-tree_sitter_{lang}_language # Extended format
-get_language               # Function-style name
-```
-
-Use `nm -D library.so | grep tree_sitter` to find available symbols.
-
-## FFI Safety and Security
-
-### Input Validation
-
-- **Library Path**: Existence and readability checks
-- **Input Files**: Size limits (100MB), UTF-8 validation
-- **Symbol Names**: Alphanumeric + underscore validation
-- **Memory Safety**: Pointer null checks, alignment validation
-
-### Error Handling
-
-- **Library Loading**: Detailed error messages for missing dependencies
-- **Symbol Resolution**: Clear indication of available symbols
-- **Parsing Errors**: Graceful failure with partial results when possible
-- **Stack Protection**: Depth limits prevent stack overflow
-
-### Security Considerations
-
-- **No Code Execution**: Only data extraction from compiled libraries
-- **Sandboxed Operation**: No file system access beyond specified paths
-- **Memory Bounds**: All memory access is bounds-checked
-- **Timeout Protection**: Automatic termination for runaway parsing
+Completed successful runner output must be valid UTF-8 and one JSON payload
+with the requested existing schema and required serializer fields. A nonzero
+child exit remains an error even if stdout looks valid. These checks prevent
+malformed output from being rendered as a plausible result; they do not
+establish that a document is free of syntax or extraction diagnostics.
 
 ## Environment Variables
 
@@ -360,7 +331,7 @@ Control logging output:
 
 ```bash
 # Show all debug information
-RUST_LOG=debug adze parse --dynamic lib.so input.txt
+RUST_LOG=debug adze parse grammar.rs input.txt
 
 # Show only warnings and errors
 RUST_LOG=warn adze build
@@ -391,26 +362,35 @@ INSTA_UPDATE=always adze test
 INSTA_UPDATE=no adze test
 ```
 
-## Exit Codes
+## Exit Status
 
-- `0` - Success
-- `1` - General error (parsing failure, invalid grammar, etc.)
-- `2` - Missing feature (e.g., dynamic loading not compiled)
-- `3` - Invalid arguments or usage
-- `4` - File system error (permission denied, file not found)
+Zero indicates successful command completion. Usage errors, unavailable modes,
+build/runner failures and other operational errors produce nonzero exits.
+The CLI does not implement a stable numeric taxonomy that assigns distinct
+codes to missing features, invalid arguments and filesystem failures. Do not
+interpret particular nonzero values as those categories.
+
+For `parse`, successful command completion can still carry a recovered document
+or diagnostics. Inspect the canonical document metadata and diagnostics for
+parse quality. A child's failure status may appear in the CLI error message;
+it is not a promise that the parent returns that same numeric status.
 
 ## Configuration Files
 
 ### `rust-toolchain.toml`
 
-Adze requires specific toolchain configuration:
+The repository tests the following Rust toolchain pin. The workspace and current
+`adze`, `adze-tool`, and `adze-cli` manifests declare `rust-version = "1.95.0"`.
+Use the tested pin for checkout-based development:
 
 ```toml
 [toolchain]
-channel = "1.92"
-edition = "2024"
+channel = "1.95.0"
 components = ["rustfmt", "clippy"]
 ```
+
+The package edition belongs in `Cargo.toml` (`edition = "2024"`), rather than
+inside the `[toolchain]` table.
 
 ### `.gitignore` Additions
 
@@ -428,105 +408,78 @@ node-types.json
 
 ## Troubleshooting
 
-### Common Issues
+### Dynamic Requests
 
-**"symbol not found"**
-```bash
-# Check available symbols
-nm -D library.so | grep tree_sitter
+`adze parse --dynamic ...` is intentionally unavailable. It does not become a
+supported parser by changing a library path, exported symbol or Cargo feature.
+Use the static Rust grammar path; see [Dynamic Loading](#dynamic-loading).
 
-# Try common symbol names once dynamic parse output is implemented
-adze parse --dynamic lib.so input.txt --symbol language
-adze parse --dynamic lib.so input.txt --symbol get_language
-```
+### Static Runner Failures
 
-**"library not found"**
-```bash
-# Check library path
-ls -la /path/to/library.so
+Read stderr for the build or runner error. Check the grammar and input paths,
+the available Rust toolchain, and the referenced dependencies. Successful
+output goes to stdout; do not combine stderr with stdout when consuming JSON.
 
-# Check dependencies
-ldd /path/to/library.so
+Tree, S-expression and DOT rendering retain the existing recursive JSON decoder
+limit. JSON forwarding has separate deep-output controls, but those controls do
+not establish an arbitrary-depth or bounded-resource guarantee. Changing to GLR
+is not a general cure for a renderer-depth or process-resource failure.
 
-# Install system dependencies
-sudo apt install libtree-sitter-dev  # Ubuntu
-brew install tree-sitter              # macOS
-```
-
-**"Dynamic loading not enabled"**
-```bash
-# Rebuild with dynamic feature
-cargo build --release -p adze-cli --features dynamic
-
-# Intended post-publish install shape; not current repo proof until the
-# crates.io install receipt exists.
-cargo install adze-cli --features dynamic
-```
-
-**"Parse tree too deep"**
-- Indicates possible grammar recursion
-- Check for left-recursive rules
-- Use GLR mode for ambiguous grammars
-
-**"Input too large"**
-- Files over 100MB require streaming
-- Consider splitting large inputs
-- Use incremental parsing for large files
-
-### Debug Mode
-
-Enable verbose debugging:
+### Debugging and Repeated Parsing
 
 ```bash
-adze --verbose parse --dynamic lib.so input.txt
+adze --verbose parse grammar.rs input.txt
 ```
 
-Shows:
-- Library loading steps
-- Symbol resolution details  
-- Failure point for currently unsupported parse modes
-
-### Performance Tips
-
-1. **Use Rust `grammar::parse`** for current parser execution
-2. **Enable Performance Monitoring** to identify bottlenecks
-3. **Treat CLI parse output formats as future work**
-4. **Limit Text Length** in serialization for large trees
-5. **Use GLR Runtime** for best performance and features
+Each static parse currently creates a temporary runner and invokes Cargo.
+Executable reuse is unfinished under
+[#1067](https://github.com/EffortlessMetrics/adze-swarm/issues/1067); a second
+invocation is not a promised zero-Cargo cache hit. Applications that repeatedly
+parse with an already compiled grammar can call `grammar::parse` or
+`grammar::parse_document` directly. No relative speed or GLR performance claim
+follows from this advice.
 
 ## Integration Examples
 
 ### Shell Scripting
 
-```bash
-#!/bin/bash
-# Future sketch: parse all Python files in a directory once CLI parse output exists
+This example records document output from a trusted static grammar. It reports
+command completion only; downstream tooling must inspect the document's
+canonical outcome and diagnostics to decide whether parsing was clean.
 
-for file in *.py; do
-    result=$(adze parse --dynamic libtree-sitter-python.so "$file" --format json)
-    status=$(echo "$result" | jq -r '.status')
-    
-    if [ "$status" = "ok" ]; then
-        echo "✅ $file parsed successfully"
-    else
-        echo "❌ $file failed to parse"
-    fi
-done
+```bash
+#!/usr/bin/env bash
+set -eu
+
+output=$(mktemp)
+trap 'rm -f -- "$output"' EXIT
+
+if adze parse grammar.rs input.txt --output document-json >"$output"; then
+    cat "$output"
+    printf '%s\n' 'Document emitted; inspect its outcome and diagnostics.' >&2
+else
+    printf '%s\n' 'Adze command failed; see stderr.' >&2
+    exit 1
+fi
 ```
 
 ### CI/CD Pipeline
+
+These steps assume a source-built CLI is already on PATH and the selected
+project's dependencies are available. `--update` is a boolean opt-in flag;
+do not pass a boolean value to it. Keep snapshot updates disabled in CI:
 
 ```yaml
 # GitHub Actions example
 - name: Validate Grammar
   run: adze check src/grammar.rs
 
-- name: Test Grammar  
-  run: adze test --update=no
-
-- name: Run Parser Tests
-  run: cargo test
+- name: Test Grammar
+  run: INSTA_UPDATE=no adze test .
 ```
+
+`adze test` already invokes Cargo tests for the selected project, so this
+example does not immediately repeat the same `cargo test` obligation.
 
 ### Editor Integration
 

@@ -160,3 +160,54 @@ impl<'a> AbiLanguageBuilder<'a> {
             .or(Some(symbol_id.0))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use adze_ir::{Grammar, ProductionId, Rule, SymbolId};
+
+    fn map_value(token: &TokenStream) -> u16 {
+        token.to_string().trim_end_matches("u16").parse().unwrap()
+    }
+
+    fn rule(lhs: SymbolId, production_id: ProductionId) -> Rule {
+        Rule {
+            lhs,
+            rhs: vec![],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id,
+        }
+    }
+
+    /// Encode-side half of the #1060 production-map sizing contract: when a
+    /// shared-ProductionId grammar has MORE rules than production slots, every
+    /// rule still gets exactly one map entry in rule order. Sizing by
+    /// production count (max slot + 1 = 2 here) silently drops RuleId(2),
+    /// which no decoder can recover.
+    #[test]
+    fn test_production_id_map_keeps_rules_beyond_production_slot_count() {
+        let mut grammar = Grammar::new("more_rules_than_slots".to_string());
+        let start = SymbolId(1);
+        grammar.add_rule(rule(start, ProductionId(0)));
+        grammar.add_rule(rule(start, ProductionId(1)));
+        grammar.add_rule(rule(start, ProductionId(0)));
+
+        let table = crate::empty_table!(states: 1, terms: 1, nonterms: 1);
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let map = builder.generate_production_id_map();
+        let values: Vec<u16> = map.iter().map(map_value).collect();
+
+        assert_eq!(
+            values,
+            vec![0, 1, 0],
+            "one entry per RuleId in rule order, even when rule count exceeds production slot count"
+        );
+        assert_eq!(
+            builder.generate_ts_rules().unwrap().len(),
+            values.len(),
+            "map length must match TS_RULES (rule) count for the decode-side rule-id index"
+        );
+    }
+}
