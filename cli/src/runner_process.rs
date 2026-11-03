@@ -99,6 +99,7 @@ impl fmt::Display for Cancellation {
 #[derive(Debug)]
 pub(crate) enum CaptureCause {
     Setup(String),
+    UnsupportedInitProcess,
     Spawn(io::Error),
     Read(Channel, io::Error),
     Observe(io::Error),
@@ -163,6 +164,9 @@ impl fmt::Display for CaptureError {
             CaptureCause::Setup(message) => {
                 write!(f, "static runner capture setup failed: {message}")?
             }
+            CaptureCause::UnsupportedInitProcess => f.write_str(
+                "static runner signal custody is unavailable when the CLI is Linux PID 1",
+            )?,
             CaptureCause::Spawn(error) => write!(f, "static runner could not start: {error}")?,
             CaptureCause::Read(channel, error) => {
                 write!(f, "static runner {channel} read failed: {error}")?
@@ -232,15 +236,73 @@ impl Cleanup {
 }
 
 static SIGNAL_OWNER: AtomicBool = AtomicBool::new(false);
-static CANCELLATION: AtomicI32 = AtomicI32::new(0);
+const SIGNAL_CLOSED: i32 = 0;
+const SIGNAL_ACTIVE: i32 = 1 << 8;
+const SIGNAL_POISONED: i32 = 1 << 9;
+const EVENT_INTERRUPT: i32 = 1;
+const EVENT_TERMINATE: i32 = 2;
+const EVENT_MASK: i32 = 3;
+static SIGNAL_STATE: AtomicI32 = AtomicI32::new(SIGNAL_CLOSED);
 
 extern "C" fn record_cancellation(signal: libc::c_int) {
-    // Async-signal-safe: no allocation, formatting, locks or OS calls.
-    let _ = CANCELLATION.compare_exchange(0, signal, Ordering::Relaxed, Ordering::Relaxed);
+    let Some(cancellation) = Cancellation::from_raw(signal) else {
+        return;
+    };
+    // SAFETY: Linux errno is thread-local, and this pointer remains valid
+    // throughout the handler. Preserve it if a successful late relay returns.
+    let errno = unsafe { libc::__errno_location() };
+    let saved_errno = unsafe { *errno };
+    #[cfg(test)]
+    signal_probe::before_record();
+    let event = match cancellation {
+        Cancellation::Interrupt => EVENT_INTERRUPT,
+        Cancellation::Terminate => EVENT_TERMINATE,
+    };
+    match SIGNAL_STATE.compare_exchange(
+        SIGNAL_ACTIVE,
+        SIGNAL_ACTIVE | event,
+        Ordering::AcqRel,
+        Ordering::Acquire,
+    ) {
+        Ok(_) => {}
+        Err(state) if state & SIGNAL_ACTIVE != 0 => {
+            // Another event already won. The active finalizer owns it.
+        }
+        Err(SIGNAL_CLOSED) => {
+            #[cfg(test)]
+            signal_probe::before_relay();
+            // A callback dispatched on another thread can reach this point
+            // after exact disposition restoration and atomic closure. Relay
+            // through the current disposition instead of consuming it. A
+            // later capture may own the relay and must be allowed to clean up.
+            // SAFETY: getpid, kill and _exit are async-signal-safe. Setup
+            // refuses PID 1, whose default dispositions need different policy.
+            let pid = unsafe { libc::getpid() };
+            if pid == 1 || unsafe { libc::kill(pid, signal) } != 0 {
+                unsafe { libc::_exit(128 + signal) };
+            }
+        }
+        Err(_) => {
+            // Restoration failed. Do not recursively signal a handler which
+            // may still be installed. No later owner may reset this poison.
+            // SAFETY: _exit is async-signal-safe and does not unwind.
+            unsafe { libc::_exit(128 + signal) };
+        }
+    }
+    // SAFETY: restore the interrupted thread's errno before returning.
+    unsafe { *errno = saved_errno };
+}
+
+fn cancellation_from_state(state: i32) -> Option<Cancellation> {
+    match state & EVENT_MASK {
+        EVENT_INTERRUPT => Some(Cancellation::Interrupt),
+        EVENT_TERMINATE => Some(Cancellation::Terminate),
+        _ => None,
+    }
 }
 
 fn cancellation() -> Option<Cancellation> {
-    Cancellation::from_raw(CANCELLATION.load(Ordering::Relaxed))
+    cancellation_from_state(SIGNAL_STATE.load(Ordering::Acquire))
 }
 
 /// This private CLI boundary serializes signal ownership, not process work.
@@ -260,12 +322,24 @@ impl SignalGuard {
                 "another static runner owns signal handling",
             ));
         }
-        let guard = Self {
+        if SIGNAL_STATE
+            .compare_exchange(
+                SIGNAL_CLOSED,
+                SIGNAL_ACTIVE,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_err()
+        {
+            SIGNAL_OWNER.store(false, Ordering::Release);
+            return Err(io::Error::other(
+                "static runner signal ownership is poisoned after failed restoration",
+            ));
+        }
+        Ok(Self {
             installed: Vec::with_capacity(2),
             active: true,
-        };
-        CANCELLATION.store(0, Ordering::Relaxed);
-        Ok(guard)
+        })
     }
 
     fn install(&mut self) -> io::Result<()> {
@@ -296,6 +370,10 @@ impl SignalGuard {
             if previous.sa_sigaction == libc::SIG_IGN {
                 continue;
             }
+            #[cfg(test)]
+            if signal == libc::SIGTERM {
+                signal_probe::before_second_install()?;
+            }
             // SAFETY: zero initialization is valid for Linux sigaction and
             // sigemptyset initializes its mask before sigaction reads it.
             let mut action: libc::sigaction = unsafe { std::mem::zeroed() };
@@ -305,7 +383,8 @@ impl SignalGuard {
                 return Err(io::Error::last_os_error());
             }
             // SAFETY: both pointers refer to initialized actions for this call;
-            // the static handler only records an atomic signal number.
+            // the static handler records or relays through the reviewed
+            // atomic close protocol without allocation or locking.
             if unsafe { libc::sigaction(signal, &action, std::ptr::null_mut()) } != 0 {
                 return Err(io::Error::last_os_error());
             }
@@ -317,34 +396,72 @@ impl SignalGuard {
     fn restore(&mut self) -> Option<io::Error> {
         let mut failure = None;
         for (signal, action) in self.installed.drain(..).rev() {
-            // SAFETY: restore the exact initialized action saved for this
-            // signal. The singleton remains held through restoration.
-            if unsafe { libc::sigaction(signal, &action, std::ptr::null_mut()) } != 0
+            if let Err(error) = restore_action(signal, &action)
                 && failure.is_none()
             {
-                failure = Some(io::Error::last_os_error());
+                failure = Some(error);
             }
         }
         failure
     }
 
-    fn finish(mut self) -> (Option<Cancellation>, Option<io::Error>) {
+    fn close(&mut self) -> (Option<Cancellation>, Option<io::Error>) {
         let failure = self.restore();
-        // Sample AFTER restoring defaults: a signal in the former restoration
-        // window must not be swallowed. Later signals terminate conventionally.
-        let signal = cancellation();
+        // This single transition owns every previously dispatched callback:
+        // its CAS either precedes closure and is returned here, or observes a
+        // closed state and relays. A plain load after restore is insufficient
+        // when the callback runs on another thread.
+        let previous = SIGNAL_STATE.swap(
+            if failure.is_some() {
+                SIGNAL_POISONED
+            } else {
+                SIGNAL_CLOSED
+            },
+            Ordering::AcqRel,
+        );
+        let signal = cancellation_from_state(previous);
         self.active = false;
         SIGNAL_OWNER.store(false, Ordering::Release);
+        #[cfg(test)]
+        signal_probe::FINISH_COUNT.fetch_add(1, Ordering::Release);
         (signal, failure)
+    }
+
+    fn finish(mut self) -> (Option<Cancellation>, Option<io::Error>) {
+        self.close()
     }
 }
 
 impl Drop for SignalGuard {
     fn drop(&mut self) {
         if self.active {
-            let _ = self.restore();
-            SIGNAL_OWNER.store(false, Ordering::Release);
+            let (signal, _) = self.close();
+            if let Some(signal) = signal {
+                // OwnedChild's finite cleanup has already unwound. Reuse the
+                // closed-state relay rather than discarding this event. A
+                // poisoned state takes the non-recursive exit fallback.
+                record_cancellation(signal.raw());
+            }
         }
+    }
+}
+
+fn restore_action(signal: i32, action: &libc::sigaction) -> io::Result<()> {
+    #[cfg(test)]
+    if signal_probe::FAIL_RESTORE
+        .compare_exchange(signal, 0, Ordering::AcqRel, Ordering::Acquire)
+        .is_ok()
+    {
+        // Deliberate fixture-only failure leaves the handler installed so the
+        // poisoned late-callback path is exercised, not merely a fake error.
+        return Err(io::Error::from_raw_os_error(libc::EINVAL));
+    }
+    // SAFETY: restore the exact initialized action saved for this signal.
+    // The singleton remains held through restoration.
+    if unsafe { libc::sigaction(signal, action, std::ptr::null_mut()) } != 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
     }
 }
 
@@ -712,6 +829,11 @@ pub(crate) fn capture(
     command: &mut Command,
     policy: CapturePolicy,
 ) -> Result<Output, CaptureError> {
+    if getpid().is_init() {
+        return Err(CaptureError::before_spawn(
+            CaptureCause::UnsupportedInitProcess,
+        ));
+    }
     let now = Instant::now();
     let deadline = now.checked_add(policy.total_timeout);
     if policy.stdout_bytes > MAX_STDOUT
@@ -757,6 +879,85 @@ pub(crate) fn capture(
             error.cancellation = signal;
             error.restore_error = restore_error;
             Err(error)
+        }
+    }
+}
+
+/// Only compiled into test harnesses. Every operation used by the actual
+/// signal callback is atomic or async-signal-safe; no mutex/condvar rendezvous.
+#[cfg(test)]
+pub(crate) mod signal_probe {
+    use std::io;
+    use std::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize, Ordering};
+    use std::time::{Duration, Instant};
+
+    pub(crate) static PAUSE_BEFORE_RECORD: AtomicBool = AtomicBool::new(false);
+    pub(crate) static ENTERED: AtomicBool = AtomicBool::new(false);
+    pub(crate) static RELEASE: AtomicBool = AtomicBool::new(false);
+    pub(crate) static PAUSE_BEFORE_RELAY: AtomicBool = AtomicBool::new(false);
+    pub(crate) static RELAY_ENTERED: AtomicBool = AtomicBool::new(false);
+    pub(crate) static RELAY_RELEASE: AtomicBool = AtomicBool::new(false);
+    pub(crate) static FINISH_COUNT: AtomicUsize = AtomicUsize::new(0);
+    pub(crate) static FAIL_RESTORE: AtomicI32 = AtomicI32::new(0);
+    pub(crate) static PAUSE_INSTALL: AtomicBool = AtomicBool::new(false);
+    pub(crate) static INSTALL_ENTERED: AtomicBool = AtomicBool::new(false);
+    pub(crate) static INSTALL_RELEASE: AtomicBool = AtomicBool::new(false);
+    pub(crate) static FAIL_INSTALL: AtomicBool = AtomicBool::new(false);
+    pub(crate) static PANIC_INSTALL: AtomicBool = AtomicBool::new(false);
+
+    pub(super) fn before_second_install() -> io::Result<()> {
+        if !PAUSE_INSTALL.swap(false, Ordering::AcqRel) {
+            return Ok(());
+        }
+        INSTALL_ENTERED.store(true, Ordering::Release);
+        let until = Instant::now() + Duration::from_secs(4);
+        while !INSTALL_RELEASE.load(Ordering::Acquire) {
+            assert!(
+                Instant::now() < until,
+                "signal fixture install rendezvous expired"
+            );
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert!(
+            !PANIC_INSTALL.swap(false, Ordering::AcqRel),
+            "deliberate signal fixture partial-install panic"
+        );
+        if FAIL_INSTALL.swap(false, Ordering::AcqRel) {
+            return Err(io::Error::other(
+                "deliberate signal fixture partial-install failure",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn before_record() {
+        pause(&PAUSE_BEFORE_RECORD, &ENTERED, &RELEASE);
+    }
+
+    pub(super) fn before_relay() {
+        pause(&PAUSE_BEFORE_RELAY, &RELAY_ENTERED, &RELAY_RELEASE);
+    }
+
+    fn pause(armed: &AtomicBool, entered: &AtomicBool, release: &AtomicBool) {
+        if !armed.swap(false, Ordering::AcqRel) {
+            return;
+        }
+        // SAFETY: clock_gettime initializes this valid timespec, and is
+        // async-signal-safe. Failure has an unmistakable fixture-only status.
+        let mut start: libc::timespec = unsafe { std::mem::zeroed() };
+        if unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut start) } != 0 {
+            unsafe { libc::_exit(220) };
+        }
+        entered.store(true, Ordering::Release);
+        while !release.load(Ordering::Acquire) {
+            let mut now: libc::timespec = unsafe { std::mem::zeroed() };
+            if unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut now) } != 0
+                || now.tv_sec.saturating_sub(start.tv_sec) >= 5
+            {
+                // An outer controller also has a finite process watchdog.
+                unsafe { libc::_exit(221) };
+            }
+            std::hint::spin_loop();
         }
     }
 }
