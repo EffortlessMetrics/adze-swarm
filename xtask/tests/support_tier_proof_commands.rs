@@ -615,7 +615,11 @@ fn validate_command(root: &Path, command: &str) -> Result<(), String> {
 /// ledger changes, update these counts deliberately — a mismatch fails
 /// loudly with the full row list.
 const EXPECTED_UNSUPPORTED: &[(&str, usize)] = &[
-    ("package-wide", 41),
+    // package-wide dropped 41 -> 39 via ba73ae01, which scoped the two
+    // dynamic-parse canary rows to --test cli_test (supported) instead of
+    // bare package-wide filters: the old `test_parse_dynamic_...` row and
+    // the bare `dynamic` row under --features dynamic.
+    ("package-wide", 39),
     ("flag", 4),
     ("harness", 1),
     ("cfg", 0),
