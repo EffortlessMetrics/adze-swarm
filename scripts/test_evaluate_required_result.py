@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Truth-table tests for scripts/evaluate-required-result.py (#995).
+"""Required-result and product-path contract tests (#995, #1027).
 
-Job outcomes are simulated as environment inputs; no GitHub-hosted run
-is needed. Run: python3 scripts/test_evaluate_required_result.py
+Job outcomes are simulated as environment inputs; path fixtures execute the
+workflow detector over real Git commits. No Rust build or hosted run is needed.
+Run: python3 scripts/test_evaluate_required_result.py
 """
 
 from __future__ import annotations
@@ -149,7 +150,10 @@ class WorkflowWiring(unittest.TestCase):
         match = re.search(r"\n  (?=\S)", rest[5:])
         return rest if match is None else rest[: match.start() + 5]
 
-    def test_shared_guard_change_selects_stable_product_lane(self) -> None:
+    def _product_path_selection(
+        self, path: str, *, event: str = "merge_group", change: str = "modify"
+    ) -> dict[str, str]:
+        """Execute the workflow's actual detector over one real Git change."""
         import tempfile
         import textwrap
 
@@ -158,33 +162,103 @@ class WorkflowWiring(unittest.TestCase):
         block = self._job_block(".github/workflows/product-proof.yml", "detect-stable-product-paths")
         detector = textwrap.dedent(block.split("        run: |\n", 1)[1])
         with tempfile.TemporaryDirectory(prefix="adze-required-detector-") as directory:
-            repo = Path(directory)
+            repo = Path(directory) / "repo"
+            repo.mkdir()
+
             def git(*args: str) -> str:
                 return subprocess.check_output(
                     ["git", "-c", "user.name=Guard fixture", "-c", "user.email=fixture@example.invalid", *args],
                     cwd=repo, text=True, stderr=subprocess.PIPE,
                 ).strip()
+
             git("init", "--quiet")
-            (repo / "README.md").write_text("fixture\n", encoding="utf-8")
+            source = repo / path
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_text("before\n", encoding="utf-8")
             git("add", ".")
             git("commit", "--quiet", "-m", "base")
             base = git("rev-parse", "HEAD")
-            helper = repo / "scripts/lib/required-test-output.sh"
-            helper.parent.mkdir(parents=True)
-            helper.write_text("# changed guard\n", encoding="utf-8")
-            git("add", ".")
-            git("commit", "--quiet", "-m", "helper-only change")
-            output = repo / "outputs"
+            if change == "modify":
+                source.write_text("after\n", encoding="utf-8")
+            elif change == "delete":
+                source.unlink()
+            elif change == "rename":
+                destination = repo / "docs/retired-source.txt"
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                git("mv", path, "docs/retired-source.txt")
+            else:
+                self.fail(f"unsupported fixture change: {change}")
+            git("add", "-A")
+            git("commit", "--quiet", "-m", f"{change} {path}")
+            head = git("rev-parse", "HEAD")
+            output = Path(directory) / "outputs"
             result = subprocess.run(
                 ["bash", "-euo", "pipefail", "-c", detector], cwd=repo,
-                env={**os.environ, "EVENT_NAME": "merge_group", "MERGE_GROUP_BASE_SHA": base,
-                     "MERGE_GROUP_HEAD_SHA": git("rev-parse", "HEAD"), "PR_BASE_SHA": "", "PR_HEAD_SHA": "",
+                env={**os.environ, "EVENT_NAME": event,
+                     "MERGE_GROUP_BASE_SHA": base if event == "merge_group" else "unused-base",
+                     "MERGE_GROUP_HEAD_SHA": head if event == "merge_group" else "unused-head",
+                     "PR_BASE_SHA": base if event == "pull_request" else "unused-base",
+                     "PR_HEAD_SHA": head if event == "pull_request" else "unused-head",
                      "STABLE_PRODUCT_PATHS": textwrap.dedent(paths), "GITHUB_OUTPUT": str(output)},
                 capture_output=True, text=True,
             )
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-            self.assertIn("run_stable=true", output.read_text(encoding="utf-8"))
-            self.assertIn("reason=stable_surface:scripts/lib/required-test-output.sh", output.read_text(encoding="utf-8"))
+            return dict(line.split("=", 1) for line in output.read_text(encoding="utf-8").splitlines())
+
+    def test_shared_guard_change_selects_stable_product_lane(self) -> None:
+        path = "scripts/lib/required-test-output.sh"
+        result = self._product_path_selection(path)
+        self.assertEqual("true", result["run_stable"])
+        self.assertEqual(f"stable_surface:{path}", result["reason"])
+
+    def test_shared_build_inputs_select_stable_product_lane(self) -> None:
+        # Recorded #1027 omissions: dependencies and workspace build inputs
+        # affect generated product canaries even without a runtime/ change.
+        paths = (
+            "common/src/lib.rs",
+            "crates/common-type-ops-core/src/lib.rs",
+            "crates/linecol-core/src/lib.rs",
+            "crates/parsetable-metadata/src/lib.rs",
+            "Cargo.toml",
+            "Cargo.lock",
+            "rust-toolchain.toml",
+            ".cargo/config.toml",
+        )
+        for event in ("merge_group", "pull_request"):
+            for change in ("modify", "delete"):
+                for path in paths:
+                    with self.subTest(event=event, change=change, path=path):
+                        result = self._product_path_selection(path, event=event, change=change)
+                        self.assertEqual("true", result["run_stable"])
+                        self.assertEqual(f"stable_surface:{path}", result["reason"])
+
+    def test_runtime_change_selects_stable_product_lane(self) -> None:
+        for event in ("merge_group", "pull_request"):
+            with self.subTest(event=event):
+                result = self._product_path_selection("runtime/src/lib.rs", event=event)
+                self.assertEqual("true", result["run_stable"])
+                self.assertEqual("stable_surface:runtime/src/lib.rs", result["reason"])
+
+    def test_unrelated_paths_do_not_select_stable_product_lane(self) -> None:
+        for event in ("merge_group", "pull_request"):
+            for path in ("docs/research/fixture.md", "playground/assets/fixture.txt"):
+                with self.subTest(event=event, path=path):
+                    result = self._product_path_selection(path, event=event)
+                    self.assertEqual("false", result["run_stable"])
+                    self.assertEqual("no_stable_product_surface_changed", result["reason"])
+
+    def test_renamed_stable_path_outside_allowlist_selects_stable_product_lane(self) -> None:
+        for event in ("merge_group", "pull_request"):
+            with self.subTest(event=event):
+                result = self._product_path_selection("runtime/src/lib.rs", event=event, change="rename")
+                self.assertEqual("true", result["run_stable"])
+                self.assertEqual("stable_surface:runtime/src/lib.rs", result["reason"])
+
+    def test_contract_tests_run_before_product_path_selection(self) -> None:
+        block = self._job_block(".github/workflows/product-proof.yml", "detect-stable-product-paths")
+        command = "run: python3 scripts/test_evaluate_required_result.py"
+        self.assertIn(command, block)
+        self.assertLess(block.index(command), block.index("- id: detect"))
 
     def test_ready_for_review_triggers_both_workflows(self) -> None:
         import re

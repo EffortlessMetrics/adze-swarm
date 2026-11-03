@@ -150,6 +150,15 @@ impl<'a> TreeCursor<'a> {
         }
     }
 
+    /// Tuple slots count only direct semantic children, while the cursor
+    /// retains physical positions for field-edge lookup and source traversal.
+    fn semantic_index(&self) -> usize {
+        self.children[..self.current_index]
+            .iter()
+            .filter(|child| !child.is_extra)
+            .count()
+    }
+
     /// Returns the current node.
     pub fn node(&self) -> &'a ParsedNode {
         if self.current_index < self.children.len() {
@@ -292,9 +301,16 @@ pub fn extract_field_try<LT: Extract<T>, T>(
 
         loop {
             let n = cursor.node();
+            if n.is_extra {
+                *last_idx = n.end_byte;
+                if !cursor.goto_next_sibling() {
+                    return LT::try_extract(None, source, *last_idx, closure_ref);
+                }
+                continue;
+            }
             if field_name
                 .parse::<usize>()
-                .is_ok_and(|idx| idx == cursor.current_index)
+                .is_ok_and(|idx| idx == cursor.semantic_index())
             {
                 let out = LT::try_extract(Some(n), source, *last_idx, closure_ref)?;
                 if !cursor.goto_next_sibling() {
@@ -406,9 +422,16 @@ pub fn extract_field<LT: Extract<T>, T>(
 
         loop {
             let n = cursor.node();
+            if n.is_extra {
+                *last_idx = n.end_byte;
+                if !cursor.goto_next_sibling() {
+                    return LT::extract(None, source, *last_idx, closure_ref);
+                }
+                continue;
+            }
             if field_name
                 .parse::<usize>()
-                .is_ok_and(|idx| idx == cursor.current_index)
+                .is_ok_and(|idx| idx == cursor.semantic_index())
             {
                 let out = LT::extract(Some(n), source, *last_idx, closure_ref);
 
@@ -578,11 +601,12 @@ pub fn document_matches_language(
     document.matches_native_language(language)
 }
 
-/// Parses an input string into the native parse document alpha.
+/// Legacy raw-language document compatibility helper.
 ///
 /// Native ABI tables alone omit canonical field targets/cardinality. Documents
-/// produced here explicitly report unavailable schema; generated helpers use
-/// [`parse_document_with_descriptor`] to provide the co-generated facts.
+/// produced here explicitly report unavailable schema and retain historical root
+/// inference without a canonical-start guarantee. Newly generated parsers call
+/// [`parse_document_with_descriptor_v2_and_identity`] instead.
 #[cfg(feature = "pure-rust")]
 pub fn parse_document(
     input: &str,

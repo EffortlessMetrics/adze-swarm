@@ -215,7 +215,7 @@ fn desugar_pattern_wrappers(grammar: &mut Grammar) -> Result<()> {
     }
 
     // Rebuild symbol registry after changes
-    let _ = grammar.get_or_build_registry();
+    let _ = grammar.try_get_or_build_registry()?;
 
     if !rules_to_add.is_empty() {
         debug_trace!(
@@ -276,10 +276,27 @@ pub fn build_parser_from_grammar_js(
 
 /// Build a parser for all grammars in a crate
 pub fn build_parser_for_crate(root_file: &Path, options: BuildOptions) -> Result<Vec<BuildResult>> {
-    let mut results = Vec::new();
-
-    // Find all grammar definitions
     let grammars = crate::generate_grammars(root_file)?;
+    build_crate_grammars(root_file, grammars, options)
+}
+
+#[cfg(feature = "build_parsers")]
+pub(crate) fn build_parser_for_crate_with_inputs(
+    root_file: &Path,
+    options: BuildOptions,
+    on_inputs: impl FnOnce(&crate::GrammarInputs) -> Result<()>,
+) -> Result<Vec<BuildResult>> {
+    let traced = crate::generate_grammars_with_inputs(root_file);
+    on_inputs(&traced.inputs)?;
+    build_crate_grammars(root_file, traced.grammars?, options)
+}
+
+fn build_crate_grammars(
+    root_file: &Path,
+    grammars: Vec<Value>,
+    options: BuildOptions,
+) -> Result<Vec<BuildResult>> {
+    let mut results = Vec::new();
 
     // Debug: write to file
     if cfg!(debug_assertions)
@@ -296,7 +313,7 @@ pub fn build_parser_for_crate(root_file: &Path, options: BuildOptions) -> Result
 
     for grammar_json in grammars {
         // Convert serde_json::Value to string
-        let grammar_json_str = serde_json::to_string(&grammar_json).unwrap();
+        let grammar_json_str = serde_json::to_string(&grammar_json)?;
         let result = build_parser_from_json(grammar_json_str, options.clone())?;
         results.push(result);
     }
@@ -505,6 +522,27 @@ module.exports = grammar({
         assert!(written.contains("pub mod syntax"));
         assert!(written.contains("pub fn parse_document"));
         assert!(written.contains("edge_by_field_name(\"left\")"));
+    }
+
+    #[test]
+    fn test_desugar_pattern_wrappers_returns_registry_capacity_error_without_caching() {
+        let mut grammar = Grammar::new("desugar_capacity".to_string());
+        grammar.externals = (0..=u16::MAX)
+            .map(|index| adze_ir::ExternalToken {
+                name: format!("external_{index:05}"),
+                symbol_id: SymbolId(index),
+            })
+            .collect();
+        let error = desugar_pattern_wrappers(&mut grammar)
+            .expect_err("fallible wrapper lowering must refuse over-domain registry names");
+        assert!(
+            matches!(
+                error.downcast_ref::<adze_ir::GrammarError>(),
+                Some(adze_ir::GrammarError::SymbolSpaceExhausted)
+            ),
+            "expected the typed registry cause from wrapper lowering, got {error:#}"
+        );
+        assert!(grammar.symbol_registry.is_none());
     }
 
     #[test]

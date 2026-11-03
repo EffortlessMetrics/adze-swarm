@@ -37,5 +37,6 @@ pub mod typed_ast_contract;
 pub mod words;
 
 // Tree-sitter compatibility language helpers
+pub mod native_extra_provenance_1191;
 #[cfg(all(feature = "ts-compat", feature = "pure-rust"))]
 pub mod ts_langs;

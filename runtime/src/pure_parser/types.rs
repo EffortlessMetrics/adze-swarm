@@ -13,6 +13,9 @@ pub(super) struct StackEntry {
     pub(super) subtree: Option<Subtree>,
     #[allow(dead_code)]
     pub(super) position: usize,
+    pub(super) point: Point,
+    /// Non-RHS nodes encountered after this semantic stack entry.
+    pub(super) pending: Vec<Subtree>,
 }
 
 /// Lexer state

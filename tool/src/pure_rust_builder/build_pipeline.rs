@@ -54,7 +54,7 @@ impl BuildPipeline {
 
     fn prepare_grammar(&mut self) -> Result<FirstFollowSets> {
         // Ensure the grammar has a symbol registry.
-        let _ = self.grammar.get_or_build_registry();
+        let _ = self.grammar.try_get_or_build_registry()?;
 
         // Desugar pattern wrappers into unit productions before computing sets
         // so the LR items expose terminal lookaheads.
