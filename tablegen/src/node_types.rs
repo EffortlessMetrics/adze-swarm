@@ -238,6 +238,13 @@ impl<'a> NodeTypesGenerator<'a> {
         Some(format!("rule_{}", symbol_id.0))
     }
 
+    /// Map one canonical schema target to its node-types reference.
+    ///
+    /// Inputs are schema targets, which are leaves by contract (helper
+    /// wrappers are resolved away before they reach this mapping), so only
+    /// leaf symbols map. The old first-choice/first-member shortcuts for
+    /// composite symbols are gone: anything else is an unreachable contract
+    /// violation and maps to an explicit unknown rather than a guessed type.
     fn symbol_to_type_ref(
         &self,
         symbol: &Symbol,
@@ -274,38 +281,13 @@ impl<'a> NodeTypesGenerator<'a> {
                 type_name: "external".to_string(),
                 named: true,
             },
-            Symbol::Optional(inner) => self.symbol_to_type_ref(inner, symbol_names),
-            Symbol::Repeat(inner) | Symbol::RepeatOne(inner) => {
-                let inner_ref = self.symbol_to_type_ref(inner, symbol_names);
-                TypeRef {
-                    type_name: inner_ref.type_name,
-                    named: inner_ref.named,
-                }
-            }
-            Symbol::Choice(choices) => {
-                // For now, just use the first choice
-                if let Some(first) = choices.first() {
-                    self.symbol_to_type_ref(first, symbol_names)
-                } else {
-                    TypeRef {
-                        type_name: "empty".to_string(),
-                        named: false,
-                    }
-                }
-            }
-            Symbol::Sequence(seq) => {
-                // For sequences, we might want to create a composite type
-                if let Some(first) = seq.first() {
-                    self.symbol_to_type_ref(first, symbol_names)
-                } else {
-                    TypeRef {
-                        type_name: "empty".to_string(),
-                        named: false,
-                    }
-                }
-            }
-            Symbol::Epsilon => TypeRef {
-                type_name: "empty".to_string(),
+            Symbol::Optional(_)
+            | Symbol::Repeat(_)
+            | Symbol::RepeatOne(_)
+            | Symbol::Choice(_)
+            | Symbol::Sequence(_)
+            | Symbol::Epsilon => TypeRef {
+                type_name: "unknown".to_string(),
                 named: false,
             },
         }
@@ -714,7 +696,10 @@ mod tests {
     }
 
     #[test]
-    fn symbol_to_type_ref_handles_all_symbol_variants() {
+    fn test_symbol_to_type_ref_maps_schema_leaf_targets() {
+        // Schema targets are leaves by contract; the mapping covers exactly
+        // those. Composite shapes never reach this function (helpers resolve
+        // away in `field_schema`) and map to an explicit unknown.
         let mut grammar = Grammar::new("g".to_string());
         // A string token (anonymous) and a regex token (named).
         grammar.tokens.insert(
@@ -769,51 +754,28 @@ mod tests {
         assert_eq!(ext.type_name, "external");
         assert!(ext.named);
 
-        // Optional / Repeat / RepeatOne unwrap their inner symbol.
-        let opt = generator.symbol_to_type_ref(
-            &Symbol::Optional(Box::new(Symbol::Terminal(SymbolId(1)))),
-            &names,
-        );
-        assert_eq!(opt.type_name, "+");
-        let rep = generator.symbol_to_type_ref(
-            &Symbol::Repeat(Box::new(Symbol::Terminal(SymbolId(2)))),
-            &names,
-        );
-        assert_eq!(rep.type_name, "ident");
-        let rep1 = generator.symbol_to_type_ref(
-            &Symbol::RepeatOne(Box::new(Symbol::NonTerminal(SymbolId(10)))),
-            &names,
-        );
-        assert_eq!(rep1.type_name, "expr");
-
-        // Choice with at least one element uses the first.
-        let ch = generator.symbol_to_type_ref(
-            &Symbol::Choice(vec![
+        // Composite shapes are unreachable schema inputs: no first-child
+        // guess, just an explicit unknown.
+        for composite in [
+            Symbol::Optional(Box::new(Symbol::Terminal(SymbolId(1)))),
+            Symbol::Repeat(Box::new(Symbol::Terminal(SymbolId(2)))),
+            Symbol::RepeatOne(Box::new(Symbol::NonTerminal(SymbolId(10)))),
+            Symbol::Choice(vec![
                 Symbol::Terminal(SymbolId(2)),
                 Symbol::Terminal(SymbolId(1)),
             ]),
-            &names,
-        );
-        assert_eq!(ch.type_name, "ident");
-        // Empty Choice -> "empty"/unnamed.
-        let ch_empty = generator.symbol_to_type_ref(&Symbol::Choice(vec![]), &names);
-        assert_eq!(ch_empty.type_name, "empty");
-        assert!(!ch_empty.named);
-
-        // Sequence with first uses first; empty Sequence -> "empty".
-        let seq = generator.symbol_to_type_ref(
-            &Symbol::Sequence(vec![Symbol::Terminal(SymbolId(1))]),
-            &names,
-        );
-        assert_eq!(seq.type_name, "+");
-        let seq_empty = generator.symbol_to_type_ref(&Symbol::Sequence(vec![]), &names);
-        assert_eq!(seq_empty.type_name, "empty");
-        assert!(!seq_empty.named);
-
-        // Epsilon -> "empty"/unnamed.
-        let eps = generator.symbol_to_type_ref(&Symbol::Epsilon, &names);
-        assert_eq!(eps.type_name, "empty");
-        assert!(!eps.named);
+            Symbol::Choice(vec![]),
+            Symbol::Sequence(vec![Symbol::Terminal(SymbolId(1))]),
+            Symbol::Sequence(vec![]),
+            Symbol::Epsilon,
+        ] {
+            let mapped = generator.symbol_to_type_ref(&composite, &names);
+            assert_eq!(
+                mapped.type_name, "unknown",
+                "composite {composite:?} must not guess a type"
+            );
+            assert!(!mapped.named);
+        }
     }
 
     #[test]

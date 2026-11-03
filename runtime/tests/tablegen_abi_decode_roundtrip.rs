@@ -837,7 +837,9 @@ fn test_shared_production_alias_reads_stay_within_advertised_row() {
     }
     // Offset zero denotes the first row, not absence of alias data.
     let other = grammar.rule_by_id(RuleId(2)).expect("aliased production");
-    assert_eq!(other.rhs, vec![adze_ir::Symbol::Terminal(SymbolId(1))]);
+    // LANGUAGE maps ABI column 1 to public symbol 5. The bounded alias read
+    // must retain that terminal while the grammar exposes public identities.
+    assert_eq!(other.rhs, vec![adze_ir::Symbol::Terminal(SymbolId(5))]);
 }
 
 #[test]

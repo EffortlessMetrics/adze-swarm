@@ -317,6 +317,13 @@ impl GrammarOptimizer {
             }
         }
 
+        for origin in grammar.optional_origins.values_mut() {
+            if let Symbol::NonTerminal(id) = &origin.present
+                && let Some(replacement) = replacements.get(id)
+            {
+                origin.present = replacement.clone();
+            }
+        }
         // Remove inlined rules
         for id in replacements.keys() {
             grammar.rules.shift_remove(id);
@@ -361,6 +368,9 @@ impl GrammarOptimizer {
             }
         }
 
+        for origin in grammar.optional_origins.values_mut() {
+            self.renumber_symbol(&mut origin.present, &replacements);
+        }
         // Remove duplicate tokens
         for old_id in replacements.keys() {
             grammar.tokens.shift_remove(old_id);

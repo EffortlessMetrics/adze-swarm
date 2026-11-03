@@ -170,9 +170,12 @@ pub mod decoder;
 /// Native parse document alpha.
 #[cfg(feature = "pure-rust")]
 pub mod document;
+
 /// Authoritative native identity for checked generated entrypoints.
 #[cfg(feature = "pure-rust")]
 pub mod generated_identity;
+/// Co-generated Rust language metadata outside the native ABI.
+pub mod generated_schema;
 /// JSON grammar format support.
 #[cfg(feature = "pure-rust")]
 pub mod grammar_json;

@@ -247,7 +247,8 @@ fn decode_parse_rules(
             .collect::<Vec<_>>()
     };
 
-    // Native TS_RULES are columns; the grammar fallback is already public.
+    // Native TS_RULES store table columns. The grammar fallback has already
+    // been translated into public IDs by decode_grammar, so map only once.
     if !lang.rules.is_null() {
         for rule in &mut rules {
             if (rule.lhs.0 as usize) < index_to_symbol.len() {

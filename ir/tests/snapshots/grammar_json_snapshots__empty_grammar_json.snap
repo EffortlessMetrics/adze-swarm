@@ -22,5 +22,7 @@ expression: grammar_json(&grammar)
   "lexical_metadata": {},
   "start_symbol": null,
   "document_start_symbol": null,
-  "wrapper_token_relations": {}
+  "wrapper_token_relations": {},
+  "optional_origins": {},
+  "optional_field_origins": []
 }

@@ -31,6 +31,8 @@ fn create_simple_arithmetic_grammar() -> Grammar {
         start_symbol: None,
         document_start_symbol: None,
         wrapper_token_relations: indexmap::IndexMap::new(),
+        optional_origins: indexmap::IndexMap::new(),
+        optional_field_origins: Vec::new(),
     };
 
     // Define symbol IDs

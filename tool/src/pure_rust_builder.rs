@@ -504,24 +504,36 @@ module.exports = grammar({
         assert!(result.parser_code.contains("pub struct Expression"));
         assert!(result.parser_code.contains("pub struct MinusToken"));
         assert!(result.parser_code.contains("pub struct NumberToken"));
-        assert!(result.parser_code.contains("edge_by_field_name (\"left\")"));
         assert!(
             result
                 .parser_code
-                .contains("edge_by_field_name (\"operator\")")
+                .contains("self . projection . nodes (\"left\")")
         );
         assert!(
             result
                 .parser_code
-                .contains("edge_by_field_name (\"right\")")
+                .contains("self . projection . nodes (\"operator\")")
         );
-        assert!(result.parser_code.contains("NumberToken :: cast"));
-        assert!(result.parser_code.contains("MinusToken :: cast"));
+        assert!(
+            result
+                .parser_code
+                .contains("self . projection . nodes (\"right\")")
+        );
+        assert!(
+            result
+                .parser_code
+                .contains("NumberToken { document : self . document")
+        );
+        assert!(
+            result
+                .parser_code
+                .contains("MinusToken { document : self . document")
+        );
 
         let written = fs::read_to_string(&result.parser_path).unwrap();
         assert!(written.contains("pub mod syntax"));
         assert!(written.contains("pub fn parse_document"));
-        assert!(written.contains("edge_by_field_name(\"left\")"));
+        assert!(written.contains(".nodes(\"left\")"));
     }
 
     #[test]

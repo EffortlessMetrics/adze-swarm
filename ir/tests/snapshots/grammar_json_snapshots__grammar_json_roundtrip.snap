@@ -59,5 +59,7 @@ expression: json2
   "lexical_metadata": {},
   "start_symbol": 3,
   "document_start_symbol": null,
-  "wrapper_token_relations": {}
+  "wrapper_token_relations": {},
+  "optional_origins": {},
+  "optional_field_origins": []
 }

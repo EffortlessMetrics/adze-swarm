@@ -166,8 +166,12 @@ pub fn decode_grammar_with_patterns(
         start_symbol: None,
         document_start_symbol: None,
         wrapper_token_relations: IndexMap::new(),
+        optional_origins: IndexMap::new(),
+        optional_field_origins: Vec::new(),
     };
-    // Native tables store columns; decoded grammars expose public identities.
+    // Rules and tokens are read from ABI columns; native nodes and parse-table
+    // metadata use public grammar symbols. Translate the grammar exactly once
+    // with the same validated map used by the parse-table decoder.
     let (index_to_symbol, _) = parse_table::decode_symbol_maps(lang, lang.symbol_count as usize);
     symbols::remap_grammar_symbols(&mut grammar, &index_to_symbol);
     grammar

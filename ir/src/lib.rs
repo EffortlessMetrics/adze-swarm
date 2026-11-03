@@ -47,6 +47,10 @@ pub use compiler_identity::{
     WrapperTokenRelation, remap_compiler_identity, sorted_wrapper_token_relations,
 };
 
+/// Allocation-time optional helper and source field provenance.
+pub mod field_origin;
+pub use field_origin::{OptionalFieldOrigin, OptionalOrigin, SourceRuleId};
+
 /// Core grammar representation supporting all Tree-sitter features including GLR
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct Grammar {
@@ -104,6 +108,15 @@ pub struct Grammar {
     /// Explicit pattern-wrapper nonterminal to backing-token relations.
     #[serde(default)]
     pub wrapper_token_relations: IndexMap<SymbolId, SymbolId>,
+    /// Explicit optional carriers recorded by their allocating producer.
+    /// Always serialize the collection slot, including empty, for positional formats.
+    #[serde(default)]
+    pub optional_origins: IndexMap<SymbolId, OptionalOrigin>,
+    /// Source field occurrences lowered inside an optional carrier.
+    /// Missing map-based inputs retain the empty default for both provenance fields.
+    /// Always serialize this slot as well, including an empty collection.
+    #[serde(default)]
+    pub optional_field_origins: Vec<OptionalFieldOrigin>,
 }
 
 impl Grammar {
@@ -601,6 +614,8 @@ impl Grammar {
             start_symbol: None,
             document_start_symbol: None,
             wrapper_token_relations: IndexMap::new(),
+            optional_origins: IndexMap::new(),
+            optional_field_origins: Vec::new(),
         }
     }
 
@@ -1034,8 +1049,8 @@ impl Grammar {
 
             // Collect all current rules
             for (_lhs, rules) in &self.rules {
-                for rule in rules {
-                    all_rules.push(rule.clone());
+                for (alternative, rule) in rules.iter().enumerate() {
+                    all_rules.push((alternative, rule.clone()));
                 }
             }
 
@@ -1043,7 +1058,8 @@ impl Grammar {
             self.rules.clear();
 
             // Process each rule
-            for mut rule in all_rules {
+            for (alternative, mut rule) in all_rules {
+                let mut new_origins = Vec::new();
                 let mut new_rhs = Vec::new();
                 // Normalized range each source RHS position expands to in
                 // this pass; positional field metadata is remapped through
@@ -1051,13 +1067,36 @@ impl Grammar {
                 let mut field_ranges: Vec<std::ops::Range<usize>> =
                     Vec::with_capacity(rule.rhs.len());
 
-                for symbol in rule.rhs {
+                for (source_position, symbol) in rule.rhs.into_iter().enumerate() {
                     let range_start = new_rhs.len();
                     match symbol {
                         Symbol::Optional(inner) => {
                             found_complex = true;
                             // Create aux rule: aux -> inner | ε
                             let aux_id = next_aux(occupied)?;
+
+                            for (field, position) in &rule.fields {
+                                if *position == source_position {
+                                    new_origins.push(OptionalFieldOrigin {
+                                        source_rule: SourceRuleId {
+                                            owner: rule.lhs,
+                                            alternative,
+                                        },
+                                        source_rhs_position: source_position,
+                                        lowered_rhs_position: range_start,
+                                        field: *field,
+                                        helper: aux_id,
+                                    });
+                                }
+                            }
+                            self.optional_origins.insert(
+                                aux_id,
+                                OptionalOrigin {
+                                    present: *inner.clone(),
+                                    present_alternative: 0,
+                                    empty_alternative: 1,
+                                },
+                            );
 
                             // aux -> inner (recursively normalize the inner symbol)
                             let inner_rule = Rule {
@@ -1163,6 +1202,15 @@ impl Grammar {
                     }
                     field_ranges.push(range_start..new_rhs.len());
                 }
+                for origin in &mut self.optional_field_origins {
+                    if origin.source_rule.owner == rule.lhs
+                        && origin.source_rule.alternative == alternative
+                        && let Some(range) = field_ranges.get(origin.lowered_rhs_position)
+                    {
+                        origin.lowered_rhs_position = range.start;
+                    }
+                }
+                self.optional_field_origins.extend(new_origins);
 
                 if !rule.fields.is_empty() {
                     // Remap each field through this pass's expansion: a
