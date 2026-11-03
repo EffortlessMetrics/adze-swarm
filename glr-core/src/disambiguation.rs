@@ -3,17 +3,10 @@
 use crate::parse_forest::{ForestNode, ParseError, ParseForest, ParseNode, ParseTree};
 
 impl ParseForest {
-    /// Convert forest to single tree by selecting the canonical best complete parse.
-    ///
-    /// Root selection follows [`ForestNode::selection_rank`]: among roots that
-    /// match the analysis start symbol and are complete, the smallest rank wins
-    /// (largest span, then earliest start, then smallest symbol id, then
-    /// smallest node id). Within each node,
-    /// [`ForestNode::best_alternative_index`] picks the canonical alternative.
-    /// Neither choice depends on `roots`/`alternatives` vector order.
+    /// Convert forest to single tree - for now just pick first complete parse
     pub fn to_single_tree(self) -> Result<ParseTree, ParseError> {
-        // Find the canonical best complete parse (reached EOF at root symbol).
-        let best = self
+        // Find all complete parses (reached EOF at root symbol)
+        let complete_parses: Vec<_> = self
             .roots
             .iter()
             .filter(|r| {
@@ -23,12 +16,14 @@ impl ParseForest {
                     false
                 }
             })
-            .min_by_key(|r| r.selection_rank());
+            .collect();
 
-        match best {
-            Some(root) => Ok(self.extract_tree(root)),
-            None => Err(ParseError::Incomplete),
+        if complete_parses.is_empty() {
+            return Err(ParseError::Incomplete);
         }
+
+        // For now: pick first. Later: scoring heuristics
+        Ok(self.extract_tree(complete_parses[0]))
     }
 
     fn extract_tree(&self, root: &ForestNode) -> ParseTree {
@@ -39,11 +34,8 @@ impl ParseForest {
     }
 
     fn build_tree_node(&self, forest_node: &ForestNode) -> ParseNode {
-        // Canonical alternative (documented in `best_alternative_index`).
-        let best = forest_node
-            .best_alternative_index()
-            .expect("build_tree_node requires a node with at least one alternative");
-        let alt = &forest_node.alternatives[best];
+        // Take first alternative (later: scoring)
+        let alt = &forest_node.alternatives[0];
 
         ParseNode {
             symbol: forest_node.symbol,

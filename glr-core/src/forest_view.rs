@@ -18,12 +18,8 @@ pub struct Span {
 /// Object-safe view of a forest/SPPF.
 ///
 /// Notes:
-/// - Ambiguity is resolved by a documented canonical rule, not storage order:
-///   `best_children` returns the
-///   [`best alternative`](crate::parse_forest::ForestNode::best_alternative_index)
-///   family (lexicographically smallest children-id sequence), and root order
-///   follows [`selection rank`](crate::parse_forest::ForestNode::selection_rank).
-///   You can extend this later
+/// - We keep ambiguity handling simple for now: `best_children` returns one
+///   chosen family (e.g., first/longest/leftmost). You can extend this later
 ///   with explicit "families" if you want full ambiguity exposure.
 /// - This trait's shape is stable across all build configurations.
 /// - This trait is sealed and cannot be implemented outside this crate.
