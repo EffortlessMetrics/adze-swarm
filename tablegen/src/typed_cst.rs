@@ -53,6 +53,22 @@ impl<'a> TypedCstGenerator<'a> {
             let ident = &spec.ident;
             let required_fields: BTreeSet<_> = accessors.get(&spec.ident.to_string())
                 .into_iter().flatten().map(|accessor| accessor.field_name.as_str()).collect();
+            // Leaf handles still validate the checked view on cast, but
+            // only owners with generated accessors need to retain it.
+            let retains_projection = !required_fields.is_empty();
+            let projection_field = retains_projection.then(|| quote! {
+                projection: ::adze::document::FieldProjectionView<'doc>,
+            });
+            let checked_projection = if retains_projection {
+                quote! { let projection = document.field_projection_view(id, &[#(#required_fields),*])?; }
+            } else {
+                quote! { let _ = document.field_projection_view(id, &[])?; }
+            };
+            let cast_fields = if retains_projection {
+                quote! { document, id, projection }
+            } else {
+                quote! { document, id }
+            };
             let wrapper_accessors = accessors
                 .get(&spec.ident.to_string())
                 .cloned()
@@ -63,11 +79,15 @@ impl<'a> TypedCstGenerator<'a> {
                     let field_name = accessor.field_name;
                     let target_ident = accessor.target_ident;
                     let target_id = accessor.target_id.0;
+                    let target_projection = accessors
+                        .get(&target_ident.to_string())
+                        .is_some_and(|fields| !fields.is_empty())
+                        .then(|| quote! { projection: target.view(), });
                     let targets = quote! {
                         self.projection.nodes(#field_name)
                             .filter(|target| target.grammar_id().map(|id| id.0) == Some(#target_id))
                             .map(|target| #target_ident {
-                                document: self.document, id: target.node_id(), projection: target.view(),
+                                document: self.document, id: target.node_id(), #target_projection
                             })
                     };
                     if accessor.multiple {
@@ -90,7 +110,7 @@ impl<'a> TypedCstGenerator<'a> {
                 pub struct #ident<'doc> {
                     document: &'doc AdzeDocument,
                     id: NodeId,
-                    projection: FieldProjectionView<'doc>,
+                    #projection_field
                 }
 
                 impl<'doc> #ident<'doc> {
@@ -100,8 +120,8 @@ impl<'a> TypedCstGenerator<'a> {
 
                     pub fn try_cast(document: &'doc AdzeDocument, id: NodeId) -> Result<Option<Self>, FieldProjectionError> {
                         if !node_has_kind(document, id, #symbol_id) { return Ok(None); }
-                        let projection = document.field_projection_view(id, &[#(#required_fields),*])?;
-                        Ok(Some(Self { document, id, projection }))
+                        #checked_projection
+                        Ok(Some(Self { #cast_fields }))
                     }
 
                     #(#wrapper_accessors)*
@@ -121,7 +141,7 @@ impl<'a> TypedCstGenerator<'a> {
 
         quote! {
             pub mod syntax {
-                use ::adze::document::{AdzeDocument, NodeId, SyntaxNode, FieldProjectionView, FieldProjectionError};
+                use ::adze::document::{AdzeDocument, NodeId, SyntaxNode, FieldProjectionError};
 
                 #root_fn
 

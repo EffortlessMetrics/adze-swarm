@@ -1,3 +1,5 @@
+#![deny(dead_code, unused_imports)]
+
 const GRAMMAR_NAME: &str = "schema_hidden_consumer";
 include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 
@@ -188,7 +190,7 @@ fn test_projection_transport_rejects_bad_version_slot_and_carrier_alternative() 
     }
 }
 
-mod foreign {
+pub mod foreign {
     const GRAMMAR_NAME: &str = "schema_hidden_consumer";
     include!(concat!(env!("OUT_DIR"), "/foreign_generated.rs"));
 }
@@ -203,6 +205,15 @@ fn test_foreign_grammar_id_collision_does_not_grant_generated_leaf_wrapper() {
     );
     assert_eq!(document.outcome(), ParseOutcome::Complete);
     assert!(document.diagnostics().is_empty());
+    // This entire generated module has no field accessors. It must compile
+    // under the same strict lint policy and still admit its own checked root.
+    let own_root = foreign::syntax::SourceFile::try_cast(&document, document.tree().root_id())
+        .expect("fieldless checked cast")
+        .expect("own grammar root");
+    assert_eq!(
+        adze::document::SyntaxNode::node_id(&own_root),
+        document.tree().root_id()
+    );
     let id = (0..document.tree().node_count())
         .map(NodeId::new)
         .find(|id| document.tree().node(*id).unwrap().grammar_name() == Some("foreign_token"))
