@@ -170,6 +170,9 @@ pub mod decoder;
 /// Native parse document alpha.
 #[cfg(feature = "pure-rust")]
 pub mod document;
+/// Authoritative native identity for checked generated entrypoints.
+#[cfg(feature = "pure-rust")]
+pub mod generated_identity;
 /// JSON grammar format support.
 #[cfg(feature = "pure-rust")]
 pub mod grammar_json;
@@ -1814,6 +1817,9 @@ pub mod errors {
     /// An explanation for an error that occurred during parsing.
     #[non_exhaustive]
     pub enum ParseErrorReason {
+        /// Generated native language identity failed before parsing.
+        #[cfg(feature = "pure-rust")]
+        InvalidLanguageIdentity(crate::generated_identity::NativeIdentityError),
         /// The parser did not expect to see some token.
         UnexpectedToken(String),
         /// The parser reached the end of input while expecting more tokens.
@@ -1926,6 +1932,10 @@ pub mod errors {
     impl std::fmt::Display for ParseErrorReason {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
+                #[cfg(feature = "pure-rust")]
+                ParseErrorReason::InvalidLanguageIdentity(error) => {
+                    std::fmt::Display::fmt(error, f)
+                }
                 ParseErrorReason::UnexpectedToken(token) => {
                     if token == "end of input" {
                         write!(f, "unexpected end of input")

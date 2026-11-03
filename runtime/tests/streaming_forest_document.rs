@@ -189,9 +189,9 @@ static TEST_LANGUAGE: TSLanguage = TSLanguage {
 };
 
 fn aligned_parse_table(language: &'static TSLanguage) -> (Grammar, ParseTable) {
-    let grammar = decode_grammar(language);
     let mut parse_table = decode_parse_table(language);
     align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
+    let grammar = parse_table.grammar.clone();
     (grammar, parse_table)
 }
 

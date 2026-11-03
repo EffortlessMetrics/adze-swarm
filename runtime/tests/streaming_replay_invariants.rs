@@ -104,8 +104,8 @@ fn parse_batch(
         panic!("lexically invalid input has no batch-core token stream");
     };
     let mut parse_table = decode_parse_table(language);
-    let grammar = decode_grammar(language);
     adze::__private::align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
+    let grammar = parse_table.grammar.clone();
     let mut parser = GLRParser::new(parse_table.clone(), grammar);
     for &(kind, start, end) in tokens {
         let symbol = parse_table

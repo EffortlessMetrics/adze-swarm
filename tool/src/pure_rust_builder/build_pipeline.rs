@@ -111,12 +111,27 @@ impl BuildPipeline {
         first_follow: &FirstFollowSets,
     ) -> Result<TokenStream> {
         let language_code = self.generate_abi_language_code(parse_table, first_follow)?;
+        let analysis_start = parse_table.start_symbol.0;
+        let document_start = self
+            .grammar
+            .document_start_symbol
+            .unwrap_or(parse_table.start_symbol)
+            .0;
+        anyhow::ensure!(
+            self.grammar.rules.contains_key(&SymbolId(document_start)),
+            "document start must name a prepared nonterminal"
+        );
         let parse_document_code = quote::quote! {
+            /// Authoritative native identity, paired with this generated language.
+            pub static START_IDENTITY: ::adze::generated_identity::NativeLanguageIdentityV1 = ::adze::generated_identity::NativeLanguageIdentityV1 {
+                language: &LANGUAGE, version: 1, public_symbols: PUBLIC_SYMBOL_MAP,
+                analysis_start: #analysis_start, document_start: #document_start,
+            };
             /// Parse source into the native Adze document alpha.
             pub fn parse_document(
                 input: &str,
             ) -> core::result::Result<::adze::document::AdzeDocument, Vec<::adze::errors::ParseError>> {
-                ::adze::__private::parse_document(input, || &LANGUAGE, GRAMMAR_NAME)
+                ::adze::__private::parse_document_with_identity(input, &LANGUAGE, Some(&START_IDENTITY), GRAMMAR_NAME)
             }
         };
         let typed_cst_code = TypedCstGenerator::new(&self.grammar).generate();

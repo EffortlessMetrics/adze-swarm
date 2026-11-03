@@ -1160,6 +1160,7 @@ pub fn generate_grammar(module: &ItemMod) -> ToolResult<Value> {
     let mut grammar = json!({
         "name": grammar_name,
         "start_symbol": root_type,
+        "document_start_symbol": "source_file",
         "word": word_rule,
         "rules": rules_map,
         "extras": extras_list

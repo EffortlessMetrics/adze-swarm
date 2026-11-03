@@ -84,5 +84,6 @@ expression: grammar_json(&grammar)
   "word_token": null,
   "lexical_metadata": {},
   "start_symbol": 3,
+  "document_start_symbol": null,
   "wrapper_token_relations": {}
 }

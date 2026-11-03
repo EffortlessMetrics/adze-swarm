@@ -85,6 +85,7 @@ impl GrammarJsParserV3 {
             supertypes: vec![],
             precedences: vec![],
             start_symbol: None,
+            document_start_symbol: None,
             wrapper_token_relations: IndexMap::new(),
             inferred_wrapper_rules: Default::default(),
         };

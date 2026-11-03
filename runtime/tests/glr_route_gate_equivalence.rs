@@ -26,8 +26,8 @@ fn parse_via_fixed_bridge(
 ) -> Result<Arc<Subtree>, Vec<adze::errors::ParseError>> {
     let source = input.as_bytes();
     let mut parse_table = decode_parse_table(language);
-    let grammar = decode_grammar(language);
     align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
+    let grammar = parse_table.grammar.clone();
     let mut parser = GLRParser::new(parse_table, grammar);
 
     let lex_fn = language

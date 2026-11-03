@@ -28,6 +28,9 @@ use adze_glr_core::{Action, RuleId, StateId};
 #[cfg(test)]
 use parse_table::decode_action;
 pub use parse_table::decode_parse_table;
+pub(crate) use parse_table::decode_parse_table_with_start;
+#[cfg(feature = "glr")]
+pub(crate) use symbols::remap_grammar_to_table_columns;
 
 /// Load token patterns from a Tree-sitter `grammar.json` file.
 ///
@@ -142,7 +145,7 @@ pub fn decode_grammar_with_patterns(
     let production_ids = productions::decode_fallback_rules(lang, &mut rules);
     let externals = externals::decode_external_tokens(lang, &symbol_names);
 
-    Grammar {
+    let mut grammar = Grammar {
         name: "decoded_grammar".to_string(),
         rules,
         tokens,
@@ -161,8 +164,13 @@ pub fn decode_grammar_with_patterns(
         word_token: None,
         lexical_metadata: IndexMap::new(),
         start_symbol: None,
+        document_start_symbol: None,
         wrapper_token_relations: IndexMap::new(),
-    }
+    };
+    // Native tables store columns; decoded grammars expose public identities.
+    let (index_to_symbol, _) = parse_table::decode_symbol_maps(lang, lang.symbol_count as usize);
+    symbols::remap_grammar_symbols(&mut grammar, &index_to_symbol);
+    grammar
 }
 
 pub(super) fn decode_rules(lang: &TSLanguage) -> Vec<ParseRule> {

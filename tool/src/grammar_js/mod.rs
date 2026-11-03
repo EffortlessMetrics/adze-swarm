@@ -57,6 +57,9 @@ pub struct GrammarJs {
     /// Explicit start symbol from `#[adze::language]` or imported grammar metadata.
     #[serde(default)]
     pub start_symbol: Option<String>,
+    /// Explicit producer-owned document root, if different from analysis start.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document_start_symbol: Option<String>,
 
     /// Pattern/string rule to backing-token relations, declared or import-inferred.
     #[serde(default)]
@@ -169,6 +172,7 @@ impl GrammarJs {
             rules: IndexMap::new(),
             supertypes: Vec::new(),
             start_symbol: None,
+            document_start_symbol: None,
             wrapper_token_relations: IndexMap::new(),
             inferred_wrapper_rules: IndexSet::new(),
         }

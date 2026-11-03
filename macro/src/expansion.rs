@@ -1010,7 +1010,7 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
             #[doc = #root_type_docstr]
             /// instance containing the parsed structured data.
             pub fn parse(input: &str) -> core::result::Result<#root_type, Vec<::adze::errors::ParseError>> {
-                ::adze::__private::parse::<#root_type>(input, || language())
+                ::adze::__private::parse_with_identity::<#root_type>(input, language(), Some(&START_IDENTITY))
             }
         });
     } else {
