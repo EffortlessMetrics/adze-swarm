@@ -465,85 +465,6 @@ fn restore_action(signal: i32, action: &libc::sigaction) -> io::Result<()> {
     }
 }
 
-/// Only compiled into test harnesses. Every operation used by the actual
-/// signal callback is atomic or async-signal-safe; no mutex/condvar rendezvous.
-#[cfg(test)]
-pub(crate) mod signal_probe {
-    use std::io;
-    use std::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize, Ordering};
-    use std::time::{Duration, Instant};
-
-    pub(crate) static PAUSE_BEFORE_RECORD: AtomicBool = AtomicBool::new(false);
-    pub(crate) static ENTERED: AtomicBool = AtomicBool::new(false);
-    pub(crate) static RELEASE: AtomicBool = AtomicBool::new(false);
-    pub(crate) static PAUSE_BEFORE_RELAY: AtomicBool = AtomicBool::new(false);
-    pub(crate) static RELAY_ENTERED: AtomicBool = AtomicBool::new(false);
-    pub(crate) static RELAY_RELEASE: AtomicBool = AtomicBool::new(false);
-    pub(crate) static FINISH_COUNT: AtomicUsize = AtomicUsize::new(0);
-    pub(crate) static FAIL_RESTORE: AtomicI32 = AtomicI32::new(0);
-    pub(crate) static PAUSE_INSTALL: AtomicBool = AtomicBool::new(false);
-    pub(crate) static INSTALL_ENTERED: AtomicBool = AtomicBool::new(false);
-    pub(crate) static INSTALL_RELEASE: AtomicBool = AtomicBool::new(false);
-    pub(crate) static FAIL_INSTALL: AtomicBool = AtomicBool::new(false);
-    pub(crate) static PANIC_INSTALL: AtomicBool = AtomicBool::new(false);
-
-    pub(super) fn before_second_install() -> io::Result<()> {
-        if !PAUSE_INSTALL.swap(false, Ordering::AcqRel) {
-            return Ok(());
-        }
-        INSTALL_ENTERED.store(true, Ordering::Release);
-        let until = Instant::now() + Duration::from_secs(4);
-        while !INSTALL_RELEASE.load(Ordering::Acquire) {
-            assert!(
-                Instant::now() < until,
-                "signal fixture install rendezvous expired"
-            );
-            std::thread::sleep(Duration::from_millis(1));
-        }
-        assert!(
-            !PANIC_INSTALL.swap(false, Ordering::AcqRel),
-            "deliberate signal fixture partial-install panic"
-        );
-        if FAIL_INSTALL.swap(false, Ordering::AcqRel) {
-            return Err(io::Error::other(
-                "deliberate signal fixture partial-install failure",
-            ));
-        }
-        Ok(())
-    }
-
-    pub(super) fn before_record() {
-        pause(&PAUSE_BEFORE_RECORD, &ENTERED, &RELEASE);
-    }
-
-    pub(super) fn before_relay() {
-        pause(&PAUSE_BEFORE_RELAY, &RELAY_ENTERED, &RELAY_RELEASE);
-    }
-
-    fn pause(armed: &AtomicBool, entered: &AtomicBool, release: &AtomicBool) {
-        if !armed.swap(false, Ordering::AcqRel) {
-            return;
-        }
-        // SAFETY: clock_gettime initializes this valid timespec, and is
-        // async-signal-safe. Failure has an unmistakable fixture-only status.
-        let mut start: libc::timespec = unsafe { std::mem::zeroed() };
-        if unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut start) } != 0 {
-            unsafe { libc::_exit(220) };
-        }
-        entered.store(true, Ordering::Release);
-        while !release.load(Ordering::Acquire) {
-            let mut now: libc::timespec = unsafe { std::mem::zeroed() };
-            if unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut now) } != 0
-                || now.tv_sec.saturating_sub(start.tv_sec) >= 5
-            {
-                // An outer controller also has a finite process watchdog.
-                unsafe { libc::_exit(221) };
-            }
-            std::hint::spin_loop();
-        }
-    }
-}
-
 fn read_action(signal: i32) -> io::Result<libc::sigaction> {
     // SAFETY: sigaction initializes the pointed-to object; a null action only
     // reads the current disposition and does not install one.
@@ -958,6 +879,85 @@ pub(crate) fn capture(
             error.cancellation = signal;
             error.restore_error = restore_error;
             Err(error)
+        }
+    }
+}
+
+/// Only compiled into test harnesses. Every operation used by the actual
+/// signal callback is atomic or async-signal-safe; no mutex/condvar rendezvous.
+#[cfg(test)]
+pub(crate) mod signal_probe {
+    use std::io;
+    use std::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize, Ordering};
+    use std::time::{Duration, Instant};
+
+    pub(crate) static PAUSE_BEFORE_RECORD: AtomicBool = AtomicBool::new(false);
+    pub(crate) static ENTERED: AtomicBool = AtomicBool::new(false);
+    pub(crate) static RELEASE: AtomicBool = AtomicBool::new(false);
+    pub(crate) static PAUSE_BEFORE_RELAY: AtomicBool = AtomicBool::new(false);
+    pub(crate) static RELAY_ENTERED: AtomicBool = AtomicBool::new(false);
+    pub(crate) static RELAY_RELEASE: AtomicBool = AtomicBool::new(false);
+    pub(crate) static FINISH_COUNT: AtomicUsize = AtomicUsize::new(0);
+    pub(crate) static FAIL_RESTORE: AtomicI32 = AtomicI32::new(0);
+    pub(crate) static PAUSE_INSTALL: AtomicBool = AtomicBool::new(false);
+    pub(crate) static INSTALL_ENTERED: AtomicBool = AtomicBool::new(false);
+    pub(crate) static INSTALL_RELEASE: AtomicBool = AtomicBool::new(false);
+    pub(crate) static FAIL_INSTALL: AtomicBool = AtomicBool::new(false);
+    pub(crate) static PANIC_INSTALL: AtomicBool = AtomicBool::new(false);
+
+    pub(super) fn before_second_install() -> io::Result<()> {
+        if !PAUSE_INSTALL.swap(false, Ordering::AcqRel) {
+            return Ok(());
+        }
+        INSTALL_ENTERED.store(true, Ordering::Release);
+        let until = Instant::now() + Duration::from_secs(4);
+        while !INSTALL_RELEASE.load(Ordering::Acquire) {
+            assert!(
+                Instant::now() < until,
+                "signal fixture install rendezvous expired"
+            );
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert!(
+            !PANIC_INSTALL.swap(false, Ordering::AcqRel),
+            "deliberate signal fixture partial-install panic"
+        );
+        if FAIL_INSTALL.swap(false, Ordering::AcqRel) {
+            return Err(io::Error::other(
+                "deliberate signal fixture partial-install failure",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn before_record() {
+        pause(&PAUSE_BEFORE_RECORD, &ENTERED, &RELEASE);
+    }
+
+    pub(super) fn before_relay() {
+        pause(&PAUSE_BEFORE_RELAY, &RELAY_ENTERED, &RELAY_RELEASE);
+    }
+
+    fn pause(armed: &AtomicBool, entered: &AtomicBool, release: &AtomicBool) {
+        if !armed.swap(false, Ordering::AcqRel) {
+            return;
+        }
+        // SAFETY: clock_gettime initializes this valid timespec, and is
+        // async-signal-safe. Failure has an unmistakable fixture-only status.
+        let mut start: libc::timespec = unsafe { std::mem::zeroed() };
+        if unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut start) } != 0 {
+            unsafe { libc::_exit(220) };
+        }
+        entered.store(true, Ordering::Release);
+        while !release.load(Ordering::Acquire) {
+            let mut now: libc::timespec = unsafe { std::mem::zeroed() };
+            if unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut now) } != 0
+                || now.tv_sec.saturating_sub(start.tv_sec) >= 5
+            {
+                // An outer controller also has a finite process watchdog.
+                unsafe { libc::_exit(221) };
+            }
+            std::hint::spin_loop();
         }
     }
 }

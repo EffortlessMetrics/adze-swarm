@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "reviewed_source_packet": "Hosted formatting of H3c124c8f signal source at Pdcab4f560857146ed1943242d236f7303ed824ec, formatter job126141602260",
+  "reviewed_source_packet": "Exact cfg(test) signal_probe relocation after native G eeec045ba56b14eec6d7f68da6668d8f180ad882 Clippy job126155440646",
   "green_sources": {
     "cli/src/runner_process.rs": {
-      "blob": "62f52349c2f1e6010b6e5dfddff81eaba75992eb",
-      "sha256": "fcaaba81952baca0f05c2afd4f2aa4fa7b43277dc5b9c29ddb491840b60b38fe"
+      "blob": "0684fa8a8a539477f092c9885bdf114ab3bf0a16",
+      "sha256": "b3cff45e802a77253ec621b29d7a1bbea0d42eeffeed413749cd3d62685586ed"
     },
     "cli/tests/runner_linux_signal_contract.rs": {
       "blob": "cd4e36a7ac903578ccf4a900f6b9c3a52351b3c5",
@@ -16,8 +16,8 @@
     }
   },
   "red_module": {
-    "blob": "b77029d65884240bed98fe11e88471a561699487",
-    "sha256": "4c789a2aca1134aac3ddda7014d5025b3aa48c4970dd96c09ef07a47f2507ac6"
+    "blob": "6870bd6dc9af68570ed61dd9d568df42973456d9",
+    "sha256": "546abdf437844c3731911ef8757b1afce4f179abf4bea4eac2095b2e1ba806b3"
   },
   "red_patch_sha256": "e6c5286e516a223eb3507f05c64799b8186c88230c0ec59f3b6ff926d4074077",
   "green": {
