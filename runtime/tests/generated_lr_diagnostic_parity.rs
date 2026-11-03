@@ -48,7 +48,10 @@ fn assert_diagnostic_views<T: adze::Extract<T>>(
             if facts.found == "end of input" {
                 assert!(matches!(actual.reason, ParseErrorReason::UnexpectedEof));
             } else {
-                assert!(matches!(actual.reason, ParseErrorReason::UnexpectedToken(_)));
+                assert!(matches!(
+                    actual.reason,
+                    ParseErrorReason::UnexpectedToken(_)
+                ));
             }
             let points = actual.source_span(source.as_bytes());
             assert_eq!(
@@ -60,12 +63,22 @@ fn assert_diagnostic_views<T: adze::Extract<T>>(
             );
             assert_eq!(
                 (points.end.line, points.end.column),
-                (facts.end_point.0 as usize + 1, facts.end_point.1 as usize + 1)
+                (
+                    facts.end_point.0 as usize + 1,
+                    facts.end_point.1 as usize + 1
+                )
             );
         }
-        assert_eq!(diagnostic.byte_span(), facts.span, "{source:?}, error {index}");
+        assert_eq!(
+            diagnostic.byte_span(),
+            facts.span,
+            "{source:?}, error {index}"
+        );
         assert_eq!(diagnostic.found.as_deref(), Some(facts.found), "{source:?}");
-        assert_eq!(diagnostic.expected, facts.expected, "{source:?}, error {index}");
+        assert_eq!(
+            diagnostic.expected, facts.expected,
+            "{source:?}, error {index}"
+        );
         assert_eq!(
             (
                 diagnostic.point_range.start.row,
@@ -230,11 +243,17 @@ fn generated_lr_genuine_eof_and_multiline_utf8_facts_remain_distinct() {
 
         // Successive generated calls, not a claim of persistent-parser reuse.
         let expected = Expr::Add(Box::new(Expr::Number(1)), (), Box::new(Expr::Number(2)));
-        assert_eq!(grammar::parse("1 + 2").expect("clean typed parse"), expected);
+        assert_eq!(
+            grammar::parse("1 + 2").expect("clean typed parse"),
+            expected
+        );
         let clean = grammar::parse_document("1 + 2").expect("clean document");
         assert_eq!(clean.outcome(), ParseOutcome::Complete);
         assert!(clean.diagnostics().is_empty());
-        assert_eq!(clean.ast::<Expr>().expect("clean typed projection"), expected);
+        assert_eq!(
+            clean.ast::<Expr>().expect("clean typed projection"),
+            expected
+        );
     }
 }
 
