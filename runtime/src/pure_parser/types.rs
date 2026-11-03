@@ -64,7 +64,11 @@ pub struct ParseResult {
 /// classification flags. Use the accessor methods (e.g., [`kind`](Self::kind),
 /// [`children`](Self::children), [`utf8_text`](Self::utf8_text)) rather than
 /// accessing fields directly.
-#[derive(Debug, Clone)]
+///
+/// Cloning, dropping, and [`has_error`](Self::has_error) traverse iteratively.
+/// Because this Unstable native type implements `Drop`, take owned children
+/// with `std::mem::take(&mut node.children)` instead of moving the field out.
+#[derive(Debug)]
 pub struct ParsedNode {
     /// Numeric symbol identifier from the grammar.
     pub symbol: TSSymbol,
@@ -89,6 +93,54 @@ pub struct ParsedNode {
     /// Optional field identifier for this node within its parent.
     pub field_id: Option<u16>,
     pub(crate) language: Option<*const TSLanguage>,
+}
+
+impl Clone for ParsedNode {
+    fn clone(&self) -> Self {
+        // Each frame builds the same ordered children as the derived clone,
+        // without using the call stack for a long reduction chain.
+        let mut frames = vec![(self, Vec::with_capacity(self.children.len()))];
+        loop {
+            let (node, child_index) = {
+                let (node, children) = frames.last().expect("root frame exists");
+                (*node, children.len())
+            };
+            if let Some(child) = node.children.get(child_index) {
+                frames.push((child, Vec::with_capacity(child.children.len())));
+                continue;
+            }
+            let (node, children) = frames.pop().expect("completed frame exists");
+            let cloned = Self {
+                symbol: node.symbol,
+                children,
+                start_byte: node.start_byte,
+                end_byte: node.end_byte,
+                start_point: node.start_point,
+                end_point: node.end_point,
+                is_extra: node.is_extra,
+                is_error: node.is_error,
+                is_missing: node.is_missing,
+                is_named: node.is_named,
+                field_id: node.field_id,
+                language: node.language,
+            };
+            if let Some((_, siblings)) = frames.last_mut() {
+                siblings.push(cloned);
+            } else {
+                return cloned;
+            }
+        }
+    }
+}
+
+impl Drop for ParsedNode {
+    fn drop(&mut self) {
+        let mut pending = std::mem::take(&mut self.children);
+        while let Some(mut node) = pending.pop() {
+            pending.append(&mut node.children);
+            // `node` now owns no descendants, so its drop has constant depth.
+        }
+    }
 }
 
 /// Builder for constructing [`ParsedNode`] values outside the parser.
@@ -205,6 +257,13 @@ impl ParsedNodeBuilder {
 /// A parse error at a specific position in the source.
 #[derive(Debug, Clone)]
 pub struct ParseError {
+    /// Explicit parser-work refusal, when this is not an input-token error.
+    ///
+    /// The outer position/point are the bounded checkpoint. `expected` and
+    /// `found` do not describe an unexpected token when this field is `Some`.
+    /// `None` preserves the older native error classification; it is not a
+    /// promise that every other infrastructure failure has been classified.
+    pub work_limit: Option<crate::errors::ParserWorkLimit>,
     /// Byte offset where the error occurred.
     pub position: usize,
     /// Row/column position of the error.

@@ -1816,10 +1816,27 @@ pub mod errors {
     // Note: All tree_sitter types are accessed via crate::tree_sitter::
     // The crate-level re-exports handle the feature-gated backend selection.
 
+    /// The deterministic LR parser exhausted its credit without admitted progress.
+    ///
+    /// One unit is an LR loop body. Credit resets only when the maximum consumed
+    /// input position advances or the semantic stack reaches a new minimum depth
+    /// at that same input frontier. The payload does not claim an infinite loop was
+    /// proved: a sufficiently long same-depth unary reduction chain may also be
+    /// refused. The containing error carries a zero-width source checkpoint.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct ParserWorkLimit {
+        /// Maximum loop bodies admitted between the declared progress events.
+        pub limit: usize,
+        /// Bodies completed since progress; excludes the next, refused body.
+        pub completed_iterations: usize,
+    }
+
     #[derive(Debug)]
     /// An explanation for an error that occurred during parsing.
     #[non_exhaustive]
     pub enum ParseErrorReason {
+        /// Parsing stopped at a work limit rather than an unexpected input token.
+        ParserWorkLimit(ParserWorkLimit),
         /// Generated native language identity failed before parsing.
         #[cfg(feature = "pure-rust")]
         InvalidLanguageIdentity(crate::generated_identity::NativeIdentityError),
@@ -1935,6 +1952,11 @@ pub mod errors {
     impl std::fmt::Display for ParseErrorReason {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
+                ParseErrorReason::ParserWorkLimit(limit) => write!(
+                    f,
+                    "parser work limit reached after {} LR iterations without input-frontier or stack-minimum progress (limit {})",
+                    limit.completed_iterations, limit.limit
+                ),
                 #[cfg(feature = "pure-rust")]
                 ParseErrorReason::InvalidLanguageIdentity(error) => {
                     std::fmt::Display::fmt(error, f)

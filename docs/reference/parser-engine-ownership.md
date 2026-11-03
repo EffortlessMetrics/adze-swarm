@@ -76,9 +76,58 @@ retirement work. The following boundaries remain:
 - `runtime2` remains an experimental, dev-only proving ground. Its non-claim
   above remains in effect; this retirement does not promote it.
 
+## Deterministic LR work refusal and lifecycle (#1211)
+
+The deterministic engine admits at most 10,000 LR loop bodies without a
+declared progress event. Credit resets when the maximum consumed input
+frontier strictly advances, or when the semantic LR stack reaches a strictly
+smaller minimum at that same frontier. A rewind cannot earn credit, and
+temporary stack growth does not raise the saved minimum. Progress made by
+the last admitted body is observed before deciding whether to refuse the next
+one. The counter measures loop bodies, not lexer calls or elapsed time.
+
+This permits long inputs and finite EOF stack unwinding without increasing
+the threshold. It remains a bounded policy: more than 10,000 same-depth unary
+reductions can be refused even for a finite valid derivation. Refusal does not
+prove an infinite loop. For a frontier phase starting at depth d, the minimum
+can decrease at most d times, so at most 10,000 × (d + 1) bodies are admitted
+before another frontier advance, completion, or refusal. The frontier is
+bounded by source length. This is not a wall-clock or allocation bound and
+cannot bound arbitrary code inside an external scanner callback.
+
+Native refusal carries `pure_parser::ParseError.work_limit = Some(...)`.
+The public `ParseErrorReason::ParserWorkLimit` carries the same limit and
+completed-body count; its source span is a bounded zero-width checkpoint,
+with no alleged unexpected token or expected-token list. Text projections also
+floor an interior UTF-8 offset to a character boundary. Typed and document
+entrypoints preserve all native errors in order. If any native work refusal
+occurred, `parse_document` returns a structured hard `Err` before constructing
+a syntax document. No engine retry, token-ID inference, or display-text
+classification is used. Other historical native infrastructure-error classes
+are outside this narrow addition.
+
+The newly admitted tree depth is handled in the same native representations:
+native tree conversion, `ParsedNode::clone`, `has_error`, and normal disposal
+are iterative, as are document adapter conversion and disposal of its temporary
+recursive input. `AdzeDocument` retains its existing flat canonical records
+(#1068). This does not qualify arbitrary recursive user ASTs, `Debug` output,
+visitors, or the experimental incremental adapter's old-tree/edit traversal.
+
+The focused default-profile oracle reconstructs the published 263/264/1,000
+Python-simple assignments and checks every value and terminal span. Native
+unit controls cover a 12,000-token EOF unwind, real epsilon and visible unary
+cycles, cleanup/reuse, and typed/document hard refusal. These controls are
+correctness prerequisites for any later #869 measurements; a refused parse
+must not be used as a successful parsing benchmark.
+
 ## Proof
 
 ```bash
+cargo test --locked -p adze --no-default-features --features pure-rust --test generated_lr_work_budget -- --nocapture
+cargo test --locked -p adze --no-default-features --features pure-rust --lib pure_parser::work_budget_tests:: -- --nocapture
+cargo test --locked -p adze --no-default-features --features pure-rust --lib pure_parser::progress::tests:: -- --nocapture
+cargo test --locked -p adze --no-default-features --features pure-rust,glr --lib pure_parser::work_budget_tests:: -- --nocapture
+cargo test --locked -p adze --no-default-features --features pure-rust,glr --lib pure_parser::progress::tests:: -- --nocapture
 cargo test -p adze --features "pure-rust,glr" parser_selection -- --nocapture
 cargo test -p adze --features "pure-rust,glr" --test generated_parse_errors -- --nocapture
 cargo test -p adze --features "pure-rust,glr,runtime-e2e,serialization,query" --test gate_a_failure_stack -- --nocapture

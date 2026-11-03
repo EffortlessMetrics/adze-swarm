@@ -163,6 +163,7 @@ fn parser_language_starts_none() {
 #[test]
 fn parse_error_debug() {
     let err = ParseError {
+        work_limit: None,
         position: 5,
         point: Point { row: 0, column: 5 },
         expected: vec![1, 2, 3],
@@ -175,6 +176,7 @@ fn parse_error_debug() {
 #[test]
 fn parse_error_clone() {
     let err = ParseError {
+        work_limit: None,
         position: 10,
         point: Point { row: 1, column: 0 },
         expected: vec![5],
@@ -189,6 +191,7 @@ fn parse_error_clone() {
 #[test]
 fn parse_error_empty_expected() {
     let err = ParseError {
+        work_limit: None,
         position: 0,
         point: Point { row: 0, column: 0 },
         expected: vec![],
@@ -200,6 +203,7 @@ fn parse_error_empty_expected() {
 #[test]
 fn parse_error_multiple_expected() {
     let err = ParseError {
+        work_limit: None,
         position: 100,
         point: Point { row: 5, column: 10 },
         expected: vec![1, 2, 3, 4, 5],

@@ -456,6 +456,7 @@ fn test_parse_error_fields_accessible() {
 #[test]
 fn test_pure_parse_error_debug() {
     let err = adze::pure_parser::ParseError {
+        work_limit: None,
         position: 5,
         point: pt(0, 5),
         expected: vec![1, 2],
@@ -469,6 +470,7 @@ fn test_pure_parse_error_debug() {
 #[test]
 fn test_pure_parse_error_clone() {
     let err = adze::pure_parser::ParseError {
+        work_limit: None,
         position: 0,
         point: pt(0, 0),
         expected: vec![1],
