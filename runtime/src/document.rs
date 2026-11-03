@@ -2987,16 +2987,18 @@ mod tests {
     fn schema_test_document(root: ParseNode, source: &str) -> AdzeDocument {
         let mut grammar = schema_test_grammar();
         grammar.try_normalize().expect("schema fixture normalizes");
-        let mut table = ParseTable::default();
         // Table order fixes public field ids: FieldId(1) -> "value",
         // FieldId(2) -> "items". "bogus" stays table-known but
         // schema-unknown, so it exercises the unknown-field rule without
         // inventing a parallel grammar fixture.
-        table.field_names = vec![
-            "value".to_string(),
-            "items".to_string(),
-            "bogus".to_string(),
-        ];
+        let table = ParseTable {
+            field_names: vec![
+                "value".to_string(),
+                "items".to_string(),
+                "bogus".to_string(),
+            ],
+            ..Default::default()
+        };
         AdzeDocument::from_parse_result(source, root, 0, "schema-fixture", &grammar, &table)
     }
 
