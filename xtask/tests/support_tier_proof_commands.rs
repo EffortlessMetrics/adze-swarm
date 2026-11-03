@@ -15,10 +15,10 @@
 //! without `--test`/`--lib` need compiled `cargo test --no-run` + `-- --list`
 //! enumeration, and flags the executed runner (`xtask/src/executed_proof.rs`)
 //! rejects are rejected here via the shared `xtask::cargo_flags` table.
-//! `UNSUPPORTED` is a quarantine, not proof. The five package-wide rows with
-//! compiled enumeration proof (`ENUMERATED_PACKAGE_WIDE_ROWS`, byte-identical
-//! to `xtask/tests/package_wide_enumeration.rs`) are accepted as
-//! supported-with-enumeration-proof.
+//! `UNSUPPORTED` is a quarantine, not proof. Historical enumeration and a
+//! matching command string do not establish selection on the current source.
+//! Package-wide rows remain quarantined here; actual compiled selection and
+//! execution belong to the executed proof runner, not this source screen.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -104,10 +104,11 @@ struct ParsedCommand {
 /// `-p/--package`, `--manifest-path`, `--features`, `--test`, `--lib`
 /// and `--profile` select a supported compiled set. `--doc` needs an
 /// explicit doctest adapter; every other target/profile selector or unknown
-/// `-`/`--*` token is rejected, never silently dropped. Post-`--` harness
-/// passthroughs other than `--exact` (e.g. `--nocapture`) are deliberately
-/// still ignored: they do not change selection, while the executed runner is
-/// stricter. That divergence is a known unification gap (filed separately).
+/// `-`/`--*` token is rejected, never silently dropped. After `--`, only
+/// `--exact` and the display-only `--nocapture` are screened here. Every
+/// other argument is quarantined: ignored/skip/list options and extra filters
+/// must not silently change selection or replace execution with enumeration.
+/// This static screen is not a compiled-selection or execution receipt.
 fn parse_command(command: &str) -> Result<ParsedCommand, String> {
     let tokens = tokenize(command);
     let mut parsed = ParsedCommand::default();
@@ -116,8 +117,15 @@ fn parse_command(command: &str) -> Result<ParsedCommand, String> {
         match token.as_str() {
             "--" => {
                 for rest in iter.by_ref() {
-                    if rest == "--exact" {
-                        parsed.exact = true;
+                    match rest.as_str() {
+                        "--exact" => parsed.exact = true,
+                        "--nocapture" => {}
+                        _ => {
+                            return Err(format!(
+                                "UNSUPPORTED[flag]: unmodeled test-harness argument {rest}; \
+                                only --exact and --nocapture are screened statically"
+                            ));
+                        }
                     }
                 }
                 break;
@@ -598,13 +606,9 @@ fn validate_command(root: &Path, command: &str) -> Result<(), String> {
     } else {
         // Package-wide rows (no --test/--lib scope): a bare filter or no
         // filter at all proves nothing statically (#1058 item 1). Mark
-        // Unsupported — explicit and counted — instead of passing vacuously,
-        // except for rows with compiled enumeration proof (byte-identical to
-        // ENUMERATED_PACKAGE_WIDE_ROWS): the real Cargo harness already proved
-        // >=1 selected test there.
-        if ENUMERATED_PACKAGE_WIDE_ROWS.contains(&command) {
-            return Ok(());
-        }
+        // Unsupported — explicit and counted — instead of passing vacuously.
+        // A historical enumeration or matching command string cannot prove
+        // the selected methods still exist on this candidate.
         return Err(
             "UNSUPPORTED[package-wide]: package-wide selection without --test/--lib scope; \
             compiled `cargo test --no-run` + `-- --list` enumeration with >=1 selected test required"
@@ -615,14 +619,10 @@ fn validate_command(root: &Path, command: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Package-wide rows with compiled enumeration proof, byte-identical to
-/// `xtask/tests/package_wide_enumeration.rs::ENUMERATED_ROWS` (that file is a
-/// separate test binary, so the strings are duplicated here deliberately).
-/// The real Cargo harness proved >=1 selected test for each, so the static
-/// validator accepts them as supported-with-enumeration-proof instead of
-/// quarantining. Exact match only: any ledger edit drops the row back to
-/// UNSUPPORTED[package-wide] until the enumeration lane re-proves it.
-const ENUMERATED_PACKAGE_WIDE_ROWS: &[&str] = &[
+/// Historical false-accept inputs retained only as regression fixtures.
+/// This is not an admission list or a copy of the live enumeration inventory.
+/// No validation branch consults these strings to authorize selection.
+const FORMER_ALLOWLIST_ROWS: &[&str] = &[
     "cargo test -p downstream-demo -- --nocapture",
     "cargo test -p adze-python test_python_language_exists -- --exact --nocapture",
     "cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_matrix_returns_diagnostic_document --features pure-rust -- --exact --nocapture",
@@ -635,7 +635,7 @@ const ENUMERATED_PACKAGE_WIDE_ROWS: &[&str] = &[
 /// ledger changes, update these counts deliberately — a mismatch fails
 /// loudly with the full row list.
 const EXPECTED_UNSUPPORTED: &[(&str, usize)] = &[
-    ("package-wide", 34),
+    ("package-wide", 39),
     ("flag", 4),
     ("harness", 1),
     ("cfg", 0),
@@ -907,26 +907,102 @@ fn test_validator_marks_cfg_disabled_targets_unsupported() {
 }
 
 #[test]
-fn test_enumerated_package_wide_rows_are_supported_with_enumeration_proof() {
-    // The 5 smallest package-wide rows carry compiled enumeration proof
-    // (xtask/tests/package_wide_enumeration.rs): each must be byte-identical
-    // in the ledger and accepted by the static validator.
+fn test_historical_enumeration_does_not_lift_package_wide_quarantine() {
     let root = workspace_root();
     let markdown = std::fs::read_to_string(root.join("docs/status/SUPPORT_TIERS.md"))
         .expect("read SUPPORT_TIERS.md");
-    assert_eq!(
-        ENUMERATED_PACKAGE_WIDE_ROWS.len(),
-        5,
-        "advisory scope is exactly the 5 smallest package-wide rows"
-    );
-    for command in ENUMERATED_PACKAGE_WIDE_ROWS {
+    assert_eq!(FORMER_ALLOWLIST_ROWS.len(), 5);
+    for command in FORMER_ALLOWLIST_ROWS {
         assert!(
             markdown.contains(*command),
-            "enumerated row must be byte-identical in the ledger: {command}"
+            "missing regression row: {command}"
         );
-        validate_command(&root, command)
-            .unwrap_or_else(|error| panic!("enumerated row must be supported: {command}: {error}"));
+        let error = validate_command(&root, command)
+            .expect_err("a command string is not current-candidate compiled proof");
+        assert!(
+            error.starts_with("UNSUPPORTED[package-wide]"),
+            "{command}: {error}"
+        );
     }
+}
+
+#[test]
+fn test_unchanged_package_command_stays_quarantined_when_source_changes() {
+    // Preserve the exact formerly allowlisted command while the source moves
+    // through present, cfg-disabled and removed test states. This checks the
+    // static refusal boundary; it does not claim to compile these fixtures.
+    let root = fixture_tree(
+        "package-source-drift",
+        "",
+        &[(
+            "samples/downstream-demo/Cargo.toml",
+            "[package]\nname = \"downstream-demo\"\nversion = \"0.0.0\"\n",
+        )],
+    );
+    let source_path = root.join("samples/downstream-demo/src/lib.rs");
+    std::fs::create_dir_all(source_path.parent().expect("source parent"))
+        .expect("create source directory");
+    let command = "cargo test -p downstream-demo -- --nocapture";
+    for source in [
+        "#[test]\nfn previously_listed() {}\n",
+        "#[cfg(any())]\n#[test]\nfn previously_listed() {}\n",
+        "// The previously listed test has been removed.\n",
+    ] {
+        std::fs::write(&source_path, source).expect("write changed source");
+        let error = validate_command(&root, command)
+            .expect_err("unchanged argv must not authorize changed source");
+        assert!(error.starts_with("UNSUPPORTED[package-wide]"), "{error}");
+    }
+    std::fs::remove_dir_all(&root).expect("remove owned fixture");
+}
+
+#[test]
+fn test_validator_rejects_unmodeled_harness_arguments() {
+    // These probes stop during parsing, before any source read or child run.
+    for suffix in [
+        "--ignored",
+        "--include-ignored",
+        "--skip selected",
+        "--skip=selected",
+        "--list",
+        "--bench",
+        "--test",
+        "--exclude-should-panic",
+        "--format json",
+        "--format=json",
+        "--test-threads=1",
+        "--audit-bogus-harness-flag",
+        "another_filter",
+    ] {
+        let command = format!(
+            "cargo test -p xtask --test picked selected -- --exact --nocapture {suffix}"
+        );
+        let error = parse_command(&command)
+            .expect_err("unmodeled harness arguments must never be silently dropped");
+        assert!(error.starts_with("UNSUPPORTED[flag]"), "{suffix}: {error}");
+        assert!(error.contains("test-harness argument"), "{suffix}: {error}");
+    }
+}
+
+#[test]
+fn test_validator_preserves_supported_harness_arguments() {
+    for (suffix, exact) in [
+        ("--exact --nocapture", true),
+        ("--nocapture --exact", true),
+        ("--exact", true),
+        ("--nocapture", false),
+    ] {
+        let parsed = parse_command(&format!(
+            "cargo test -p xtask --test picked selected -- {suffix}"
+        ))
+        .expect("supported static harness options must remain accepted");
+        assert_eq!(parsed.exact, exact);
+        assert_eq!(parsed.filters, vec!["selected".to_string()]);
+        assert_eq!(parsed.test_target.as_deref(), Some("picked"));
+    }
+    let error = parse_command("cargo test -p xtask --test picked -- --exact --nocapture")
+        .expect_err("--exact still requires a named filter");
+    assert!(error.contains("without a test name filter"), "{error}");
 }
 
 #[test]

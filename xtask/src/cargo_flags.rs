@@ -1,23 +1,18 @@
-//! Shared `cargo test` flag table (#1058 unification).
+//! Shared `cargo test` flag classifier for static proof screening (#1058).
 //!
-//! Canonical list of the `cargo test` flags the proof tooling treats as
-//! selecting a supported compiled set. This mirrors the table embedded in
-//! `executed_proof.rs` (the executed runner owns its inline table; that file
-//! is read-only for this slice, so agreement between this module and the
-//! runner is pinned by
+//! This mirrors the discrete flag table embedded in `executed_proof.rs`.
+//! The executed runner still owns its parser and inline table; agreement for
+//! these discrete forms is pinned by
 //! `test_shared_flag_table_agrees_with_executed_runner` in
-//! `xtask/tests/support_tier_proof_commands.rs` until the runner itself
-//! imports this module).
+//! `xtask/tests/support_tier_proof_commands.rs`. This is not yet one shared
+//! parser, nor does recognizing a flag establish compiled selection.
 //!
-//! Known intentional gap (filed separately): the executed runner additionally
-//! accepts `--flag=value` forms of the supported value flags below
-//! (`--features=`, `--profile=`, `--package=`, `--manifest-path=`,
-//! `--test=`), while the static validator conservatively rejects every
-//! unknown `-`/`--*` token. That is the safe direction (quarantine, never
-//! false proof). Post-`--` harness passthroughs other than `--exact` are a
-//! second known gap owned by the same follow-up: the static validator ignores
-//! them (they do not change selection) while the executed runner rejects
-//! them.
+//! The executed runner additionally accepts `--flag=value` forms of the
+//! supported value flags below. The static validator conservatively rejects
+//! unknown Cargo tokens. After `--`, the static validator screens only
+//! `--exact` and display-only `--nocapture`; all other harness arguments are
+//! quarantined rather than ignored. Neither classification nor historical
+//! enumeration is a current-candidate execution receipt.
 
 /// Human-readable summary of the supported selectors, kept identical to the
 /// executed runner's `UnsupportedFlag` message.
