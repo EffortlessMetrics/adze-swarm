@@ -966,8 +966,7 @@ fn run_static_parse_runner(
     // This branch remains dormant until #1067 proves a complete build identity.
     if let Some(executable) = runner_cache::lookup(&spec) {
         let started = std::time::Instant::now();
-        let output =
-            run_runner_executable(&process, &executable, &input, output_format, &grammar)?;
+        let output = run_runner_executable(&process, &executable, &input, output_format, &grammar)?;
         log::debug!(
             "cached parse runner hit {} in {:?}",
             executable.display(),
@@ -1932,7 +1931,8 @@ mod tests {
         .unwrap();
         std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
         let output =
-            super::run_runner_executable(&process, &executable, &input, "ambiguity-json", &input).unwrap();
+            super::run_runner_executable(&process, &executable, &input, "ambiguity-json", &input)
+                .unwrap();
         assert_eq!(output.text(), payload);
         std::fs::write(
             &executable,
@@ -1940,7 +1940,8 @@ mod tests {
         )
         .unwrap();
         assert!(
-            super::run_runner_executable(&process, &executable, &input, "ambiguity-json", &input).is_err()
+            super::run_runner_executable(&process, &executable, &input, "ambiguity-json", &input)
+                .is_err()
         );
         std::fs::write(
             &executable,
@@ -1949,9 +1950,10 @@ mod tests {
             ),
         )
         .unwrap();
-        let error = super::run_runner_executable(&process, &executable, &input, "ambiguity-json", &input)
-            .err()
-            .unwrap();
+        let error =
+            super::run_runner_executable(&process, &executable, &input, "ambiguity-json", &input)
+                .err()
+                .unwrap();
         assert!(error.to_string().contains("owned failure"));
         assert!(error.to_string().contains("exit status: 7"));
     }

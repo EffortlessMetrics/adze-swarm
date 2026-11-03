@@ -46,8 +46,8 @@ use anyhow::Context;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, TryLockError};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, TryLockError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Reuse the private transport authority; old unframed entries fail validation.
@@ -614,8 +614,12 @@ fn memoized_fingerprint(
     let mut fingerprint = cache
         .try_lock()
         .map_err(|error| match error {
-            TryLockError::WouldBlock => anyhow::anyhow!("rustc fingerprint is already being acquired"),
-            TryLockError::Poisoned(_) => anyhow::anyhow!("rustc fingerprint coordination is poisoned"),
+            TryLockError::WouldBlock => {
+                anyhow::anyhow!("rustc fingerprint is already being acquired")
+            }
+            TryLockError::Poisoned(_) => {
+                anyhow::anyhow!("rustc fingerprint coordination is poisoned")
+            }
         })
         .context(ProcessFailure)?;
     if let Some(value) = &*fingerprint {
@@ -793,10 +797,15 @@ pub(crate) fn build_and_publish(
         ],
         environment: vec![
             ("ADZE_USE_PURE_RUST".into(), "1".into()),
-            ("CARGO_TARGET_DIR".into(), staging.join("target").into_os_string()),
+            (
+                "CARGO_TARGET_DIR".into(),
+                staging.join("target").into_os_string(),
+            ),
         ],
     };
-    let output = process.capture(&invocation).context("cached runner Cargo build")?;
+    let output = process
+        .capture(&invocation)
+        .context("cached runner Cargo build")?;
     if !output.status.success() {
         return Err(anyhow::Error::new(CargoFailed {
             status: output.status,
@@ -1219,8 +1228,7 @@ mod tests {
         );
         std::fs::write(temp.path().join("data.txt"), "this is not Rust!").expect("text");
         std::fs::write(temp.path().join("data.bin"), [255, 0, 128]).expect("binary");
-        let before =
-            candidate_key(&test_spec(&grammar, "grammar")).expect("raw include key");
+        let before = candidate_key(&test_spec(&grammar, "grammar")).expect("raw include key");
         std::fs::write(temp.path().join("data.bin"), [254, 0, 128]).expect("changed binary");
         assert_ne!(
             before,
@@ -1349,8 +1357,7 @@ mod tests {
         let before = candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         // Rewrite identical bytes (mtime changes); then change one byte.
         write_grammar(temp.path(), "grammar.rs", SINGLE);
-        let same_bytes =
-            candidate_key(&test_spec(&grammar, "grammar")).expect("key");
+        let same_bytes = candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         assert_eq!(before, same_bytes, "mtime alone must not change the key");
         write_grammar(temp.path(), "grammar.rs", &format!("{SINGLE}// v2\n"));
         let changed = candidate_key(&test_spec(&grammar, "grammar")).expect("key");
@@ -1379,8 +1386,7 @@ mod tests {
         );
         // Identical layout and bytes share the key (same binary either way).
         std::fs::write(root_b.join("shared.rs"), "pub const V: u32 = 1;\n").expect("align sibling");
-        let key_b_aligned =
-            candidate_key(&test_spec(&grammar_b, "grammar")).expect("key b2");
+        let key_b_aligned = candidate_key(&test_spec(&grammar_b, "grammar")).expect("key b2");
         assert_eq!(key_a, key_b_aligned);
     }
 
@@ -1640,12 +1646,14 @@ mod tests {
 
         let cache = Arc::new(Mutex::new(None));
         let owner = Arc::clone(&cache);
-        assert!(std::thread::spawn(move || {
-            let _held = owner.lock().unwrap();
-            panic!("fixture owner panic poisons only this local mutex");
-        })
-        .join()
-        .is_err());
+        assert!(
+            std::thread::spawn(move || {
+                let _held = owner.lock().unwrap();
+                panic!("fixture owner panic poisons only this local mutex");
+            })
+            .join()
+            .is_err()
+        );
         let error = super::memoized_fingerprint(&cache, || {
             panic!("a poisoned owner must not launch another probe")
         })
@@ -1661,15 +1669,16 @@ mod tests {
         ))
         .unwrap();
         assert!(matches!(result, super::CachedBuild::Unavailable));
-        let Err(unknown) = super::finish_cached_build(Err(anyhow::anyhow!("unknown refusal"))) else {
+        let Err(unknown) = super::finish_cached_build(Err(anyhow::anyhow!("unknown refusal")))
+        else {
             panic!("unknown errors must not become cache fallback")
         };
         assert!(unknown.to_string().contains("unknown refusal"));
-        let Err(process) = super::finish_cached_build(Err(
-            anyhow::anyhow!("fixture process failure")
+        let Err(process) =
+            super::finish_cached_build(Err(anyhow::anyhow!("fixture process failure")
                 .context(super::ProcessFailure)
-                .context(super::CacheStorageFailure)
-        )) else {
+                .context(super::CacheStorageFailure)))
+        else {
             panic!("outer storage context must not consume a process refusal")
         };
         assert!(process.downcast_ref::<super::ProcessFailure>().is_some());

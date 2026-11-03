@@ -88,7 +88,10 @@ fn require<T>(result: anyhow::Result<T>, directory: &Path) -> T {
                 .downcast_ref::<runner_process::CaptureError>()
                 .and_then(runner_process::CaptureError::cancellation)
             {
-                eprintln!("native cache control cancelled; fixture {}: {error:#}", directory.display());
+                eprintln!(
+                    "native cache control cancelled; fixture {}: {error:#}",
+                    directory.display()
+                );
                 runner_process::exit_after_cancellation(signal);
             }
             #[cfg(windows)]
@@ -96,10 +99,16 @@ fn require<T>(result: anyhow::Result<T>, directory: &Path) -> T {
                 .downcast_ref::<runner_windows::CaptureError>()
                 .and_then(runner_windows::CaptureError::cancellation)
             {
-                eprintln!("native cache control cancelled; fixture {}: {error:#}", directory.display());
+                eprintln!(
+                    "native cache control cancelled; fixture {}: {error:#}",
+                    directory.display()
+                );
                 std::process::exit(event.exit_code());
             }
-            panic!("native cache control failed; fixture {}: {error:#}", directory.display());
+            panic!(
+                "native cache control failed; fixture {}: {error:#}",
+                directory.display()
+            );
         }
     }
 }
@@ -122,7 +131,11 @@ fn capture_fixture(
 
 fn native_contract(directory: &Path) {
     let cli = PathBuf::from(env!("CARGO_BIN_EXE_adze"));
-    assert!(cli.is_file(), "Cargo's exact CLI artifact must exist: {}", cli.display());
+    assert!(
+        cli.is_file(),
+        "Cargo's exact CLI artifact must exist: {}",
+        cli.display()
+    );
     eprintln!("native cache bootstrap: {}", cli.display());
     let process = ProcessRunner::new(cli);
     #[cfg(windows)]
@@ -132,8 +145,16 @@ fn native_contract(directory: &Path) {
     // deliberately do not claim to have launched rustc.
     let fingerprint = require(runner_cache::rustc_fingerprint(&process), directory)
         .expect("real rustc must supply a successful fingerprint");
-    assert!(fingerprint.lines().any(|line| line.starts_with("release: ") && line.len() > 9));
-    assert!(fingerprint.lines().any(|line| line.starts_with("host: ") && line.len() > 6));
+    assert!(
+        fingerprint
+            .lines()
+            .any(|line| line.starts_with("release: ") && line.len() > 9)
+    );
+    assert!(
+        fingerprint
+            .lines()
+            .any(|line| line.starts_with("host: ") && line.len() > 6)
+    );
     assert_eq!(
         require(runner_cache::rustc_fingerprint(&process), directory).as_deref(),
         Some(fingerprint.as_str())
@@ -150,11 +171,17 @@ fn native_contract(directory: &Path) {
         build_rs: "fn main() {}".into(),
         main_rs: FIXTURE_MAIN.into(),
     };
-    let key = require(runner_cache::grammar_candidate_key(&spec, &process), directory)
-        .expect("real candidate identity");
+    let key = require(
+        runner_cache::grammar_candidate_key(&spec, &process),
+        directory,
+    )
+    .expect("real candidate identity");
     let root = directory.join("cache");
     std::fs::create_dir(&root).unwrap();
-    let config = runner_cache::CacheConfig { root: root.clone(), max_entries: 2 };
+    let config = runner_cache::CacheConfig {
+        root: root.clone(),
+        max_entries: 2,
+    };
     let staging = runner_cache::claim_staging_dir(&root).expect("owned staging");
     let built = require(
         runner_cache::build_and_publish(&spec, &config, &key, &staging, &process),
@@ -163,9 +190,17 @@ fn native_contract(directory: &Path) {
     let runner_cache::CachedBuild::Ready(executable) = built else {
         panic!("expected owned fixture publication")
     };
-    assert_eq!(executable.extension().and_then(|extension| extension.to_str()), if cfg!(windows) { Some("exe") } else { None });
+    assert_eq!(
+        executable
+            .extension()
+            .and_then(|extension| extension.to_str()),
+        if cfg!(windows) { Some("exe") } else { None }
+    );
     let output = capture_fixture(&process, &executable, Vec::new(), directory);
-    assert!(output.status.success(), "owned executable failed: {output:?}");
+    assert!(
+        output.status.success(),
+        "owned executable failed: {output:?}"
+    );
     assert_eq!(output.stdout, b"owned fixture\n");
     assert!(runner_cache::validate_entry(&root, &key).is_some());
     // Preserve the prior oracle: isolated publication never grants production
@@ -177,16 +212,29 @@ fn native_contract(directory: &Path) {
     ));
 
     assert_eq!(runner_protocol::PROTOCOL_NAME, "adze.static-runner");
-    assert_eq!(runner_protocol::request_token(), "--adze-static-runner-protocol=2");
+    assert_eq!(
+        runner_protocol::request_token(),
+        "--adze-static-runner-protocol=2"
+    );
     let mut framed = capture_fixture(
         &process,
         &executable,
-        vec!["input space λ.txt".into(), "ambiguity-json".into(), runner_protocol::request_token().into()],
+        vec![
+            "input space λ.txt".into(),
+            "ambiguity-json".into(),
+            runner_protocol::request_token().into(),
+        ],
         directory,
     );
-    assert!(framed.status.success(), "framed native fixture failed: {framed:?}");
+    assert!(
+        framed.status.success(),
+        "framed native fixture failed: {framed:?}"
+    );
     assert_eq!(framed.stderr, b"legitimate fixture stderr\n");
-    require(runner_protocol::unframe(&mut framed.stdout, "ambiguity-json"), directory);
+    require(
+        runner_protocol::unframe(&mut framed.stdout, "ambiguity-json"),
+        directory,
+    );
     assert_eq!(framed.stdout, PAYLOAD.as_bytes());
     let failure = capture_fixture(&process, &executable, vec!["--failure".into()], directory);
     assert_eq!(failure.status.code(), Some(37));
@@ -195,24 +243,43 @@ fn native_contract(directory: &Path) {
 
     // NUL is a concrete OS/request setup refusal on both platforms. It must
     // remain typed through caller context and cache fallback classification.
-    let error = process.capture(&RunnerInvocation {
-        program: "refused\0program".into(),
-        args: Vec::new(),
-        environment: Vec::new(),
-    }).expect_err("invalid program must refuse");
+    let error = process
+        .capture(&RunnerInvocation {
+            program: "refused\0program".into(),
+            args: Vec::new(),
+            environment: Vec::new(),
+        })
+        .expect_err("invalid program must refuse");
     assert!(error.downcast_ref::<ProcessFailure>().is_some());
     #[cfg(target_os = "linux")]
-    assert!(error.downcast_ref::<runner_process::CaptureError>().is_some());
+    assert!(
+        error
+            .downcast_ref::<runner_process::CaptureError>()
+            .is_some()
+    );
     #[cfg(windows)]
-    assert!(error.downcast_ref::<runner_windows::CaptureError>().is_some());
-    let Err(error) = runner_cache::finish_cached_build(Err(error.context("cache process caller"))) else {
+    assert!(
+        error
+            .downcast_ref::<runner_windows::CaptureError>()
+            .is_some()
+    );
+    let Err(error) = runner_cache::finish_cached_build(Err(error.context("cache process caller")))
+    else {
         panic!("actual process refusal was swallowed into fallback")
     };
     assert!(error.downcast_ref::<ProcessFailure>().is_some());
     #[cfg(target_os = "linux")]
-    assert!(error.downcast_ref::<runner_process::CaptureError>().is_some());
+    assert!(
+        error
+            .downcast_ref::<runner_process::CaptureError>()
+            .is_some()
+    );
     #[cfg(windows)]
-    assert!(error.downcast_ref::<runner_windows::CaptureError>().is_some());
+    assert!(
+        error
+            .downcast_ref::<runner_windows::CaptureError>()
+            .is_some()
+    );
     save_error(directory, &error);
 
     // Actual Cargo failure remains distinct from framing and cache misses.
@@ -225,24 +292,36 @@ fn native_contract(directory: &Path) {
     let Err(error) = runner_cache::finish_cached_build(outcome) else {
         panic!("actual failed Cargo build became a miss or successful publication")
     };
-    let failed = error.downcast_ref::<runner_cache::CargoFailed>().expect("original Cargo failure");
+    let failed = error
+        .downcast_ref::<runner_cache::CargoFailed>()
+        .expect("original Cargo failure");
     assert!(!failed.status.success());
     assert!(!failed.stderr.is_empty());
     assert!(!bad_staging.join("entry").exists());
     std::fs::write(directory.join("failed-cargo.stdout"), &failed.stdout).unwrap();
     std::fs::write(directory.join("failed-cargo.stderr"), &failed.stderr).unwrap();
-    eprintln!("native cache process/publication controls complete; production reuse remains disabled");
+    eprintln!(
+        "native cache process/publication controls complete; production reuse remains disabled"
+    );
 }
 
 #[test]
 fn test_cache_process_custody_preserves_refusal_and_owned_publication() {
     // One controller owns the only native captures in this target. The shared
     // cache module's other unit tests use independent literal fingerprints.
-    let directory = tempfile::Builder::new().prefix("adze cache native λ ").tempdir().unwrap();
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| native_contract(directory.path())));
+    let directory = tempfile::Builder::new()
+        .prefix("adze cache native λ ")
+        .tempdir()
+        .unwrap();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        native_contract(directory.path())
+    }));
     if let Err(failure) = result {
         let retained = directory.keep();
-        eprintln!("retained failed native cache fixture: {}", retained.display());
+        eprintln!(
+            "retained failed native cache fixture: {}",
+            retained.display()
+        );
         std::panic::resume_unwind(failure);
     }
 }
