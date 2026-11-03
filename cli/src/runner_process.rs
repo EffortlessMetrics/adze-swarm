@@ -256,7 +256,9 @@ impl SignalGuard {
             .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
             .is_err()
         {
-            return Err(io::Error::other("another static runner owns signal handling"));
+            return Err(io::Error::other(
+                "another static runner owns signal handling",
+            ));
         }
         let guard = Self {
             installed: Vec::with_capacity(2),
@@ -706,7 +708,10 @@ fn capture_owned(
 /// Capture one command while preserving its argv, environment and cwd.
 /// Stdin is closed, matching Command::output. Only this boundary's pipes and
 /// process group are changed. Policies may narrow, not enlarge, capture caps.
-pub(crate) fn capture(command: &mut Command, policy: CapturePolicy) -> Result<Output, CaptureError> {
+pub(crate) fn capture(
+    command: &mut Command,
+    policy: CapturePolicy,
+) -> Result<Output, CaptureError> {
     let now = Instant::now();
     let deadline = now.checked_add(policy.total_timeout);
     if policy.stdout_bytes > MAX_STDOUT

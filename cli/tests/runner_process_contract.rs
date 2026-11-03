@@ -205,7 +205,10 @@ fn fixture_controller() {
                 "i=0; while [ \"$i\" -lt 10000 ]; do printf 12345678; printf ABCDEFGH >&2; i=$((i+1)); done",
             );
             let error = runner_process::capture(&mut command, limits).unwrap_err();
-            assert!(matches!(error.cause, CaptureCause::Limit(_, 128)), "{error:?}");
+            assert!(
+                matches!(error.cause, CaptureCause::Limit(_, 128)),
+                "{error:?}"
+            );
             assert!(error.stdout.len() <= 128 && error.stderr.len() <= 128);
             assert!(
                 error.cleanup.group_signal_sent && error.cleanup.leader_reaped,
@@ -241,7 +244,10 @@ fn fixture_controller() {
                 shell("i=0; while [ \"$i\" -lt 80 ]; do printf x; sleep 0.05; i=$((i+1)); done");
             let error = runner_process::capture(&mut command, limits).unwrap_err();
             assert!(matches!(error.cause, CaptureCause::Deadline), "{error:?}");
-            assert!(!error.stdout.is_empty(), "the worker must have made progress");
+            assert!(
+                !error.stdout.is_empty(),
+                "the worker must have made progress"
+            );
             assert!(
                 error.natural_status.is_none(),
                 "our kill is not a natural exit: {error:?}"
@@ -265,7 +271,10 @@ fn fixture_controller() {
                 ));
                 command.env("PID_FILE", &pid_file);
                 let error = runner_process::capture(&mut command, policy()).unwrap_err();
-                assert!(matches!(error.cause, CaptureCause::DrainDeadline), "{error:?}");
+                assert!(
+                    matches!(error.cause, CaptureCause::DrainDeadline),
+                    "{error:?}"
+                );
                 assert_eq!(
                     error.natural_status.and_then(|exit| exit.code()),
                     Some(status)
@@ -276,7 +285,10 @@ fn fixture_controller() {
                 );
                 if status == 7 {
                     let message = error.to_string();
-                    assert!(message.starts_with("static runner exited with"), "{message}");
+                    assert!(
+                        message.starts_with("static runner exited with"),
+                        "{message}"
+                    );
                     assert!(!message.contains("UTF-8"), "no payload decoder runs here");
                 }
                 assert_not_running(read_pid(&pid_file));
@@ -425,7 +437,11 @@ fn wait_for_file(path: &Path) {
 }
 
 fn read_pid(path: &Path) -> u32 {
-    std::fs::read_to_string(path).unwrap().trim().parse().unwrap()
+    std::fs::read_to_string(path)
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap()
 }
 
 fn assert_not_running(pid: u32) {
@@ -443,7 +459,10 @@ fn assert_not_running(pid: u32) {
             }
             other => panic!("cannot inspect descendant {pid}: {other:?}"),
         }
-        assert!(Instant::now() < deadline, "descendant {pid} is still running");
+        assert!(
+            Instant::now() < deadline,
+            "descendant {pid} is still running"
+        );
         std::thread::sleep(Duration::from_millis(10));
     }
 }
