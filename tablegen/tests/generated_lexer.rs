@@ -232,8 +232,11 @@ fn main() {
 "###,
     );
 
-    grammar.tokens.get_mut(&SymbolId(1)).expect("letter").pattern =
-        TokenPattern::Regex(r"[a-z]+".to_owned());
+    grammar
+        .tokens
+        .get_mut(&SymbolId(1))
+        .expect("letter")
+        .pattern = TokenPattern::Regex(r"[a-z]+".to_owned());
     run_generated_lexer_control(
         &grammar,
         r###"
