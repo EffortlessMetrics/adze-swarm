@@ -33,6 +33,45 @@ pub(super) fn append_sentinel(source: &[u8]) -> Vec<u8> {
 
 /// Convert an internal [`Subtree`] to a public [`ParsedNode`].
 pub(super) fn subtree_to_node(subtree: Subtree, language: Option<*const TSLanguage>) -> ParsedNode {
+    struct Frame {
+        subtree: Subtree,
+        remaining: std::vec::IntoIter<Subtree>,
+        children: Vec<ParsedNode>,
+    }
+    let frame = |mut subtree: Subtree| {
+        let children = std::mem::take(&mut subtree.children);
+        Frame {
+            subtree,
+            children: Vec::with_capacity(children.len()),
+            remaining: children.into_iter(),
+        }
+    };
+    let mut frames = vec![frame(subtree)];
+    loop {
+        let next = frames
+            .last_mut()
+            .expect("root frame exists")
+            .remaining
+            .next();
+        if let Some(child) = next {
+            frames.push(frame(child));
+            continue;
+        }
+        let completed = frames.pop().expect("completed frame exists");
+        let node = node_from_subtree(completed.subtree, completed.children, language);
+        if let Some(parent) = frames.last_mut() {
+            parent.children.push(node);
+        } else {
+            return node;
+        }
+    }
+}
+
+fn node_from_subtree(
+    subtree: Subtree,
+    children: Vec<ParsedNode>,
+    language: Option<*const TSLanguage>,
+) -> ParsedNode {
     // Determine if the node is named based on symbol metadata
     let is_named = if let Some(lang_ptr) = language {
         // SAFETY: `lang_ptr` comes from a valid `TSLanguage` that outlives the
@@ -52,11 +91,7 @@ pub(super) fn subtree_to_node(subtree: Subtree, language: Option<*const TSLangua
 
     ParsedNode {
         symbol: subtree.symbol,
-        children: subtree
-            .children
-            .into_iter()
-            .map(|s| subtree_to_node(s, language))
-            .collect(),
+        children,
         start_byte: subtree.start_byte,
         end_byte: subtree.end_byte,
         start_point: subtree.start_point,

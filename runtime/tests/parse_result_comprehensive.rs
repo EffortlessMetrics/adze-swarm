@@ -50,6 +50,7 @@ fn leaf(start: usize, end: usize) -> ParsedNode {
 
 fn make_parse_error(position: usize) -> ParseError {
     ParseError {
+        work_limit: None,
         position,
         point: Point {
             row: 0,
@@ -132,6 +133,7 @@ fn failed_parse_result_error_expected_found() {
 #[test]
 fn failed_parse_result_empty_expected() {
     let err = ParseError {
+        work_limit: None,
         position: 0,
         point: Point { row: 0, column: 0 },
         expected: vec![],

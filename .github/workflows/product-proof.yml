@@ -227,6 +227,38 @@ jobs:
       - name: Show stable canary plan (dry-run)
         run: scripts/ci-product-stable.sh --dry-run
 
+      # Dependency preparation is online; the generated argv consumer keeps
+      # its offline metadata and single locked build. This is no cold-cache claim.
+      - name: Prepare locked native dependencies online for Linux consumers
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import pathlib
+          import subprocess
+          import sys
+
+          lock = pathlib.Path("Cargo.lock")
+          before = hashlib.sha256(lock.read_bytes()).hexdigest()
+          print(f"dependency_preparation_lock_before_sha256={before}", flush=True)
+          status = subprocess.run(
+              ["cargo", "fetch", "--locked", "--target", "host-tuple"], check=False
+          ).returncode
+          print(f"dependency_preparation_fetch_status={status}", flush=True)
+          try:
+              after = hashlib.sha256(lock.read_bytes()).hexdigest()
+          except OSError as error:
+              print(f"Dependency preparation could not read Cargo.lock afterward: {error}", file=sys.stderr)
+              raise SystemExit(status or 1)
+          print(f"dependency_preparation_lock_after_sha256={after}", flush=True)
+          if before != after:
+              print("Dependency preparation changed Cargo.lock bytes.", file=sys.stderr)
+              status = status or 1
+          raise SystemExit(status)
+          PY
+
       # #1066 qualifies the Linux CLI boundary separately from the README
       # Stable claims. These checks do not promote CLI/platform support tiers.
       - name: Qualify Linux static runner process and output contracts
@@ -320,6 +352,38 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # Fetch the pinned native graph explicitly; earlier CLI builds and
+      # unlocked generated canaries do not establish this offline prerequisite.
+      - name: Prepare locked native dependencies online for Windows consumers
+        timeout-minutes: 5
+        run: |
+          $ErrorActionPreference = "Stop"
+          @'
+          import hashlib
+          import pathlib
+          import subprocess
+          import sys
+
+          lock = pathlib.Path("Cargo.lock")
+          before = hashlib.sha256(lock.read_bytes()).hexdigest()
+          print(f"dependency_preparation_lock_before_sha256={before}", flush=True)
+          status = subprocess.run(
+              ["cargo", "fetch", "--locked", "--target", "x86_64-pc-windows-msvc"], check=False
+          ).returncode
+          print(f"dependency_preparation_fetch_status={status}", flush=True)
+          try:
+              after = hashlib.sha256(lock.read_bytes()).hexdigest()
+          except OSError as error:
+              print(f"Dependency preparation could not read Cargo.lock afterward: {error}", file=sys.stderr)
+              raise SystemExit(status or 1)
+          print(f"dependency_preparation_lock_after_sha256={after}", flush=True)
+          if before != after:
+              print("Dependency preparation changed Cargo.lock bytes.", file=sys.stderr)
+              status = status or 1
+          raise SystemExit(status)
+          '@ | python -
+          exit $LASTEXITCODE
 
       - name: Strict Clippy for native Windows runner contracts
         run: cargo clippy --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze --test runner_windows_process_contract --test runner_windows_output_contract --test runner_windows_protocol_contract -- -D warnings
