@@ -102,11 +102,18 @@ impl RunnerRequest {
     }
 
     pub(crate) fn decode(bytes: &[u8]) -> io::Result<Self> {
-        let length = request_length(bytes.get(..HEADER_BYTES).ok_or_else(|| invalid("short request header"))?)?;
+        let length = request_length(
+            bytes
+                .get(..HEADER_BYTES)
+                .ok_or_else(|| invalid("short request header"))?,
+        )?;
         if length != bytes.len() {
             return Err(invalid("request extent does not match its declared length"));
         }
-        let mut reader = Reader { bytes, offset: HEADER_BYTES };
+        let mut reader = Reader {
+            bytes,
+            offset: HEADER_BYTES,
+        };
         let environment = match reader.number()? {
             0 => EnvironmentPolicy::Inherit,
             1 => EnvironmentPolicy::Clear,
@@ -134,11 +141,21 @@ impl RunnerRequest {
                 _ => return Err(invalid("unknown request environment change")),
             });
         }
-        let cwd = if has_cwd { Some(PathBuf::from(reader.string()?)) } else { None };
+        let cwd = if has_cwd {
+            Some(PathBuf::from(reader.string()?))
+        } else {
+            None
+        };
         if reader.offset != bytes.len() {
             return Err(invalid("trailing request records"));
         }
-        Ok(Self { program, args, environment, changes, cwd })
+        Ok(Self {
+            program,
+            args,
+            environment,
+            changes,
+            cwd,
+        })
     }
 }
 
@@ -151,9 +168,12 @@ pub(crate) fn request_length(header: &[u8]) -> io::Result<usize> {
     if version != VERSION {
         return Err(invalid("unsupported bootstrap request version"));
     }
-    let length = u32::from_le_bytes(header[12..16].try_into().expect("fixed length extent")) as usize;
+    let length =
+        u32::from_le_bytes(header[12..16].try_into().expect("fixed length extent")) as usize;
     if !(HEADER_BYTES..=MAX_REQUEST_BYTES).contains(&length) {
-        return Err(invalid("bootstrap request exceeds its 1048576-byte limit or is too short"));
+        return Err(invalid(
+            "bootstrap request exceeds its 1048576-byte limit or is too short",
+        ));
     }
     Ok(length)
 }
@@ -166,7 +186,12 @@ struct Writer(Vec<u8>);
 
 impl Writer {
     fn room(&self, additional: usize) -> io::Result<()> {
-        if self.0.len().checked_add(additional).is_none_or(|n| n > MAX_REQUEST_BYTES) {
+        if self
+            .0
+            .len()
+            .checked_add(additional)
+            .is_none_or(|n| n > MAX_REQUEST_BYTES)
+        {
             return Err(invalid("bootstrap request exceeds its 1048576-byte limit"));
         }
         Ok(())
@@ -188,7 +213,10 @@ impl Writer {
 
     fn string(&mut self, value: &OsStr) -> io::Result<()> {
         let units = value.encode_wide().count();
-        let bytes = units.checked_mul(2).and_then(|n| n.checked_add(4)).ok_or_else(|| invalid("request string overflow"))?;
+        let bytes = units
+            .checked_mul(2)
+            .and_then(|n| n.checked_add(4))
+            .ok_or_else(|| invalid("request string overflow"))?;
         self.room(bytes)?;
         if value.encode_wide().any(|unit| unit == 0) {
             return Err(invalid("request strings cannot contain NUL"));
@@ -208,14 +236,22 @@ struct Reader<'a> {
 
 impl Reader<'_> {
     fn take(&mut self, count: usize) -> io::Result<&[u8]> {
-        let end = self.offset.checked_add(count).ok_or_else(|| invalid("request extent overflow"))?;
-        let value = self.bytes.get(self.offset..end).ok_or_else(|| invalid("truncated request record"))?;
+        let end = self
+            .offset
+            .checked_add(count)
+            .ok_or_else(|| invalid("request extent overflow"))?;
+        let value = self
+            .bytes
+            .get(self.offset..end)
+            .ok_or_else(|| invalid("truncated request record"))?;
         self.offset = end;
         Ok(value)
     }
 
     fn number(&mut self) -> io::Result<u32> {
-        Ok(u32::from_le_bytes(self.take(4)?.try_into().expect("four-byte number")))
+        Ok(u32::from_le_bytes(
+            self.take(4)?.try_into().expect("four-byte number"),
+        ))
     }
 
     fn count(&mut self, minimum_record_bytes: usize) -> io::Result<usize> {
@@ -228,9 +264,14 @@ impl Reader<'_> {
 
     fn string(&mut self) -> io::Result<OsString> {
         let units = self.number()? as usize;
-        let bytes = units.checked_mul(2).ok_or_else(|| invalid("request string overflow"))?;
+        let bytes = units
+            .checked_mul(2)
+            .ok_or_else(|| invalid("request string overflow"))?;
         let data = self.take(bytes)?;
-        let units: Vec<u16> = data.chunks_exact(2).map(|pair| u16::from_le_bytes([pair[0], pair[1]])).collect();
+        let units: Vec<u16> = data
+            .chunks_exact(2)
+            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .collect();
         if units.contains(&0) {
             return Err(invalid("request strings cannot contain NUL"));
         }

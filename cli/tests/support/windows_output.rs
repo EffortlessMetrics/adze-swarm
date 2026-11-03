@@ -8,7 +8,10 @@ use std::process::Output;
 use std::time::Duration;
 
 pub(crate) fn run_raw(mode: &str, bytes: &[u8], stderr: &[u8], status: u32) -> Output {
-    let fixture = tempfile::Builder::new().prefix("adze Windows ' λ ").tempdir().unwrap();
+    let fixture = tempfile::Builder::new()
+        .prefix("adze Windows ' λ ")
+        .tempdir()
+        .unwrap();
     let bin = windows_fixture::copy_as_cargo(fixture.path());
     let wire = fixture.path().join("wire.bin");
     let err = fixture.path().join("stderr.bin");
@@ -25,12 +28,20 @@ pub(crate) fn run_raw(mode: &str, bytes: &[u8], stderr: &[u8], status: u32) -> O
         other => other,
     };
     cargo_bin_cmd!("adze")
-        .arg("parse").arg(&grammar).arg(&input).args(["--output", mode])
+        .arg("parse")
+        .arg(&grammar)
+        .arg(&input)
+        .args(["--output", mode])
         .current_dir(fixture.path())
         .env("PATH", std::env::join_paths(paths).unwrap())
         .env("ADZE_WINDOWS_FIXTURE_MODE", "raw")
-        .env("EXPECTED_INPUT", &input).env("EXPECTED_OPERATION", operation)
+        .env("EXPECTED_INPUT", &input)
+        .env("EXPECTED_OPERATION", operation)
         .env("EXPECTED_CWD", fixture.path().canonicalize().unwrap())
-        .env("WIRE_FILE", wire).env("STDERR_FILE", err).env("EXIT_CODE", status.to_string())
-        .timeout(Duration::from_secs(20)).output().unwrap()
+        .env("WIRE_FILE", wire)
+        .env("STDERR_FILE", err)
+        .env("EXIT_CODE", status.to_string())
+        .timeout(Duration::from_secs(20))
+        .output()
+        .unwrap()
 }

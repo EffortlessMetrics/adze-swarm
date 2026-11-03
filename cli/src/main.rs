@@ -982,35 +982,42 @@ fn run_static_parse_runner(
                     runner_protocol::request_token().into(),
                 ],
                 environment: EnvironmentPolicy::Inherit,
-                changes: vec![EnvironmentChange::Set("ADZE_USE_PURE_RUST".into(), "1".into())],
+                changes: vec![EnvironmentChange::Set(
+                    "ADZE_USE_PURE_RUST".into(),
+                    "1".into(),
+                )],
                 cwd: None,
             };
-            runner_windows::capture(&request, &std::env::current_exe()?, runner_windows::CARGO_RUN_POLICY)
-                .with_context(|| format!("static runner process for {}", grammar.display()))?
+            runner_windows::capture(
+                &request,
+                &std::env::current_exe()?,
+                runner_windows::CARGO_RUN_POLICY,
+            )
+            .with_context(|| format!("static runner process for {}", grammar.display()))?
         }
         #[cfg(not(windows))]
         {
-        let mut command = Command::new("cargo");
-        command
-            .arg("run")
-            .arg("--quiet")
-            .arg("--manifest-path")
-            .arg(runner.path().join("Cargo.toml"))
-            .arg("--")
-            .arg(&input)
-            .arg(output_format)
-            .arg(runner_protocol::request_token())
-            .env("ADZE_USE_PURE_RUST", "1");
-        // Preserve input/operation positions, environment and inherited Cargo
-        // cwd; the explicit private version token follows the existing args.
-        // Linux owns bounded group/pipe custody. Other non-Windows platforms
-        // retain the existing path and are not qualified for those bounds.
-        #[cfg(target_os = "linux")]
-        let output = runner_process::capture(&mut command, runner_process::CARGO_RUN_POLICY)
-            .with_context(|| format!("static runner process for {}", grammar.display()))?;
-        #[cfg(not(target_os = "linux"))]
-        let output = command.output()?;
-        output
+            let mut command = Command::new("cargo");
+            command
+                .arg("run")
+                .arg("--quiet")
+                .arg("--manifest-path")
+                .arg(runner.path().join("Cargo.toml"))
+                .arg("--")
+                .arg(&input)
+                .arg(output_format)
+                .arg(runner_protocol::request_token())
+                .env("ADZE_USE_PURE_RUST", "1");
+            // Preserve input/operation positions, environment and inherited Cargo
+            // cwd; the explicit private version token follows the existing args.
+            // Linux owns bounded group/pipe custody. Other non-Windows platforms
+            // retain the existing path and are not qualified for those bounds.
+            #[cfg(target_os = "linux")]
+            let output = runner_process::capture(&mut command, runner_process::CARGO_RUN_POLICY)
+                .with_context(|| format!("static runner process for {}", grammar.display()))?;
+            #[cfg(not(target_os = "linux"))]
+            let output = command.output()?;
+            output
         }
     };
 

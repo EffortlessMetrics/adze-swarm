@@ -62,12 +62,7 @@ fn fail_owned_child(
     );
 }
 
-fn capture_owned(
-    command: &mut Command,
-    fixture: &Path,
-    label: &str,
-    timeout: Duration,
-) -> Output {
+fn capture_owned(command: &mut Command, fixture: &Path, label: &str, timeout: Duration) -> Output {
     let stdout_path = fixture.join(format!("{label}.stdout"));
     let stderr_path = fixture.join(format!("{label}.stderr"));
     command
@@ -80,7 +75,10 @@ fn capture_owned(
         timeout.as_secs()
     );
     let mut child = command.spawn().unwrap_or_else(|error| {
-        panic!("{label}: spawn failed: {error}; fixture={}", fixture.display())
+        panic!(
+            "{label}: spawn failed: {error}; fixture={}",
+            fixture.display()
+        )
     });
     // Close the controller's writer handles; the owned child keeps its copies.
     command.stdout(Stdio::null()).stderr(Stdio::null());
@@ -325,7 +323,12 @@ fn run_cases(fixture: &Path) {
         ),
         (
             "extra-argument",
-            vec![missing.as_os_str(), operation, token, OsStr::new("extra argv 雪")],
+            vec![
+                missing.as_os_str(),
+                operation,
+                token,
+                OsStr::new("extra argv 雪"),
+            ],
             "unsupported private runner protocol request",
         ),
     ] {
@@ -335,7 +338,10 @@ fn run_cases(fixture: &Path) {
         let stderr = String::from_utf8(output.stderr).unwrap();
         assert_eq!(stderr.trim_end(), format!("Error: {error:?}"), "{label}");
     }
-    assert!(!missing.exists(), "guard controls must not create the input");
+    assert!(
+        !missing.exists(),
+        "guard controls must not create the input"
+    );
 
     let io_error = fs::read_to_string(&missing).unwrap_err();
     assert_eq!(io_error.kind(), std::io::ErrorKind::NotFound);
