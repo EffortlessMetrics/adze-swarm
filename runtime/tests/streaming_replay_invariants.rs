@@ -122,7 +122,7 @@ fn parse_batch(
 }
 
 #[test]
-fn test_contextual_grammar_rejects_ineligible_fixed_mode_bridge() {
+fn test_contextual_grammar_lexes_across_modes_through_state_aware_bridge() {
     use adze::glr_streaming_lex_contract::{
         distinct_internal_lex_states, fixed_mode_bridge_lex_mode,
     };
@@ -143,9 +143,16 @@ fn test_contextual_grammar_rejects_ineligible_fixed_mode_bridge() {
         (first_mode.lex_state, first_mode.external_lex_state),
         "legacy bridge chooses state-zero mode for the whole input"
     );
-    let errors = lex_with_language_fn(language, language.lex_fn.unwrap(), b"7 + 2")
-        .expect_err("state-zero pretokenization cannot supply contextual operator tokens");
-    assert_eq!(errors[0].byte_span(), 2..3);
+    let tokens = lex_with_language_fn(language, language.lex_fn.unwrap(), b"7 + 2")
+        .expect("state-aware harness pretokenization supplies contextual operator tokens");
+    assert_eq!(
+        tokens
+            .iter()
+            .map(|token| (token.text.as_str(), token.byte_offset))
+            .collect::<Vec<_>>(),
+        vec![("7", 0), ("+", 2), ("2", 4)],
+        "harness lexes contextual operators via union over lex states (#892)"
+    );
     assert_eq!(parse_streaming("7 + 2", language).unwrap(), (0, 5));
 }
 
