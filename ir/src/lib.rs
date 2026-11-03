@@ -101,16 +101,21 @@ pub struct Grammar {
     #[serde(default)]
     pub start_symbol: Option<SymbolId>,
     /// Producer-declared document root, distinct from the analysis start when needed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Always serialize the Option slot, including None, for positional formats.
+    /// Older map-based inputs may omit it and retain the absent default.
+    #[serde(default)]
     pub document_start_symbol: Option<SymbolId>,
     /// Explicit pattern-wrapper nonterminal to backing-token relations.
     #[serde(default)]
     pub wrapper_token_relations: IndexMap<SymbolId, SymbolId>,
     /// Explicit optional carriers recorded by their allocating producer.
-    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    /// Always serialize the collection slot, including empty, for positional formats.
+    #[serde(default)]
     pub optional_origins: IndexMap<SymbolId, OptionalOrigin>,
     /// Source field occurrences lowered inside an optional carrier.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// Missing map-based inputs retain the empty default for both provenance fields.
+    /// Always serialize this slot as well, including an empty collection.
+    #[serde(default)]
     pub optional_field_origins: Vec<OptionalFieldOrigin>,
 }
 

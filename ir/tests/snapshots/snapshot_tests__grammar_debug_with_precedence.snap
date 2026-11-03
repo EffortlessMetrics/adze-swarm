@@ -164,5 +164,8 @@ Grammar {
             4,
         ),
     ),
+    document_start_symbol: None,
     wrapper_token_relations: {},
+    optional_origins: {},
+    optional_field_origins: [],
 }
