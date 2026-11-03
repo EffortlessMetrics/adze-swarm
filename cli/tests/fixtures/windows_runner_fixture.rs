@@ -299,9 +299,10 @@ fn wait_stopped(handle: &OwnedHandle) -> Result<()> {
                 std::thread::sleep(Duration::from_millis(10))
             }
             _ => {
-                return Err(
-                    io::Error::other("owned descendant remained live after parent cleanup").into(),
-                );
+                return Err(io::Error::other(
+                    "owned descendant remained live after parent cleanup",
+                )
+                .into());
             }
         }
     }
