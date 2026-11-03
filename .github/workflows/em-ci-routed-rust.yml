@@ -879,11 +879,11 @@ jobs:
             --test generated_lr_diagnostic_parity -- --nocapture
           run_required_glr_test 'native LR diagnostic views (pure-rust,glr)' \
             cargo test --locked -p adze --no-default-features --features pure-rust,glr \
-            --lib __private::tests::lr_diagnostic_views_preserve_trailing_delimiter_and_genuine_eof_facts \
+            --lib __private::tests::test_lr_diagnostic_views_preserve_trailing_delimiter_and_genuine_eof_facts \
             -- --exact --nocapture
           run_required_glr_test 'legacy EOF display-name classification (pure-rust,glr)' \
             cargo test --locked -p adze --no-default-features --features pure-rust,glr \
-            --lib __private::tests::lr_diagnostic_views_preserve_legacy_eof_display_name_classification \
+            --lib __private::tests::test_lr_diagnostic_views_preserve_legacy_eof_display_name_classification \
             -- --exact --nocapture
       - name: Run supported proof (fmt + clippy + tests on 7 core crates)
         run: just ci-supported

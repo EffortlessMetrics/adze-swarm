@@ -125,7 +125,7 @@ fn assert_clean_csv_after_failure() {
 
 #[cfg(not(feature = "glr"))]
 #[test]
-fn generated_lr_csv_trailing_delimiter_preserves_full_diagnostic_tail() {
+fn test_generated_lr_csv_trailing_delimiter_preserves_full_diagnostic_tail() {
     use adze_example::csv_list::grammar;
 
     let route = adze::__private::engine_dispatch_for_language(grammar::language());
@@ -190,7 +190,7 @@ fn generated_lr_csv_trailing_delimiter_preserves_full_diagnostic_tail() {
 }
 
 #[test]
-fn generated_lr_genuine_eof_and_multiline_utf8_facts_remain_distinct() {
+fn test_generated_lr_genuine_eof_and_multiline_utf8_facts_remain_distinct() {
     use adze_example::typed_ast_contract::grammar::{self, Expr};
 
     let route = adze::__private::engine_dispatch_for_language(grammar::language());
@@ -259,7 +259,7 @@ fn generated_lr_genuine_eof_and_multiline_utf8_facts_remain_distinct() {
 
 #[cfg(feature = "glr")]
 #[test]
-fn generated_streaming_csv_keeps_its_one_first_stall_diagnostic() {
+fn test_generated_streaming_csv_keeps_its_one_first_stall_diagnostic() {
     use adze_example::csv_list::grammar;
 
     let route = adze::__private::engine_dispatch_for_language(grammar::language());

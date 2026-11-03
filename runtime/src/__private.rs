@@ -3291,7 +3291,7 @@ mod tests {
     }
 
     #[test]
-    fn lr_diagnostic_views_preserve_trailing_delimiter_and_genuine_eof_facts() {
+    fn test_lr_diagnostic_views_preserve_trailing_delimiter_and_genuine_eof_facts() {
         let names = [
             c"end".as_ptr() as *const u8,
             c"identifier".as_ptr() as *const u8,
@@ -3350,7 +3350,7 @@ mod tests {
     }
 
     #[test]
-    fn lr_diagnostic_views_preserve_legacy_eof_display_name_classification() {
+    fn test_lr_diagnostic_views_preserve_legacy_eof_display_name_classification() {
         // Compatibility control, not a new native-symbol classification rule:
         // the old typed mapper and document projection both treated this
         // display-name collision as UnexpectedEof even before source EOF.
