@@ -399,10 +399,16 @@ mod document {
             assert_eq!(document.len(), typed.len());
             if prior_syntax_errors > 0 {
                 for error in [&typed[0], &document[0]] {
-                    assert!(matches!(
-                        &error.reason,
-                        ParseErrorReason::UnexpectedToken(found) if found == "!"
-                    ));
+                    // UnexpectedToken retains the complete public diagnostic,
+                    // including its expected-token suffix, before the refusal.
+                    assert!(
+                        matches!(
+                            &error.reason,
+                            ParseErrorReason::UnexpectedToken(message)
+                                if message == "!; expected one of: a"
+                        ),
+                        "{source:?}: prior syntax diagnostic was {error:?}"
+                    );
                     assert_eq!(error.byte_span(), 0..1);
                     assert_eq!(error.expected, ["a"]);
                 }
