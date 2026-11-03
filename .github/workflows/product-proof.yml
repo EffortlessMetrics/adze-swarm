@@ -24,7 +24,17 @@ permissions:
   contents: read
 
 env:
+  # Include the recorded shared-pipeline and workspace-input dependencies
+  # from #1027, not only the top-level runtime/compiler claim surfaces.
   STABLE_PRODUCT_PATHS: |
+    Cargo.toml
+    Cargo.lock
+    rust-toolchain.toml
+    .cargo/**
+    common/**
+    crates/common-type-ops-core/**
+    crates/linecol-core/**
+    crates/parsetable-metadata/**
     README.md
     FAQ.md
     QUICK_START.md
@@ -93,6 +103,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Test required-result and product-path contracts
+        run: python3 scripts/test_evaluate_required_result.py
+
       - id: detect
         name: Detect Stable product surfaces
         shell: bash
@@ -133,7 +146,9 @@ jobs:
             exit 0
           fi
 
-          if ! changed_paths="$(git diff --name-only "$base_sha" "$head_sha")"; then
+          # Count both sides of a rename: moving a stable input outside
+          # the allowlist still removes that input from the product.
+          if ! changed_paths="$(git diff --no-renames --name-only "$base_sha" "$head_sha")"; then
             echo "::error::Product Proof merge_group diff failed."
             exit 1
           fi
