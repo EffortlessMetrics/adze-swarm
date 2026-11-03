@@ -965,8 +965,9 @@ fn run_static_parse_runner(
     // printed a purported success frame or malformed bytes. Only successful
     // transport reaches framing, then the unchanged public-output admission.
     if output.status.success() {
-        runner_protocol::unframe(&mut output.stdout, output_format)
-            .with_context(|| format!("static runner protocol rejected for {}", grammar.display()))?;
+        runner_protocol::unframe(&mut output.stdout, output_format).with_context(|| {
+            format!("static runner protocol rejected for {}", grammar.display())
+        })?;
     }
     interpret_runner_output(&grammar, output_format, output)
 }

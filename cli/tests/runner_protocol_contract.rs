@@ -46,7 +46,10 @@ fn join_raw(header: &[u8], payload: &[u8]) -> Vec<u8> {
 }
 
 fn valid_frame(payload: &[u8]) -> Vec<u8> {
-    join_raw(&serde_json::to_vec(&header(payload.len())).unwrap(), payload)
+    join_raw(
+        &serde_json::to_vec(&header(payload.len())).unwrap(),
+        payload,
+    )
 }
 
 fn run_raw(mode: &str, bytes: &[u8], stderr: &[u8], status: u8) -> Output {
@@ -147,7 +150,13 @@ fn test_protocol_version_and_requested_operation_must_match() {
 #[test]
 fn test_header_requires_every_typed_field_and_rejects_unknown_fields() {
     let bytes = payload();
-    for missing in ["protocol", "version", "operation", "terminal", "payload_bytes"] {
+    for missing in [
+        "protocol",
+        "version",
+        "operation",
+        "terminal",
+        "payload_bytes",
+    ] {
         let mut wrong = header(bytes.len());
         wrong.as_object_mut().unwrap().remove(missing);
         reject_raw(&join_raw(&serde_json::to_vec(&wrong).unwrap(), &bytes));

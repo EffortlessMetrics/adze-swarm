@@ -40,8 +40,8 @@ pub(crate) fn unframe(bytes: &mut Vec<u8>, requested_operation: &str) -> Result<
         .take(MAX_HEADER_BYTES)
         .position(|byte| *byte == b'\n')
         .context("missing complete private header within 4096 bytes including LF")?;
-    let header_text = std::str::from_utf8(&bytes[..header_end])
-        .context("private runner header is not UTF-8")?;
+    let header_text =
+        std::str::from_utf8(&bytes[..header_end]).context("private runner header is not UTF-8")?;
     let header: Header = serde_json::from_str(header_text)
         .context("private runner header is not one complete typed JSON object")?;
     ensure!(
