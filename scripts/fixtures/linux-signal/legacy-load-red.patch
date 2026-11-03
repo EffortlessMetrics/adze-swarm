@@ -1,0 +1,18 @@
+--- a/cli/src/runner_process.rs
++++ b/cli/src/runner_process.rs
+@@ -411,14 +411,7 @@
+         // its CAS either precedes closure and is returned here, or observes a
+         // closed state and relays. A plain load after restore is insufficient
+         // when the callback runs on another thread.
+-        let previous = SIGNAL_STATE.swap(
+-            if failure.is_some() {
+-                SIGNAL_POISONED
+-            } else {
+-                SIGNAL_CLOSED
+-            },
+-            Ordering::AcqRel,
+-        );
++        let previous = SIGNAL_STATE.load(Ordering::Acquire);
+         let signal = cancellation_from_state(previous);
+         self.active = false;
+         SIGNAL_OWNER.store(false, Ordering::Release);

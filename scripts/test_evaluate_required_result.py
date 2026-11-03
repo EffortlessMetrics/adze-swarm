@@ -246,6 +246,7 @@ class WorkflowWiring(unittest.TestCase):
             "cli/tests/cli_test.rs",
             "cli/tests/runner_output_contract.rs",
             "cli/tests/runner_process_contract.rs",
+            "cli/tests/runner_linux_signal_contract.rs",
             "cli/tests/runner_protocol_contract.rs",
             "cli/tests/runner_windows_process_contract.rs",
             "cli/tests/runner_windows_output_contract.rs",
@@ -266,6 +267,10 @@ class WorkflowWiring(unittest.TestCase):
         paths = (
             "scripts/run-required-test.py",
             "scripts/test_run_required_test.py",
+            "scripts/check-linux-signal-regression.py",
+            "scripts/test_linux_signal_regression.py",
+            "scripts/fixtures/linux-signal/reviewed-source.json",
+            "scripts/fixtures/linux-signal/legacy-load-red.patch",
             "scripts/evaluate-required-result.py",
             "scripts/test_evaluate_required_result.py",
         )

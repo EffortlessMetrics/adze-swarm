@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "reviewed_source_packet": "Linux signal close source tree 956a71779b359499f3776c3cd1c2971edd99f7c1",
+  "green_sources": {
+    "cli/src/runner_process.rs": {
+      "blob": "9216ea7fe592481f62795e9115d10475a90cebf4",
+      "sha256": "f02215e39b03fab9b6531381114f8c22334f9a313b0c018337e892b951fc42bc"
+    },
+    "cli/tests/runner_linux_signal_contract.rs": {
+      "blob": "a9c60a07b8f9ca15bdcf559770536a2ed5dfdaf4",
+      "sha256": "b1bbfc00d78e2ad7539dc8227e7a9b6ec72dca3290daa20b96ac0c87b31c0ff6"
+    },
+    "cli/tests/runner_process_contract.rs": {
+      "blob": "f030b51dcbb242f30f5d28fdea2031b52b6eb4e1",
+      "sha256": "29af1d71fc1ea7dac41bbb467038cea57ddf9502fadd5324f57b512124059f42"
+    }
+  },
+  "red_module": {
+    "blob": "99eaa9b5f428267adbe5ef99fdbc4766b9e3088e",
+    "sha256": "62cbb1c99f8501cec0c94557a4b9383f8fcfcb1c3b59df20c317e07f9d41cb5a"
+  },
+  "red_patch_sha256": "e6c5286e516a223eb3507f05c64799b8186c88230c0ec59f3b6ff926d4074077",
+  "green": {
+    "signal": {
+      "passed": [
+        "test_late_dispatched_sigint_relays_after_atomic_close",
+        "test_late_dispatched_sigterm_relays_after_atomic_close",
+        "test_signal_winning_before_close_is_returned_after_cleanup",
+        "test_delayed_callback_is_owned_by_a_subsequent_capture",
+        "test_successful_late_relay_allows_a_new_owner_to_clean_up",
+        "test_restore_poison_refuses_reuse_and_late_callback_exits_once",
+        "test_partial_setup_error_keeps_delayed_cancellation",
+        "test_partial_setup_drop_does_not_discard_delayed_cancellation"
+      ],
+      "ignored": "fixture_signal_controller"
+    },
+    "process": {
+      "passed": [
+        "test_exact_bytes_and_natural_nonzero_status_are_preserved",
+        "test_stdout_limit_accepts_exact_bound_and_rejects_one_more_byte",
+        "test_stderr_limit_accepts_exact_bound_and_rejects_one_more_byte",
+        "test_concurrent_channel_floods_are_bounded_and_reaped",
+        "test_large_concurrent_channels_are_completely_drained",
+        "test_progress_does_not_restart_the_absolute_deadline",
+        "test_closed_pipes_do_not_substitute_for_child_exit",
+        "test_leader_exit_does_not_hide_descendant_held_pipes",
+        "test_success_also_terminates_remaining_owned_group_members",
+        "test_failed_setup_and_spawn_restore_ownership_and_dispositions",
+        "test_group_teardown_leaves_an_unrelated_child_running",
+        "test_cancellation_restores_disposition_before_conventional_relay",
+        "test_real_cli_sigint_cleans_group_and_unwinds_runner_directory",
+        "test_real_cli_sigterm_cleans_group_and_unwinds_runner_directory"
+      ],
+      "ignored": "fixture_controller"
+    }
+  },
+  "lock_authority": "Exact actual checked commit G, read from its Git blob and verified byte-identical before/after; not the historical source packet lock."
+}
