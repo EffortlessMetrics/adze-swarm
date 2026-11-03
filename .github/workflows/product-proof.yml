@@ -58,6 +58,12 @@ env:
     cli/tests/runner_output_contract.rs
     cli/tests/runner_process_contract.rs
     cli/tests/runner_protocol_contract.rs
+    cli/tests/runner_windows_process_contract.rs
+    cli/tests/runner_windows_output_contract.rs
+    cli/tests/runner_windows_protocol_contract.rs
+    cli/tests/fixtures/windows_runner_fixture.rs
+    cli/tests/support/windows_fixture.rs
+    cli/tests/support/windows_output.rs
     docs/product/ACCEPTANCE_MATRIX.md
     docs/README.md
     docs/reference/diagnostics-and-recovery.md
@@ -81,6 +87,10 @@ env:
     scripts/ci-product-stable.sh
     scripts/lib/required-test-output.sh
     scripts/test_required_test_output.py
+    scripts/run-required-test.py
+    scripts/test_run_required_test.py
+    scripts/evaluate-required-result.py
+    scripts/test_evaluate_required_result.py
     .github/workflows/product-proof.yml
     runtime/**
     macro/**
@@ -249,14 +259,96 @@ jobs:
           run_contract 'actual generated tree output' cargo test --locked -p adze-cli --test cli_test test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture
           run_contract 'actual generated document projections' cargo test --locked -p adze-cli --test cli_test test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
           run_contract 'actual generated recovery diagnostics' cargo test --locked -p adze-cli --test cli_test parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture
+          run_contract 'actual generated child argv rejection' cargo test --locked -p adze-cli --bin adze generated_runner_argv_tests::test_generated_runner_protocol_args_precede_input_io -- --exact --nocapture
 
       - name: Run stable product lane
         run: scripts/ci-product-stable.sh
 
+  ci-product-windows:
+    timeout-minutes: 30
+    name: ci-product Windows runner qualification
+    needs: detect-stable-product-paths
+    if: needs.detect-stable-product-paths.outputs.run_stable == 'true' && github.event_name != 'pull_request'
+    # #1066 requires native Windows evidence for its CLI boundary. Reusing
+    # the product selector does not promote Windows or CLI support tiers.
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install pinned MSVC Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: clippy,rustfmt
+          targets: x86_64-pc-windows-msvc
+
+      - name: Verify checkout and record native Windows identity
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $actualSha = & git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $actualSha = $actualSha.Trim()
+          if ($actualSha -cne $env:EXPECTED_SHA) {
+            throw "Checkout $actualSha does not match required subject $env:EXPECTED_SHA"
+          }
+          Write-Output "checkout_sha=$actualSha"
+          Write-Output "ImageOS=$env:ImageOS"
+          Write-Output "ImageVersion=$env:ImageVersion"
+          $windows = Get-CimInstance -ClassName Win32_OperatingSystem
+          Write-Output "windows_version=$($windows.Version)"
+          Write-Output "windows_build=$($windows.BuildNumber)"
+          $rustIdentity = & rustc -vV
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $rustIdentity | Write-Output
+          if ($rustIdentity -notcontains "host: x86_64-pc-windows-msvc") {
+            throw "The compiler host is not x86_64-pc-windows-msvc"
+          }
+          if ($rustIdentity -notcontains "release: 1.95.0") {
+            throw "The compiler release is not the pinned 1.95.0"
+          }
+          $lockHash = (Get-FileHash -LiteralPath Cargo.lock -Algorithm SHA256).Hash
+          Write-Output "lock_sha256=$($lockHash.ToLowerInvariant())"
+
+      - name: Check standalone native fixture formatting
+        run: rustfmt --edition 2024 --check cli/tests/fixtures/windows_runner_fixture.rs
+
+      - name: Test proof guard with actual native Rust harness
+        run: python scripts/test_run_required_test.py
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Strict Clippy for native Windows runner contracts
+        run: cargo clippy --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze --test runner_windows_process_contract --test runner_windows_output_contract --test runner_windows_protocol_contract -- -D warnings
+
+      - name: Qualify Windows process custody
+        run: python scripts/run-required-test.py --label "Windows process custody" -- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc --test runner_windows_process_contract -- --nocapture
+
+      - name: Qualify Windows output interpretation
+        run: python scripts/run-required-test.py --label "Windows output interpretation" -- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc --test runner_windows_output_contract -- --nocapture
+
+      - name: Qualify Windows private runner framing
+        run: python scripts/run-required-test.py --label "Windows private runner framing" -- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc --test runner_windows_protocol_contract -- --nocapture
+
+      - name: Qualify Windows actual generated tree output
+        run: python scripts/run-required-test.py --label "Windows actual generated tree output" -- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc --test cli_test test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture
+
+      - name: Qualify Windows actual generated document projections
+        run: python scripts/run-required-test.py --label "Windows actual generated document projections" -- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc --test cli_test test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
+
+      - name: Qualify Windows actual generated recovery diagnostics
+        run: python scripts/run-required-test.py --label "Windows actual generated recovery diagnostics" -- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc --test cli_test parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture
+
+      - name: Qualify Windows actual generated child argv rejection
+        run: python scripts/run-required-test.py --label "Windows actual generated child argv rejection" -- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze generated_runner_argv_tests::test_generated_runner_protocol_args_precede_input_io -- --exact --nocapture
+
   product-proof-result:
     timeout-minutes: 5
     name: Product Proof Result
-    needs: [detect-stable-product-paths, pr-canary-plan, ci-product-stable]
+    needs: [detect-stable-product-paths, pr-canary-plan, ci-product-stable, ci-product-windows]
     # Always evaluate (#995): a skipped required check satisfies branch
     # protection, so cancelled/failed/skipped prerequisites must reach
     # the evaluator and fail there instead of skipping this job.
@@ -282,6 +374,7 @@ jobs:
           RUN_STABLE: ${{ needs.detect-stable-product-paths.outputs.run_stable }}
           DETECT_REASON: ${{ needs.detect-stable-product-paths.outputs.reason }}
           STABLE_RESULT: ${{ needs.ci-product-stable.result }}
+          WINDOWS_RESULT: ${{ needs.ci-product-windows.result }}
           PR_CANARY_RESULT: ${{ needs.pr-canary-plan.result }}
         run: python3 scripts/evaluate-required-result.py product
 

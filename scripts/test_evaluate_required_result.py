@@ -40,6 +40,7 @@ PRODUCT_PASS = {
     "RUN_STABLE": "true",
     "DETECT_REASON": "stable_surface:runtime/lib.rs",
     "STABLE_RESULT": "success",
+    "WINDOWS_RESULT": "success",
     "PR_CANARY_RESULT": "skipped",
 }
 
@@ -67,6 +68,10 @@ class ValidPassRows(unittest.TestCase):
     def test_valid_no_work_passes(self) -> None:
         self.assertEqual(0, rust(RUST_NEEDED="false", DETECT_REASON="no_rust_surface_changed"))
         self.assertEqual(0, product(RUN_STABLE="false", DETECT_REASON="no_stable_product_surface_changed"))
+        self.assertEqual(0, product(RUN_STABLE="false", DETECT_REASON="no_stable_product_surface_changed",
+                                    STABLE_RESULT="skipped", WINDOWS_RESULT="skipped"))
+        self.assertEqual(0, product(RUN_STABLE="false", DETECT_REASON="no_stable_product_surface_changed",
+                                    STABLE_RESULT="", WINDOWS_RESULT=""))
 
     def test_selected_proof_succeeds_passes(self) -> None:
         self.assertEqual(0, rust())
@@ -82,7 +87,14 @@ class ValidPassRows(unittest.TestCase):
         self.assertEqual(0, rust(EVENT_NAME="pull_request", PR_ADMISSION_RESULT="success",
                                  SUPPORTED_RESULT="skipped", GITHUB_RESULT="skipped"))
         self.assertEqual(0, product(EVENT_NAME="pull_request", PR_CANARY_RESULT="success",
-                                    STABLE_RESULT="skipped"))
+                                    STABLE_RESULT="skipped", WINDOWS_RESULT="skipped"))
+        self.assertEqual(0, product(EVENT_NAME="pull_request", PR_CANARY_RESULT="success",
+                                    STABLE_RESULT="", WINDOWS_RESULT=""))
+
+    def test_each_selected_non_pr_event_requires_and_accepts_windows_success(self) -> None:
+        for event in ("merge_group", "workflow_dispatch", "schedule"):
+            with self.subTest(event=event):
+                self.assertEqual(0, product(EVENT_NAME=event))
 
 
 class FailRows(unittest.TestCase):
@@ -119,6 +131,16 @@ class FailRows(unittest.TestCase):
         self.assertEqual(1, product(STABLE_RESULT="failure"))
         self.assertEqual(1, rust(EVENT_NAME="pull_request", PR_ADMISSION_RESULT="failure"))
         self.assertEqual(1, product(EVENT_NAME="pull_request", PR_CANARY_RESULT="failure"))
+
+    def test_selected_windows_proof_missing_skipped_cancelled_failed_or_malformed(self) -> None:
+        for event in ("merge_group", "workflow_dispatch", "schedule"):
+            for bad in ("", "skipped", "cancelled", "failure", "succ", "Success", "success ", "success\n"):
+                with self.subTest(event=event, windows_result=bad):
+                    self.assertEqual(1, product(EVENT_NAME=event, WINDOWS_RESULT=bad))
+            omitted = {key: value for key, value in PRODUCT_PASS.items() if key != "WINDOWS_RESULT"}
+            omitted["EVENT_NAME"] = event
+            with self.subTest(event=event, windows_result="omitted"):
+                self.assertEqual(1, run("product", omitted))
 
     def test_route_unavailable(self) -> None:
         for bad in ["failure", "cancelled", "skipped", ""]:
@@ -225,6 +247,27 @@ class WorkflowWiring(unittest.TestCase):
             "cli/tests/runner_output_contract.rs",
             "cli/tests/runner_process_contract.rs",
             "cli/tests/runner_protocol_contract.rs",
+            "cli/tests/runner_windows_process_contract.rs",
+            "cli/tests/runner_windows_output_contract.rs",
+            "cli/tests/runner_windows_protocol_contract.rs",
+            "cli/tests/fixtures/windows_runner_fixture.rs",
+            "cli/tests/support/windows_fixture.rs",
+            "cli/tests/support/windows_output.rs",
+        )
+        for event in ("merge_group", "pull_request"):
+            for change in ("modify", "delete", "rename"):
+                for path in paths:
+                    with self.subTest(event=event, change=change, path=path):
+                        result = self._product_path_selection(path, event=event, change=change)
+                        self.assertEqual("true", result["run_stable"])
+                        self.assertEqual(f"stable_surface:{path}", result["reason"])
+
+    def test_portable_guard_and_evaluator_changes_select_product_qualification(self) -> None:
+        paths = (
+            "scripts/run-required-test.py",
+            "scripts/test_run_required_test.py",
+            "scripts/evaluate-required-result.py",
+            "scripts/test_evaluate_required_result.py",
         )
         for event in ("merge_group", "pull_request"):
             for change in ("modify", "delete", "rename"):
@@ -282,6 +325,66 @@ class WorkflowWiring(unittest.TestCase):
         command = "run: python3 scripts/test_evaluate_required_result.py"
         self.assertIn(command, block)
         self.assertLess(block.index(command), block.index("- id: detect"))
+
+    def test_windows_job_is_selected_with_the_existing_non_pr_product_proof(self) -> None:
+        import re
+
+        path = ".github/workflows/product-proof.yml"
+        linux = self._job_block(path, "ci-product-stable")
+        windows = self._job_block(path, "ci-product-windows")
+        self.assertEqual(
+            re.search(r"^    if: (.+)$", linux, re.M).group(1),
+            re.search(r"^    if: (.+)$", windows, re.M).group(1),
+        )
+        self.assertIn("needs: detect-stable-product-paths", windows)
+        self.assertIn("runs-on: windows-2022", windows)
+        self.assertNotIn("continue-on-error", windows)
+        self.assertNotIn("shell: bash", windows)
+        self.assertIn("toolchain: 1.95.0", windows)
+        self.assertIn("components: clippy,rustfmt", windows)
+        self.assertIn("targets: x86_64-pc-windows-msvc", windows)
+        self.assertIn("EXPECTED_SHA: ${{ github.sha }}", windows)
+        self.assertIn("$actualSha -cne $env:EXPECTED_SHA", windows)
+        self.assertEqual(2, windows.count("if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"))
+        for token in ("ImageOS", "ImageVersion", "windows_build", "rustc -vV", "lock_sha256"):
+            self.assertIn(token, windows)
+        self.assertIn("run: python scripts/test_run_required_test.py\n", windows)
+        self.assertNotIn("test_run_required_test.py SyntheticProcessControls", windows)
+
+    def test_windows_guards_each_native_contract_and_strict_targeted_clippy(self) -> None:
+        block = self._job_block(".github/workflows/product-proof.yml", "ci-product-windows")
+        commands = [line.strip() for line in block.splitlines()
+                    if "run: python scripts/run-required-test.py " in line]
+        self.assertEqual(7, len(commands))
+        targets = [
+            "--test runner_windows_process_contract -- --nocapture",
+            "--test runner_windows_output_contract -- --nocapture",
+            "--test runner_windows_protocol_contract -- --nocapture",
+            "--test cli_test test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture",
+            "--test cli_test test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture",
+            "--test cli_test parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture",
+            "--bin adze generated_runner_argv_tests::test_generated_runner_protocol_args_precede_input_io -- --exact --nocapture",
+        ]
+        for command, target in zip(commands, targets):
+            self.assertIn("--label ", command)
+            self.assertIn("-- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc ", command)
+            self.assertTrue(command.endswith(target), command)
+        clippy = (
+            "cargo clippy --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze "
+            "--test runner_windows_process_contract --test runner_windows_output_contract "
+            "--test runner_windows_protocol_contract -- -D warnings"
+        )
+        self.assertIn(clippy, block)
+
+    def test_required_product_aggregate_receives_the_windows_result(self) -> None:
+        block = self._job_block(".github/workflows/product-proof.yml", "product-proof-result")
+        self.assertIn(
+            "needs: [detect-stable-product-paths, pr-canary-plan, ci-product-stable, ci-product-windows]",
+            block,
+        )
+        self.assertIn("WINDOWS_RESULT: ${{ needs.ci-product-windows.result }}", block)
+        self.assertIn("name: Product Proof Result", block)
+        self.assertIn("always() &&", block)
 
     def test_ready_for_review_triggers_both_workflows(self) -> None:
         import re

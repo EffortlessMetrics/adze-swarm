@@ -99,9 +99,37 @@ starting the runner.
 This covers ordinary descendants which stay in the inherited process group.
 It does not provide a sandbox or custody of deliberately escaped descendants.
 The existing argv, input path, environment and inherited Cargo working directory
-are preserved. Windows and other non-Linux platforms retain the existing runner
+are preserved. Platforms other than Linux and Windows retain the existing runner
 path and are not qualified for these capture, deadline or cleanup bounds.
 Public projection schemas and parser outcome semantics are unchanged.
+
+## Static runner process limits on Windows
+
+The Windows path targets Windows 10 / Windows Server 2016 and newer. It uses the
+same stdout, stderr, execution and drain limits above, with **2 additional
+seconds** to confirm that its owned job is empty. The helper belongs to that job
+from process creation, before it starts Cargo. Ordinary inherited descendants
+remain owned even if Cargo or the helper exits first; a failed or unconfirmed
+cleanup is reported. Closing the CLI also closes the job's non-inherited handle.
+
+The private launch request has a **1 MiB encoded-byte limit**, including its
+header, counts and UTF-16 fields. Oversized or malformed requests fail before
+external execution. Arguments preserve their Windows code units, input paths
+keep their spelling, and environment changes retain their order. Cargo still
+uses Rust's standard command handling and the CLI's inherited working directory,
+including its Cargo configuration discovery. Cache reuse remains disabled.
+
+Ctrl-C and Ctrl-Break cancel capture, clean up the job and unwind the temporary
+runner directory before this CLI exits with Windows status `0xC000013A`.
+Inherited ignored Ctrl-C remains ignored. The CLI does not broadcast a console
+event to its caller. Forced termination or console closure can prevent Rust
+unwinding; the job still provides descendant custody, while temporary-directory
+removal is not guaranteed in those cases. This remains trusted local grammar
+execution, with the same public schemas and parser outcomes.
+
+Native qualification is specific to the tested Windows image, architecture and
+toolchain. A Linux receipt or a Windows cross-compilation is not Windows process,
+console or installed-package proof.
 
 ## Windows notes
 

@@ -145,10 +145,14 @@ def evaluate_product() -> int:
         return passes("PR canary plan proof succeeded.")
 
     stable = env("STABLE_RESULT")
+    windows = env("WINDOWS_RESULT")
     print(f"stable_result={stable}")
+    print(f"windows_result={windows}")
     if stable != SUCCESS:
         return fail(f"Selected stable product proof did not succeed (result={stable!r}).")
-    return passes("Selected stable product proof succeeded.")
+    if windows != SUCCESS:
+        return fail(f"Selected native Windows product proof did not succeed (result={windows!r}).")
+    return passes("Selected stable and native Windows product proofs succeeded.")
 
 
 def main(argv: list[str]) -> int:
