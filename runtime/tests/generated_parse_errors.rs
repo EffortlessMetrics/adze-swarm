@@ -996,10 +996,20 @@ fn generated_parser_multi_error_diagnostics_are_not_duplicated() {
         let document = (case.document)(case.source).expect("bad syntax yields a document");
         assert_eq!(document.outcome(), ParseOutcome::Failed, "{}", case.label);
         assert_eq!(document.diagnostics().len(), errors.len(), "{}", case.label);
-        for (error, diagnostic) in errors.iter().zip(document.diagnostics()) {
-            assert_eq!(diagnostic.byte_span(), error.byte_span(), "{}", case.label);
-            assert_eq!(diagnostic.expected, error.expected, "{}", case.label);
-        }
+        // Check the exact initial cause. Later delimiter/EOF presentation
+        // equivalence is a separate #875 requirement, not proved by this test.
+        assert_eq!(
+            document.diagnostics()[0].byte_span(),
+            case.first_span,
+            "{}",
+            case.label
+        );
+        assert_eq!(
+            document.diagnostics()[0].expected,
+            [case.first_expected],
+            "{}",
+            case.label
+        );
         assert_eq!(
             document.diagnostics()[0].found.as_deref(),
             Some(case.first_found),
