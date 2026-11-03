@@ -133,8 +133,10 @@ fn test_fact_only_descriptor_does_not_grant_projection_or_fake_empty_getter() {
 fn test_recovered_selected_field_path_reports_incomplete() {
     use adze::document::{FieldProjectionError, ParseOutcome};
     let document = parse_document("x?").expect("native recovered document retained");
-    assert!(matches!(document.validate_fields_strict_at(document.tree().root().node_id()),
-        Err(adze::document::FieldProjectionError::Incomplete { .. })));
+    assert!(matches!(
+        document.validate_fields_strict_at(document.tree().root().node_id()),
+        Err(adze::document::FieldProjectionError::Incomplete { .. })
+    ));
     assert_ne!(document.outcome(), ParseOutcome::Complete);
     let id = document.tree().root_id();
     assert!(
@@ -219,11 +221,20 @@ fn test_revision_one_keeps_positional_optional_presence() {
     use adze::document::SyntaxNode;
     for (source, separators) in [("x ", 1), ("x", 0)] {
         let mut descriptor = LANGUAGE_DESCRIPTOR_V2;
-        descriptor.field_projection.as_mut().unwrap().projection_revision = 1;
+        descriptor
+            .field_projection
+            .as_mut()
+            .unwrap()
+            .projection_revision = 1;
         assert_eq!(descriptor.validate(), Ok(()));
         let descriptor = Box::leak(Box::new(descriptor));
         let document = adze::__private::parse_document_with_descriptor_v2_and_identity(
-            source, descriptor, Some(&START_IDENTITY), GRAMMAR_NAME).unwrap();
+            source,
+            descriptor,
+            Some(&START_IDENTITY),
+            GRAMMAR_NAME,
+        )
+        .unwrap();
         let root = syntax::source_file(&document).unwrap();
         assert_eq!(root.value_item()[0].text(), Some("x"));
         assert_eq!(root.value_sep().len(), separators);
