@@ -22,9 +22,13 @@
 // This implements the core parsing algorithm with GLR support
 
 mod helpers;
+mod progress;
 mod types;
+#[cfg(test)]
+pub(crate) mod work_budget_tests;
 
 use helpers::{advance_point, append_sentinel, subtree_to_node};
+use progress::ProgressBudget;
 pub(crate) use types::Subtree;
 use types::{Lexer, StackEntry};
 pub use types::{ParseError, ParseResult, ParsedNode, ParsedNodeBuilder};
@@ -322,7 +326,21 @@ impl Parser {
 
     /// Resets the parser state, discarding any partial parse progress.
     pub fn reset(&mut self) {
-        self.stack.clear();
+        self.discard_stack_iteratively();
+    }
+
+    /// Release owned partial trees without recursing through a reduction chain.
+    fn discard_stack_iteratively(&mut self) {
+        let mut pending = Vec::new();
+        for entry in self.stack.drain(..) {
+            if let Some(subtree) = entry.subtree {
+                pending.push(subtree);
+            }
+            pending.extend(entry.pending);
+        }
+        while let Some(mut subtree) = pending.pop() {
+            pending.append(&mut subtree.children);
+        }
     }
 
     /// Parses a UTF-8 string and returns a [`ParseResult`].
@@ -361,6 +379,7 @@ impl Parser {
                 return ParseResult {
                     root: None,
                     errors: vec![ParseError {
+                        work_limit: None,
                         position: 0,
                         point: Point { row: 0, column: 0 },
                         expected: vec![],
@@ -371,7 +390,7 @@ impl Parser {
         };
 
         // Initialize parser state
-        self.stack.clear();
+        self.reset();
 
         // The initial state is always state 0 in a properly generated parser
         let initial_state = 0;
@@ -404,12 +423,18 @@ impl Parser {
         let mut prefix_nodes: Vec<Subtree> = Vec::new();
 
         // Main parsing loop
-        let mut iteration_count = 0;
+        let mut progress = ProgressBudget::new(self.stack.len());
         loop {
-            iteration_count += 1;
-            if iteration_count > 10000 {
-                //eprintln!("WARNING: Parser exceeded 10000 iterations, likely infinite loop");
+            if let Err(work_limit) =
+                progress.admit_iteration(position.min(source.len()), self.stack.len())
+            {
+                // A work refusal is a checkpoint, not an unexpected source token.
+                // Recompute its point from the bounded byte position; lexing may
+                // have inspected ahead without advancing the parser frontier.
+                let position = position.min(source.len());
+                let point = advance_point(Point { row: 0, column: 0 }, &source[..position]);
                 errors.push(ParseError {
+                    work_limit: Some(work_limit),
                     position,
                     point,
                     expected: vec![],
@@ -423,6 +448,7 @@ impl Parser {
                 let elapsed = start_time.elapsed().as_micros() as u64;
                 if elapsed > self.timeout_micros {
                     errors.push(ParseError {
+                        work_limit: None,
                         position,
                         point,
                         expected: vec![],
@@ -440,6 +466,7 @@ impl Parser {
                 unsafe {
                     if (*flag).load(Ordering::Relaxed) {
                         errors.push(ParseError {
+                            work_limit: None,
                             position,
                             point,
                             expected: vec![],
@@ -464,6 +491,7 @@ impl Parser {
                 // Safety check: ensure token length doesn't exceed remaining input
                 if position + token.length > source.len() {
                     errors.push(ParseError {
+                        work_limit: None,
                         position,
                         point,
                         expected: vec![], // Empty since this is a bounds error, not a parsing error
@@ -554,6 +582,7 @@ impl Parser {
                     // Safety check: ensure token length doesn't exceed remaining input
                     if position + token.length > source.len() {
                         errors.push(ParseError {
+                            work_limit: None,
                             position,
                             point,
                             expected: vec![], // Empty since this is a bounds error, not a parsing error
@@ -606,6 +635,7 @@ impl Parser {
                     if !self.reduce(language, rule_id, source) {
                         // Reduction failed - record error and try to recover
                         errors.push(ParseError {
+                            work_limit: None,
                             position,
                             point,
                             expected: self.get_expected_symbols(language, current_state),
@@ -636,6 +666,7 @@ impl Parser {
                         children.extend(entry.pending);
                         root.children = children;
                         Self::include_child_bounds(&mut root);
+                        self.discard_stack_iteratively();
                         return ParseResult {
                             root: Some(subtree_to_node(root, Some(language as *const _))),
                             errors,
@@ -652,6 +683,7 @@ impl Parser {
                     // position, current_state, expected_symbols, token.symbol
                     // );
                     errors.push(ParseError {
+                        work_limit: None,
                         position,
                         point,
                         expected: expected_symbols,
@@ -708,6 +740,7 @@ impl Parser {
             }
         }
 
+        self.discard_stack_iteratively();
         ParseResult { root: None, errors }
     }
 
@@ -1785,7 +1818,14 @@ impl ParsedNode {
 
     /// Returns `true` if this node or any descendant is an error node.
     pub fn has_error(&self) -> bool {
-        self.is_error || self.children.iter().any(|c| c.has_error())
+        let mut pending = vec![self];
+        while let Some(node) = pending.pop() {
+            if node.is_error {
+                return true;
+            }
+            pending.extend(node.children.iter().rev());
+        }
+        false
     }
 
     /// Returns `true` if this is a named (non-anonymous) grammar symbol.

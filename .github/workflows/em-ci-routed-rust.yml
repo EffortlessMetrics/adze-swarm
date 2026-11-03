@@ -889,6 +889,10 @@ jobs:
           run_required_glr_test 'generated streaming physical EOF (pure-rust,glr)' \
             cargo test --locked -p adze --no-default-features --features pure-rust,glr \
             --test generated_streaming_extra_eof -- --nocapture
+          # #1211: exercise actual LR cycles and deep EOF lifecycle with GLR enabled.
+          run_required_glr_test 'native LR work-budget and lifecycle (pure-rust,glr)' \
+            cargo test --locked -p adze --no-default-features --features pure-rust,glr \
+            --lib pure_parser::work_budget_tests:: -- --nocapture
       - name: Run supported proof (fmt + clippy + tests on 7 core crates)
         run: just ci-supported
 

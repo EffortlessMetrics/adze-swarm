@@ -803,6 +803,16 @@ pub(crate) fn parse_document_with_decoded_table(
         errors: parser_errors,
     } = parser.parse_string(input);
 
+    // Resource refusal cannot produce a trustworthy syntax document. Preserve
+    // the same native errors/order as typed parsing, including any earlier
+    // syntax errors; never infer this class from token IDs or display text.
+    if parser_errors.iter().any(|error| error.work_limit.is_some()) {
+        return Err(parser_errors
+            .into_iter()
+            .map(|error| map_lr_parse_error(input, lang, error))
+            .collect());
+    }
+
     let error_count = parser_errors.len();
     let diagnostics = document_diagnostics_for_parse_errors(input, lang, &parser_errors);
     let root = root
@@ -1832,6 +1842,18 @@ fn map_lr_parse_error(
     lang: &crate::pure_parser::TSLanguage,
     error: crate::pure_parser::ParseError,
 ) -> crate::errors::ParseError {
+    if let Some(work_limit) = error.work_limit {
+        let mut checkpoint = error.position.min(input.len());
+        while !input.is_char_boundary(checkpoint) {
+            checkpoint -= 1;
+        }
+        return crate::errors::ParseError {
+            reason: crate::errors::ParseErrorReason::ParserWorkLimit(work_limit),
+            start: checkpoint,
+            end: checkpoint,
+            expected: Vec::new(),
+        };
+    }
     let facts = lr_diagnostic_facts(input, lang, &error);
     let reason = if facts.unexpected_eof {
         crate::errors::ParseErrorReason::UnexpectedEof
@@ -2577,12 +2599,32 @@ fn convert_parsed_node_to_document_node(
     node: &crate::pure_parser::ParsedNode,
     lang: &crate::pure_parser::TSLanguage,
 ) -> crate::parser_v4::ParseNode {
-    let children = node
-        .children
-        .iter()
-        .map(|child| convert_parsed_node_to_document_node(child, lang))
-        .collect();
+    let mut frames = vec![(node, Vec::with_capacity(node.children.len()))];
+    loop {
+        let (node, child_index) = {
+            let (node, children) = frames.last().expect("root frame exists");
+            (*node, children.len())
+        };
+        if let Some(child) = node.children.get(child_index) {
+            frames.push((child, Vec::with_capacity(child.children.len())));
+            continue;
+        }
+        let (node, children) = frames.pop().expect("completed frame exists");
+        let converted = parsed_node_with_document_children(node, lang, children);
+        if let Some((_, siblings)) = frames.last_mut() {
+            siblings.push(converted);
+        } else {
+            return converted;
+        }
+    }
+}
 
+#[cfg(feature = "pure-rust")]
+fn parsed_node_with_document_children(
+    node: &crate::pure_parser::ParsedNode,
+    lang: &crate::pure_parser::TSLanguage,
+    children: Vec<crate::parser_v4::ParseNode>,
+) -> crate::parser_v4::ParseNode {
     // Preserve error/missing facts (#875): encode them as symbol-0 nodes,
     // the document layer's error-node identity, instead of keeping only
     // the recognised grammar symbol and dropping the flag.
@@ -3291,6 +3333,33 @@ mod tests {
     }
 
     #[test]
+    fn test_lr_work_limit_uses_explicit_cause_and_bounded_checkpoint() {
+        let input = "λ!";
+        let limit = crate::errors::ParserWorkLimit {
+            limit: 10_000,
+            completed_iterations: 10_000,
+        };
+        for (position, span) in [(1, 0..0), (usize::MAX, 3..3)] {
+            let native = crate::pure_parser::ParseError {
+                work_limit: Some(limit),
+                position,
+                point: Point { row: 0, column: 0 },
+                // These cannot be token facts for a work refusal. In
+                // particular, a nonzero found ID must not change its cause.
+                expected: vec![u16::MAX],
+                found: 1,
+            };
+            let typed = map_lr_parse_error(input, &FIELD_LANGUAGE, native);
+            assert!(matches!(
+                typed.reason,
+                crate::errors::ParseErrorReason::ParserWorkLimit(actual) if actual == limit
+            ));
+            assert_eq!(typed.byte_span(), span);
+            assert!(typed.expected.is_empty());
+        }
+    }
+
+    #[test]
     fn test_lr_diagnostic_views_preserve_trailing_delimiter_and_genuine_eof_facts() {
         let names = [
             c"end".as_ptr() as *const u8,
@@ -3323,6 +3392,7 @@ mod tests {
             ),
         ] {
             let native = crate::pure_parser::ParseError {
+                work_limit: None,
                 position: source.len(),
                 point: byte_to_point(source.as_bytes(), source.len()),
                 expected: native_expected,
@@ -3367,6 +3437,7 @@ mod tests {
             ..FIELD_LANGUAGE
         };
         let native = crate::pure_parser::ParseError {
+            work_limit: None,
             position: 0,
             point: Point { row: 0, column: 0 },
             expected: vec![2],

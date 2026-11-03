@@ -117,6 +117,22 @@ The main user-facing crate. Re-exports `adze-macro` proc-macros at the top level
 > pre-1.0 breaking change at the 0.10.0 boundary (issue #871): downstream
 > exhaustive matches need a wildcard arm. Display text is unchanged.
 
+> **0.10.0 scoped addition (#1211):** The existing non-exhaustive
+> `errors::ParseErrorReason` gains `ParserWorkLimit(errors::ParserWorkLimit)`.
+> Its payload records the LR loop-body limit and the completed bodies since
+> admitted progress, excluding the refused next body. The public
+> `errors::ParseError` struct is unchanged; the span is a bounded zero-width
+> checkpoint. A native work refusal makes the document entrypoint return a
+> structured hard `Err`, preserving accompanying native errors in order.
+> The Unstable `pure_parser::ParseError` adds an optional `work_limit` field;
+> existing syntax-error literals initialize it to `None`. The Unstable
+> `pure_parser::ParsedNode` gains iterative `Clone`, `Drop`, and `has_error`
+> traversal. Its fields and tree representation stay the same, but callers
+> that previously moved `node.children` or used struct-update syntax to move
+> it must use `std::mem::take(&mut node.children)` and explicit construction.
+> These are scoped API notes, not a refresh of the matrix or support tiers.
+> See [the LR work policy and lifecycle boundary](../reference/parser-engine-ownership.md#deterministic-lr-work-refusal-and-lifecycle-1211).
+
 ### Feature-Gated Re-exports
 
 | API | Stability | Feature | Docs |
