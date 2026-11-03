@@ -11,6 +11,10 @@
 //!    The deterministic grammar uses production `parse`/`parse_document`.
 //! 2. `validate_structure() == Ok` plus root/parent/edge symmetry and
 //!    bounded spans hold on every replayed document, accepted or rejected.
+//!    Child-span containment additionally holds except for the deliberate
+//!    #1220 exact-span carve-out: a recovery error child that begins at or
+//!    after its parent's end is attached without rewriting the parent's
+//!    exact token span.
 //! 3. Multiparse inputs select a deterministic winner across repeated runs.
 //!
 //! Direct streaming-driver invocation uses streaming-routed conflicted tables.
@@ -122,7 +126,7 @@ fn parse_batch(
 }
 
 #[test]
-fn test_contextual_grammar_rejects_ineligible_fixed_mode_bridge() {
+fn test_contextual_grammar_lexes_across_modes_through_state_aware_bridge() {
     use adze::glr_streaming_lex_contract::{
         distinct_internal_lex_states, fixed_mode_bridge_lex_mode,
     };
@@ -143,9 +147,16 @@ fn test_contextual_grammar_rejects_ineligible_fixed_mode_bridge() {
         (first_mode.lex_state, first_mode.external_lex_state),
         "legacy bridge chooses state-zero mode for the whole input"
     );
-    let errors = lex_with_language_fn(language, language.lex_fn.unwrap(), b"7 + 2")
-        .expect_err("state-zero pretokenization cannot supply contextual operator tokens");
-    assert_eq!(errors[0].byte_span(), 2..3);
+    let tokens = lex_with_language_fn(language, language.lex_fn.unwrap(), b"7 + 2")
+        .expect("state-aware harness pretokenization supplies contextual operator tokens");
+    assert_eq!(
+        tokens
+            .iter()
+            .map(|token| (token.text.as_str(), token.byte_offset))
+            .collect::<Vec<_>>(),
+        vec![("7", 0), ("+", 2), ("2", 4)],
+        "harness lexes contextual operators via union over lex states (#892)"
+    );
     assert_eq!(parse_streaming("7 + 2", language).unwrap(), (0, 5));
 }
 
@@ -212,8 +223,15 @@ fn assert_document_invariants(doc: &AdzeDocument, source: &str, label: &str) {
                     .node(parent_id)
                     .unwrap_or_else(|| panic!("{label}: parent exists"));
                 let parent_span = parent.byte_range();
+                // #1220 exact-span contract (pure_parser): recovery attaches
+                // an error that begins at or after a node's end as a child
+                // without widening the node's exact token span, so such an
+                // error child legitimately starts at/after (and ends outside)
+                // its parent. Containment still holds for every other edge.
+                let recovery_tail = node.is_error() && parent_span.end <= span.start;
                 assert!(
-                    parent_span.start <= span.start && span.end <= parent_span.end,
+                    recovery_tail
+                        || (parent_span.start <= span.start && span.end <= parent_span.end),
                     "{label}: child {raw} span {span:?} lies within parent {parent_id:?} span {parent_span:?}"
                 );
                 assert!(
