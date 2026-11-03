@@ -25,6 +25,7 @@ dynamic = ["libloading"]
 [dependencies]
 clap.workspace = true
 adze-tool = { version = "0.10.0", path = "../tool" }
+serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 syn.workspace = true
 colored = "3.0"
