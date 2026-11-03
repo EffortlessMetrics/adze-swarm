@@ -6,6 +6,10 @@ Owner: repo governance. Linked: [AGENTS.md](../../AGENTS.md),
 [adze-swarm-operating-model.md](adze-swarm-operating-model.md),
 [SPEC_SYSTEM.md](SPEC_SYSTEM.md), [queue-admission.md](queue-admission.md).
 
+This reference summarizes those authorities; it does not grant or revoke
+authorization. Apply the current user request and owning-lane instructions.
+Cited historical checkpoints describe their original state, not live policy.
+
 ## 1. Worktree-per-lane + file-seam ownership
 
 Each writer gets an isolated worktree and explicit seam ownership.
@@ -37,15 +41,18 @@ The H / G / M identities are distinct ([queue-admission.md](queue-admission.md))
 - **M** — protected squash commit produced by landing, never by the record.
 
 Nothing infers H from `github.sha`, a queue-ref suffix, commit dates, or
-commit counts. Resolve exact heads with `git ls-remote`, never guessed
-suffixes. Changed heads, new material findings, and revoked authorization
+commit counts. Resolve exact heads with `git ls-remote` or the authoritative
+GitHub PR/ref API, never guessed suffixes. Changed heads, new material findings,
+and revoked authorization
 invalidate eligibility; repair, re-review, and re-emit (queue-admission
 `revoke`: a prior clean review never suppresses a new finding).
 
 Behind-only restacking onto a moved `main` without re-verifying H is
 avoided for the same reason: the admission record binds the reviewed H,
 and re-validation (`queue-admission validate`) fails closed on
-`head_mismatch`. Rebase, then re-prove, then re-record.
+`head_mismatch`. When H changes, refresh the affected proof and review, then
+re-record. A moved `main` alone does not require restacking or invalidate
+evidence whose source, dependencies, and configuration remain unchanged.
 
 ## 3. Research-first, and the "already landed" check
 
@@ -128,9 +135,10 @@ named generator (AGENTS.md).
 Clean owned worktrees/cache only after code and receipts are retained, and
 never delete another worker's uncommitted work (AGENTS.md; operating model
 "Run and worktree ownership"). Uncommitted work in a worktree is fragile —
-COMMIT the lane branch and PUSH it early and often so a cleanup cannot
-strand it. A pushed branch survives worktree removal; an unpushed one may
-not.
+retain code and receipts in owned commits and, when authorized for the lane,
+push a recoverable checkpoint before cleanup. The retained checkpoint must
+survive the selected cleanup; ordinary linked-worktree removal preserves its
+local branch, while deleting a standalone repository can lose unpushed work.
 
 Precedent: `docs/status/FRICTION_LOG.md` FR-019 — during PR #264 cleanup,
 `/tmp/adze-local-improvements` had drifted from linked worktree into
@@ -151,20 +159,27 @@ tests, but report that live PR count could not be refreshed."
 Concretely: one `gh pr list` refresh per decision point, not per command;
 never sweep-cancel runs by workflow display name (AGENTS.md — cancel only
 explicitly owned run IDs after checking repository, workflow, event, and
-ref); treat Ready/reopen as expensive, not a cheap control action (#1028
-readback); offline validators (e.g. #1063's record validator) are not live
+ref); check the deployed workflow costs before Ready/reopen rather than
+treating the historical #1070 workaround as current; offline validators
+(e.g. #1063's record validator) are not live
 admission providers.
 
-## 8. What the human (not agents) must do
+## 8. Authority, decisions, and escalation
 
 - **Merge decisions and landing authorization.** Successful G fulfills the
-  conditional landing decision, but the decision itself, any revocation,
-  and the #1028 protected-cutover ownership sit with the delivery owner /
-  Steven — agents record evidence and request admission, they do not
-  self-authorize (queue-admission.md "Boundaries"; operating model).
-- **Draft/undraft calls.** #1070 restores full non-draft qualification
-  before queue qualification; Ready/reopen triggers expensive work, so
-  flipping draft state is a human spending decision, not an agent shortcut.
+  current conditional landing decision without a routine second approval.
+  Agents may carry already-authorized review, admission, and protected
+  delivery work; they must not invent authorization from a green check or
+  historical text. New findings, changed H, or revoked authority invalidate
+  eligibility. The delivery owner retains the #1028 cutover responsibility
+  (AGENTS.md; operating model).
+- **Draft/undraft calls.** Follow existing lane authorization and the actual
+  workflow policy. The October 22 #1070 full non-draft qualification readback
+  is historical: at this revision, Ready PRs receive cheap admission and
+  expensive qualification runs on actual merge groups or explicit dispatch
+  ([routed Rust workflow](../../.github/workflows/em-ci-routed-rust.yml)).
+  A state change is not a substitute for required proof or review; already
+  authorized delivery does not require a new human-only confirmation.
 - **Shared-seam arbitration.** Agents coordinate shared
   compiler/runtime/CLI interfaces (AGENTS.md); when lanes genuinely
   contend on one seam and cannot coordinate, the lane stops, names the
