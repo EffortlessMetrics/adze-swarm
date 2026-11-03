@@ -39,6 +39,7 @@
 # Reference
 
 - [API Documentation](reference/api.md)
+- [CLI Reference](reference/cli-reference.md)
 - [S-Expression Format](reference/s-expression-format.md)
 - [Grammar Examples](reference/grammar-examples.md)
 - [Language Support](reference/language-support.md)

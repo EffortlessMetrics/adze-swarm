@@ -69,8 +69,10 @@ match.
 - clearing a byte range;
 - root-only matching.
 
-Byte-range filtering may keep a match when either the candidate node or its
-captures overlap the configured range.
+Byte-range filtering keeps a match only when the candidate node overlaps the
+configured range and, when the match has captures, at least one capture overlaps
+it (`runtime/src/query/matcher_v2.rs:416-438`; control case in
+`test_matches_with_options_byte_range_parent_root_outside_range_keeps_capture_match`).
 
 Use cursor filtering for structural matches that do not need source text. If a
 pattern relies on text-sensitive predicates or anonymous token literals, use the

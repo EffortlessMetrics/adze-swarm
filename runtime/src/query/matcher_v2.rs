@@ -1391,6 +1391,225 @@ mod tests {
     }
 
     #[test]
+    fn test_matches_with_options_byte_range_keeps_overlapping_capture() {
+        let query = query_with_root(PatternNode::new(SymbolId(2), true).with_capture(0));
+        let root = make_root(
+            vec![make_node(2, 0, 1), make_node(3, 1, 2), make_node(2, 3, 5)],
+            5,
+        );
+        let metadata = test_symbol_metadata();
+        let matcher = QueryMatcher::new(&query, "a+bcd", &metadata);
+
+        let in_range = 3..5;
+        let matches = matcher.matches_with_options(&root, Some(&in_range), false);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 3);
+        assert_eq!(matches[0].captures[0].node.end_byte, 5);
+
+        // A range disjoint from every node prunes the whole subtree.
+        let disjoint = 10..20;
+        assert!(
+            matcher
+                .matches_with_options(&root, Some(&disjoint), false)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn test_matches_with_options_byte_range_parent_root_outside_range_keeps_capture_match() {
+        let mut root_pattern = PatternNode::new(SymbolId(0), true);
+        root_pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        let query = query_with_root(root_pattern);
+        let root = make_root(vec![make_node(1, 3, 5)], 5);
+        let metadata = test_symbol_metadata();
+        let matcher = QueryMatcher::new(&query, "abcde", &metadata);
+
+        // Parent root 0..5 extends outside the range, but the capture
+        // overlaps it, so the match is kept (legacy overlap rule).
+        let overlapping = 3..5;
+        let matches = matcher.matches_with_options(&root, Some(&overlapping), false);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 3);
+        assert_eq!(matches[0].captures[0].node.end_byte, 5);
+
+        // Control: a range overlapping only the parent root drops the match
+        // because no capture overlaps it.
+        let root_only_range = 0..1;
+        assert!(
+            matcher
+                .matches_with_options(&root, Some(&root_only_range), false)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn test_matches_with_options_root_only_matches_only_at_root() {
+        let tree = make_root(
+            vec![make_node(2, 0, 1), make_node(3, 1, 2), make_node(2, 3, 5)],
+            5,
+        );
+        let metadata = test_symbol_metadata();
+
+        // A pattern matching only children is suppressed under root-only.
+        let child_query = query_with_root(PatternNode::new(SymbolId(2), true).with_capture(0));
+        let child_matcher = QueryMatcher::new(&child_query, "a+bcd", &metadata);
+        assert!(
+            child_matcher
+                .matches_with_options(&tree, None, true)
+                .is_empty()
+        );
+        // Teeth: without root-only the same query matches twice.
+        assert_eq!(
+            child_matcher.matches_with_options(&tree, None, false).len(),
+            2
+        );
+
+        // A pattern matching the root itself still matches under root-only.
+        let root_query = query_with_root(PatternNode::new(SymbolId(0), true).with_capture(0));
+        let root_matcher = QueryMatcher::new(&root_query, "a+bcd", &metadata);
+        let matches = root_matcher.matches_with_options(&tree, None, true);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 0);
+        assert_eq!(matches[0].captures[0].node.end_byte, 5);
+    }
+
+    #[test]
+    fn test_source_free_literal_token_returns_no_match() {
+        let query = literal_child_query("+");
+        let root = make_root(vec![make_node(1, 0, 1)], 1);
+
+        assert!(
+            QueryMatcher::source_free(&query).matches(&root).is_empty(),
+            "literal text is unavailable without source"
+        );
+
+        // Positive control: the same shape matches once source is attached.
+        let metadata = test_symbol_metadata();
+        let matcher = QueryMatcher::new(&query, "+", &metadata);
+        assert_eq!(matcher.matches(&root).len(), 1);
+    }
+
+    #[test]
+    fn test_source_free_text_predicates_fail_closed_including_negation() {
+        let leaf = make_node(1, 0, 2);
+        let cases: Vec<(&str, Predicate)> = vec![
+            (
+                "eq",
+                Predicate::Eq {
+                    capture1: 0,
+                    capture2: None,
+                    value: Some("ab".to_string()),
+                },
+            ),
+            (
+                "not-eq",
+                Predicate::NotEq {
+                    capture1: 0,
+                    capture2: None,
+                    value: Some("different".to_string()),
+                },
+            ),
+            (
+                "match",
+                Predicate::Match {
+                    capture: 0,
+                    regex: "a+".to_string(),
+                },
+            ),
+            (
+                "not-match",
+                Predicate::NotMatch {
+                    capture: 0,
+                    regex: "z+".to_string(),
+                },
+            ),
+            (
+                "any-of",
+                Predicate::AnyOf {
+                    capture: 0,
+                    values: vec!["ab".to_string(), "cd".to_string()],
+                },
+            ),
+        ];
+        for (name, predicate) in cases {
+            let mut query = query_with_root(PatternNode::new(SymbolId(1), true).with_capture(0));
+            query.patterns[0].predicates.push(predicate);
+            assert!(
+                QueryMatcher::source_free(&query).matches(&leaf).is_empty(),
+                "{name} must fail closed without source text"
+            );
+        }
+
+        // Capture-to-capture comparisons are unavailable without text too:
+        // equal spans are not proof of equal text.
+        let mut pair = PatternNode::new(SymbolId(0), true);
+        pair.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pair.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(1),
+        ));
+        let pair_tree = make_root(vec![make_node(1, 0, 1), make_node(1, 1, 2)], 2);
+        for predicate in [
+            Predicate::Eq {
+                capture1: 0,
+                capture2: Some(1),
+                value: None,
+            },
+            Predicate::NotEq {
+                capture1: 0,
+                capture2: Some(1),
+                value: None,
+            },
+        ] {
+            let mut query = query_with_root(pair.clone());
+            query.patterns[0].predicates.push(predicate);
+            assert!(
+                QueryMatcher::source_free(&query)
+                    .matches(&pair_tree)
+                    .is_empty(),
+                "capture-to-capture must fail closed without source text"
+            );
+        }
+
+        // Positive controls: with source text the same predicates resolve.
+        let metadata = test_symbol_metadata();
+        let controls: Vec<(Predicate, usize)> = vec![
+            (
+                Predicate::Eq {
+                    capture1: 0,
+                    capture2: None,
+                    value: Some("ab".to_string()),
+                },
+                1,
+            ),
+            (
+                Predicate::NotEq {
+                    capture1: 0,
+                    capture2: None,
+                    value: Some("different".to_string()),
+                },
+                1,
+            ),
+            (
+                Predicate::NotMatch {
+                    capture: 0,
+                    regex: "z+".to_string(),
+                },
+                1,
+            ),
+        ];
+        for (predicate, expected) in controls {
+            let mut query = query_with_root(PatternNode::new(SymbolId(1), true).with_capture(0));
+            query.patterns[0].predicates.push(predicate);
+            let matcher = QueryMatcher::new(&query, "ab", &metadata);
+            assert_eq!(matcher.matches(&leaf).len(), expected);
+        }
+    }
+
+    #[test]
     fn test_field_constraint_matches_named_field_child() {
         let mut pattern = PatternNode::new(SymbolId(0), true);
         pattern.add_field(
@@ -2044,5 +2263,54 @@ mod tests {
             matches[0].captures.is_empty(),
             "zero-occurrence Star success contributes no speculative capture"
         );
+    }
+
+    #[cfg(feature = "query")]
+    #[test]
+    fn test_matches_document_unavailable_text_fails_predicates_closed() {
+        // Record range 0..3 exceeds source "ab": node text is unavailable, so
+        // every text predicate fails closed through the flat backend.
+        let source = "ab";
+        let document = doc_fixture(source, make_node(1, 0, 3));
+        let predicates = [
+            Predicate::Eq {
+                capture1: 0,
+                capture2: None,
+                value: Some("ab".to_string()),
+            },
+            Predicate::NotEq {
+                capture1: 0,
+                capture2: None,
+                value: Some("different".to_string()),
+            },
+            Predicate::Match {
+                capture: 0,
+                regex: "a+".to_string(),
+            },
+            Predicate::NotMatch {
+                capture: 0,
+                regex: "z+".to_string(),
+            },
+            Predicate::AnyOf {
+                capture: 0,
+                values: vec!["ab".to_string()],
+            },
+        ];
+        for (index, predicate) in predicates.into_iter().enumerate() {
+            let mut query = query_with_root(PatternNode::new(SymbolId(1), true).with_capture(0));
+            query.patterns[0].predicates.push(predicate);
+            let matches = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+            assert!(
+                matches.is_empty(),
+                "flat-backend predicate {index} must fail closed on unavailable text"
+            );
+        }
+
+        // Control: without predicates the node itself still resolves, so only
+        // the text predicates fail closed.
+        let query = query_with_root(PatternNode::new(SymbolId(1), true).with_capture(0));
+        let matches = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures.len(), 1);
     }
 }

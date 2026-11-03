@@ -116,16 +116,6 @@ pub use glr_incremental::{Edit, GLRToken, IncrementalGLRParser};
 // Additional stable re-exports can be added here as needed
 // DO NOT move or remove existing re-exports
 
-// Legacy incremental modules - depend on deprecated parsers
-/// Incremental parsing façade used by older callers.
-#[cfg(feature = "legacy-parsers")]
-pub mod incremental;
-/// Incremental parser v2 (position- and range-centric editing).
-#[cfg(feature = "legacy-parsers")]
-pub mod incremental_v2;
-/// Incremental parser v3 (next-gen prototype).
-#[cfg(feature = "legacy-parsers")]
-pub mod incremental_v3;
 /// Lexer implementation and token types.
 pub mod lexer;
 /// Registry for managing external scanners.
@@ -144,9 +134,6 @@ pub mod parser {
 pub mod error_recovery;
 /// Error reporting utilities.
 pub mod error_reporting;
-/// Legacy GLR module used by `parser_v3`.
-#[cfg(feature = "legacy-parsers")]
-pub mod glr; // Legacy GLR module that depends on parser_v3
 /// GLR parse forest representation.
 #[cfg(feature = "pure-rust")]
 pub mod glr_forest;
@@ -189,12 +176,6 @@ pub mod grammar_json;
 /// Performance optimizations for parsing.
 pub mod optimizations;
 
-// Legacy parser versions - deprecated
-#[cfg(feature = "legacy-parsers")]
-mod parser_v2;
-#[cfg(feature = "legacy-parsers")]
-mod parser_v3;
-
 // Current parser version
 /// Arena allocator for parse tree nodes.
 pub mod arena_allocator;
@@ -212,8 +193,6 @@ mod parser_v4_action_utils;
 /// External-scanner setup helpers for the version 4 parser.
 #[cfg(feature = "pure-rust")]
 mod parser_v4_external_setup;
-/// Pure Rust external scanner support.
-pub mod pure_external_scanner;
 /// Pure Rust incremental parsing support.
 pub mod pure_incremental;
 /// Pure Rust parser implementation.
