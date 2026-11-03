@@ -1,0 +1,24 @@
+[package]
+name = "adze-config-dsl"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95.0"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# This is an independent downstream fixture, not another release crate.
+[workspace]
+resolver = "2"
+
+[dependencies]
+adze = { path = "../../runtime", default-features = false }
+
+[build-dependencies]
+adze-tool = { path = "../../tool" }
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+default = ["pure-rust"]
+pure-rust = ["adze/pure-rust"]
