@@ -3502,6 +3502,7 @@ dependencies = [
  "semver 1.0.28",
  "serde",
  "serde_json",
+ "sha2",
  "similar",
  "syn 2.0.117",
  "tempfile",

@@ -29,6 +29,7 @@ pub fn run(
     cli_bin: &str,
     dry_run: bool,
     receipt_out: Option<&Path>,
+    artifacts_out: Option<&Path>,
 ) -> Result<()> {
     let version = version.trim();
     if version.is_empty() {
@@ -67,8 +68,23 @@ pub fn run(
     println!("authority: {}", release_graph::ARTIFACT_PATH);
     println!();
 
-    let mut registry = local_registry::IsolatedRegistry::new()?;
-    registry.publish_release_graph(&root, &plan.ordered_crates)?;
+    let mut registry = local_registry::IsolatedRegistry::new_for_release(
+        &root,
+        artifacts_out,
+        version,
+        &plan.ordered_crates,
+    )?;
+    let result = execute(&root, &plan, &mut registry, receipt_out);
+    registry.finish_evidence(result)
+}
+
+fn execute(
+    root: &Path,
+    plan: &LocalReleasePlan,
+    registry: &mut local_registry::IsolatedRegistry,
+    receipt_out: Option<&Path>,
+) -> Result<()> {
+    registry.publish_release_graph(&plan.ordered_crates, &plan.version)?;
 
     println!();
     println!(
@@ -85,15 +101,18 @@ pub fn run(
 
     println!();
     println!("install:");
-    let install = registry.install_cli(&plan.cli_crate, &plan.cli_bin, version)?;
+    registry.evidence_stage("cargo_install_unqualified")?;
+    let install = registry.install_cli(&plan.cli_crate, &plan.cli_bin, &plan.version)?;
     println!("installed binary: {}", install.binary_path.display());
 
-    let starter = registry.init_starter_project(&install.binary_path, &root, "calc")?;
+    registry.evidence_stage("installed_cli_init_unqualified")?;
+    let starter = registry.init_starter_project(&install.binary_path, root, "calc")?;
     println!("starter project: {}", starter.project_dir.display());
 
     println!();
     println!("starter proof:");
-    let starter_commands = starter.run_starter_proof(&registry)?;
+    registry.evidence_stage("installed_starter_journey_unqualified")?;
+    let starter_commands = starter.run_starter_proof(registry)?;
     for command in &starter_commands {
         println!(
             "  - {}: exit={} success={}",
@@ -103,20 +122,28 @@ pub fn run(
         );
     }
 
+    registry.evidence_stage("journey_receipt_write")?;
     let receipt = local_release_receipt::build_receipt(
-        &root,
-        version,
+        local_release_receipt::SourceBinding {
+            commit: registry.bound_source_commit()?,
+            artifacts_dir: registry.evidence_root()?,
+        },
+        &plan.version,
         release_graph::ARTIFACT_PATH,
         local_registry::REGISTRY_NAME,
         registry.published_crates(),
         &starter.project_dir,
         &starter_commands,
     )?;
+    local_release_receipt::write_receipt(
+        &registry.evidence_root()?.join("journey-observations.json"),
+        &receipt,
+    )?;
     emit_receipt(&receipt, receipt_out)?;
 
     println!();
     println!(
-        "claim boundary: local-registry publish + CLI install + registry-backed starter proof"
+        "claim boundary: source/archive/index preparation and observed local journey; full package-first provenance remains unqualified"
     );
     Ok(())
 }
@@ -145,16 +172,19 @@ fn print_plan(plan: &LocalReleasePlan) {
     println!("isolated roots:");
     println!("  - temporary CARGO_HOME");
     println!("  - temporary CARGO_TARGET_DIR");
-    println!("  - temporary local registry directory");
+    println!("  - persistent owned source/archive/registry evidence outside the checkout");
     println!("  - generated starter project outside the workspace");
     println!();
-    println!("publish order:");
+    println!("package and local-registry preparation order:");
     for (idx, crate_name) in plan.ordered_crates.iter().enumerate() {
         println!(
-            "  {}. cargo publish -p {crate_name} --registry <local>",
+            "  {}. cargo package -p {crate_name} --allow-dirty --no-verify (owned Git export)",
             idx + 1
         );
     }
+    println!(
+        "  preserve each original archive, rewrite a separate copy, then index its served manifest"
+    );
     println!();
     println!("install:");
     println!(
@@ -203,19 +233,27 @@ mod tests {
     fn dry_run_entry_point_prints_plan_and_returns_ok() {
         // Regression guard for #1098: the dry-run must reach print_plan
         // and exit successfully without touching any registry.
-        run("0.10.0", DEFAULT_CLI_CRATE, DEFAULT_CLI_BIN, true, None)
-            .expect("dry-run should succeed");
+        run(
+            "0.10.0",
+            DEFAULT_CLI_CRATE,
+            DEFAULT_CLI_BIN,
+            true,
+            None,
+            None,
+        )
+        .expect("dry-run should succeed");
     }
 
     #[test]
     fn missing_version_is_rejected() {
-        let err = run("", DEFAULT_CLI_CRATE, DEFAULT_CLI_BIN, true, None).expect_err("version");
+        let err =
+            run("", DEFAULT_CLI_CRATE, DEFAULT_CLI_BIN, true, None, None).expect_err("version");
         assert!(err.to_string().contains("--version is required"));
     }
 
     #[test]
     fn cli_not_in_graph_is_rejected() {
-        let err = run("0.10.0", "xtask", DEFAULT_CLI_BIN, true, None).expect_err("cli");
+        let err = run("0.10.0", "xtask", DEFAULT_CLI_BIN, true, None, None).expect_err("cli");
         assert!(err.to_string().contains("not in the release graph"));
     }
 }

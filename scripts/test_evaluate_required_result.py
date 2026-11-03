@@ -298,6 +298,41 @@ class WorkflowWiring(unittest.TestCase):
                         self.assertEqual("true", result["run_stable"])
                         self.assertEqual(f"stable_surface:{path}", result["reason"])
 
+    def test_local_release_provenance_inputs_select_product_qualification(self) -> None:
+        paths = (
+            "scripts/test_local_release_archive.py",
+            "xtask/Cargo.toml",
+            "xtask/src/main.rs",
+            "xtask/src/policy.rs",
+            "xtask/src/local_registry.rs",
+            "xtask/src/local_registry_provenance.rs",
+            "xtask/src/local_registry_provenance_tests.rs",
+            "xtask/src/local_release_archive.py",
+            "xtask/src/local_release_install.rs",
+            "xtask/src/local_release_receipt.rs",
+            "xtask/src/release_graph.rs",
+            "policy/release-graph.toml",
+            "policy/package-boundary.toml",
+            ".github/workflows/local-release-receipt.yml",
+        )
+        for event in ("merge_group", "pull_request"):
+            for change in ("modify", "delete", "rename"):
+                for path in paths:
+                    with self.subTest(event=event, change=change, path=path):
+                        result = self._product_path_selection(path, event=event, change=change)
+                        self.assertEqual("true", result["run_stable"])
+                        self.assertEqual(f"stable_surface:{path}", result["reason"])
+
+    def test_local_release_controls_remain_small_guarded_selected_proof(self) -> None:
+        block = self._job_block(".github/workflows/product-proof.yml", "ci-product-stable")
+        self.assertIn("outputs.run_stable == 'true' && github.event_name != 'pull_request'", block)
+        for selector in ("local_registry::", "local_release_install::", "local_release_receipt::"):
+            self.assertIn(f"cargo test --locked -p xtask --bin xtask {selector} -- --nocapture", block)
+        self.assertIn('required_test_output "$output" "$label"', block)
+        self.assertIn("python3 scripts/test_local_release_archive.py", block)
+        self.assertNotIn("verify-local-release-install", block)
+        self.assertNotIn("continue-on-error", block)
+
     def test_runtime_change_selects_stable_product_lane(self) -> None:
         for event in ("merge_group", "pull_request"):
             with self.subTest(event=event):

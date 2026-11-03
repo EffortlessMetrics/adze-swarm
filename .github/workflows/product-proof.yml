@@ -82,6 +82,20 @@ env:
     docs/status/KNOWN_RED.md
     docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
     docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
+    scripts/test_local_release_archive.py
+    xtask/Cargo.toml
+    xtask/src/main.rs
+    xtask/src/policy.rs
+    xtask/src/local_registry.rs
+    xtask/src/local_registry_provenance.rs
+    xtask/src/local_registry_provenance_tests.rs
+    xtask/src/local_release_archive.py
+    xtask/src/local_release_install.rs
+    xtask/src/local_release_receipt.rs
+    xtask/src/release_graph.rs
+    policy/release-graph.toml
+    policy/package-boundary.toml
+    .github/workflows/local-release-receipt.yml
     samples/downstream-demo/**
     scripts/ci-product.sh
     scripts/ci-product-stable.sh
@@ -292,6 +306,38 @@ jobs:
           run_contract 'actual generated document projections' cargo test --locked -p adze-cli --test cli_test test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
           run_contract 'actual generated recovery diagnostics' cargo test --locked -p adze-cli --test cli_test parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture
           run_contract 'actual generated child argv rejection' cargo test --locked -p adze-cli --bin adze generated_runner_argv_tests::test_generated_runner_protocol_args_precede_input_io -- --exact --nocapture
+
+      # #1065 exercises small archive/metadata controls, not a full release install.
+      - name: Qualify local release archive provenance controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/lib/required-test-output.sh
+          python3 scripts/test_local_release_archive.py
+          cargo clippy --locked -p xtask --bin xtask --tests -- -D warnings
+
+          run_release_contract() {
+            local label="$1" output status
+            shift
+            printf '\n[local release] %s\n' "$label"
+            if output="$("$@" 2>&1)"; then
+              status=0
+            else
+              status=$?
+            fi
+            printf '%s\n' "$output"
+            if (( status != 0 )); then
+              printf '%s failed with exit %s.\n' "$label" "$status" >&2
+              return "$status"
+            fi
+            required_test_output "$output" "$label"
+          }
+
+          # Tiny Git/tar/Cargo controls only. The full selected release graph
+          # and installed Linux/Windows journey remain separate candidate proof.
+          run_release_contract 'source archive index and existing registry controls' cargo test --locked -p xtask --bin xtask local_registry:: -- --nocapture
+          run_release_contract 'local release planning' cargo test --locked -p xtask --bin xtask local_release_install:: -- --nocapture
+          run_release_contract 'local release receipt boundaries' cargo test --locked -p xtask --bin xtask local_release_receipt:: -- --nocapture
 
       - name: Run stable product lane
         run: scripts/ci-product-stable.sh
