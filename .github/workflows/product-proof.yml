@@ -75,6 +75,7 @@ env:
     scripts/ci-product.sh
     scripts/ci-product-stable.sh
     scripts/lib/required-test-output.sh
+    scripts/test_required_test_output.py
     .github/workflows/product-proof.yml
     runtime/**
     macro/**
@@ -200,6 +201,9 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Test required-proof output guards
+        run: python3 scripts/test_required_test_output.py
 
       - uses: Swatinem/rust-cache@v2
         with:
