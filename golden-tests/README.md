@@ -1,6 +1,6 @@
 # Golden-Master Tests for adze
 
-This directory contains golden-master tests that ensure adze parsers produce identical output to the official Tree-sitter parsers.
+This directory compares selected parser artifacts with checked-in reference outputs. Tree-sitter parity requires an independently generated reference and its provenance; a passing checked-in hash alone does not establish that claim.
 
 ## Structure
 
@@ -85,6 +85,28 @@ minimal canary that must parse and match a checked-in S-expression + SHA-256.
 ```bash
 cargo test -p adze-golden-tests javascript_canary_expression_golden --features javascript-grammar -- --nocapture
 ```
+
+### Language syntax projection and native provenance
+
+The language S-expression view is a syntax projection. It omits a child only
+when that child is an **anonymous extra leaf**, has nonempty text consisting
+entirely of whitespace, and is neither an error nor a missing node. The native
+parse tree still retains that extra, its flags, and its exact byte/point range.
+The semicolon canary therefore projects `;` while separately asserting that the
+native tree retains both the exact one-byte semicolon and the following newline
+extra. Its existing S-expression and hash remain unchanged.
+
+Punctuation, whitespace used as a semantic token, named extras (including named
+comments), non-whitespace extras, structural extra nodes, recovery errors, and
+missing nodes remain in the projection. Literal expected-output controls cover
+these boundaries rather than deriving an expected string from parser output.
+This normalization is specific to the golden syntax view; it does not filter
+native/document traversal, diagnostics, queries, or typed extraction.
+
+The external `generate_references.sh` script invokes a Tree-sitter CLI. In
+contrast, `UPDATE_GOLDEN=1` currently saves **Adze's own projection**; this is a
+baseline-maintenance mechanism, not an independent Tree-sitter oracle. Review
+reference changes against independent syntax expectations before accepting them.
 
 ### Update References
 

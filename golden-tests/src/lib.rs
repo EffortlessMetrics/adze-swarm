@@ -123,6 +123,8 @@ mod tests {
         anyhow::bail!("JavaScript grammar feature not enabled")
     }
 
+    // Syntax projection excludes only anonymous lexical whitespace extras.
+    // Native nodes, diagnostic facts and all other syntax remain untouched.
     #[cfg(any(feature = "python-grammar", feature = "javascript-grammar"))]
     fn tree_to_sexp(node: &adze::pure_parser::ParsedNode, source: &str) -> String {
         fn node_to_sexp(
@@ -143,6 +145,18 @@ mod tests {
                     result.push('\n');
                     for i in 0..node.child_count() {
                         if let Some(child) = node.child(i) {
+                            let text = child.utf8_text(source.as_bytes()).ok();
+                            let lexical_whitespace = child.is_extra()
+                                && !child.is_named()
+                                && child.child_count() == 0
+                                && !child.is_error()
+                                && !child.is_missing()
+                                && text.is_some_and(|text| {
+                                    !text.is_empty() && text.chars().all(char::is_whitespace)
+                                });
+                            if lexical_whitespace {
+                                continue;
+                            }
                             result.push_str(&node_to_sexp(&child, source, indent + 2));
                             result.push('\n');
                         }
@@ -210,7 +224,7 @@ mod tests {
                 if strict_parse {
                     anyhow::bail!("Parse failed for {}: {}", test.fixture_name, e);
                 }
-                eprintln!("Skipping {}: {}", test.fixture_name, e);
+                eprintln!("GOLDEN SKIP [parse-failed] {}: {}", test.fixture_name, e);
                 return Ok(());
             }
         };
@@ -287,7 +301,7 @@ mod tests {
         } else {
             // No reference file exists
             anyhow::bail!(
-                "No golden reference found for {}. \
+                "GOLDEN FAIL [missing-expected] No golden reference found for {}. \
                  Run ./generate_references.sh to create reference files.",
                 test.fixture_name
             );
@@ -357,10 +371,125 @@ mod tests {
     #[test]
     #[cfg(feature = "javascript-grammar")]
     fn javascript_canary_expression_golden() -> Result<()> {
+        let mut parser = adze::pure_parser::Parser::new();
+        parser
+            .set_language(adze_javascript::grammar::language())
+            .unwrap();
+        let parsed = parser.parse_string(";\n");
+        assert!(parsed.errors.is_empty());
+        let root = parsed.root.unwrap();
+        let mut pending = vec![&root];
+        let (mut punctuation, mut whitespace) = (Vec::new(), Vec::new());
+        while let Some(node) = pending.pop() {
+            if node.kind() == ";" {
+                punctuation.push(node.start_byte()..node.end_byte());
+            }
+            if node.is_extra() && node.utf8_text(b";\n") == Ok("\n") {
+                assert!(!node.is_named(), "declared whitespace leaf is anonymous");
+                assert!(!node.is_error() && !node.is_missing());
+                whitespace.push(node.start_byte()..node.end_byte());
+            }
+            pending.extend(node.children());
+        }
+        assert_eq!(punctuation, vec![0..1]);
+        assert_eq!(whitespace, vec![1..2]);
         run_golden_test_strict(GoldenTest {
             language: "javascript",
             fixture_name: "canary_expression.js",
         })
+    }
+
+    #[cfg(any(feature = "python-grammar", feature = "javascript-grammar"))]
+    fn projected_child(source: &str, child: adze::pure_parser::ParsedNode) -> String {
+        let root =
+            adze::pure_parser::ParsedNodeBuilder::new(5, vec![child], 0, source.len()).build();
+        tree_to_sexp(&root, source)
+    }
+
+    #[test]
+    #[cfg(any(feature = "python-grammar", feature = "javascript-grammar"))]
+    fn test_syntax_projection_omits_only_declared_anonymous_whitespace_extra_leaf() {
+        use adze::pure_parser::ParsedNodeBuilder as Node;
+        let whitespace = Node::new(6, vec![], 1, 2)
+            .is_extra(true)
+            .is_named(false)
+            .build();
+        let punctuation = Node::new(4, vec![], 0, 1).is_named(false).build();
+        let root = Node::new(5, vec![punctuation, whitespace], 0, 2).build();
+        assert_eq!(tree_to_sexp(&root, ";\n"), "(Expression\n  \";\"\n)");
+        assert_eq!(root.children().len(), 2);
+        assert!(root.children()[1].is_extra());
+        assert_eq!(
+            root.children()[1].start_byte()..root.children()[1].end_byte(),
+            1..2
+        );
+    }
+
+    #[test]
+    #[cfg(any(feature = "python-grammar", feature = "javascript-grammar"))]
+    fn test_syntax_projection_retains_semantic_whitespace_named_extras_and_comments() {
+        use adze::pure_parser::ParsedNodeBuilder as Node;
+        assert_eq!(
+            projected_child("\n", Node::new(6, vec![], 0, 1).is_named(false).build()),
+            "(Expression\n  \"\\n\"\n)"
+        );
+        // Named extras remain visible even when their entire lexeme is whitespace.
+        assert_eq!(
+            projected_child("\n", Node::new(7, vec![], 0, 1).is_extra(true).build()),
+            "(Expression\n  (Whitespace \"\\n\")\n)"
+        );
+        // The synthetic named-extra kind is irrelevant to policy: comment text
+        // and its named identity are both preserved literally.
+        assert_eq!(
+            projected_child("# note", Node::new(7, vec![], 0, 6).is_extra(true).build()),
+            "(Expression\n  (Whitespace \"# note\")\n)"
+        );
+        assert_eq!(
+            projected_child(
+                "x",
+                Node::new(6, vec![], 0, 1)
+                    .is_extra(true)
+                    .is_named(false)
+                    .build()
+            ),
+            "(Expression\n  \"x\"\n)"
+        );
+    }
+
+    #[test]
+    #[cfg(any(feature = "python-grammar", feature = "javascript-grammar"))]
+    fn test_syntax_projection_retains_errors_missing_empty_and_structural_extras() {
+        use adze::pure_parser::ParsedNodeBuilder as Node;
+        for child in [
+            Node::new(6, vec![], 0, 1)
+                .is_extra(true)
+                .is_error(true)
+                .is_named(false)
+                .build(),
+            Node::new(6, vec![], 0, 1)
+                .is_extra(true)
+                .is_missing(true)
+                .is_named(false)
+                .build(),
+        ] {
+            assert_eq!(projected_child("\n", child), "(Expression\n  \"\\n\"\n)");
+        }
+        assert_eq!(
+            projected_child(
+                "",
+                Node::new(6, vec![], 0, 0)
+                    .is_extra(true)
+                    .is_named(false)
+                    .build()
+            ),
+            "(Expression\n  \"\"\n)"
+        );
+        let semantic = Node::new(6, vec![], 0, 1).is_named(false).build();
+        let structural = Node::new(6, vec![semantic], 0, 1).is_extra(true).build();
+        assert_eq!(
+            projected_child("\n", structural),
+            "(Expression\n  (Whitespace__whitespace\n    \"\\n\"\n  )\n)"
+        );
     }
 
     // ===== Infrastructure tests =====
@@ -513,6 +642,63 @@ mod tests {
             names.iter().any(|name| name == "canary_expression.js"),
             "Expected the canary_expression.js fixture, found {:?}",
             names
+        );
+    }
+
+    /// Honest-denominator summary: classify every golden fixture on disk by
+    /// the disposition that fires at runtime, without changing pass/fail
+    /// semantics. A fixture only genuinely compares when it both parses AND
+    /// owns an expected file; parse failures return before any comparison.
+    #[test]
+    #[cfg(any(feature = "python-grammar", feature = "javascript-grammar"))]
+    fn golden_disposition_summary() {
+        let mut languages: Vec<&'static str> = Vec::new();
+        #[cfg(feature = "python-grammar")]
+        languages.push("python");
+        #[cfg(feature = "javascript-grammar")]
+        languages.push("javascript");
+
+        let mut compared = 0u32;
+        let mut parse_failed = 0u32;
+        let mut missing_expected = 0u32;
+        for language in languages {
+            let (ext, dir) = match language {
+                "python" => ("py", "python/fixtures"),
+                _ => ("js", "javascript/fixtures"),
+            };
+            let fixtures_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(dir);
+            let expected_dir = fixtures_dir
+                .parent()
+                .expect("fixtures dir has a parent")
+                .join("expected");
+            let mut names: Vec<String> = fs::read_dir(&fixtures_dir)
+                .expect("Cannot read fixtures dir")
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|n| n.ends_with(&format!(".{ext}")))
+                .collect();
+            names.sort();
+            for name in names {
+                let stem = name.trim_end_matches(&format!(".{ext}"));
+                let source =
+                    fs::read_to_string(fixtures_dir.join(&name)).expect("fixture readable");
+                let parsed = parse_with_adze(language, &source).is_ok();
+                let has_expected = expected_dir.join(format!("{stem}.sha256")).exists();
+                let disposition = if !parsed {
+                    parse_failed += 1;
+                    "parse-failed"
+                } else if !has_expected {
+                    missing_expected += 1;
+                    "missing-expected"
+                } else {
+                    compared += 1;
+                    "compared"
+                };
+                eprintln!("GOLDEN DISPOSITION [{disposition}] {language}/{name}");
+            }
+        }
+        eprintln!(
+            "GOLDEN SUMMARY compared={compared} parse_failed={parse_failed} missing_expected={missing_expected}"
         );
     }
 

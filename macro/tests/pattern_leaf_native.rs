@@ -58,8 +58,8 @@ adze-tool = {{ path = {:?} }}
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
-        stdout.contains("12 passed; 0 failed; 0 ignored"),
-        "all twelve native controls must execute: {stdout}"
+        stdout.contains("14 passed; 0 failed; 0 ignored"),
+        "all fourteen native controls must execute: {stdout}"
     );
     println!("{stdout}");
     std::fs::remove_dir_all(path).unwrap();

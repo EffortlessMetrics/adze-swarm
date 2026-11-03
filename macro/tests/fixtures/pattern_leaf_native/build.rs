@@ -3,6 +3,7 @@ fn main() {
     println!("cargo::rerun-if-changed=src/lib.rs");
     let source = std::path::PathBuf::from("src/lib.rs");
     adze_tool::build_parsers(&source);
+    let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
 
     // These two sibling controls deliberately select a non-first alternative.
     // Preserve the source-extracted grammar and make lexical priority explicit,
@@ -35,10 +36,20 @@ fn main() {
         if let Some(token) = selected {
             grammar.boost_token_lexical_priority(token, 10);
         }
+        let ordinary = out.join(format!("grammar_{name}/parser_{name}.rs"));
+        let ordinary_bytes = std::fs::read(&ordinary).expect("ordinary public-route parser");
         adze_tool::pure_rust_builder::build_parser(
             grammar,
-            adze_tool::pure_rust_builder::BuildOptions::default(),
+            adze_tool::pure_rust_builder::BuildOptions {
+                out_dir: out.join("controlled").to_str().unwrap().to_owned(),
+                ..adze_tool::pure_rust_builder::BuildOptions::default()
+            },
         )
         .expect("generate priority-controlled native sibling parser");
+        assert_eq!(
+            std::fs::read(&ordinary).unwrap(),
+            ordinary_bytes,
+            "controlled priority build must not overwrite ordinary parser output"
+        );
     }
 }

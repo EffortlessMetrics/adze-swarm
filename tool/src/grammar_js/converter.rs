@@ -728,8 +728,17 @@ impl GrammarJsConverter {
                 .ok()?,
             JsRule::Pattern { value } => {
                 let token_name = hidden_pattern_token_name(&value);
-                self.get_or_create_token(grammar, &token_name, TokenPattern::Regex(value.clone()))
-                    .ok()?
+                // A reference may precede conversion of its leaf rule. Use
+                // exactly that rule constructor's scoped allocation key, so
+                // later conversion cannot replace the binding with a fresh ID.
+                let registry_key = format!("__pattern::{name}");
+                self.get_or_create_token_named(
+                    grammar,
+                    &registry_key,
+                    &token_name,
+                    TokenPattern::Regex(value.clone()),
+                )
+                .ok()?
             }
             _ => return None,
         };

@@ -344,7 +344,7 @@ mod tests {
     }
 
     #[test]
-    fn repetitions_optional_single_and_trailing_none_exact_1062() {
+    fn test_repetitions_optional_single_and_trailing_none_exact_1062() {
         for (input, expected) in [
             ("1", vec![(Some(1), (0, 1))]),
             ("1,", vec![(Some(1), (0, 1)), (None, (2, 2))]),
@@ -363,7 +363,7 @@ mod tests {
     }
 
     #[test]
-    fn repetitions_optional_gaps_preserve_none_values_1062() {
+    fn test_repetitions_optional_gaps_preserve_none_values_1062() {
         for (input, expected) in [
             (
                 "1,, 2",
@@ -393,7 +393,7 @@ mod tests {
     }
 
     #[test]
-    fn repetitions_optional_leading_delimiters_rejected_1062() {
+    fn test_repetitions_optional_leading_delimiters_rejected_1062() {
         // The first element remains present; only later element values may
         // be absent. The nullable-tail repair does not permit a blank first.
         for input in [",,,", ",,", ",1,2"] {

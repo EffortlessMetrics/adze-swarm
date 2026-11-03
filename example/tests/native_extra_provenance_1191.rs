@@ -59,6 +59,10 @@ fn test_trailing_extras_preserve_exact_native_and_document_numeric_lexemes() {
             .iter()
             .filter(|node| node.is_extra())
             .map(|node| {
+                assert!(
+                    !node.is_named(),
+                    "declared anonymous whitespace retains its ABI named flag"
+                );
                 assert!(node.field_id.is_none());
                 assert!(!node.is_error() && !node.is_missing());
                 node.start_byte()..node.end_byte()

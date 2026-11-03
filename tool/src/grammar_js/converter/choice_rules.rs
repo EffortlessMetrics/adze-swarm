@@ -75,7 +75,7 @@ impl GrammarJsConverter {
 
     fn choice_member_symbol(&mut self, grammar: &mut Grammar, member: &JsRule) -> Result<Symbol> {
         if let JsRule::Symbol { name } = member
-            && self.grammar_js.wrapper_token_relations.contains_key(name)
+            && self.grammar_js.has_explicit_wrapper_relation(name)
         {
             // A declared wrapper is semantic variant identity (ADR 0003), not
             // merely another spelling for its backing terminal.
