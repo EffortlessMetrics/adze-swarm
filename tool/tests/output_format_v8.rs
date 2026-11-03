@@ -1146,7 +1146,10 @@ fn test_parser_code_no_very_long_lines() {
     // the formatted Rust artifact, and its TempDir must remain live to read it.
     let written = std::fs::read_to_string(&r.parser_path).expect("read generated Rust file");
     let parsed = syn::parse_file(&written).expect("generated file remains valid Rust");
-    assert!(!parsed.items.is_empty(), "generated parser must contain items");
+    assert!(
+        !parsed.items.is_empty(),
+        "generated parser must contain items"
+    );
     // Retain the same line-length bound on the actual formatted output.
     for (i, line) in written.lines().enumerate() {
         assert!(
