@@ -749,3 +749,6 @@ fn test_provenance_late_harness_failure_remains_failed_after_registry_drop() {
     assert_eq!(receipt["error"], "original installer failure: status 23");
     assert_eq!(receipt["package_first_qualified"], false);
 }
+
+#[path = "local_registry_lock_fixture.rs"]
+mod lock_fixture;

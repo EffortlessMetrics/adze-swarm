@@ -89,6 +89,7 @@ env:
     xtask/src/local_registry.rs
     xtask/src/local_registry_provenance.rs
     xtask/src/local_registry_provenance_tests.rs
+    xtask/src/local_registry_lock_fixture.rs
     xtask/src/local_release_archive.py
     xtask/src/local_release_install.rs
     xtask/src/local_release_receipt.rs
@@ -345,6 +346,15 @@ jobs:
       - name: Run stable product lane
         run: scripts/ci-product-stable.sh
 
+      - name: Retain Linux Cargo lock assumption artifacts
+        if: always()
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: cargo-lock-assumption-linux-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/adze-lock-fixture-*
+          include-hidden-files: true
+          if-no-files-found: error
+
   ci-product-windows:
     timeout-minutes: 30
     name: ci-product Windows runner qualification
@@ -463,6 +473,21 @@ jobs:
 
       - name: Qualify Windows release command journal data
         run: python scripts/run-required-test.py --label "Windows release command journal data" -- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --test local_release_command_contract -- --nocapture
+
+      - name: Strict Clippy for Windows Cargo lock assumption fixture
+        run: cargo clippy --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask --tests -- -D warnings
+
+      - name: Qualify Windows actual Cargo lock and offline install assumptions
+        run: python scripts/run-required-test.py --label "Windows Cargo lock and offline install assumptions" -- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask local_registry::provenance::tests::lock_fixture::test_actual_transformed_packaged_lock_prefetch_and_offline_install -- --exact --nocapture
+
+      - name: Retain Windows Cargo lock assumption artifacts
+        if: always()
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: cargo-lock-assumption-windows-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/adze-lock-fixture-*
+          include-hidden-files: true
+          if-no-files-found: error
 
   product-proof-result:
     timeout-minutes: 5
