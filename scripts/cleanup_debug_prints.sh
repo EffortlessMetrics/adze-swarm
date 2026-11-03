@@ -10,7 +10,6 @@ FILES=(
     "runtime/src/decoder.rs"
     "runtime/src/parser_v4.rs"
     "runtime/src/pure_parser.rs"
-    "runtime/src/unified_parser.rs"
     "runtime/src/scanner_registry.rs"
     "runtime/src/query/compiler.rs"
     "runtime/src/query/predicate_eval.rs"

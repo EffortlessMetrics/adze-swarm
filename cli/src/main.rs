@@ -9,6 +9,8 @@ use walkdir::WalkDir;
 
 mod grammar_analysis;
 mod runner_output;
+#[cfg(target_os = "linux")]
+mod runner_process;
 
 use grammar_analysis::analyze_grammar_file;
 
@@ -143,6 +145,22 @@ impl OutputFormat {
 }
 
 fn main() -> Result<()> {
+    let result = run_cli();
+    #[cfg(target_os = "linux")]
+    if let Err(error) = &result
+        && let Some(signal) = error
+            .downcast_ref::<runner_process::CaptureError>()
+            .and_then(runner_process::CaptureError::cancellation)
+    {
+        // run_cli has unwound its runner/tempdir owners; the capture
+        // boundary restored dispositions after bounded child cleanup.
+        eprintln!("{error:#}");
+        runner_process::exit_after_cancellation(signal);
+    }
+    result
+}
+
+fn run_cli() -> Result<()> {
     env_logger::init();
     let cli = Cli::parse();
 
@@ -919,7 +937,8 @@ fn run_static_parse_runner(
 
     let output = {
         eprintln!("compiling temporary parse runner (first run may take a while)...");
-        Command::new("cargo")
+        let mut command = Command::new("cargo");
+        command
             .arg("run")
             .arg("--quiet")
             .arg("--manifest-path")
@@ -927,8 +946,16 @@ fn run_static_parse_runner(
             .arg("--")
             .arg(&input)
             .arg(output_format)
-            .env("ADZE_USE_PURE_RUST", "1")
-            .output()?
+            .env("ADZE_USE_PURE_RUST", "1");
+        // Preserve the existing argv, environment and inherited Cargo cwd.
+        // Linux owns bounded group/pipe custody. Other platforms retain the
+        // existing path and are not qualified for those bounds by this slice.
+        #[cfg(target_os = "linux")]
+        let output = runner_process::capture(&mut command, runner_process::CARGO_RUN_POLICY)
+            .with_context(|| format!("static runner process for {}", grammar.display()))?;
+        #[cfg(not(target_os = "linux"))]
+        let output = command.output()?;
+        output
     };
 
     interpret_runner_output(&grammar, output_format, output)
@@ -936,7 +963,8 @@ fn run_static_parse_runner(
 
 /// Admit completed process bytes before rendering or printing public output.
 /// A process failure keeps its actual status/root cause and is never replaced
-/// by a success-channel JSON error. Capture/deadlines are unchanged here.
+/// by a success-channel JSON error. Process custody is handled before this
+/// unchanged completed-output interpreter.
 fn interpret_runner_output(
     grammar: &Path,
     output_format: &str,

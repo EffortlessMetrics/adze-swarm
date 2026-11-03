@@ -55,7 +55,8 @@ Rules:
 | `glr_parser::GLRParser` + `glr_lexer` | legacy adapter | Only the `LegacyGlrWithoutLexFn` route (synthetic languages without a generated lexer). Not a generated production route; retirement owner #897 once lex-fn-less callers are gone or explicitly gated. |
 | `parser_v4` (`parser` alias) | adapter / document-tree substrate | Supplies `ParseNode` conversion and document materialization. Its conflict path already refuses ordered first-success fallback; it does not own generated dispatch. The "main GLR parser" wording for it is retired. |
 | `parser_v2`, `parser_v3`, `glr` (legacy), `incremental`, `incremental_v2`, `incremental_v3`, `parallel_parser` | deleted (see #897) | Modules and the former `legacy-parsers` feature were removed by the #897 retirement. These are historical entries, not available engines. |
-| `pure_incremental`, `glr_incremental`, `unified_parser` | experimental adapters | Incremental/reparse helpers; not selected by the generated dispatch. |
+| `pure_incremental`, `glr_incremental` | experimental adapters | Incremental/reparse helpers; not selected by the generated dispatch. |
+| `unified_parser` | deleted experimental adapter (#897 / #871) | Intentional 0.10.0 pre-1.0 facade cleanup after #1205 migrated its six in-tree callers. Generated `parse()` / `parse_document()` remain the intended entry points; this retirement does not promote `parser_v4` or qualify incremental reuse. |
 | `parser_selection` / `adze_bdd_governance_core::ParserBackend` | governance/reporting shim | Describes feature profiles for BDD governance. It no longer selects the generated engine; the table-derived dispatch above does. |
 | `runtime2/` | experimental, dev-only | Proving ground. Non-claim: not a production runtime, not promoted by this map. |
 | Tree-sitter C (`__private::parse`, non-`pure-rust`) | compatibility surface | Selected by profile, not by table dispatch; unchanged. |
@@ -63,9 +64,10 @@ Rules:
 
 ## Remaining retirement debt (#897)
 
-The legacy modules listed as deleted above, including `parallel_parser`, and
-the `legacy-parsers` feature have been removed. They are no longer remaining
-retirement work. The following boundaries remain:
+The implementations listed as deleted above, including `parallel_parser` and
+the experimental `unified_parser` adapter, and the `legacy-parsers` feature
+have been removed. They are no longer remaining retirement work. The following
+boundaries remain:
 
 - `LegacyGlrWithoutLexFn` (`glr_parser`/`glr_lexer`) remains for
   lex-fn-less synthetic languages. It is explicitly dispatched, never

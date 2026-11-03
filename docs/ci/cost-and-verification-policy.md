@@ -58,7 +58,8 @@ The rollout is not "delete CI". It is, in order:
 2. Inventory every existing CI lane in `policy/ci-lane-whitelist.toml`.
 3. Lint workflows against that whitelist (advisory).
 4. Forecast each PR's cost with PR Plan (advisory).
-5. Stand up `PR Gate Success` as the future required check.
+5. Retain optional `PR Planning Result` for planning and selected docs-only
+   workspace formatting; required Rust/product proof runs in its owning lanes.
 6. Normalize cache save semantics so PRs restore but only `main` saves.
 7. Add `ripr` as cheap oracle-gap detection.
 8. Encode risk packs so routing has a vocabulary.
@@ -66,7 +67,8 @@ The rollout is not "delete CI". It is, in order:
 10. Route the heavy lanes (fuzz, OS matrix, benchmarks, golden, microcrate) by
     risk pack and label.
 11. Calibrate from actuals.
-12. Promote `PR Gate Success` to the required branch protection.
+12. Preserve `Rust Small Result` and `Product Proof Result` as the required
+    contexts; a future context change needs a separately reviewed cutover.
 
 See `docs/ci/adze-rollout-plan.md` for the per-PR breakdown.
 

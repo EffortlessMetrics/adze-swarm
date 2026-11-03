@@ -358,17 +358,39 @@ fn artifacts_enabled_node_types_file_is_valid_json() {
 }
 
 #[test]
-fn artifacts_rebuild_cleans_old_dir() {
+fn test_artifacts_rebuild_refreshes_owned_files_and_preserves_unowned_file() {
     let dir = TempDir::new().unwrap();
     let grammar_dir = dir.path().join("grammar_art_clean");
     fs::create_dir_all(&grammar_dir).unwrap();
     let stale = grammar_dir.join("stale_file.txt");
     fs::write(&stale, "old data").unwrap();
+    let owned = ["parser_art_clean.rs", "grammar.ir.json", "NODE_TYPES.json"];
+    for name in owned {
+        fs::write(grammar_dir.join(name), "stale Rust output").unwrap();
+    }
 
     let opts = temp_opts_artifacts(&dir);
-    build_parser_from_json(simple_json("art_clean"), opts).unwrap();
-    // Stale file should be removed because emit_artifacts recreates dir
-    assert!(!stale.exists(), "stale file should be cleaned up");
+    let result = build_parser_from_json(simple_json("art_clean"), opts).unwrap();
+    // Age does not establish ownership: the writer may refresh only its files.
+    assert_eq!(fs::read(&stale).unwrap(), b"old data");
+    assert_eq!(
+        Path::new(&result.parser_path),
+        grammar_dir.join("parser_art_clean.rs")
+    );
+    for name in owned {
+        let bytes = fs::read(grammar_dir.join(name)).unwrap();
+        assert!(!bytes.is_empty(), "owned output {name} must be emitted");
+        assert_ne!(
+            bytes, b"stale Rust output",
+            "owned output {name} must refresh"
+        );
+    }
+    let ir: serde_json::Value =
+        serde_json::from_slice(&fs::read(grammar_dir.join("grammar.ir.json")).unwrap()).unwrap();
+    assert_eq!(ir["name"], "art_clean");
+    let node_types: serde_json::Value =
+        serde_json::from_slice(&fs::read(grammar_dir.join("NODE_TYPES.json")).unwrap()).unwrap();
+    assert!(node_types.is_array());
 }
 
 // ===========================================================================

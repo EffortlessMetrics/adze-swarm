@@ -73,6 +73,34 @@ Format map: `tree` renders the document tree; `json` prints the full
 selected tree; `document-json`/`tree-json`/`diagnostics-json`/`ambiguity-json`
 emit the named projection verbatim. `--format` and `--output` are aliases.
 
+## Static runner process limits on Linux
+
+One temporary Cargo-build-and-run invocation may capture up to **64 MiB of
+stdout** and **1 MiB of stderr** (one MiB is 1,048,576 bytes). Capture stops with
+an error if either stream exceeds its limit; incomplete output is never printed
+as a successful projection. The invocation has one **600-second deadline**
+covering execution and pipe reads. Output progress does not restart it. After
+the direct child exits, any remaining pipe drain has at most **2 seconds** and
+still cannot exceed the original deadline. These are initial bounded CLI
+limits, not a promise that every grammar or cold build fits them.
+
+On completion, a capture failure, or SIGINT/SIGTERM cancellation, the Linux
+parent terminates the runner's owned process group and allows at most **2
+additional seconds** to confirm reaping its direct child. Cleanup which cannot
+be confirmed is an error. A child exit observed before intervention is retained
+separately from a timeout, capture limit, or cleanup error. Cancellation restores
+the prior signal dispositions, unwinds the temporary runner directory and then
+terminates the CLI conventionally. Inherited ignored signals stay ignored;
+custom cancellation handlers or a child auto-reap policy are refused before
+starting the runner.
+
+This covers ordinary descendants which stay in the inherited process group.
+It does not provide a sandbox or custody of deliberately escaped descendants.
+The existing argv, input path, environment and inherited Cargo working directory
+are preserved. Windows and other non-Linux platforms retain the existing runner
+path and are not qualified for these capture, deadline or cleanup bounds.
+Public projection schemas and parser outcome semantics are unchanged.
+
 ## Windows notes
 
 First `adze parse` compiles a temporary runner and may look hung on Windows;

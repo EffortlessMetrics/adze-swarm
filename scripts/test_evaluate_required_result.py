@@ -205,11 +205,33 @@ class WorkflowWiring(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             return dict(line.split("=", 1) for line in output.read_text(encoding="utf-8").splitlines())
 
-    def test_shared_guard_change_selects_stable_product_lane(self) -> None:
-        path = "scripts/lib/required-test-output.sh"
-        result = self._product_path_selection(path)
-        self.assertEqual("true", result["run_stable"])
-        self.assertEqual(f"stable_surface:{path}", result["reason"])
+    def test_shared_guard_and_regressions_select_stable_product_lane(self) -> None:
+        paths = (
+            "scripts/lib/required-test-output.sh",
+            "scripts/test_required_test_output.py",
+        )
+        for event in ("merge_group", "pull_request"):
+            for change in ("modify", "delete"):
+                for path in paths:
+                    with self.subTest(event=event, change=change, path=path):
+                        result = self._product_path_selection(path, event=event, change=change)
+                        self.assertEqual("true", result["run_stable"])
+                        self.assertEqual(f"stable_surface:{path}", result["reason"])
+
+    def test_static_runner_contract_inputs_select_product_qualification(self) -> None:
+        paths = (
+            "cli/Cargo.toml",
+            "cli/tests/cli_test.rs",
+            "cli/tests/runner_output_contract.rs",
+            "cli/tests/runner_process_contract.rs",
+        )
+        for event in ("merge_group", "pull_request"):
+            for change in ("modify", "delete", "rename"):
+                for path in paths:
+                    with self.subTest(event=event, change=change, path=path):
+                        result = self._product_path_selection(path, event=event, change=change)
+                        self.assertEqual("true", result["run_stable"])
+                        self.assertEqual(f"stable_surface:{path}", result["reason"])
 
     def test_shared_build_inputs_select_stable_product_lane(self) -> None:
         # Recorded #1027 omissions: dependencies and workspace build inputs

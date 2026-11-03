@@ -86,6 +86,8 @@ rayon = "1.10"
 rustc-hash = "2.1"
 smallvec = "1.13"
 regex = "1.11"
+libc = "0.2.186"
+rustix = { version = "1.1.4", features = ["fs", "process"] }
 
 [profile.ci]
 inherits = "dev"

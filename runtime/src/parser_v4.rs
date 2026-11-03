@@ -271,11 +271,6 @@ impl Parser {
         self.timeout_micros = timeout;
     }
 
-    #[cfg(test)]
-    pub(crate) fn timeout_micros(&self) -> u64 {
-        self.timeout_micros
-    }
-
     /// Get current arena metrics
     ///
     /// Returns a snapshot of the arena's current state including:

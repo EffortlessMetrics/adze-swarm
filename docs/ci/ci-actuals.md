@@ -17,14 +17,14 @@ the future learned-estimates work (PR 18).
   "plan": { "...full ci-plan.json..." },
   "jobs": [
     {
-      "name": "Supported Rust Gate",
+      "name": "Docs Gate",
       "conclusion": "success",
       "labels": ["ubuntu-latest"],
       "runner_multiplier": 1.0,
-      "actual_seconds": 840,
-      "actual_lem": 14.0,
-      "estimated_lem": 20,
-      "cache_hit": true
+      "actual_seconds": 12,
+      "actual_lem": 0.2,
+      "estimated_lem": null,
+      "cache_hit": null
     }
   ],
   "status": "ok"
@@ -33,8 +33,9 @@ the future learned-estimates work (PR 18).
 
 ## How it is produced
 
-The `PR Gate Success` job runs `scripts/ci/emit-ci-actuals.py` after the
-gate completes. The script:
+The optional `PR Planning Result` job runs `scripts/ci/emit-ci-actuals.py`
+after planning and any selected docs-only formatting, on `merge_group` and
+manual dispatch. The script:
 
 1. loads `target/ci/ci-plan.json` (downloaded from the `ci-plan` artifact),
 2. queries the GitHub Actions API for the current run's jobs,
@@ -47,6 +48,24 @@ gate completes. The script:
 If the API is unreachable, the token is missing, or the plan artifact is
 absent, the script falls back to `"status": "degraded"` and emits a
 minimal, valid JSON document. The build is never failed by this step.
+
+## Scope after supported-proof deduplication (#1027)
+
+The artifact name and schema stay unchanged. Current `pr-gate.yml` actuals
+contain planning, selected `Docs Gate`, and reporting jobs. The duplicate
+`Supported Rust Gate` no longer runs here; the required `Supported Proof`
+job in `em-ci-routed-rust.yml` owns that execution.
+
+Historical artifacts may contain `Supported Rust Gate` and `PR Gate Success`.
+Current artifacts use `PR Planning Result`. The consumer records the API's
+actual job names and does not require either historical name. External
+consumers of those names must account for this boundary.
+
+These are per-workflow actuals. They do not include the separate routed Rust
+or Product Proof runs and must not be presented as total qualification cost.
+The plan remains a broader forecast; a missing job-cost match stays `null`.
+Compare historical and current costs by job/obligation, not by assuming the
+workflow retained the old executed denominator.
 
 ## Why this is enough for now
 
