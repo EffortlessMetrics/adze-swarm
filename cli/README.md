@@ -160,9 +160,14 @@ admission requires a separate complete dependency/configuration proof.
 
 Cache-root handling requires a private owned directory with trusted ancestors
 on Unix; other ACL platforms refuse cache use until equivalent checks exist.
-Cleanup's entry limit is best effort: recent entries have a grace period and
-old entries shrink on a later publication. Executable hashing is an integrity
-check, with no measured performance guarantee. #869 owns performance reporting.
+The dormant owned-store layout has at most 32 permanent slots, 128 durable run
+tokens, and 1 GiB of reserved or published artifact bytes. A complete artifact
+allowance is recorded before writing; each namespace record and its one
+replacement are limited to 64 KiB. Nonblocking namespace/slot locks and tokens
+bound to the physical store, generation and owner replace pathname/age-based
+cleanup. Retirement requires an exclusive slot and no durable owners. Old
+cache layouts, unrelated files and permanent coordination files are preserved.
+Executable hashing has no measured performance guarantee; #869 owns reporting.
 
 Dormant cache IO now refuses over-budget files while reading: manifests are
 limited to 1 MiB, executables to 256 MiB, retained lockfiles to 4 MiB, and the
@@ -170,9 +175,19 @@ grammar closure to 64 MiB across at most 256 files. Executable hashing and
 exclusive publication copies stream through an 8 KiB buffer. A length reported
 by the filesystem is only an early check; the read loop enforces the limit if
 a file grows. These are refusal thresholds, with no claim that every generated
-runner fits them. They do not reserve cache disk space, bound Cargo scratch or
-filesystem latency, establish immutable compiled inputs, or qualify active
-leases. Those admission requirements remain open under #1067.
+runner fits them. The artifact reservation bounds only internally copied
+artifacts; Cargo never receives the store's staging path. Compiler scratch,
+filesystem latency and immutable compiled inputs remain separate unqualified
+requirements. Scratch is retained when process ownership is unproved.
+
+A stored executable is exposed through a durable execution lease. Destruction,
+PID, age, timeout, output status and successful decoding never release its
+reservation. The shared process layer has no qualified empty-owner receipt
+producer yet, so completion retains that capacity and returns an error. A
+semantic result followed by store-finalization failure cannot trigger another
+parse. Orphan reservations require explicit administrative recovery after old
+owners and descendants are proved absent. None of this enables production
+reuse or qualifies Windows ACLs, network filesystems or power-loss durability.
 
 The dormant direct-runner and Cargo-build paths, fresh Cargo execution and
 rustc fingerprint acquisition share the same process boundary. On Linux and

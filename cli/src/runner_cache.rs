@@ -18,20 +18,15 @@
 //! Candidate keys alone never authorize execution. #1067 remains open for the
 //! complete build-input custody and zero-Cargo warm-hit acceptance.
 //!
-//! # Atomicity and concurrency
+//! # Artifact ownership and concurrency
 //!
-//! Builds happen in an exclusively owned staging directory
-//! (`.staging-<pid>-<counter>`, never a colliding pre-existing path).
-//! Publication writes a complete entry (manifest + verified executable +
-//! lockfile copy) into a staging subdirectory and renames it onto the final
-//! `<key>` path only after verification, so concurrent readers never observe
-//! partial artifacts: an entry is either absent or complete and verified.
-//! Per-key `.lock` files serialize duplicate builds; waiters use only
-//! validated entries and degrade to a fresh uncached build on timeout.
-//! Cleanup only ever removes cache-owned entry/`.trash` directories and
-//! stale `.lock` files; another invocation's staging is never touched, and
-//! Windows file-sharing failures degrade to left-behind trash that lookups
-//! ignore.
+//! The private fixed-slot store reserves artifact bytes before writing them.
+//! Durable store/generation/owner tokens and independently opened nonblocking
+//! file locks protect publication, execution leases and retirement. Namespace
+//! changes atomically publish complete bounded records; Drop, PID and age never
+//! clear ownership. Old cache directories and pathname locks are not imported.
+//! Compiler scratch remains separate and unqualified, and is retained whenever
+//! process cleanup is unproved. No Cargo child receives an artifact-store path.
 //!
 //! # Protocol dependency (#1066)
 //!
@@ -42,7 +37,8 @@
 //! envelope. [`RUNNER_PROTOCOL_VERSION`] is the shared protocol authority.
 
 use crate::runner_cache_io;
-use crate::runner_invocation::{ProcessFailure, ProcessRunner, RunnerInvocation};
+use crate::runner_cache_store::{self, ActiveLease, Artifact, Limits, Store, UnstartedLease};
+use crate::runner_invocation::{OwnedCleanupReceipt, ProcessFailure, ProcessRunner, RunnerInvocation};
 use anyhow::Context;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -54,18 +50,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// Reuse the private transport authority; old unframed entries fail validation.
 pub(crate) const RUNNER_PROTOCOL_VERSION: u32 = crate::runner_protocol::PROTOCOL_VERSION;
 
-/// Maximum entries retained; enforced (best-effort) after each publish.
+/// Fixed store policy; larger environment requests refuse this cache.
 const MAX_ENTRIES_DEFAULT: usize = 32;
-/// Entry directory names are 64-character lowercase hex digests.
-const ENTRY_NAME_LEN: usize = 64;
-/// Entries older than this are treated as misses (retention policy only).
-const ENTRY_TTL_SECS: u64 = 7 * 24 * 3600;
-/// Fresh entries are never evicted, so active builds/runs are not raced.
-const ACTIVE_GRACE_SECS: u64 = 300;
-/// How long a second invocation waits for the lock owner's entry.
-const BUILD_WAIT_SECS: u64 = 600;
-/// Locks older than this are ignored for waiting (swept by eviction).
-const STALE_LOCK_SECS: u64 = 3600;
 /// Closure walk budgets; exceeding them refuses caching (fail safe).
 const MAX_CLOSURE_FILES: usize = 256;
 const MAX_CLOSURE_BYTES: u64 = 64 << 20;
@@ -73,7 +59,6 @@ const MAX_CLOSURE_BYTES: u64 = 64 << 20;
 /// These do not reserve disk space or bound Cargo's build scratch directory.
 const MAX_MANIFEST_BYTES: u64 = 1 << 20;
 const MAX_EXECUTABLE_BYTES: u64 = 256 << 20;
-const MAX_LOCKFILE_BYTES: u64 = 4 << 20;
 /// Bounded tail kept in `build.log` for post-mortem diagnosis.
 const BUILD_LOG_TAIL: usize = 8192;
 /// Test-only hook: when `ADZE_TEST_CARGO_COUNT_FILE` names a file, every
@@ -96,9 +81,9 @@ pub(crate) struct RunnerSpec<'a> {
 
 /// Outcome of [`build_cached`] when no error occurred.
 pub(crate) enum CachedBuild {
-    /// Execute this executable directly (published entry or adopted rival).
-    Ready(PathBuf),
-    /// Cache disabled, unsupported, or race lost: use the legacy temp build.
+    /// A verified artifact with a durable, not-yet-started execution lease.
+    Ready(UnstartedLease),
+    /// Cache disabled or unavailable before any process: use the fresh path.
     Unavailable,
 }
 
@@ -132,7 +117,17 @@ impl std::fmt::Display for CacheStorageFailure {
     }
 }
 
-/// Reason caching was refused; the caller falls back to the legacy path.
+/// A process was attempted; subsequent store finalization cannot cause retry.
+#[derive(Debug)]
+struct CacheExecutionAttempted;
+
+impl std::fmt::Display for CacheExecutionAttempted {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("runner cache process was attempted; no fresh retry")
+    }
+}
+
+/// Reason candidate hashing was refused before any process.
 #[derive(Debug)]
 struct CacheSkip(String);
 
@@ -143,24 +138,22 @@ pub(crate) struct CacheConfig {
     pub(crate) max_entries: usize,
 }
 
-/// Look up a verified cached executable without invoking Cargo.
-///
-/// Returns `None` for disabled cache, unsupported envelopes, misses,
-/// stale/corrupt entries, or any cache-internal I/O problem. A returned
-/// path names a complete entry whose executable hash was just verified.
-pub(crate) fn lookup(spec: &RunnerSpec<'_>) -> Option<PathBuf> {
+/// Look up a verified artifact and reserve its execution before exposing it.
+/// Production admission still returns None before configuration or storage.
+pub(crate) fn lookup(spec: &RunnerSpec<'_>) -> Option<UnstartedLease> {
     let key = build_key(spec)?;
     let config = cache_config()?;
-    validate_entry(&config.root, &key).map(|entry| entry.exe)
+    match validate_entry(&config, &key) {
+        Ok(entry) => entry,
+        Err(error) => {
+            log::debug!("runner cache unavailable before execution: {error:#}");
+            None
+        }
+    }
 }
 
-/// Build the runner, publish it atomically, and return its executable.
-///
-/// `Ok(CachedBuild::Unavailable)` means the caller should use the legacy
-/// temp-project path (disabled/unsupported envelope, lost race, stale lock,
-/// or a cache-local I/O failure). `Err` preserves [`CargoFailed`] or a typed
-/// [`ProcessFailure`] with the concrete capture error still downcastable.
-/// Process setup, capture, cancellation and coordination refusals never retry.
+/// Build a stored artifact only after the separate admission gate permits it.
+/// Process refusals and all failures after a process attempt remain hard errors.
 pub(crate) fn build_cached(
     spec: &RunnerSpec<'_>,
     process: &ProcessRunner,
@@ -171,27 +164,22 @@ pub(crate) fn build_cached(
     let Some(config) = cache_config() else {
         return Ok(CachedBuild::Unavailable);
     };
-    if let Some(entry) = validate_entry(&config.root, &key) {
-        return Ok(CachedBuild::Ready(entry.exe));
-    }
-    let lock_path = config.root.join(format!("{key}.lock"));
-    if !claim_lock(&lock_path) {
-        if let Some(entry) = wait_for_entry(&config.root, &lock_path, &key) {
-            return Ok(CachedBuild::Ready(entry.exe));
+    let outcome = (|| {
+        if let Some(lease) = validate_entry(&config, &key)? {
+            return Ok(CachedBuild::Ready(lease));
         }
-        return Ok(CachedBuild::Unavailable);
-    }
-    let Some(staging) = claim_staging_dir(&config.root) else {
-        let _ = std::fs::remove_file(&lock_path);
-        return Ok(CachedBuild::Unavailable);
-    };
-    let outcome = build_and_publish(spec, &config, &key, &staging, process);
-    let _ = std::fs::remove_file(&lock_path);
-    let _ = std::fs::remove_dir_all(&staging);
+        let Some(staging) = claim_staging_dir(&config.root) else {
+            return Ok(CachedBuild::Unavailable);
+        };
+        // The compiler receives only this separate scratch directory. Generic
+        // Output does not prove its descendant owner empty, so never remove
+        // scratch here. Its quota/input/lifetime gate is still unqualified.
+        build_and_publish(spec, &config, &key, &staging, process)
+    })();
     finish_cached_build(outcome)
 }
 
-/// Only cache-local failures permit fresh fallback after owned staging cleanup.
+/// Only explicitly marked cache-local failures before a process permit fallback.
 pub(crate) fn finish_cached_build(
     outcome: anyhow::Result<CachedBuild>,
 ) -> anyhow::Result<CachedBuild> {
@@ -199,7 +187,8 @@ pub(crate) fn finish_cached_build(
         Err(error)
             if error.downcast_ref::<CacheStorageFailure>().is_some()
                 && error.downcast_ref::<CargoFailed>().is_none()
-                && error.downcast_ref::<ProcessFailure>().is_none() =>
+                && error.downcast_ref::<ProcessFailure>().is_none()
+                && error.downcast_ref::<CacheExecutionAttempted>().is_none() =>
         {
             log::debug!("runner cache unavailable: {error:#}");
             Ok(CachedBuild::Unavailable)
@@ -225,11 +214,14 @@ fn cache_config() -> Option<CacheConfig> {
         log::debug!("runner cache skipped: cache root is not private and trusted");
         return None;
     }
-    let max_entries = std::env::var("ADZE_RUNNER_CACHE_MAX_ENTRIES")
-        .ok()
-        .and_then(|raw| raw.trim().parse::<usize>().ok())
-        .filter(|count| *count > 0)
-        .unwrap_or(MAX_ENTRIES_DEFAULT);
+    let max_entries = match std::env::var("ADZE_RUNNER_CACHE_MAX_ENTRIES") {
+        Ok(raw) => raw.trim().parse::<usize>().ok()?,
+        Err(std::env::VarError::NotPresent) => MAX_ENTRIES_DEFAULT,
+        Err(std::env::VarError::NotUnicode(_)) => return None,
+    };
+    if !(1..=MAX_ENTRIES_DEFAULT).contains(&max_entries) {
+        return None;
+    }
     Some(CacheConfig { root, max_entries })
 }
 
@@ -639,126 +631,92 @@ fn memoized_fingerprint(
     Ok(value)
 }
 
-/// A complete, verified cache entry.
-pub(crate) struct ValidEntry {
-    exe: PathBuf,
+fn open_store(config: &CacheConfig) -> anyhow::Result<Store> {
+    Store::open(
+        &config.root,
+        Limits {
+            slots: config.max_entries,
+            artifact_bytes: runner_cache_store::TOTAL_ARTIFACT_LIMIT,
+        },
+    )
+    .context(CacheStorageFailure)
 }
 
-/// Validate a cache entry before executing anything from it.
-///
-/// Every check fails closed: wrong name shape, unreadable or corrupt
-/// manifest, protocol mismatch, key mismatch, stale TTL, missing or
-/// hash-mismatched executable all yield `None` without side effects.
-pub(crate) fn validate_entry(root: &Path, key: &str) -> Option<ValidEntry> {
-    if !is_entry_name(key) {
-        return None;
+/// Verify the storage artifact and its protocol/candidate metadata while an
+/// unstarted durable lease prevents retirement. This is not envelope admission.
+pub(crate) fn validate_entry(
+    config: &CacheConfig,
+    key: &str,
+) -> anyhow::Result<Option<UnstartedLease>> {
+    let store = open_store(config)?;
+    let Some(lease) = store.acquire(key).context(CacheStorageFailure)? else {
+        return Ok(None);
+    };
+    let manifest = lease.manifest().context(CacheStorageFailure);
+    let identity = lease.executable_identity().context(CacheStorageFailure);
+    let valid = manifest.as_ref().is_ok_and(|bytes| {
+        identity.as_ref().is_ok_and(|identity| valid_manifest(bytes, key, identity))
+    });
+    if !valid {
+        lease.cancel().context(CacheStorageFailure)?;
+        manifest?;
+        identity?;
+        return Ok(None);
     }
-    let dir = root.join(key);
-    if !std::fs::symlink_metadata(&dir).ok()?.is_dir()
-        || std::fs::symlink_metadata(dir.join("manifest.json"))
-            .ok()?
-            .file_type()
-            .is_symlink()
-    {
-        return None;
-    }
-    let manifest_bytes =
-        runner_cache_io::read_regular(&dir.join("manifest.json"), MAX_MANIFEST_BYTES).ok()?;
-    let manifest: serde_json::Value = serde_json::from_slice(&manifest_bytes).ok()?;
-    if manifest.get("protocol").and_then(serde_json::Value::as_u64)
-        != Some(u64::from(RUNNER_PROTOCOL_VERSION))
-    {
-        return None;
-    }
-    if manifest.get("key").and_then(serde_json::Value::as_str) != Some(key) {
-        return None;
-    }
-    let built = manifest
-        .get("built_unix")
-        .and_then(serde_json::Value::as_u64)?;
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
-    if built > now || now - built > ENTRY_TTL_SECS {
-        return None;
-    }
-    let exe_name = manifest
-        .get("exe")
-        .and_then(|exe| exe.get("file"))
-        .and_then(serde_json::Value::as_str)?;
-    if exe_name.contains(['/', '\\']) || exe_name.contains("..") {
-        return None;
-    }
-    let expected_len = manifest
-        .get("exe")
-        .and_then(|exe| exe.get("len"))
-        .and_then(serde_json::Value::as_u64)?;
-    if expected_len == 0 || expected_len > MAX_EXECUTABLE_BYTES {
-        return None;
-    }
-    let expected_sha = manifest
-        .get("exe")
-        .and_then(|exe| exe.get("sha256"))
-        .and_then(serde_json::Value::as_str)?;
-    let exe = dir.join(exe_name);
-    if !std::fs::symlink_metadata(&exe).ok()?.is_file() {
-        return None;
-    }
-    let digest = runner_cache_io::digest_regular(&exe, expected_len).ok()?;
-    if digest.len != expected_len || hex_digest(digest.sha256) != expected_sha {
-        return None;
-    }
-    Some(ValidEntry { exe })
+    Ok(Some(lease))
 }
 
-/// Exclusively create the per-key coordination lock.
-fn claim_lock(lock_path: &Path) -> bool {
-    match std::fs::File::create_new(lock_path) {
-        Ok(file) => {
-            use std::io::Write as _;
-            let _ = writeln!(
-                &mut &file,
-                "pid={} time={}",
-                std::process::id(),
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map(|elapsed| elapsed.as_secs())
-                    .unwrap_or(0)
-            );
-            true
-        }
-        Err(_) => false,
+fn valid_manifest(bytes: &[u8], key: &str, identity: &runner_cache_io::FileDigest) -> bool {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Manifest {
+        protocol: u32,
+        key: String,
+        cli_version: String,
+        built_unix: u64,
+        exe: Executable,
     }
-}
-
-/// Wait for another invocation's build, then use its entry if it validates.
-fn wait_for_entry(root: &Path, lock_path: &Path, key: &str) -> Option<ValidEntry> {
-    if lock_is_stale(lock_path) {
-        return validate_entry(root, key);
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Executable {
+        file: String,
+        sha256: String,
+        len: u64,
     }
-    let started = std::time::Instant::now();
-    while started.elapsed().as_secs() < BUILD_WAIT_SECS {
-        if let Some(entry) = validate_entry(root, key) {
-            return Some(entry);
-        }
-        if !lock_path.exists() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(250));
+    if bytes.len() as u64 > MAX_MANIFEST_BYTES {
+        return false;
     }
-    validate_entry(root, key)
-}
-
-/// A missing lock is not stale; only an old one is.
-fn lock_is_stale(lock_path: &Path) -> bool {
-    let Ok(metadata) = std::fs::symlink_metadata(lock_path) else {
+    let Ok(manifest) = serde_json::from_slice::<Manifest>(bytes) else {
         return false;
     };
-    let Ok(modified) = metadata.modified() else {
-        return false;
-    };
-    let Ok(age) = SystemTime::now().duration_since(modified) else {
-        return false;
-    };
-    age.as_secs() > STALE_LOCK_SECS
+    // The store independently validates the copied executable's exact digest
+    // and length. These fields are bounded metadata, not compiler-input proof.
+    manifest.protocol == RUNNER_PROTOCOL_VERSION
+        && manifest.key == key
+        && manifest.cli_version == env!("CARGO_PKG_VERSION")
+        && manifest.built_unix > 0
+        && manifest.exe.file == Artifact::Executable.name()
+        && manifest.exe.len > 0
+        && manifest.exe.len <= MAX_EXECUTABLE_BYTES
+        && manifest.exe.len == identity.len
+        && manifest.exe.sha256 == hex_digest(identity.sha256)
+}
+
+/// Preserve the semantic outcome and concrete process-error chain. A missing
+/// or failed release is a hard error even after successful parsing: the caller
+/// must never run a fresh parse to hide store finalization failure.
+pub(crate) fn finalize_execution<T>(
+    lease: ActiveLease,
+    outcome: anyhow::Result<T>,
+    receipt: Option<OwnedCleanupReceipt>,
+) -> anyhow::Result<T> {
+    let completion = lease.finish(receipt);
+    match (outcome, completion) {
+        (Ok(value), Ok(())) => Ok(value),
+        (Ok(_), Err(error)) => Err(anyhow::Error::new(error)).context(CacheExecutionAttempted),
+        (Err(error), Ok(())) => Err(error).context(CacheExecutionAttempted),
+        (Err(error), Err(completion)) => Err(error.context(completion)).context(CacheExecutionAttempted),
+    }
 }
 
 /// Exclusively claim a staging directory owned by this process.
@@ -779,7 +737,9 @@ pub(crate) fn claim_staging_dir(root: &Path) -> Option<PathBuf> {
     None
 }
 
-/// Build in owned staging, verify, and publish atomically.
+/// Compile in separate scratch and assemble only bounded, store-owned copies.
+/// The native fixture exercises this mechanism; build_key still prevents
+/// production admission. Artifact publication is not immutable build custody.
 pub(crate) fn build_and_publish(
     spec: &RunnerSpec<'_>,
     config: &CacheConfig,
@@ -787,11 +747,23 @@ pub(crate) fn build_and_publish(
     staging: &Path,
     process: &ProcessRunner,
 ) -> anyhow::Result<CachedBuild> {
-    let src_dir = staging.join("src");
-    std::fs::create_dir_all(&src_dir).context(CacheStorageFailure)?;
-    std::fs::write(staging.join("Cargo.toml"), &spec.cargo_toml).context(CacheStorageFailure)?;
-    std::fs::write(staging.join("build.rs"), &spec.build_rs).context(CacheStorageFailure)?;
-    std::fs::write(src_dir.join("main.rs"), &spec.main_rs).context(CacheStorageFailure)?;
+    let store = open_store(config)?;
+    let mut reservation = store
+        .reserve(key, runner_cache_store::ENTRY_ALLOWANCE)
+        .context(CacheStorageFailure)?;
+    let setup = (|| -> anyhow::Result<()> {
+        let src_dir = staging.join("src");
+        std::fs::create_dir_all(&src_dir).context(CacheStorageFailure)?;
+        std::fs::write(staging.join("Cargo.toml"), &spec.cargo_toml).context(CacheStorageFailure)?;
+        std::fs::write(staging.join("build.rs"), &spec.build_rs).context(CacheStorageFailure)?;
+        std::fs::write(src_dir.join("main.rs"), &spec.main_rs).context(CacheStorageFailure)
+    })();
+    if let Err(error) = setup {
+        return match reservation.abort() {
+            Ok(()) => Err(error),
+            Err(completion) => Err(error.context(completion)),
+        };
+    }
 
     eprintln!("compiling parse runner...");
     note_cargo_spawn();
@@ -805,211 +777,61 @@ pub(crate) fn build_and_publish(
         ],
         environment: vec![
             ("ADZE_USE_PURE_RUST".into(), "1".into()),
-            (
-                "CARGO_TARGET_DIR".into(),
-                staging.join("target").into_os_string(),
-            ),
+            ("CARGO_TARGET_DIR".into(), staging.join("target").into_os_string()),
         ],
     };
-    let output = process
-        .capture(&invocation)
-        .context("cached runner Cargo build")?;
-    if !output.status.success() {
-        return Err(anyhow::Error::new(CargoFailed {
-            status: output.status,
-            stdout: output.stdout,
-            stderr: output.stderr,
-        }));
-    }
-    let exe_name = format!("adze-cli-parse-runner{}", std::env::consts::EXE_SUFFIX);
-    let Some(built) = cargo_executable(&output.stdout) else {
-        return Ok(CachedBuild::Unavailable);
-    };
-    // Files can change during Cargo's read. Refuse publication unless the
-    // observed grammar/template candidate still matches after compilation.
-    if grammar_candidate_key(spec, process)?.as_deref() != Some(key) {
-        return Ok(CachedBuild::Unavailable);
-    }
-    // Assemble the complete entry inside staging and commit it with a single
-    // rename, so readers only ever see absent-or-complete entries.
-    let entry = staging.join("entry");
-    std::fs::create_dir_all(&entry).context(CacheStorageFailure)?;
-    let executable = entry.join(&exe_name);
-    let copied = runner_cache_io::copy_regular(&built, &executable, MAX_EXECUTABLE_BYTES)
-        .context(CacheStorageFailure)?;
-    if copied.len == 0
-        || runner_cache_io::digest_regular(&executable, MAX_EXECUTABLE_BYTES)
-            .context(CacheStorageFailure)?
-            != copied
-    {
-        return Ok(CachedBuild::Unavailable);
-    }
-    let built_unix = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_secs())
-        .unwrap_or(0);
-    let manifest = serde_json::json!({
-        "protocol": RUNNER_PROTOCOL_VERSION,
-        "key": key,
-        "cli_version": env!("CARGO_PKG_VERSION"),
-        "built_unix": built_unix,
-        "exe": {"file": exe_name, "sha256": hex_digest(copied.sha256), "len": copied.len},
-    });
-    std::fs::write(
-        entry.join("manifest.json"),
-        serde_json::to_string_pretty(&manifest).context(CacheStorageFailure)?,
-    )
-    .context(CacheStorageFailure)?;
-    let lock_src = staging.join("Cargo.lock");
-    if lock_src.is_file() {
-        runner_cache_io::copy_regular(&lock_src, &entry.join("Cargo.lock"), MAX_LOCKFILE_BYTES)
+    let assembly = (|| -> anyhow::Result<()> {
+        let output = process.capture(&invocation).context("cached runner Cargo build")?;
+        if !output.status.success() {
+            return Err(anyhow::Error::new(CargoFailed {
+                status: output.status,
+                stdout: output.stdout,
+                stderr: output.stderr,
+            }));
+        }
+        let built = cargo_executable(&output.stdout)
+            .ok_or_else(|| anyhow::anyhow!("Cargo did not report one runner executable"))?;
+        // A diagnostic endpoint comparison remains a refusal check, never an
+        // immutable-input or A→B→A proof. The complete envelope is still gated.
+        if grammar_candidate_key(spec, process)?.as_deref() != Some(key) {
+            anyhow::bail!("runner candidate changed during compilation");
+        }
+        let copied = reservation.copy(Artifact::Executable, &built).context(CacheStorageFailure)?;
+        let built_unix = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+        let manifest = serde_json::json!({
+            "protocol": RUNNER_PROTOCOL_VERSION,
+            "key": key,
+            "cli_version": env!("CARGO_PKG_VERSION"),
+            "built_unix": built_unix,
+            "exe": {"file": Artifact::Executable.name(), "sha256": hex_digest(copied.sha256), "len": copied.len},
+        });
+        let manifest = serde_json::to_vec_pretty(&manifest).context(CacheStorageFailure)?;
+        if !valid_manifest(&manifest, key, &copied) {
+            anyhow::bail!("incomplete copied runner artifact");
+        }
+        reservation.write(Artifact::Manifest, &manifest).context(CacheStorageFailure)?;
+        // This post-build lock is retained evidence only; it is not the future
+        // pre-build resolved lock/envelope authority.
+        reservation.copy(Artifact::Lockfile, &staging.join("Cargo.lock"))
             .context(CacheStorageFailure)?;
+        reservation.write(Artifact::BuildLog, &tail_bytes(&output.stderr, BUILD_LOG_TAIL))
+            .context(CacheStorageFailure)?;
+        Ok(())
+    })().context(CacheExecutionAttempted);
+    if let Err(error) = assembly {
+        // The compiler never received the artifact directory. Aborting only
+        // these exact internally claimed IO files does not infer child cleanup.
+        // Scratch is retained, including on natural Cargo failure or cancellation.
+        return match reservation.abort() {
+            Ok(()) => Err(error),
+            Err(completion) => Err(error.context(completion)),
+        };
     }
-    let tail = tail_bytes(&output.stderr, BUILD_LOG_TAIL);
-    let _ = std::fs::write(entry.join("build.log"), tail);
-
-    let target = config.root.join(key);
-    match std::fs::rename(&entry, &target) {
-        Ok(()) => {}
-        Err(_) => {
-            // A rival published first (rename onto an existing directory
-            // fails): adopt its entry when valid.
-            if let Some(rival) = validate_entry(&config.root, key) {
-                return Ok(CachedBuild::Ready(rival.exe));
-            }
-            // Otherwise the target is corrupt cache-owned garbage, not a
-            // live build (live builds assemble in staging and this lock
-            // serializes publishers): move it aside and publish our
-            // verified entry in its place.
-            retire_entry(&config.root, &target);
-            if std::fs::rename(&entry, &target).is_err() {
-                if let Some(rival) = validate_entry(&config.root, key) {
-                    return Ok(CachedBuild::Ready(rival.exe));
-                }
-                return Ok(CachedBuild::Unavailable);
-            }
-        }
-    }
-    enforce_bounds(&config.root, config.max_entries);
-    Ok(CachedBuild::Ready(target.join(&exe_name)))
-}
-
-/// Keep the cache bounded without racing active builds.
-///
-/// Only cache-owned names are eligible: `<64-hex>` entry directories,
-/// `.trash-*` leftovers, and stale `<64-hex>.lock` files. Anything else —
-/// including other invocations' `.staging-*` directories — is preserved.
-/// Fresh entries are never evicted; removal failures (notably a running
-/// executable on Windows) leave trash behind for a later pass.
-fn enforce_bounds(root: &Path, max_entries: usize) {
-    let Ok(entries) = std::fs::read_dir(root) else {
-        return;
-    };
-    let mut ranked: Vec<(u64, PathBuf)> = Vec::new();
-    let mut trash: Vec<PathBuf> = Vec::new();
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if is_owned_trash_name(&name) {
-            trash.push(entry.path());
-            continue;
-        }
-        if name.strip_suffix(".lock").is_some_and(is_entry_name) {
-            if lock_is_stale(&entry.path()) {
-                let _ = std::fs::remove_file(entry.path());
-            }
-            continue;
-        }
-        if !is_entry_name(&name) {
-            continue;
-        }
-        let built =
-            runner_cache_io::read_regular(&entry.path().join("manifest.json"), MAX_MANIFEST_BYTES)
-                .ok()
-                .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-                .and_then(|manifest| {
-                    manifest
-                        .get("built_unix")
-                        .and_then(serde_json::Value::as_u64)
-                })
-                .unwrap_or(0);
-        ranked.push((built, entry.path()));
-    }
-    ranked.sort();
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_secs())
-        .unwrap_or(0);
-    let excess = ranked.len().saturating_sub(max_entries);
-    for (_, path) in ranked.into_iter().take(excess) {
-        let fresh = runner_cache_io::read_regular(&path.join("manifest.json"), MAX_MANIFEST_BYTES)
-            .ok()
-            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-            .and_then(|manifest| {
-                manifest
-                    .get("built_unix")
-                    .and_then(serde_json::Value::as_u64)
-            })
-            .is_some_and(|built| built > now || now - built < ACTIVE_GRACE_SECS);
-        if fresh {
-            continue;
-        }
-        retire_entry(root, &path);
-    }
-    // Retry orphaned trash from earlier sharing races, then only if old.
-    for path in trash {
-        let old = std::fs::symlink_metadata(&path)
-            .ok()
-            .and_then(|metadata| metadata.modified().ok())
-            .and_then(|modified| SystemTime::now().duration_since(modified).ok())
-            .is_some_and(|age| age.as_secs() > ACTIVE_GRACE_SECS);
-        if old {
-            let _ = std::fs::remove_dir_all(&path);
-        }
-    }
-}
-
-fn is_entry_name(name: &str) -> bool {
-    name.len() == ENTRY_NAME_LEN
-        && name
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-}
-
-fn is_owned_trash_name(name: &str) -> bool {
-    let Some(suffix) = name.strip_prefix(".trash-") else {
-        return false;
-    };
-    let Some((pid, counter)) = suffix.split_once('-') else {
-        return false;
-    };
-    !pid.is_empty()
-        && !counter.is_empty()
-        && pid.bytes().all(|byte| byte.is_ascii_digit())
-        && counter.bytes().all(|byte| byte.is_ascii_digit())
-}
-
-/// Move an entry aside before deleting so a concurrent validator never sees
-/// a half-removed directory; deletion failures are left for a later pass.
-fn retire_entry(root: &Path, path: &Path) {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let pid = std::process::id();
-    for _ in 0..100 {
-        let trash = root.join(format!(
-            ".trash-{pid}-{}",
-            COUNTER.fetch_add(1, Ordering::Relaxed)
-        ));
-        // Claim an enclosing directory exclusively before moving anything.
-        // rename alone could replace somebody else's existing empty directory.
-        if std::fs::create_dir(&trash).is_err() {
-            continue;
-        }
-        if std::fs::rename(path, trash.join("entry")).is_ok() {
-            let _ = std::fs::remove_dir_all(&trash);
-        } else {
-            let _ = std::fs::remove_dir(&trash);
-        }
-        return;
-    }
+    reservation.publish().context(CacheStorageFailure).context(CacheExecutionAttempted)?;
+    let lease = validate_entry(config, key).context(CacheExecutionAttempted)?
+        .ok_or_else(|| anyhow::anyhow!("published runner artifact failed validation"))
+        .context(CacheExecutionAttempted)?;
+    Ok(CachedBuild::Ready(lease))
 }
 
 /// Record one Cargo spawn for the test-only invocation counter.
@@ -1132,6 +954,46 @@ mod tests {
         let path = dir.join(name);
         std::fs::write(&path, content).expect("write grammar fixture");
         path
+    }
+
+    fn manifest(key: &str, bytes: &[u8]) -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({
+            "protocol": RUNNER_PROTOCOL_VERSION,
+            "key": key,
+            "cli_version": env!("CARGO_PKG_VERSION"),
+            "built_unix": 1,
+            "exe": {
+                "file": super::Artifact::Executable.name(),
+                "sha256": super::hex_digest(super::hash_bytes(bytes)),
+                "len": bytes.len(),
+            },
+        })).unwrap()
+    }
+
+    fn publish_fixture(root: &Path, key: &str, bytes: &[u8], manifest: &[u8]) -> (super::CacheConfig, PathBuf) {
+        let config = super::CacheConfig { root: root.to_path_buf(), max_entries: 2 };
+        let store = super::open_store(&config).unwrap();
+        let mut writer = store.reserve(key, 4096).unwrap();
+        writer.write(super::Artifact::Executable, bytes).unwrap();
+        writer.write(super::Artifact::Manifest, manifest).unwrap();
+        writer.publish().unwrap();
+        // Observe the actual store directory; expected contents stay literal.
+        let entries: Vec<_> = std::fs::read_dir(root.join("owned-store-v1")).unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.file_name().unwrap().to_string_lossy().starts_with("entry-"))
+            .collect();
+        assert_eq!(entries.len(), 1);
+        (config, entries.into_iter().next().unwrap())
+    }
+
+    fn validates(config: &super::CacheConfig, key: &str) -> bool {
+        match super::validate_entry(config, key) {
+            Ok(Some(lease)) => {
+                lease.cancel().unwrap();
+                true
+            }
+            Ok(None) | Err(_) => false,
+        }
     }
 
     const SINGLE: &str = "#[adze::grammar(\"tiny\")]\npub mod grammar {\n}\n";
@@ -1294,31 +1156,21 @@ mod tests {
         let root = temp.path().join("cache");
         std::fs::create_dir(&root).expect("root");
         let key = "d".repeat(64);
-        let entry = root.join(&key);
-        std::fs::create_dir(&entry).expect("entry");
         let bytes = b"runner bytes";
-        std::fs::write(entry.join("runner"), bytes).expect("runner");
-        let manifest = serde_json::json!({
-            "protocol": RUNNER_PROTOCOL_VERSION, "key": key,
-            "built_unix": super::SystemTime::now().duration_since(super::UNIX_EPOCH).expect("now").as_secs(),
-            "exe": {"file": "runner", "sha256": super::hex_digest(super::hash_bytes(bytes)), "len": bytes.len()},
-        });
-        std::fs::write(
-            entry.join("manifest.json"),
-            serde_json::to_vec(&manifest).expect("json"),
-        )
-        .expect("manifest");
-        assert!(super::validate_entry(&root, &key).is_some());
+        let (config, entry) = publish_fixture(&root, &key, bytes, &manifest(&key, bytes));
+        assert!(validates(&config, &key));
         let outside = temp.path().join("outside-entry");
         std::fs::rename(&entry, &outside).expect("move entry");
         symlink(&outside, &entry).expect("entry symlink");
-        assert!(super::validate_entry(&root, &key).is_none());
+        assert!(!validates(&config, &key));
         std::fs::remove_file(&entry).expect("unlink entry");
         std::fs::rename(&outside, &entry).expect("restore entry");
         let external_runner = temp.path().join("external-runner");
-        std::fs::rename(entry.join("runner"), &external_runner).expect("move runner");
-        symlink(&external_runner, entry.join("runner")).expect("runner symlink");
-        assert!(super::validate_entry(&root, &key).is_none());
+        let executable = entry.join(super::Artifact::Executable.name());
+        std::fs::rename(&executable, &external_runner).expect("move runner");
+        symlink(&external_runner, &executable).expect("runner symlink");
+        assert!(!validates(&config, &key));
+        assert_eq!(std::fs::read(external_runner).unwrap(), bytes);
     }
 
     #[test]
@@ -1388,45 +1240,32 @@ mod tests {
     fn test_bounded_entry_validation_refuses_partial_or_oversized_files_without_mutation() {
         let temp = tempfile::tempdir().expect("tempdir");
         let key = "e".repeat(64);
-        let entry = temp.path().join(&key);
-        std::fs::create_dir(&entry).unwrap();
-        let executable = entry.join("runner");
+        let bytes = b"abc";
+        let (config, entry) = publish_fixture(temp.path(), &key, bytes, &manifest(&key, bytes));
+        let executable = entry.join(super::Artifact::Executable.name());
         let manifest_path = entry.join("manifest.json");
-        std::fs::write(&executable, b"abc").unwrap();
-        let mut manifest = serde_json::json!({
-            "protocol": RUNNER_PROTOCOL_VERSION,
-            "key": key,
-            "built_unix": super::SystemTime::now()
-                .duration_since(super::UNIX_EPOCH).unwrap().as_secs(),
-            "exe": {
-                "file": "runner", "len": 3,
-                "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-            },
-        });
-        std::fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
-        assert!(super::validate_entry(temp.path(), &key).is_some());
+        assert!(validates(&config, &key));
         std::fs::write(&executable, b"abc excess").unwrap();
-        assert!(super::validate_entry(temp.path(), &key).is_none());
+        assert!(!validates(&config, &key));
         assert_eq!(std::fs::read(&executable).unwrap(), b"abc excess");
         std::fs::write(&executable, b"abc").unwrap();
+        let identity = super::runner_cache_io::digest_regular(&executable, 3).unwrap();
+        assert_eq!(super::hex_digest(identity.sha256), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
 
+        let mut invalid: serde_json::Value = serde_json::from_slice(&manifest(&key, bytes)).unwrap();
         for invalid_len in [0, super::MAX_EXECUTABLE_BYTES + 1] {
-            manifest["exe"]["len"] = invalid_len.into();
-            std::fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
-            assert!(super::validate_entry(temp.path(), &key).is_none());
+            invalid["exe"]["len"] = invalid_len.into();
+            let encoded = serde_json::to_vec(&invalid).unwrap();
+            assert!(!super::valid_manifest(&encoded, &key, &identity));
+            std::fs::write(&manifest_path, encoded).unwrap();
+            assert!(!validates(&config, &key));
         }
         std::fs::write(&manifest_path, b"{\"protocol\":").unwrap();
-        assert!(super::validate_entry(temp.path(), &key).is_none());
+        assert!(!validates(&config, &key));
         assert_eq!(std::fs::read(&manifest_path).unwrap(), b"{\"protocol\":");
-        std::fs::File::create(&manifest_path)
-            .unwrap()
-            .set_len(super::MAX_MANIFEST_BYTES + 1)
-            .unwrap();
-        assert!(super::validate_entry(temp.path(), &key).is_none());
-        assert_eq!(
-            std::fs::metadata(&manifest_path).unwrap().len(),
-            super::MAX_MANIFEST_BYTES + 1,
-        );
+        std::fs::File::create(&manifest_path).unwrap().set_len(super::MAX_MANIFEST_BYTES + 1).unwrap();
+        assert!(!validates(&config, &key));
+        assert_eq!(std::fs::metadata(&manifest_path).unwrap().len(), super::MAX_MANIFEST_BYTES + 1);
         assert_eq!(std::fs::read(&executable).unwrap(), b"abc");
     }
 
@@ -1500,146 +1339,24 @@ mod tests {
 
     #[test]
     fn corrupt_entry_never_validates() {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let root = temp.path().join("cache");
-        std::fs::create_dir_all(&root).expect("cache root");
-        let key = "a".repeat(64);
-        let dir = root.join(&key);
-        std::fs::create_dir_all(&dir).expect("entry dir");
-        std::fs::write(dir.join("manifest.json"), "not json").expect("garbage manifest");
-        std::fs::write(dir.join("runner"), b"bytes").expect("orphan exe");
-        assert!(super::validate_entry(&root, &key).is_none());
-        // Well-formed manifest with a tampered executable also refuses.
-        let manifest = serde_json::json!({
-            "protocol": RUNNER_PROTOCOL_VERSION,
-            "key": key,
-            "built_unix": super::SystemTime::now().duration_since(super::UNIX_EPOCH).expect("now").as_secs(),
-            "exe": {"file": "runner", "sha256": "0".repeat(64), "len": 5u64},
-        });
-        std::fs::write(
-            dir.join("manifest.json"),
-            serde_json::to_string(&manifest).expect("json"),
-        )
-        .expect("manifest");
-        assert!(super::validate_entry(&root, &key).is_none());
-    }
-
-    #[test]
-    fn eviction_only_retires_old_owned_entries() {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let root = temp.path().join("cache");
-        std::fs::create_dir_all(&root).expect("cache root");
-        let now = super::SystemTime::now()
-            .duration_since(super::UNIX_EPOCH)
-            .expect("now")
-            .as_secs();
-        // Five complete-but-fake entries: four ancient, one fresh.
-        for (index, age) in [100u64, 200, 300, 400, 0].into_iter().enumerate() {
-            let key = format!("{:064x}", index + 1);
-            let dir = root.join(&key);
-            std::fs::create_dir_all(&dir).expect("entry dir");
-            let manifest = serde_json::json!({
-                "protocol": RUNNER_PROTOCOL_VERSION,
-                "key": key,
-                "built_unix": now.saturating_sub(age + super::ENTRY_TTL_SECS + 10),
-                "exe": {"file": "runner", "sha256": "00".repeat(32), "len": 1u64},
-            });
-            std::fs::write(
-                dir.join("manifest.json"),
-                serde_json::to_string(&manifest).expect("json"),
-            )
-            .expect("manifest");
-            std::fs::write(dir.join("runner"), b"x").expect("exe");
+        for malformed in [true, false] {
+            let temp = tempfile::tempdir().expect("tempdir");
+            let key = "a".repeat(64);
+            let bytes = b"bytes";
+            let encoded = if malformed {
+                b"not json".to_vec()
+            } else {
+                let mut value: serde_json::Value = serde_json::from_slice(&manifest(&key, bytes)).unwrap();
+                value["exe"]["sha256"] = "0".repeat(64).into();
+                serde_json::to_vec(&value).unwrap()
+            };
+            let (config, entry) = publish_fixture(temp.path(), &key, bytes, &encoded);
+            // The file store has authentic copies of these fixture bytes; the
+            // runner-level manifest must independently refuse invalid claims.
+            assert!(!validates(&config, &key));
+            assert_eq!(std::fs::read(entry.join("manifest.json")).unwrap(), encoded);
+            assert_eq!(std::fs::read(entry.join(super::Artifact::Executable.name())).unwrap(), bytes);
         }
-        // Unrelated files, another invocation's staging, and a fresh lock
-        // must all survive eviction.
-        std::fs::write(root.join("notes.txt"), "user file").expect("user file");
-        let unrelated_hex_length = root.join("z".repeat(64));
-        std::fs::create_dir(&unrelated_hex_length).expect("unrelated directory");
-        std::fs::write(unrelated_hex_length.join("sentinel"), "keep").expect("sentinel");
-        let unrelated_lock = root.join("notes.lock");
-        let file = std::fs::File::create(&unrelated_lock).expect("unrelated lock");
-        file.set_times(std::fs::FileTimes::new().set_modified(super::UNIX_EPOCH))
-            .expect("old timestamp");
-        std::fs::create_dir_all(root.join(".staging-999-0")).expect("foreign staging");
-        std::fs::write(root.join(".staging-999-0").join("wip"), "wip").expect("wip");
-        let live_lock = root.join(format!("{}.lock", "b".repeat(64)));
-        std::fs::write(&live_lock, "pid=999").expect("live lock");
-
-        super::enforce_bounds(&root, 2);
-
-        let remaining: Vec<String> = std::fs::read_dir(&root)
-            .expect("read cache")
-            .flatten()
-            .map(|entry| entry.file_name().to_string_lossy().into_owned())
-            .filter(|name| super::is_entry_name(name))
-            .collect();
-        assert!(
-            remaining.len() <= 2,
-            "bounded cache must retire excess entries, found {remaining:?}"
-        );
-        assert!(
-            root.join("notes.txt").is_file(),
-            "unrelated files are preserved"
-        );
-        assert!(
-            root.join(".staging-999-0").join("wip").is_file(),
-            "another invocation's staging is never touched"
-        );
-        assert!(live_lock.is_file(), "fresh locks are preserved");
-        assert!(
-            unrelated_hex_length.join("sentinel").is_file(),
-            "nonhex names are not entries"
-        );
-        assert!(
-            unrelated_lock.is_file(),
-            "unrelated old locks are preserved"
-        );
-    }
-
-    #[test]
-    fn concurrent_same_key_waiters_share_one_entry() {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let root = temp.path().join("cache");
-        std::fs::create_dir_all(&root).expect("cache root");
-        let key = "c".repeat(64);
-        let lock = root.join(format!("{key}.lock"));
-        assert!(super::claim_lock(&lock), "first claim wins");
-        assert!(!super::claim_lock(&lock), "second claim loses while held");
-
-        let waiter_root = root.clone();
-        let waiter_key = key.clone();
-        let waiter_lock = lock.clone();
-        let waiter = std::thread::spawn(move || {
-            super::wait_for_entry(&waiter_root, &waiter_lock, &waiter_key)
-        });
-        // The entry is absent while the owner "builds": the waiter must not
-        // observe anything partial, so it keeps waiting.
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        // Publish a complete, valid entry, then release the lock.
-        let dir = root.join(&key);
-        std::fs::create_dir_all(&dir).expect("entry dir");
-        let bytes = b"fake-runner-bytes";
-        std::fs::write(dir.join("runner"), bytes).expect("exe");
-        let manifest = serde_json::json!({
-            "protocol": super::RUNNER_PROTOCOL_VERSION,
-            "key": key,
-            "built_unix": super::SystemTime::now().duration_since(super::UNIX_EPOCH).expect("now").as_secs(),
-            "exe": {"file": "runner", "sha256": super::hex_digest(super::hash_bytes(bytes)), "len": bytes.len() as u64},
-        });
-        std::fs::write(
-            dir.join("manifest.json"),
-            serde_json::to_string(&manifest).expect("json"),
-        )
-        .expect("manifest");
-        std::fs::remove_file(&lock).expect("release lock");
-
-        let shared = waiter
-            .join()
-            .expect("waiter thread")
-            .expect("waiter sees the entry");
-        assert_eq!(shared.exe, dir.join("runner"));
-        assert!(super::validate_entry(&root, &key).is_some());
     }
 
     #[test]
@@ -1762,5 +1479,13 @@ mod tests {
             panic!("outer storage context must not consume a process refusal")
         };
         assert!(process.downcast_ref::<super::ProcessFailure>().is_some());
+        let Err(after_execution) = super::finish_cached_build(Err(
+            anyhow::anyhow!("fixture finalization failure")
+                .context(super::CacheExecutionAttempted)
+                .context(super::CacheStorageFailure)
+        )) else {
+            panic!("a completed semantic operation must not trigger fresh fallback")
+        };
+        assert!(after_execution.downcast_ref::<super::CacheExecutionAttempted>().is_some());
     }
 }

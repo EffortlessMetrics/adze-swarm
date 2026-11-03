@@ -12,6 +12,21 @@ use std::fmt;
 use std::path::PathBuf;
 use std::process::Output;
 
+/// Reserved authority boundary for a platform-proved empty execution owner.
+///
+/// No platform producer is qualified yet. This uninhabited facade deliberately
+/// has no constructor, including under cfg(test); generic Output, exit status,
+/// an error name, pipe EOF and a destructor cannot produce release authority.
+/// The future platform-only producer must bind its private invocation/cleanup
+/// evidence to the exact opaque durable-owner binding supplied by its caller.
+pub(crate) enum OwnedCleanupReceipt {}
+
+impl OwnedCleanupReceipt {
+    pub(crate) fn is_for(&self, _binding: &[u8; 32]) -> bool {
+        match *self {}
+    }
+}
+
 /// Marks a process refusal which must never become a cache miss or retry.
 ///
 /// Use this as an anyhow context, rather than wrapping the source error in an

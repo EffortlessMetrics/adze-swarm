@@ -85,7 +85,7 @@ fn require_regular(metadata: &std::fs::Metadata) -> io::Result<()> {
 /// additionally open without following a final-component symlink/reparse
 /// point. Linux's nonblocking open avoids waiting on a substituted FIFO.
 /// Other platforms retain metadata checks without claiming those race bounds.
-fn open_regular(path: &Path, limit: u64) -> io::Result<File> {
+pub(crate) fn open_regular(path: &Path, limit: u64) -> io::Result<File> {
     require_regular(&std::fs::symlink_metadata(path)?)?;
     let mut options = std::fs::OpenOptions::new();
     options.read(true);
@@ -128,13 +128,14 @@ pub(crate) fn digest_regular(path: &Path, limit: u64) -> io::Result<FileDigest> 
 
 /// A failed copy may leave a partial file only at this caller-owned, newly
 /// created destination. It is never a completed/published artifact.
+/// Retained as a fixture wrapper; the store records its claim before copying.
+#[cfg(test)]
 pub(crate) fn copy_regular(
     source: &Path,
     destination: &Path,
     limit: u64,
 ) -> io::Result<FileDigest> {
-    let mut input = open_regular(source, limit)?;
-    let permissions = input.metadata()?.permissions();
+    let input = open_regular(source, limit)?;
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(target_os = "linux")]
@@ -143,6 +144,22 @@ pub(crate) fn copy_regular(
         options.mode(0o600);
     }
     let mut output = options.open(destination)?;
+    copy_open_file(input, &mut output, limit)
+}
+
+/// Copy to a destination already exclusively claimed by its caller. The
+/// caller records that ownership before any bytes are written, so a failed
+/// copy cannot grant deletion rights over an unclaimed colliding pathname.
+pub(crate) fn copy_to_owned_file(
+    source: &Path,
+    output: &mut File,
+    limit: u64,
+) -> io::Result<FileDigest> {
+    copy_open_file(open_regular(source, limit)?, output, limit)
+}
+
+fn copy_open_file(mut input: File, output: &mut File, limit: u64) -> io::Result<FileDigest> {
+    let permissions = input.metadata()?.permissions();
     let digest = bounded_chunks(&mut input, limit, |chunk| output.write_all(chunk))?;
     output.set_permissions(permissions)?;
     output.sync_all()?;

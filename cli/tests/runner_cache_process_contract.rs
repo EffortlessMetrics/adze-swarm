@@ -9,6 +9,8 @@
 mod runner_cache;
 #[path = "../src/runner_cache_io.rs"]
 mod runner_cache_io;
+#[path = "../src/runner_cache_store.rs"]
+mod runner_cache_store;
 #[path = "../src/runner_invocation.rs"]
 mod runner_invocation;
 #[cfg(target_os = "linux")]
@@ -189,9 +191,11 @@ fn native_contract(directory: &Path) {
         runner_cache::build_and_publish(&spec, &config, &key, &staging, &process),
         directory,
     );
-    let runner_cache::CachedBuild::Ready(executable) = built else {
+    let runner_cache::CachedBuild::Ready(lease) = built else {
         panic!("expected owned fixture publication")
     };
+    let active = lease.start().unwrap();
+    let executable = active.executable().unwrap();
     assert_eq!(
         executable
             .extension()
@@ -204,7 +208,16 @@ fn native_contract(directory: &Path) {
         "owned executable failed: {output:?}"
     );
     assert_eq!(output.stdout, b"owned fixture\n");
-    assert!(runner_cache::validate_entry(&root, &key).is_some());
+    let Err(completion) = runner_cache::finalize_execution(active, Ok(output), None) else {
+        panic!("generic successful Output fabricated empty-owner release")
+    };
+    assert!(completion.downcast_ref::<runner_cache_store::StoreError>().is_some());
+    let Err(completion) = runner_cache::finish_cached_build(Err(completion)) else {
+        panic!("successful fixture execution followed by finalization refusal became a fresh retry")
+    };
+    save_error(directory, &completion);
+    let inspected = require(runner_cache::validate_entry(&config, &key), directory).expect("published fixture");
+    inspected.cancel().unwrap();
     // Preserve the prior oracle: isolated publication never grants production
     // lookup/build admission, even after a complete fixture entry exists.
     assert!(runner_cache::lookup(&spec).is_none());
@@ -218,9 +231,12 @@ fn native_contract(directory: &Path) {
         runner_protocol::request_token(),
         "--adze-static-runner-protocol=2"
     );
+    let framed_lease = require(runner_cache::validate_entry(&config, &key), directory)
+        .expect("framed fixture lease").start().unwrap();
+    let framed_executable = framed_lease.executable().unwrap();
     let mut framed = capture_fixture(
         &process,
-        &executable,
+        &framed_executable,
         vec![
             "input space λ.txt".into(),
             "ambiguity-json".into(),
@@ -238,10 +254,15 @@ fn native_contract(directory: &Path) {
         directory,
     );
     assert_eq!(framed.stdout, PAYLOAD.as_bytes());
-    let failure = capture_fixture(&process, &executable, vec!["--failure".into()], directory);
+    assert!(matches!(framed_lease.finish(None), Err(runner_cache_store::StoreError::OwnershipUnknown)));
+    let failed_lease = require(runner_cache::validate_entry(&config, &key), directory)
+        .expect("failure fixture lease").start().unwrap();
+    let failed_executable = failed_lease.executable().unwrap();
+    let failure = capture_fixture(&process, &failed_executable, vec!["--failure".into()], directory);
     assert_eq!(failure.status.code(), Some(37));
     assert_eq!(failure.stdout, b"purported success bytes\n");
     assert_eq!(failure.stderr, b"Error: owned fixture failure\n");
+    assert!(matches!(failed_lease.finish(None), Err(runner_cache_store::StoreError::OwnershipUnknown)));
 
     // NUL is a concrete OS/request setup refusal on both platforms. It must
     // remain typed through caller context and cache fallback classification.
@@ -290,7 +311,9 @@ fn native_contract(directory: &Path) {
         ..spec
     };
     let bad_staging = runner_cache::claim_staging_dir(&root).expect("second owned staging");
-    let outcome = runner_cache::build_and_publish(&bad_spec, &config, &key, &bad_staging, &process);
+    let failed_key = "f".repeat(64);
+    assert_ne!(failed_key, key);
+    let outcome = runner_cache::build_and_publish(&bad_spec, &config, &failed_key, &bad_staging, &process);
     let Err(error) = runner_cache::finish_cached_build(outcome) else {
         panic!("actual failed Cargo build became a miss or successful publication")
     };
@@ -300,6 +323,7 @@ fn native_contract(directory: &Path) {
     assert!(!failed.status.success());
     assert!(!failed.stderr.is_empty());
     assert!(!bad_staging.join("entry").exists());
+    assert!(require(runner_cache::validate_entry(&config, &failed_key), directory).is_none());
     std::fs::write(directory.join("failed-cargo.stdout"), &failed.stdout).unwrap();
     std::fs::write(directory.join("failed-cargo.stderr"), &failed.stderr).unwrap();
     eprintln!(
@@ -318,12 +342,16 @@ fn test_cache_process_custody_preserves_refusal_and_owned_publication() {
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         native_contract(directory.path())
     }));
+    // The actual capture API has no qualified empty-owner receipt yet. Keep
+    // scratch and the three durable execution reservations even on semantic
+    // success; this is explicit test fixture retention, not product cleanup.
+    let retained = directory.keep();
     if let Err(failure) = result {
-        let retained = directory.keep();
         eprintln!(
             "retained failed native cache fixture: {}",
             retained.display()
         );
         std::panic::resume_unwind(failure);
     }
+    eprintln!("retained unqualified native cache ownership fixture: {}", retained.display());
 }

@@ -9,6 +9,7 @@ use walkdir::WalkDir;
 mod grammar_analysis;
 mod runner_cache;
 mod runner_cache_io;
+mod runner_cache_store;
 mod runner_invocation;
 mod runner_output;
 #[cfg(target_os = "linux")]
@@ -965,37 +966,52 @@ fn run_static_parse_runner(
 
     // Production lookup and build both refuse before cache storage access.
     // This branch remains dormant until #1067 proves a complete build identity.
-    if let Some(executable) = runner_cache::lookup(&spec) {
-        let started = std::time::Instant::now();
-        let output = run_runner_executable(&process, &executable, &input, output_format, &grammar)?;
-        log::debug!(
-            "cached parse runner hit {} in {:?}",
-            executable.display(),
-            started.elapsed()
-        );
-        return Ok(output);
+    if let Some(lease) = runner_cache::lookup(&spec) {
+        return run_leased_runner(&process, lease, &input, output_format, &grammar);
     }
 
     let started = std::time::Instant::now();
-    let executable = match runner_cache::build_cached(&spec, &process) {
-        Ok(runner_cache::CachedBuild::Ready(executable)) => executable,
+    let lease = match runner_cache::build_cached(&spec, &process) {
+        Ok(runner_cache::CachedBuild::Ready(lease)) => lease,
         Ok(runner_cache::CachedBuild::Unavailable) => {
             return run_static_parse_runner_uncached(&process, &spec, &input, output_format);
         }
         Err(error) => {
             if let Some(failed) = error.downcast_ref::<runner_cache::CargoFailed>() {
-                return Err(static_parse_runner_error(
+                let semantic = static_parse_runner_error(
                     &grammar,
                     failed.status,
                     &failed.stdout,
                     &failed.stderr,
-                ));
+                );
+                if let Some(finalization) = error.downcast_ref::<runner_cache_store::StoreError>() {
+                    return Err(semantic.context(format!("runner cache finalization: {finalization}")));
+                }
+                return Err(semantic);
             }
             return Err(error);
         }
     };
     log::debug!("parse runner build finished in {:?}", started.elapsed());
-    run_runner_executable(&process, &executable, &input, output_format, &grammar)
+    run_leased_runner(&process, lease, &input, output_format, &grammar)
+}
+
+fn run_leased_runner(
+    process: &runner_invocation::ProcessRunner,
+    lease: runner_cache_store::UnstartedLease,
+    input: &Path,
+    output_format: &str,
+    grammar: &Path,
+) -> Result<runner_output::RunnerOutput> {
+    let active = lease.start()?;
+    let outcome = (|| {
+        let executable = active.executable()?;
+        run_runner_executable(process, &executable, input, output_format, grammar)
+    })();
+    // Generic Output has no qualified empty-owner authority. Keep the durable
+    // execution token and propagate failure without attempting a fresh parse.
+    // build_key remains None until this and the immutable envelope are proved.
+    runner_cache::finalize_execution(active, outcome, None)
 }
 
 /// Execute an already-built runner with the same explicit argv/environment and
