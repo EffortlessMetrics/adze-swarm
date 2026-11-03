@@ -147,18 +147,45 @@ pub(crate) fn assert_sequence_tree(root: &ParsedNode, length: usize) {
         assert_eq!(sequence.symbol, 2);
         assert_eq!(sequence.kind(), "sequence");
         assert_eq!(sequence.start_byte..sequence.end_byte, index..length);
-        assert_eq!(sequence.start_point, Point { row: 0, column: index as u32 });
-        assert_eq!(sequence.end_point, Point { row: 0, column: length as u32 });
+        assert_eq!(
+            sequence.start_point,
+            Point {
+                row: 0,
+                column: index as u32
+            }
+        );
+        assert_eq!(
+            sequence.end_point,
+            Point {
+                row: 0,
+                column: length as u32
+            }
+        );
         assert!(sequence.is_named);
         assert!(!(sequence.is_extra || sequence.is_error || sequence.is_missing));
         assert_eq!(sequence.field_id, None);
-        assert_eq!(sequence.child_count(), if index + 1 == length { 1 } else { 2 });
+        assert_eq!(
+            sequence.child_count(),
+            if index + 1 == length { 1 } else { 2 }
+        );
         let leaf = sequence.child(0).expect("one a at each depth");
         assert_eq!(leaf.symbol, 1);
         assert_eq!(leaf.kind(), "a");
         assert_eq!(leaf.start_byte..leaf.end_byte, index..index + 1);
-        assert_eq!(leaf.start_point, Point { row: 0, column: index as u32 });
-        assert_eq!(leaf.end_point, Point { row: 0, column: (index + 1) as u32 });
+        assert_eq!(
+            leaf.start_point,
+            Point {
+                row: 0,
+                column: index as u32
+            }
+        );
+        assert_eq!(
+            leaf.end_point,
+            Point {
+                row: 0,
+                column: (index + 1) as u32
+            }
+        );
         assert!(!leaf.is_named);
         assert!(!(leaf.is_extra || leaf.is_error || leaf.is_missing));
         assert_eq!(leaf.field_id, None);
@@ -182,7 +209,10 @@ fn test_long_eof_unwind_preserves_tree_clone_and_parser_lifecycle() {
     let cloned = root.clone();
     assert_sequence_tree(&cloned, DEEP_TOKEN_COUNT);
     drop(cloned);
-    assert!(parser.stack.is_empty(), "success releases residual native stack");
+    assert!(
+        parser.stack.is_empty(),
+        "success releases residual native stack"
+    );
     parser.reset();
     let small = parser.parse_string("a");
     assert!(small.errors.is_empty());
@@ -207,14 +237,23 @@ fn test_long_eof_unwind_preserves_tree_clone_and_parser_lifecycle() {
 #[test]
 fn test_actual_epsilon_and_unary_cycles_refuse_and_leave_parser_reusable() {
     let mut parser = Parser::new();
-    for (language, source) in [(epsilon_cycle_language(), ""), (unary_cycle_language(), "a")] {
+    for (language, source) in [
+        (epsilon_cycle_language(), ""),
+        (unary_cycle_language(), "a"),
+    ] {
         parser.set_language(language).unwrap();
         let result = parser.parse_string(source);
         assert!(result.root.is_none());
         assert_eq!(result.errors.len(), 1);
         let error = &result.errors[0];
         assert_eq!(error.position, source.len());
-        assert_eq!(error.point, Point { row: 0, column: source.len() as u32 });
+        assert_eq!(
+            error.point,
+            Point {
+                row: 0,
+                column: source.len() as u32
+            }
+        );
         assert!(error.expected.is_empty());
         assert_eq!(
             error.work_limit,
@@ -223,7 +262,10 @@ fn test_actual_epsilon_and_unary_cycles_refuse_and_leave_parser_reusable() {
                 completed_iterations: 10_000,
             })
         );
-        assert!(parser.stack.is_empty(), "refusal releases every accumulated tree");
+        assert!(
+            parser.stack.is_empty(),
+            "refusal releases every accumulated tree"
+        );
         parser.reset();
         parser.set_language(eof_unwind_language()).unwrap();
         let clean = parser.parse_string("a");
@@ -249,7 +291,10 @@ fn test_clone_and_error_scan_preserve_all_native_facts() {
     let mut pending = vec![(&root, &cloned)];
     while let Some((original, copy)) = pending.pop() {
         assert_eq!(original.symbol, copy.symbol);
-        assert_eq!(original.start_byte..original.end_byte, copy.start_byte..copy.end_byte);
+        assert_eq!(
+            original.start_byte..original.end_byte,
+            copy.start_byte..copy.end_byte
+        );
         assert_eq!(original.start_point, copy.start_point);
         assert_eq!(original.end_point, copy.end_point);
         assert_eq!(original.is_extra, copy.is_extra);
@@ -310,7 +355,10 @@ mod document {
             assert_eq!(sequence.kind_id(), adze_ir::SymbolId(2));
             assert_eq!(sequence.byte_range(), index..DEEP_TOKEN_COUNT);
             assert!(!sequence.has_error());
-            assert_eq!(sequence.child_count(), if index + 1 == DEEP_TOKEN_COUNT { 1 } else { 2 });
+            assert_eq!(
+                sequence.child_count(),
+                if index + 1 == DEEP_TOKEN_COUNT { 1 } else { 2 }
+            );
             let leaf = sequence.child(0).expect("one a at each depth");
             assert_eq!(leaf.kind_id(), adze_ir::SymbolId(1));
             assert_eq!(leaf.byte_range(), index..index + 1);
@@ -322,7 +370,10 @@ mod document {
         }
         // Exercise flat -> temporary ParsedNode -> extraction -> normal drop.
         // The user value is a count, not an arbitrarily deep recursive AST.
-        assert_eq!(document.ast::<SequenceLength>().unwrap().0, DEEP_TOKEN_COUNT);
+        assert_eq!(
+            document.ast::<SequenceLength>().unwrap().0,
+            DEEP_TOKEN_COUNT
+        );
         let cloned = document.clone();
         drop(document);
         assert_eq!(cloned.tree().node_count(), DEEP_TOKEN_COUNT * 2);

@@ -66,7 +66,13 @@ fn assert_native_tokens(root: &ParsedNode, source: &str, expected: &[ExpectedTok
     for (node, token) in actual.into_iter().zip(expected) {
         assert_eq!(node.start_byte()..node.end_byte(), token.span);
         assert_eq!(node.utf8_text(source.as_bytes()).unwrap(), token.text);
-        assert_eq!(node.start_point(), Point { row: token.row, column: token.column });
+        assert_eq!(
+            node.start_point(),
+            Point {
+                row: token.row,
+                column: token.column
+            }
+        );
         assert_eq!(
             node.end_point(),
             Point {
@@ -91,7 +97,10 @@ fn assert_document_tokens(document: &AdzeDocument, source: &str, expected: &[Exp
         assert_eq!(node.byte_range(), token.span);
         assert_eq!(node.utf8_text().unwrap(), token.text);
         let points = node.point_range();
-        assert_eq!((points.start.row, points.start.column), (token.row, token.column));
+        assert_eq!(
+            (points.start.row, points.start.column),
+            (token.row, token.column)
+        );
         assert_eq!(
             (points.end.row, points.end.column),
             (token.row, token.column + token.text.len() as u32)
@@ -122,7 +131,10 @@ fn assert_assignments(module: &Module, count: usize) {
         assert_eq!(number(left), index as i32);
         assert_eq!(number(right), 2);
         assert_eq!(number(addend), index as i32 + 1);
-        assert_eq!(number(left) * number(right) + number(addend), 3 * index as i32 + 1);
+        assert_eq!(
+            number(left) * number(right) + number(addend),
+            3 * index as i32 + 1
+        );
     }
 }
 
@@ -142,7 +154,11 @@ fn test_generated_263_264_and_1000_assignments_have_exact_values_and_spans() {
         let expected = assignment_tokens(count);
         assert_eq!(expected.len(), count * 7);
         let native = parser.parse_string(&input);
-        assert!(native.errors.is_empty(), "count={count}: {:?}", native.errors);
+        assert!(
+            native.errors.is_empty(),
+            "count={count}: {:?}",
+            native.errors
+        );
         assert_native_tokens(
             native.root.as_ref().expect("complete native root"),
             &input,
@@ -151,7 +167,10 @@ fn test_generated_263_264_and_1000_assignments_have_exact_values_and_spans() {
         assert_assignments(&grammar::parse(&input).expect("typed parse"), count);
         let document = grammar::parse_document(&input).expect("generated document");
         assert_document_tokens(&document, &input, &expected);
-        assert_assignments(&document.ast::<Module>().expect("document typed projection"), count);
+        assert_assignments(
+            &document.ast::<Module>().expect("document typed projection"),
+            count,
+        );
         // Normal drops and reuse are part of the regression, with no large
         // thread stack or forgotten tree to hide lifecycle failure.
         drop(document);
