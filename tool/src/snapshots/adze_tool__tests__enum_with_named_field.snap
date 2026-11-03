@@ -2,4 +2,4 @@
 source: tool/src/lib.rs
 expression: grammar
 ---
-{"name":"test","start_symbol":"Expr","word":null,"rules":{"source_file":{"type":"SYMBOL","name":"Expr"},"Expr_Neg__bang":{"type":"STRING","value":"!"},"Expr":{"type":"CHOICE","members":[{"type":"PATTERN","value":"\\d+"},{"type":"SEQ","members":[{"type":"FIELD","name":"_bang","content":{"type":"SYMBOL","name":"Expr_Neg__bang"}},{"type":"FIELD","name":"value","content":{"type":"SYMBOL","name":"Expr"}}]}]}},"extras":[],"wrapper_token_relations":{"Expr_Neg__bang":"!"}}
+{"name":"test","start_symbol":"Expr","document_start_symbol":"source_file","word":null,"rules":{"source_file":{"type":"SYMBOL","name":"Expr"},"Expr_Neg__bang":{"type":"STRING","value":"!"},"Expr":{"type":"CHOICE","members":[{"type":"PATTERN","value":"\\d+"},{"type":"SEQ","members":[{"type":"FIELD","name":"_bang","content":{"type":"SYMBOL","name":"Expr_Neg__bang"}},{"type":"FIELD","name":"value","content":{"type":"SYMBOL","name":"Expr"}}]}]}},"extras":[],"wrapper_token_relations":{"Expr_Neg__bang":"!"}}

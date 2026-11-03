@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Execute the required scripts with real libtest selections (#995).
 
-Requires bash and rustc. Only Cargo's dispatch and the unrelated formatting /
-clippy prerequisites are replaced; both gate scripts and their shared guard
-are copied unchanged. The producer is a compiled Rust test harness, not text
+The process fixtures require bash and rustc. Only Cargo's dispatch and the
+unrelated formatting / clippy prerequisites are replaced; both gate scripts
+and their shared guard are copied unchanged. The producer is a compiled Rust test harness, not text
 that imitates a test summary. Run: python3 scripts/test_required_test_output.py
+
+The RequiredSummaryContracts class separately exercises the shared Bash parser
+with explicit terminal-summary fixtures; it does not claim Rust execution.
+Run without rustc: python3 scripts/test_required_test_output.py RequiredSummaryContracts
 """
 from __future__ import annotations
 
@@ -17,6 +21,49 @@ import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ("ci-supported.sh", "ci-product-stable.sh")
+
+
+class RequiredSummaryContracts(unittest.TestCase):
+    """A successful wrapper cannot turn a reported failed target into proof."""
+
+    PASS = "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n"
+    EMPTY = "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n"
+    FAIL = "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out\n"
+
+    def run_guard(self, output: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["bash", "-euo", "pipefail", "-c",
+             'source "$1"; required_test_output "$(cat)" "summary fixture"',
+             "required-test-output", str(ROOT / "scripts/lib/required-test-output.sh")],
+            input=output, capture_output=True, text=True, timeout=10,
+        )
+
+    def test_success_with_auxiliary_empty_targets_passes(self) -> None:
+        for output in (self.EMPTY + self.PASS, self.PASS + self.EMPTY):
+            with self.subTest(output=output):
+                result = self.run_guard(output)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_zero_ignored_and_missing_results_are_rejected(self) -> None:
+        ignored = self.EMPTY.replace("0 ignored", "1 ignored")
+        for output in ("", "running 1 test\n", self.EMPTY, ignored):
+            with self.subTest(output=output):
+                result = self.run_guard(output)
+                self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_passing_tests_with_ignored_tests_are_not_vacuous(self) -> None:
+        result = self.run_guard(self.PASS.replace("0 ignored", "1 ignored"))
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_wrapper_success_cannot_hide_failed_target(self) -> None:
+        for output in (self.PASS + self.FAIL, self.FAIL + self.PASS):
+            with self.subTest(output=output):
+                result = self.run_guard(output)
+                self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_success_label_cannot_hide_nonzero_failure_count(self) -> None:
+        result = self.run_guard(self.FAIL.replace("FAILED", "ok"))
+        self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
 
 
 class RequiredScriptProcesses(unittest.TestCase):
@@ -75,6 +122,10 @@ case "$1" in
       aggregate_fail)
         "$ADZE_GUARD_ROOT/harness" --exact test_pass_case || exit "$?"
         exec "$ADZE_GUARD_ROOT/harness" --exact test_fail_case ;;
+      masked_aggregate_fail)
+        "$ADZE_GUARD_ROOT/harness" --exact test_pass_case || exit "$?"
+        "$ADZE_GUARD_ROOT/harness" --exact test_fail_case
+        exit 0 ;;
     esac
     exec "$ADZE_GUARD_ROOT/harness" --exact test_pass_case ;;
   *) exit 99 ;;
@@ -128,12 +179,13 @@ esac
 
     def test_failed_process_and_failed_aggregate_propagate(self) -> None:
         for script in SCRIPTS:
-            for selection, status in (("fail", 101), ("aggregate_fail", 101), ("exit23", 23)):
+            for selection, status in (("fail", 101), ("aggregate_fail", 101),
+                                      ("masked_aggregate_fail", 1), ("exit23", 23)):
                 with self.subTest(script=script, selection=selection):
                     result = self.run_script(script, selection)
                     self.assertEqual(status if script == "ci-supported.sh" else 1, result.returncode,
                                      result.stdout + result.stderr)
-                    if selection == "aggregate_fail":
+                    if selection in ("aggregate_fail", "masked_aggregate_fail"):
                         self.assertIn("1 passed; 0 failed", result.stdout)
                         self.assertIn("0 passed; 1 failed", result.stdout)
 

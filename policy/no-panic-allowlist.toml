@@ -64,3 +64,41 @@ callee = "panic"
 [allow.last_seen]
 line = 44
 column = 9
+
+# Reviewed 2026-11-02 for #985/#1207. Only these two compatibility boundaries
+# are adopted from the generated proposal; the workspace baseline is not.
+[[allow]]
+id = "panic-20311"
+path = "ir/src/symbol_registry.rs"
+family = "panic_macro"
+classification = "legacy"
+owner = "ir/#985"
+explanation = "Legacy register returns SymbolId and cannot represent refusal without an API break. Retain explicit capacity panic; fallible callers use try_register, and new allocation never wraps into EOF. Retire with the infallible compatibility API."
+expires = "2026-12-02"
+
+[allow.selector]
+kind = "macro_call"
+container = "impl SymbolRegistry::register"
+callee = "panic"
+
+[allow.last_seen]
+line = 138
+column = 13
+
+[[allow]]
+id = "panic-20325"
+path = "ir/src/lib.rs"
+family = "panic_macro"
+classification = "legacy"
+owner = "ir/#985"
+explanation = "Legacy build_registry returns SymbolRegistry and cannot report capacity failure without an API break. Retain explicit panic only in this compatibility wrapper; Result-returning tool paths now use try_get_or_build_registry/try_build_registry and propagate the typed error. Retire with the infallible compatibility API."
+expires = "2026-12-02"
+
+[allow.selector]
+kind = "macro_call"
+container = "impl Grammar::build_registry"
+callee = "panic"
+
+[allow.last_seen]
+line = 378
+column = 37

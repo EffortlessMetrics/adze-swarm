@@ -19,6 +19,10 @@
 use adze_ir::{Grammar, Symbol, SymbolId};
 use std::collections::{BTreeMap, HashMap};
 
+/// Revision of the canonical field semantics transported by generated sidecars.
+/// Increment when the meaning of emitted owner/cardinality/target facts changes.
+pub const FIELD_SCHEMA_REVISION: u32 = 1;
+
 /// Cardinality and target kinds for one field of one node kind.
 ///
 /// `targets` holds leaf symbols only (terminals, non-terminals, externals):
@@ -249,6 +253,18 @@ fn resolve_symbol(grammar: &Grammar, symbol: &Symbol, visiting: &mut Vec<SymbolI
         }
         Symbol::Terminal(_) | Symbol::External(_) => TargetSet::leaf(symbol),
         Symbol::NonTerminal(id) => {
+            if let Some(origin) = grammar.optional_origins.get(id) {
+                if visiting.contains(id) {
+                    return TargetSet::leaf(symbol);
+                }
+                visiting.push(*id);
+                let mut resolved = resolve_symbol(grammar, &origin.present, visiting);
+                visiting.pop();
+                resolved.optional = true;
+                return resolved;
+            }
+            // Legacy facts without allocation-time provenance remain readable.
+            // This classifier does not establish runtime projection capability.
             // Only transparent helpers are resolved through: unnamed rules
             // with a recognized helper shape, or explicitly hidden (`_`-prefixed)
             // rules with one. Named language rules keep their node identity:
@@ -328,15 +344,28 @@ pub fn field_semantics_for_grammar(
         // a helper shape.
         let is_helper = !grammar.rule_names.contains_key(lhs)
             && !matches!(aux_shape(grammar, *lhs), AuxShape::Opaque);
-        if is_helper {
+        if is_helper || grammar.optional_origins.contains_key(lhs) {
             continue;
         }
         let mut field_facts: HashMap<String, OwnerFieldFacts> = HashMap::new();
-        for rule in rules {
+        for (alternative, rule) in rules.iter().enumerate() {
+            let mut source_fields = rule.fields.clone();
+            for origin in &grammar.optional_field_origins {
+                if origin.source_rule.owner == *lhs
+                    && origin.source_rule.alternative == alternative
+                    && rule.rhs.get(origin.lowered_rhs_position)
+                        == Some(&Symbol::NonTerminal(origin.helper))
+                {
+                    let binding = (origin.field, origin.lowered_rhs_position);
+                    if !source_fields.contains(&binding) {
+                        source_fields.push(binding);
+                    }
+                }
+            }
             // Count bindings per field within this one alternative so a
             // field bound twice here is multiple even without a repeat.
             let mut bound_in_rule: HashMap<&str, usize> = HashMap::new();
-            for (field_id, position) in &rule.fields {
+            for (field_id, position) in &source_fields {
                 if rule.rhs.get(*position).is_some()
                     && let Some(field_name) = grammar.fields.get(field_id)
                 {
@@ -347,7 +376,7 @@ pub fn field_semantics_for_grammar(
             // alternatives: a mandatory plus an optional occurrence in the
             // same rule still guarantees presence.
             let mut per_rule: HashMap<String, Vec<TargetSet>> = HashMap::new();
-            for (field_id, position) in &rule.fields {
+            for (field_id, position) in &source_fields {
                 let (Some(field_name), Some(symbol)) =
                     (grammar.fields.get(field_id), rule.rhs.get(*position))
                 else {

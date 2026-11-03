@@ -589,6 +589,13 @@ pub mod grammar {
         _colon: (),
         pub value: Expression,
     }
+
+    #[adze::extra]
+    #[allow(dead_code)]
+    struct Whitespace {
+        #[adze::leaf(pattern = r"\s")]
+        _whitespace: (),
+    }
 }
 
 #[cfg(test)]

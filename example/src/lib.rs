@@ -17,6 +17,7 @@ pub mod csv_list;
 pub mod dangling_else;
 pub mod external_word_example;
 pub mod fallible_transforms;
+pub mod fielded_ambiguous_schema_contract;
 pub mod fielded_precedence_typed_cst_contract;
 pub mod fielded_typed_cst_contract;
 pub mod ini_file;
@@ -36,5 +37,6 @@ pub mod typed_ast_contract;
 pub mod words;
 
 // Tree-sitter compatibility language helpers
+pub mod native_extra_provenance_1191;
 #[cfg(all(feature = "ts-compat", feature = "pure-rust"))]
 pub mod ts_langs;

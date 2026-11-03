@@ -553,7 +553,10 @@ fn test_empty_collections_roundtrip() {
         word_token: None,
         lexical_metadata: IndexMap::new(),
         start_symbol: None,
+        document_start_symbol: None,
         wrapper_token_relations: IndexMap::new(),
+        optional_origins: IndexMap::new(),
+        optional_field_origins: Vec::new(),
     };
 
     let g2 = roundtrip_json(&g);

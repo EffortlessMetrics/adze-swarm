@@ -40,6 +40,11 @@ Runner capacity classes are defined in
 
 Required branch protection contexts: `Rust Small Result`, `Product Proof Result`.
 
+On merge-group qualification, `Rust Small Result` also requires the existing
+`Supported Proof (fmt + clippy + tests)` job, which runs `just ci-supported`.
+The former duplicate in `pr-gate.yml` is retired under #1027. That workflow
+now reports optional planning and selected docs-only formatting only.
+
 ### PR-only signal (non-blocking)
 
 | Workflow | Job name | Trigger | Lane | Notes |
@@ -52,9 +57,9 @@ Required branch protection contexts: `Rust Small Result`, `Product Proof Result`
 | `em-ci-routed-rust.yml` | `Rust Small on GitHub Hosted` | PR + merge_group | PR-only | Runs on GitHub-hosted only when the route target is `github` and explicit fallback is allowed; skipped by default |
 | `em-ci-routed-rust.yml` | `Rust Small Result` | PR + merge_group | Required | Aggregate required base gate; uses a hosted control-plane runner only to report the routed outcome, skips after cancelled upstream route/lane jobs so superseded PR runs do not queue stale result work, and records no-idle/no-fallback directly without waiting on the optional capacity signal |
 | `em-ci-routed-rust.yml` | `Runner Capacity / Fallback Policy` | PR + merge_group | PR-only | Hosted control-plane diagnostic that fails intentionally when no trusted runner is idle and hosted fallback is not allowed; optional signal only |
-| `pr-gate.yml` | `Supported Rust Gate` | PR + merge_group | PR-only | Legacy public gate signal; not the swarm required context; `pull_request.closed` cancels stale same-PR runs, and cancelled plan jobs do not schedule the supported lane |
-| `pr-gate.yml` | `PR Gate Success` | PR + merge_group | PR-only | Aggregate: plan + supported/docs gate; skipped on `pull_request.closed` and after cancelled upstream advisory jobs |
-| `pr-gate.yml` | `PR Plan` | PR | PR-only | Computes docs_only, estimated LEM, budget band; skipped on `pull_request.closed` |
+| `pr-gate.yml` | `PR Planning Result` | merge_group + dispatch | Advisory | Requires a successful plan and consistent selected Docs Gate result; does not claim Rust/product qualification. Emits per-workflow `ci-actuals`. |
+| `pr-gate.yml` | `PR Plan` | merge_group + dispatch | Advisory | Computes docs_only, estimated LEM, budget band and retains `ci-plan`. |
+| `pr-gate.yml` | `Docs Gate` | Selected merge_group + dispatch | Advisory | Preserves `cargo fmt --all -- --check` for successful docs-only plans. |
 | `ci.yml` | `ci-supported` | Schedule + dispatch | Scheduled/manual | Legacy public full-CI support lane; routed swarm PRs use `Rust Small Result` |
 | `ci.yml` | `semver-checks` | PR only | PR-only | Detects breaking API changes |
 | `ci.yml` | `api-stability` | PR only | PR-only | `cargo-public-api` diff; `continue-on-error` |
@@ -176,8 +181,9 @@ promoted later.
 1. **`Rust Small Result` red?** — Stop. Fix before merge.
 2. **`Product Proof Result` red?** — Stop. Fix the Stable product surface or
    Product Proof routing failure before merge.
-3. **`PR Gate / PR Gate Success` red?** — Inspect, but do not block the swarm
-   base lane on it unless it is explicitly promoted again.
+3. **`PR Gate / PR Planning Result` red?** — Inspect the plan or selected
+   docs-only formatting. This optional result does not qualify Rust/product
+   behavior; the two required contexts above retain that responsibility.
 4. **`Runner Capacity / Fallback Policy` red while `Rust Small Result` is
    green?** — No trusted runner was idle and hosted fallback stayed blocked;
    inspect the route log, but the required aggregate context is the merge gate.

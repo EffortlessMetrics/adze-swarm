@@ -152,6 +152,45 @@ impl GrammarJsConverter {
         members: &[JsRule],
     ) -> Result<()> {
         let (rhs, fields) = self.seq_to_rhs_and_fields(grammar, members)?;
+        let alternative = grammar.rules.get(&lhs).map_or(0, Vec::len);
+        for (position, (member, symbol)) in members.iter().zip(&rhs).enumerate() {
+            // A source FIELD inside an ordinary optional choice keeps its
+            // physical binding inside the carrier. Retain its semantic owner
+            // separately instead of moving FIELD across the empty branch.
+            if !matches!(member, JsRule::Choice { .. }) {
+                continue;
+            }
+            let Symbol::NonTerminal(helper) = symbol else {
+                continue;
+            };
+            let Some(origin) = grammar.optional_origins.get(helper) else {
+                continue;
+            };
+            let Some(present_rule) = grammar
+                .rules
+                .get(helper)
+                .and_then(|rules| rules.get(origin.present_alternative))
+            else {
+                continue;
+            };
+            let source_fields = present_rule.fields.clone();
+            for (field, child_position) in source_fields {
+                if child_position == 0 {
+                    grammar
+                        .optional_field_origins
+                        .push(adze_ir::OptionalFieldOrigin {
+                            source_rule: adze_ir::SourceRuleId {
+                                owner: lhs,
+                                alternative,
+                            },
+                            source_rhs_position: position,
+                            lowered_rhs_position: position,
+                            field,
+                            helper: *helper,
+                        });
+                }
+            }
+        }
         self.add_rule_with_fields(grammar, lhs, rhs, None, None, fields);
         Ok(())
     }

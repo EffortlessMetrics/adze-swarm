@@ -35,24 +35,23 @@
 //!
 //! # Protocol dependency (#1066)
 //!
-//! #1066 (private runner contract) is still open, so this cache implements
-//! the *current* static-runner shape only: the runner prints the selected
-//! document projection to stdout and the CLI consumes it exactly as today.
-//! [`RUNNER_PROTOCOL_VERSION`] records that shape; a future #1066 contract
-//! must bump it, which invalidates every older entry by construction. No new
-//! transport is invented here.
+//! Both execution paths use the shared private version-2 frame and bounded
+//! Linux/Windows process boundary. Cargo and rustc output remain raw process
+//! output. Capture/setup/cancellation refusals are hard errors, never misses.
+//! This transport repair does not authorize reuse or prove the compiled-input
+//! envelope. [`RUNNER_PROTOCOL_VERSION`] is the shared protocol authority.
 
+use crate::runner_invocation::{ProcessFailure, ProcessRunner, RunnerInvocation};
+use anyhow::Context;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::{Mutex, TryLockError};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Current private runner shape: document projection printed to stdout,
-/// consumed with the existing success/exit-status handling. Bump when the
-/// #1066 transport contract lands; older entries then miss by construction.
-pub(crate) const RUNNER_PROTOCOL_VERSION: u32 = 1;
+/// Reuse the private transport authority; old unframed entries fail validation.
+pub(crate) const RUNNER_PROTOCOL_VERSION: u32 = crate::runner_protocol::PROTOCOL_VERSION;
 
 /// Maximum entries retained; enforced (best-effort) after each publish.
 const MAX_ENTRIES_DEFAULT: usize = 32;
@@ -117,15 +116,25 @@ impl std::fmt::Display for CargoFailed {
 
 impl std::error::Error for CargoFailed {}
 
+/// Only marked cache-local storage/serialization failures permit fallback.
+#[derive(Debug)]
+struct CacheStorageFailure;
+
+impl std::fmt::Display for CacheStorageFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("runner cache storage is unavailable")
+    }
+}
+
 /// Reason caching was refused; the caller falls back to the legacy path.
 #[derive(Debug)]
 struct CacheSkip(String);
 
 /// Resolved cache configuration, or `None` when caching is disabled or the
 /// root is unusable (callers then use the legacy temp-project path).
-struct CacheConfig {
-    root: PathBuf,
-    max_entries: usize,
+pub(crate) struct CacheConfig {
+    pub(crate) root: PathBuf,
+    pub(crate) max_entries: usize,
 }
 
 /// Look up a verified cached executable without invoking Cargo.
@@ -143,9 +152,13 @@ pub(crate) fn lookup(spec: &RunnerSpec<'_>) -> Option<PathBuf> {
 ///
 /// `Ok(CachedBuild::Unavailable)` means the caller should use the legacy
 /// temp-project path (disabled/unsupported envelope, lost race, stale lock,
-/// or any cache-internal I/O failure). `Err` carries either [`CargoFailed`]
-/// (downcastable and rendered by the caller). Internal I/O failures fall back.
-pub(crate) fn build_cached(spec: &RunnerSpec<'_>) -> anyhow::Result<CachedBuild> {
+/// or a cache-local I/O failure). `Err` preserves [`CargoFailed`] or a typed
+/// [`ProcessFailure`] with the concrete capture error still downcastable.
+/// Process setup, capture, cancellation and coordination refusals never retry.
+pub(crate) fn build_cached(
+    spec: &RunnerSpec<'_>,
+    process: &ProcessRunner,
+) -> anyhow::Result<CachedBuild> {
     let Some(key) = build_key(spec) else {
         return Ok(CachedBuild::Unavailable);
     };
@@ -166,11 +179,22 @@ pub(crate) fn build_cached(spec: &RunnerSpec<'_>) -> anyhow::Result<CachedBuild>
         let _ = std::fs::remove_file(&lock_path);
         return Ok(CachedBuild::Unavailable);
     };
-    let outcome = build_and_publish(spec, &config, &key, &staging);
+    let outcome = build_and_publish(spec, &config, &key, &staging, process);
     let _ = std::fs::remove_file(&lock_path);
     let _ = std::fs::remove_dir_all(&staging);
+    finish_cached_build(outcome)
+}
+
+/// Only cache-local failures permit fresh fallback after owned staging cleanup.
+pub(crate) fn finish_cached_build(
+    outcome: anyhow::Result<CachedBuild>,
+) -> anyhow::Result<CachedBuild> {
     match outcome {
-        Err(error) if error.downcast_ref::<CargoFailed>().is_none() => {
+        Err(error)
+            if error.downcast_ref::<CacheStorageFailure>().is_some()
+                && error.downcast_ref::<CargoFailed>().is_none()
+                && error.downcast_ref::<ProcessFailure>().is_none() =>
+        {
             log::debug!("runner cache unavailable: {error:#}");
             Ok(CachedBuild::Unavailable)
         }
@@ -269,8 +293,25 @@ fn build_key(spec: &RunnerSpec<'_>) -> Option<String> {
     None
 }
 
-/// Partial grammar/template identity. Never sufficient to authorize a hit.
-fn grammar_candidate_key(spec: &RunnerSpec<'_>) -> Option<String> {
+/// Acquire process identity without consuming capture/refusal errors.
+/// This remains a partial candidate, never production reuse authority.
+pub(crate) fn grammar_candidate_key(
+    spec: &RunnerSpec<'_>,
+    process: &ProcessRunner,
+) -> anyhow::Result<Option<String>> {
+    // Preserve the prior closure preflight before acquiring any child process.
+    let Some(hasher) = candidate_hasher(spec) else {
+        return Ok(None);
+    };
+    let Some(toolchain) = rustc_fingerprint(process)? else {
+        log::debug!("runner cache skipped: rustc fingerprint unavailable");
+        return Ok(None);
+    };
+    Ok(Some(finish_candidate_key(hasher, &toolchain)))
+}
+
+/// Collect candidate bytes without acquiring any subprocess.
+fn candidate_hasher(spec: &RunnerSpec<'_>) -> Option<Sha256> {
     let grammar_abs = spec.grammar.canonicalize().ok()?;
     let grammar_base = grammar_abs.parent()?.to_path_buf();
     let mut closure = Vec::new();
@@ -289,10 +330,6 @@ fn grammar_candidate_key(spec: &RunnerSpec<'_>) -> Option<String> {
         return None;
     }
 
-    let Some(toolchain) = rustc_fingerprint() else {
-        log::debug!("runner cache skipped: rustc fingerprint unavailable");
-        return None;
-    };
     let mut hasher = Sha256::new();
     hasher.update(b"adze-runner-candidate-v2\0");
     hasher.update(RUNNER_PROTOCOL_VERSION.to_le_bytes());
@@ -313,11 +350,16 @@ fn grammar_candidate_key(spec: &RunnerSpec<'_>) -> Option<String> {
         hasher.update(b"\0sha256=");
         hasher.update(hash_bytes(bytes));
     }
+    Some(hasher)
+}
+
+/// Finish the same partial key with an explicitly acquired fingerprint.
+fn finish_candidate_key(mut hasher: Sha256, toolchain: &str) -> String {
     hasher.update(b"\0rustc=");
     hasher.update(toolchain.as_bytes());
     hash_opt_env(&mut hasher, "RUSTFLAGS");
     hash_opt_env(&mut hasher, "CARGO_BUILD_TARGET");
-    Some(hex_digest(hasher.finalize()))
+    hex_digest(hasher.finalize())
 }
 
 /// Collect one grammar file plus every reachable sibling module/include.
@@ -536,37 +578,58 @@ fn scan_includes(
     Ok(())
 }
 
-/// `rustc -vV` release/host identity, computed once per process.
-fn rustc_fingerprint() -> Option<String> {
-    static FINGERPRINT: OnceLock<Option<String>> = OnceLock::new();
-    FINGERPRINT
-        .get_or_init(|| {
-            let output = std::process::Command::new("rustc")
-                .arg("-vV")
-                .output()
-                .ok()?;
-            if !output.status.success() {
-                return None;
+/// Cache only successful release/host text, never errors or unavailable probes.
+/// A concurrent first probe refuses immediately instead of waiting without a
+/// deadline or starting a second capture owner in the same process.
+pub(crate) fn rustc_fingerprint(process: &ProcessRunner) -> anyhow::Result<Option<String>> {
+    static FINGERPRINT: Mutex<Option<String>> = Mutex::new(None);
+    memoized_fingerprint(&FINGERPRINT, || {
+        let invocation = RunnerInvocation {
+            program: "rustc".into(),
+            args: vec!["-vV".into()],
+            environment: Vec::new(),
+        };
+        let output = process.capture(&invocation).context("rustc fingerprint")?;
+        if !output.status.success() {
+            // A completed natural nonzero means no candidate identity. This is
+            // not a process refusal, and cannot enable production cache reuse.
+            return Ok(None);
+        }
+        let text = String::from_utf8_lossy(&output.stdout);
+        let mut selected = String::new();
+        for line in text.lines() {
+            if line.starts_with("release:") || line.starts_with("host:") {
+                selected.push_str(line.trim());
+                selected.push('\n');
             }
-            let text = String::from_utf8_lossy(&output.stdout);
-            let mut selected = String::new();
-            for line in text.lines() {
-                if line.starts_with("release:") || line.starts_with("host:") {
-                    selected.push_str(line.trim());
-                    selected.push('\n');
-                }
-            }
-            if selected.is_empty() {
-                None
-            } else {
-                Some(selected)
-            }
+        }
+        Ok((!selected.is_empty()).then_some(selected))
+    })
+}
+
+fn memoized_fingerprint(
+    cache: &Mutex<Option<String>>,
+    probe: impl FnOnce() -> anyhow::Result<Option<String>>,
+) -> anyhow::Result<Option<String>> {
+    let mut fingerprint = cache
+        .try_lock()
+        .map_err(|error| match error {
+            TryLockError::WouldBlock => anyhow::anyhow!("rustc fingerprint is already being acquired"),
+            TryLockError::Poisoned(_) => anyhow::anyhow!("rustc fingerprint coordination is poisoned"),
         })
-        .clone()
+        .context(ProcessFailure)?;
+    if let Some(value) = &*fingerprint {
+        return Ok(Some(value.clone()));
+    }
+    let value = probe()?;
+    if value.is_some() {
+        *fingerprint = value.clone();
+    }
+    Ok(value)
 }
 
 /// A complete, verified cache entry.
-struct ValidEntry {
+pub(crate) struct ValidEntry {
     exe: PathBuf,
 }
 
@@ -575,7 +638,7 @@ struct ValidEntry {
 /// Every check fails closed: wrong name shape, unreadable or corrupt
 /// manifest, protocol mismatch, key mismatch, stale TTL, missing or
 /// hash-mismatched executable all yield `None` without side effects.
-fn validate_entry(root: &Path, key: &str) -> Option<ValidEntry> {
+pub(crate) fn validate_entry(root: &Path, key: &str) -> Option<ValidEntry> {
     if !is_entry_name(key) {
         return None;
     }
@@ -687,7 +750,7 @@ fn lock_is_stale(lock_path: &Path) -> bool {
 }
 
 /// Exclusively claim a staging directory owned by this process.
-fn claim_staging_dir(root: &Path) -> Option<PathBuf> {
+pub(crate) fn claim_staging_dir(root: &Path) -> Option<PathBuf> {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let pid = std::process::id();
     for _ in 0..100 {
@@ -705,28 +768,35 @@ fn claim_staging_dir(root: &Path) -> Option<PathBuf> {
 }
 
 /// Build in owned staging, verify, and publish atomically.
-fn build_and_publish(
+pub(crate) fn build_and_publish(
     spec: &RunnerSpec<'_>,
     config: &CacheConfig,
     key: &str,
     staging: &Path,
+    process: &ProcessRunner,
 ) -> anyhow::Result<CachedBuild> {
     let src_dir = staging.join("src");
-    std::fs::create_dir_all(&src_dir)?;
-    std::fs::write(staging.join("Cargo.toml"), &spec.cargo_toml)?;
-    std::fs::write(staging.join("build.rs"), &spec.build_rs)?;
-    std::fs::write(src_dir.join("main.rs"), &spec.main_rs)?;
+    std::fs::create_dir_all(&src_dir).context(CacheStorageFailure)?;
+    std::fs::write(staging.join("Cargo.toml"), &spec.cargo_toml).context(CacheStorageFailure)?;
+    std::fs::write(staging.join("build.rs"), &spec.build_rs).context(CacheStorageFailure)?;
+    std::fs::write(src_dir.join("main.rs"), &spec.main_rs).context(CacheStorageFailure)?;
 
     eprintln!("compiling parse runner...");
     note_cargo_spawn();
-    let output = std::process::Command::new("cargo")
-        .arg("build")
-        .arg("--message-format=json-render-diagnostics")
-        .arg("--manifest-path")
-        .arg(staging.join("Cargo.toml"))
-        .env("ADZE_USE_PURE_RUST", "1")
-        .env("CARGO_TARGET_DIR", staging.join("target"))
-        .output()?;
+    let invocation = RunnerInvocation {
+        program: "cargo".into(),
+        args: vec![
+            "build".into(),
+            "--message-format=json-render-diagnostics".into(),
+            "--manifest-path".into(),
+            staging.join("Cargo.toml").into_os_string(),
+        ],
+        environment: vec![
+            ("ADZE_USE_PURE_RUST".into(), "1".into()),
+            ("CARGO_TARGET_DIR".into(), staging.join("target").into_os_string()),
+        ],
+    };
+    let output = process.capture(&invocation).context("cached runner Cargo build")?;
     if !output.status.success() {
         return Err(anyhow::Error::new(CargoFailed {
             status: output.status,
@@ -746,7 +816,7 @@ fn build_and_publish(
     }
     // Files can change during Cargo's read. Refuse publication unless the
     // observed grammar/template candidate still matches after compilation.
-    if grammar_candidate_key(spec).as_deref() != Some(key) {
+    if grammar_candidate_key(spec, process)?.as_deref() != Some(key) {
         return Ok(CachedBuild::Unavailable);
     }
     let exe_sha = hex_digest(Sha256::digest(&bytes));
@@ -754,9 +824,9 @@ fn build_and_publish(
     // Assemble the complete entry inside staging and commit it with a single
     // rename, so readers only ever see absent-or-complete entries.
     let entry = staging.join("entry");
-    std::fs::create_dir_all(&entry)?;
-    std::fs::copy(&built, entry.join(&exe_name))?;
-    if std::fs::read(entry.join(&exe_name))? != bytes {
+    std::fs::create_dir_all(&entry).context(CacheStorageFailure)?;
+    std::fs::copy(&built, entry.join(&exe_name)).context(CacheStorageFailure)?;
+    if std::fs::read(entry.join(&exe_name)).context(CacheStorageFailure)? != bytes {
         return Ok(CachedBuild::Unavailable);
     }
     let built_unix = SystemTime::now()
@@ -772,8 +842,9 @@ fn build_and_publish(
     });
     std::fs::write(
         entry.join("manifest.json"),
-        serde_json::to_string_pretty(&manifest)?,
-    )?;
+        serde_json::to_string_pretty(&manifest).context(CacheStorageFailure)?,
+    )
+    .context(CacheStorageFailure)?;
     let lock_src = staging.join("Cargo.lock");
     if lock_src.is_file() {
         let _ = std::fs::copy(&lock_src, entry.join("Cargo.lock"));
@@ -1031,6 +1102,15 @@ mod tests {
         }
     }
 
+    // Independent identity input: these tests exercise path/content hashing,
+    // while the required native controller acquires real rustc/build output.
+    fn candidate_key(spec: &super::RunnerSpec<'_>) -> Option<String> {
+        Some(super::finish_candidate_key(
+            super::candidate_hasher(spec)?,
+            "release: fixture\nhost: fixture\n",
+        ))
+    }
+
     fn write_grammar(dir: &Path, name: &str, content: &str) -> PathBuf {
         let path = dir.join(name);
         std::fs::write(&path, content).expect("write grammar fixture");
@@ -1044,7 +1124,7 @@ mod tests {
         let temp = tempfile::tempdir().expect("tempdir");
         let grammar = write_grammar(temp.path(), "grammar.rs", SINGLE);
         let spec = test_spec(&grammar, "grammar");
-        assert!(super::grammar_candidate_key(&spec).is_some());
+        assert!(candidate_key(&spec).is_some());
         assert!(
             super::build_key(&spec).is_none(),
             "partial candidate identity cannot authorize execution"
@@ -1079,14 +1159,14 @@ mod tests {
             "const V: u8 = 1;
 ",
         );
-        let before = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
+        let before = candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         std::fs::write(
             &child,
             "const V: u8 = 2;
 ",
         )
         .expect("edit actual child");
-        let after = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
+        let after = candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         assert_ne!(before, after);
         write_grammar(
             temp.path(),
@@ -1096,7 +1176,7 @@ mod tests {
         );
         assert_eq!(
             after,
-            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key")
+            candidate_key(&test_spec(&grammar, "grammar")).expect("key")
         );
     }
 
@@ -1116,7 +1196,7 @@ mod tests {
             "const V: u8 = 1;
 ",
         );
-        let before = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
+        let before = candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         std::fs::write(
             child,
             "const V: u8 = 2;
@@ -1125,7 +1205,7 @@ mod tests {
         .expect("edit inline child");
         assert_ne!(
             before,
-            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key")
+            candidate_key(&test_spec(&grammar, "grammar")).expect("key")
         );
     }
 
@@ -1140,11 +1220,11 @@ mod tests {
         std::fs::write(temp.path().join("data.txt"), "this is not Rust!").expect("text");
         std::fs::write(temp.path().join("data.bin"), [255, 0, 128]).expect("binary");
         let before =
-            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("raw include key");
+            candidate_key(&test_spec(&grammar, "grammar")).expect("raw include key");
         std::fs::write(temp.path().join("data.bin"), [254, 0, 128]).expect("changed binary");
         assert_ne!(
             before,
-            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key")
+            candidate_key(&test_spec(&grammar, "grammar")).expect("key")
         );
     }
 
@@ -1158,7 +1238,7 @@ mod tests {
         );
         write_grammar(temp.path(), "foo.rs", "");
         write_grammar(temp.path(), "other.rs", "");
-        assert!(super::grammar_candidate_key(&test_spec(&grammar, "grammar")).is_none());
+        assert!(candidate_key(&test_spec(&grammar, "grammar")).is_none());
     }
 
     #[cfg(unix)]
@@ -1253,46 +1333,11 @@ mod tests {
     }
 
     #[test]
-    fn isolated_owned_fixture_build_publishes_an_executable() {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let grammar = write_grammar(temp.path(), "grammar.rs", "");
-        let spec = super::RunnerSpec {
-            grammar: &grammar, module: "fixture",
-            cargo_toml: "[package]\nname = \"adze-cli-parse-runner\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n".into(),
-            build_rs: "fn main() {}".into(),
-            main_rs: "fn main() { println!(\"owned fixture\"); }".into(),
-        };
-        let key = super::grammar_candidate_key(&spec).expect("candidate key");
-        let root = temp.path().join("cache");
-        std::fs::create_dir(&root).expect("cache");
-        let config = super::CacheConfig {
-            root: root.clone(),
-            max_entries: 2,
-        };
-        let staging = super::claim_staging_dir(&root).expect("owned staging");
-        let built =
-            super::build_and_publish(&spec, &config, &key, &staging).expect("fixture build");
-        let super::CachedBuild::Ready(executable) = built else {
-            panic!("expected publication")
-        };
-        let output = std::process::Command::new(&executable)
-            .output()
-            .expect("executable mode retained");
-        assert!(output.status.success());
-        assert_eq!(output.stdout, b"owned fixture\n");
-        assert!(super::validate_entry(&root, &key).is_some());
-        assert!(
-            super::build_key(&spec).is_none(),
-            "fixture publication does not grant production admission"
-        );
-    }
-
-    #[test]
     fn key_is_stable_and_content_addressed() {
         let temp = tempfile::tempdir().expect("tempdir");
         let grammar = write_grammar(temp.path(), "grammar.rs", SINGLE);
-        let first = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
-        let second = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
+        let first = candidate_key(&test_spec(&grammar, "grammar")).expect("key");
+        let second = candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         assert_eq!(first, second, "same bytes must produce the same key");
         assert_eq!(first.len(), 64, "key must be a sha256 hex digest");
     }
@@ -1301,14 +1346,14 @@ mod tests {
     fn key_ignores_mtime_and_follows_bytes() {
         let temp = tempfile::tempdir().expect("tempdir");
         let grammar = write_grammar(temp.path(), "grammar.rs", SINGLE);
-        let before = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
+        let before = candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         // Rewrite identical bytes (mtime changes); then change one byte.
         write_grammar(temp.path(), "grammar.rs", SINGLE);
         let same_bytes =
-            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
+            candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         assert_eq!(before, same_bytes, "mtime alone must not change the key");
         write_grammar(temp.path(), "grammar.rs", &format!("{SINGLE}// v2\n"));
-        let changed = super::grammar_candidate_key(&test_spec(&grammar, "grammar")).expect("key");
+        let changed = candidate_key(&test_spec(&grammar, "grammar")).expect("key");
         assert_ne!(before, changed, "changed content with any mtime must miss");
     }
 
@@ -1326,8 +1371,8 @@ mod tests {
         std::fs::write(root_b.join("shared.rs"), "pub const V: u32 = 2;\n").expect("sibling b");
         let grammar_a = root_a.join("grammar.rs");
         let grammar_b = root_b.join("grammar.rs");
-        let key_a = super::grammar_candidate_key(&test_spec(&grammar_a, "grammar")).expect("key a");
-        let key_b = super::grammar_candidate_key(&test_spec(&grammar_b, "grammar")).expect("key b");
+        let key_a = candidate_key(&test_spec(&grammar_a, "grammar")).expect("key a");
+        let key_b = candidate_key(&test_spec(&grammar_b, "grammar")).expect("key b");
         assert_ne!(
             key_a, key_b,
             "identical root bytes with different sibling resolution must not collide"
@@ -1335,7 +1380,7 @@ mod tests {
         // Identical layout and bytes share the key (same binary either way).
         std::fs::write(root_b.join("shared.rs"), "pub const V: u32 = 1;\n").expect("align sibling");
         let key_b_aligned =
-            super::grammar_candidate_key(&test_spec(&grammar_b, "grammar")).expect("key b2");
+            candidate_key(&test_spec(&grammar_b, "grammar")).expect("key b2");
         assert_eq!(key_a, key_b_aligned);
     }
 
@@ -1348,7 +1393,7 @@ mod tests {
             "#[adze::grammar(\"tiny\")]\npub mod grammar {\n}\nconst H: &str = include!(concat!(\"a\", \".txt\"));\n",
         );
         assert!(
-            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).is_none(),
+            candidate_key(&test_spec(&grammar, "grammar")).is_none(),
             "dynamic include! inputs cannot be fingerprinted"
         );
     }
@@ -1362,7 +1407,7 @@ mod tests {
             "#[adze::grammar(\"tiny\")]\npub mod grammar {\n}\nmod absent;\n",
         );
         assert!(
-            super::grammar_candidate_key(&test_spec(&grammar, "grammar")).is_none(),
+            candidate_key(&test_spec(&grammar, "grammar")).is_none(),
             "unresolvable modules must fall back to the legacy build"
         );
     }
@@ -1527,5 +1572,106 @@ mod tests {
             std::fs::read_to_string(taken.join("sentinel")).expect("sentinel"),
             "foreign"
         );
+    }
+
+    #[test]
+    fn test_fingerprint_success_is_the_only_memoized_outcome() {
+        use std::cell::Cell;
+        use std::sync::Mutex;
+
+        let cache = Mutex::new(None);
+        let attempts = Cell::new(0);
+        assert_eq!(
+            super::memoized_fingerprint(&cache, || {
+                attempts.set(attempts.get() + 1);
+                Ok(None)
+            })
+            .unwrap(),
+            None
+        );
+        let error = super::memoized_fingerprint(&cache, || {
+            attempts.set(attempts.get() + 1);
+            Err(anyhow::anyhow!("fixture refusal").context(super::ProcessFailure))
+        })
+        .unwrap_err();
+        assert!(error.downcast_ref::<super::ProcessFailure>().is_some());
+        assert!(cache.try_lock().unwrap().is_none());
+        assert_eq!(
+            super::memoized_fingerprint(&cache, || {
+                attempts.set(attempts.get() + 1);
+                Ok(Some("release: fixture\nhost: fixture\n".to_string()))
+            })
+            .unwrap()
+            .as_deref(),
+            Some("release: fixture\nhost: fixture\n")
+        );
+        assert_eq!(
+            super::memoized_fingerprint(&cache, || {
+                panic!("a successful fingerprint must not launch another probe")
+            })
+            .unwrap()
+            .as_deref(),
+            Some("release: fixture\nhost: fixture\n")
+        );
+        assert_eq!(attempts.get(), 3);
+    }
+
+    #[test]
+    fn test_fingerprint_busy_coordination_refuses_without_waiting_or_probe() {
+        use std::sync::Mutex;
+
+        let cache = Mutex::new(None);
+        let _owner = cache.try_lock().unwrap();
+        let error = super::memoized_fingerprint(&cache, || {
+            panic!("the existing owner excludes a second process probe")
+        })
+        .unwrap_err();
+        assert!(error.downcast_ref::<super::ProcessFailure>().is_some());
+        assert!(format!("{error:#}").contains("already being acquired"));
+        let Err(error) = super::finish_cached_build(Err(error)) else {
+            panic!("fingerprint coordination refusal became cache fallback")
+        };
+        assert!(error.downcast_ref::<super::ProcessFailure>().is_some());
+    }
+
+    #[test]
+    fn test_fingerprint_poisoned_coordination_is_a_hard_refusal() {
+        use std::sync::{Arc, Mutex};
+
+        let cache = Arc::new(Mutex::new(None));
+        let owner = Arc::clone(&cache);
+        assert!(std::thread::spawn(move || {
+            let _held = owner.lock().unwrap();
+            panic!("fixture owner panic poisons only this local mutex");
+        })
+        .join()
+        .is_err());
+        let error = super::memoized_fingerprint(&cache, || {
+            panic!("a poisoned owner must not launch another probe")
+        })
+        .unwrap_err();
+        assert!(error.downcast_ref::<super::ProcessFailure>().is_some());
+        assert!(format!("{error:#}").contains("poisoned"));
+    }
+
+    #[test]
+    fn test_cache_fallback_requires_explicit_storage_failure() {
+        let result = super::finish_cached_build(Err(
+            anyhow::anyhow!("fixture disk failure").context(super::CacheStorageFailure)
+        ))
+        .unwrap();
+        assert!(matches!(result, super::CachedBuild::Unavailable));
+        let Err(unknown) = super::finish_cached_build(Err(anyhow::anyhow!("unknown refusal"))) else {
+            panic!("unknown errors must not become cache fallback")
+        };
+        assert!(unknown.to_string().contains("unknown refusal"));
+        let Err(process) = super::finish_cached_build(Err(
+            anyhow::anyhow!("fixture process failure")
+                .context(super::ProcessFailure)
+                .context(super::CacheStorageFailure)
+        )) else {
+            panic!("outer storage context must not consume a process refusal")
+        };
+        assert!(process.downcast_ref::<super::ProcessFailure>().is_some());
     }
 }

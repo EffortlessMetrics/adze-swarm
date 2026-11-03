@@ -39,6 +39,7 @@ pub struct GrammarOptimizer {
     source_file_id: Option<SymbolId>,
     /// Explicit compiler-identity start symbol (#862)
     explicit_start_id: Option<SymbolId>,
+    document_start_id: Option<SymbolId>,
     /// Explicit wrapper nonterminals that must survive inlining (#862)
     wrapper_nonterminals: HashSet<SymbolId>,
 }
@@ -58,6 +59,7 @@ impl GrammarOptimizer {
             left_recursive_rules: HashSet::new(),
             source_file_id: None,
             explicit_start_id: None,
+            document_start_id: None,
             wrapper_nonterminals: HashSet::new(),
         }
     }
@@ -146,6 +148,10 @@ impl GrammarOptimizer {
             self.explicit_start_id = Some(explicit_start);
             self.used_symbols.insert(explicit_start);
         }
+        self.document_start_id = grammar.document_start_symbol;
+        if let Some(document_start) = grammar.document_start_symbol {
+            self.used_symbols.insert(document_start);
+        }
         for (wrapper, token) in &grammar.wrapper_token_relations {
             self.wrapper_nonterminals.insert(*wrapper);
             self.used_symbols.insert(*wrapper);
@@ -216,6 +222,7 @@ impl GrammarOptimizer {
                     && !self.is_recursive_rule(rule, grammar)
                     && Some(rule.lhs) != self.source_file_id
                     && Some(rule.lhs) != self.explicit_start_id
+                    && Some(rule.lhs) != self.document_start_id
                     && !self.wrapper_nonterminals.contains(&rule.lhs)
                 {
                     self.inlinable_rules.insert(rule.lhs);
@@ -310,6 +317,13 @@ impl GrammarOptimizer {
             }
         }
 
+        for origin in grammar.optional_origins.values_mut() {
+            if let Symbol::NonTerminal(id) = &origin.present
+                && let Some(replacement) = replacements.get(id)
+            {
+                origin.present = replacement.clone();
+            }
+        }
         // Remove inlined rules
         for id in replacements.keys() {
             grammar.rules.shift_remove(id);
@@ -354,6 +368,9 @@ impl GrammarOptimizer {
             }
         }
 
+        for origin in grammar.optional_origins.values_mut() {
+            self.renumber_symbol(&mut origin.present, &replacements);
+        }
         // Remove duplicate tokens
         for old_id in replacements.keys() {
             grammar.tokens.shift_remove(old_id);

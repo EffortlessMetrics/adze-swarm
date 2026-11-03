@@ -14,8 +14,8 @@ fn ambiguous_expr_fixed_bridge_exposes_ambiguity_summary() {
     let source = "1 + 2 + 3";
     let bytes = source.as_bytes();
     let mut parse_table = decode_parse_table(language);
-    let grammar_ir = decode_grammar(language);
     align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
+    let grammar_ir = parse_table.grammar.clone();
     let mut parser = GLRParser::new(parse_table, grammar_ir);
 
     let lex_fn = language.lex_fn.expect("lex_fn");

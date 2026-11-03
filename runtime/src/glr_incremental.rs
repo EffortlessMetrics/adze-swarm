@@ -191,10 +191,10 @@ fn tokenize_source(source: &[u8], _grammar: &Grammar) -> Vec<GLRToken> {
     tokens
 }
 
-/// Public API for incremental parsing (used by unified parser)
+/// Experimental reparse hook for the `parser_v4` tree substrate.
 ///
-/// This function bridges between the public parser_v4 API and the internal
-/// GLR incremental parsing implementation.
+/// This helper is not selected by generated parser dispatch. It currently
+/// returns `None` rather than performing incremental reuse.
 pub fn reparse<'arena>(
     #[cfg_attr(not(feature = "incremental_glr"), allow(unused_variables))] grammar: &Grammar,
     #[cfg_attr(not(feature = "incremental_glr"), allow(unused_variables))] table: &ParseTable,

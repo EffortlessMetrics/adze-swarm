@@ -401,7 +401,10 @@ impl GrammarBuilder {
             word_token: self.word_token,
             lexical_metadata: self.lexical_metadata,
             start_symbol,
+            document_start_symbol: None,
             wrapper_token_relations,
+            optional_origins: IndexMap::new(),
+            optional_field_origins: Vec::new(),
         };
         // The RuleId -> ProductionId map is total from build time (#980).
         grammar.refresh_production_ids()?;

@@ -456,23 +456,55 @@ fn out_dir_only_contains_grammar_prefixed_dirs() {
 // =========================================================================
 
 #[test]
-fn rebuild_cleans_old_artifacts() {
+fn rebuild_refreshes_owned_artifacts_and_preserves_other_files() {
     let dir = TempDir::new().unwrap();
-    // First build
+    // Keep the original first-build and unowned-file counterexample.
     let _r1 = build_js(simple_grammar_js(), opts_with_artifacts(&dir));
     let gdir = grammar_dir(dir.path(), "simple");
-
-    // Plant a stale file
     let stale = gdir.join("stale_artifact.txt");
     fs::write(&stale, "old data").unwrap();
     assert!(stale.exists());
 
-    // Second build should clean the directory
-    let _r2 = build_js(simple_grammar_js(), opts_with_artifacts(&dir));
-    assert!(
-        !stale.exists(),
-        "Stale artifacts should be removed on rebuild"
+    // A shared directory can also contain C output and authored scanner files.
+    fs::create_dir_all(gdir.join("tree_sitter")).unwrap();
+    let retained = [
+        ("parser.c", "independent C parser"),
+        ("tree_sitter/parser.h", "independent C header"),
+        ("scanner.c", "authored scanner"),
+    ];
+    for (name, bytes) in retained {
+        fs::write(gdir.join(name), bytes).unwrap();
+    }
+    let owned = ["parser_simple.rs", "grammar.ir.json", "NODE_TYPES.json"];
+    for name in owned {
+        assert!(gdir.join(name).is_file(), "first build must emit {name}");
+        fs::write(gdir.join(name), "stale Rust output").unwrap();
+    }
+
+    // Rebuilding must refresh this writer's files without deleting other owners.
+    let result = build_js(simple_grammar_js(), opts_with_artifacts(&dir));
+    assert_eq!(fs::read(&stale).unwrap(), b"old data");
+    for (name, bytes) in retained {
+        assert_eq!(fs::read(gdir.join(name)).unwrap(), bytes.as_bytes());
+    }
+    assert_eq!(
+        Path::new(&result.parser_path),
+        gdir.join("parser_simple.rs")
     );
+    for name in owned {
+        let bytes = fs::read(gdir.join(name)).unwrap();
+        assert!(!bytes.is_empty(), "owned output {name} must be emitted");
+        assert_ne!(
+            bytes, b"stale Rust output",
+            "owned output {name} must refresh"
+        );
+    }
+    let ir: serde_json::Value =
+        serde_json::from_slice(&fs::read(gdir.join("grammar.ir.json")).unwrap()).unwrap();
+    assert_eq!(ir["name"], "simple");
+    let node_types: serde_json::Value =
+        serde_json::from_slice(&fs::read(gdir.join("NODE_TYPES.json")).unwrap()).unwrap();
+    assert!(node_types.is_array());
 }
 
 #[test]

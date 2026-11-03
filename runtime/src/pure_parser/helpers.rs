@@ -39,9 +39,9 @@ pub(super) fn subtree_to_node(subtree: Subtree, language: Option<*const TSLangua
         // parse result. `symbol_metadata` is bounds-checked via `symbol_count`.
         unsafe {
             let lang = &*lang_ptr;
-            if subtree.symbol < lang.symbol_count as u16 {
+            if (subtree.symbol as usize) < lang.symbol_count as usize {
                 let metadata = *lang.symbol_metadata.add(subtree.symbol as usize);
-                metadata >= 2
+                (metadata & 0x02) != 0
             } else {
                 false
             }
@@ -73,6 +73,119 @@ pub(super) fn subtree_to_node(subtree: Subtree, language: Option<*const TSLangua
 #[cfg(test)]
 mod tests {
     use super::append_sentinel;
+
+    // Conversion-only ABI fixture: no parser/scanner operation is invoked.
+    fn metadata_language(metadata: &[u8]) -> super::TSLanguage {
+        super::TSLanguage {
+            version: 15,
+            symbol_count: metadata.len() as u32,
+            alias_count: 0,
+            token_count: 0,
+            external_token_count: 0,
+            state_count: 0,
+            large_state_count: 0,
+            production_id_count: 0,
+            field_count: 0,
+            max_alias_sequence_length: 0,
+            production_id_map: std::ptr::null(),
+            parse_table: std::ptr::null(),
+            small_parse_table: std::ptr::null(),
+            small_parse_table_map: std::ptr::null(),
+            parse_actions: std::ptr::null(),
+            symbol_names: std::ptr::null(),
+            field_names: std::ptr::null(),
+            field_map_slices: std::ptr::null(),
+            field_map_entries: std::ptr::null(),
+            symbol_metadata: metadata.as_ptr(),
+            public_symbol_map: std::ptr::null(),
+            alias_map: std::ptr::null(),
+            alias_sequences: std::ptr::null(),
+            lex_modes: std::ptr::null(),
+            lex_fn: None,
+            keyword_lex_fn: None,
+            keyword_capture_token: 0,
+            external_scanner: super::super::ExternalScanner::default(),
+            primary_state_ids: std::ptr::null(),
+            production_lhs_index: std::ptr::null(),
+            production_count: 0,
+            eof_symbol: 0,
+            rules: std::ptr::null(),
+            rule_count: 0,
+        }
+    }
+
+    #[test]
+    fn test_named_metadata_at_maximum_u16_symbol_cardinality() {
+        // ABI symbol IDs are u16, while symbol_count can represent all 65536
+        // slots. This tests conversion bounds, not a whole maximum-size grammar.
+        let mut flags = vec![0; u16::MAX as usize + 1];
+        flags[0] = 0x02;
+        flags[u16::MAX as usize] = 0x03;
+        let language = metadata_language(&flags);
+        for symbol in [0, u16::MAX] {
+            let subtree = super::Subtree {
+                symbol,
+                children: Vec::new(),
+                start_byte: 0,
+                end_byte: 1,
+                start_point: super::Point { row: 0, column: 0 },
+                end_point: super::Point { row: 0, column: 1 },
+                is_extra: false,
+                is_error: false,
+                is_missing: false,
+                production_id: 0,
+                field_id: None,
+            };
+            let node = super::subtree_to_node(subtree, Some(&language));
+            assert!(
+                node.is_named(),
+                "valid ABI symbol {symbol} retains named metadata"
+            );
+        }
+    }
+
+    #[test]
+    fn test_extra_and_auxiliary_metadata_do_not_imply_named() {
+        // The parser ABI assigns independent bits to visibility, namedness,
+        // extras/hidden, supertype and auxiliary flags. Only NAMED matters.
+        for (metadata, expected_named) in [
+            (0x00, false),
+            (0x01, false),
+            (0x02, true),
+            (0x03, true),
+            (0x04, false),
+            (0x05, false),
+            (0x06, true),
+            (0x07, true),
+            (0x08, false),
+            (0x10, false),
+            (0x1d, false),
+            (0x1f, true),
+        ] {
+            let flags = [metadata];
+            let language = metadata_language(&flags);
+            let subtree = super::Subtree {
+                symbol: 0,
+                children: Vec::new(),
+                start_byte: 0,
+                end_byte: 1,
+                start_point: super::Point { row: 0, column: 0 },
+                end_point: super::Point { row: 0, column: 1 },
+                is_extra: metadata & 0x04 != 0,
+                is_error: false,
+                is_missing: false,
+                production_id: 0,
+                field_id: None,
+            };
+            let parsed = super::subtree_to_node(subtree, Some(&language));
+            assert_eq!(
+                parsed.is_named(),
+                expected_named,
+                "metadata {metadata:#04x}"
+            );
+            assert_eq!(parsed.is_extra(), metadata & 0x04 != 0);
+        }
+    }
 
     #[test]
     fn test_append_sentinel_any_input_grows_length_by_one_byte() {

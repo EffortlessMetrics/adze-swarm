@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Truth-table tests for scripts/evaluate-required-result.py (#995).
+"""Required-result and product-path contract tests (#995, #1027).
 
-Job outcomes are simulated as environment inputs; no GitHub-hosted run
-is needed. Run: python3 scripts/test_evaluate_required_result.py
+Job outcomes are simulated as environment inputs; path fixtures execute the
+workflow detector over real Git commits. No Rust build or hosted run is needed.
+Run: python3 scripts/test_evaluate_required_result.py
 """
 
 from __future__ import annotations
@@ -39,6 +40,7 @@ PRODUCT_PASS = {
     "RUN_STABLE": "true",
     "DETECT_REASON": "stable_surface:runtime/lib.rs",
     "STABLE_RESULT": "success",
+    "WINDOWS_RESULT": "success",
     "PR_CANARY_RESULT": "skipped",
 }
 
@@ -66,6 +68,10 @@ class ValidPassRows(unittest.TestCase):
     def test_valid_no_work_passes(self) -> None:
         self.assertEqual(0, rust(RUST_NEEDED="false", DETECT_REASON="no_rust_surface_changed"))
         self.assertEqual(0, product(RUN_STABLE="false", DETECT_REASON="no_stable_product_surface_changed"))
+        self.assertEqual(0, product(RUN_STABLE="false", DETECT_REASON="no_stable_product_surface_changed",
+                                    STABLE_RESULT="skipped", WINDOWS_RESULT="skipped"))
+        self.assertEqual(0, product(RUN_STABLE="false", DETECT_REASON="no_stable_product_surface_changed",
+                                    STABLE_RESULT="", WINDOWS_RESULT=""))
 
     def test_selected_proof_succeeds_passes(self) -> None:
         self.assertEqual(0, rust())
@@ -81,7 +87,14 @@ class ValidPassRows(unittest.TestCase):
         self.assertEqual(0, rust(EVENT_NAME="pull_request", PR_ADMISSION_RESULT="success",
                                  SUPPORTED_RESULT="skipped", GITHUB_RESULT="skipped"))
         self.assertEqual(0, product(EVENT_NAME="pull_request", PR_CANARY_RESULT="success",
-                                    STABLE_RESULT="skipped"))
+                                    STABLE_RESULT="skipped", WINDOWS_RESULT="skipped"))
+        self.assertEqual(0, product(EVENT_NAME="pull_request", PR_CANARY_RESULT="success",
+                                    STABLE_RESULT="", WINDOWS_RESULT=""))
+
+    def test_each_selected_non_pr_event_requires_and_accepts_windows_success(self) -> None:
+        for event in ("merge_group", "workflow_dispatch", "schedule"):
+            with self.subTest(event=event):
+                self.assertEqual(0, product(EVENT_NAME=event))
 
 
 class FailRows(unittest.TestCase):
@@ -119,6 +132,16 @@ class FailRows(unittest.TestCase):
         self.assertEqual(1, rust(EVENT_NAME="pull_request", PR_ADMISSION_RESULT="failure"))
         self.assertEqual(1, product(EVENT_NAME="pull_request", PR_CANARY_RESULT="failure"))
 
+    def test_selected_windows_proof_missing_skipped_cancelled_failed_or_malformed(self) -> None:
+        for event in ("merge_group", "workflow_dispatch", "schedule"):
+            for bad in ("", "skipped", "cancelled", "failure", "succ", "Success", "success ", "success\n"):
+                with self.subTest(event=event, windows_result=bad):
+                    self.assertEqual(1, product(EVENT_NAME=event, WINDOWS_RESULT=bad))
+            omitted = {key: value for key, value in PRODUCT_PASS.items() if key != "WINDOWS_RESULT"}
+            omitted["EVENT_NAME"] = event
+            with self.subTest(event=event, windows_result="omitted"):
+                self.assertEqual(1, run("product", omitted))
+
     def test_route_unavailable(self) -> None:
         for bad in ["failure", "cancelled", "skipped", ""]:
             with self.subTest(route=bad):
@@ -149,7 +172,10 @@ class WorkflowWiring(unittest.TestCase):
         match = re.search(r"\n  (?=\S)", rest[5:])
         return rest if match is None else rest[: match.start() + 5]
 
-    def test_shared_guard_change_selects_stable_product_lane(self) -> None:
+    def _product_path_selection(
+        self, path: str, *, event: str = "merge_group", change: str = "modify"
+    ) -> dict[str, str]:
+        """Execute the workflow's actual detector over one real Git change."""
         import tempfile
         import textwrap
 
@@ -158,33 +184,224 @@ class WorkflowWiring(unittest.TestCase):
         block = self._job_block(".github/workflows/product-proof.yml", "detect-stable-product-paths")
         detector = textwrap.dedent(block.split("        run: |\n", 1)[1])
         with tempfile.TemporaryDirectory(prefix="adze-required-detector-") as directory:
-            repo = Path(directory)
+            repo = Path(directory) / "repo"
+            repo.mkdir()
+
             def git(*args: str) -> str:
                 return subprocess.check_output(
                     ["git", "-c", "user.name=Guard fixture", "-c", "user.email=fixture@example.invalid", *args],
                     cwd=repo, text=True, stderr=subprocess.PIPE,
                 ).strip()
+
             git("init", "--quiet")
-            (repo / "README.md").write_text("fixture\n", encoding="utf-8")
+            source = repo / path
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_text("before\n", encoding="utf-8")
             git("add", ".")
             git("commit", "--quiet", "-m", "base")
             base = git("rev-parse", "HEAD")
-            helper = repo / "scripts/lib/required-test-output.sh"
-            helper.parent.mkdir(parents=True)
-            helper.write_text("# changed guard\n", encoding="utf-8")
-            git("add", ".")
-            git("commit", "--quiet", "-m", "helper-only change")
-            output = repo / "outputs"
+            if change == "modify":
+                source.write_text("after\n", encoding="utf-8")
+            elif change == "delete":
+                source.unlink()
+            elif change == "rename":
+                destination = repo / "docs/retired-source.txt"
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                git("mv", path, "docs/retired-source.txt")
+            else:
+                self.fail(f"unsupported fixture change: {change}")
+            git("add", "-A")
+            git("commit", "--quiet", "-m", f"{change} {path}")
+            head = git("rev-parse", "HEAD")
+            output = Path(directory) / "outputs"
             result = subprocess.run(
                 ["bash", "-euo", "pipefail", "-c", detector], cwd=repo,
-                env={**os.environ, "EVENT_NAME": "merge_group", "MERGE_GROUP_BASE_SHA": base,
-                     "MERGE_GROUP_HEAD_SHA": git("rev-parse", "HEAD"), "PR_BASE_SHA": "", "PR_HEAD_SHA": "",
+                env={**os.environ, "EVENT_NAME": event,
+                     "MERGE_GROUP_BASE_SHA": base if event == "merge_group" else "unused-base",
+                     "MERGE_GROUP_HEAD_SHA": head if event == "merge_group" else "unused-head",
+                     "PR_BASE_SHA": base if event == "pull_request" else "unused-base",
+                     "PR_HEAD_SHA": head if event == "pull_request" else "unused-head",
                      "STABLE_PRODUCT_PATHS": textwrap.dedent(paths), "GITHUB_OUTPUT": str(output)},
                 capture_output=True, text=True,
             )
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-            self.assertIn("run_stable=true", output.read_text(encoding="utf-8"))
-            self.assertIn("reason=stable_surface:scripts/lib/required-test-output.sh", output.read_text(encoding="utf-8"))
+            return dict(line.split("=", 1) for line in output.read_text(encoding="utf-8").splitlines())
+
+    def test_shared_guard_and_regressions_select_stable_product_lane(self) -> None:
+        paths = (
+            "scripts/lib/required-test-output.sh",
+            "scripts/test_required_test_output.py",
+        )
+        for event in ("merge_group", "pull_request"):
+            for change in ("modify", "delete"):
+                for path in paths:
+                    with self.subTest(event=event, change=change, path=path):
+                        result = self._product_path_selection(path, event=event, change=change)
+                        self.assertEqual("true", result["run_stable"])
+                        self.assertEqual(f"stable_surface:{path}", result["reason"])
+
+    def test_static_runner_contract_inputs_select_product_qualification(self) -> None:
+        paths = (
+            "cli/Cargo.toml",
+            "cli/tests/cli_test.rs",
+            "cli/tests/runner_output_contract.rs",
+            "cli/tests/runner_process_contract.rs",
+            "cli/tests/runner_protocol_contract.rs",
+            "cli/tests/runner_cache_process_contract.rs",
+            "cli/tests/runner_windows_process_contract.rs",
+            "cli/tests/runner_windows_output_contract.rs",
+            "cli/tests/runner_windows_protocol_contract.rs",
+            "cli/tests/fixtures/windows_runner_fixture.rs",
+            "cli/tests/support/windows_fixture.rs",
+            "cli/tests/support/windows_output.rs",
+        )
+        for event in ("merge_group", "pull_request"):
+            for change in ("modify", "delete", "rename"):
+                for path in paths:
+                    with self.subTest(event=event, change=change, path=path):
+                        result = self._product_path_selection(path, event=event, change=change)
+                        self.assertEqual("true", result["run_stable"])
+                        self.assertEqual(f"stable_surface:{path}", result["reason"])
+
+    def test_portable_guard_and_evaluator_changes_select_product_qualification(self) -> None:
+        paths = (
+            "scripts/run-required-test.py",
+            "scripts/test_run_required_test.py",
+            "scripts/evaluate-required-result.py",
+            "scripts/test_evaluate_required_result.py",
+        )
+        for event in ("merge_group", "pull_request"):
+            for change in ("modify", "delete", "rename"):
+                for path in paths:
+                    with self.subTest(event=event, change=change, path=path):
+                        result = self._product_path_selection(path, event=event, change=change)
+                        self.assertEqual("true", result["run_stable"])
+                        self.assertEqual(f"stable_surface:{path}", result["reason"])
+
+    def test_shared_build_inputs_select_stable_product_lane(self) -> None:
+        # Recorded #1027 omissions: dependencies and workspace build inputs
+        # affect generated product canaries even without a runtime/ change.
+        paths = (
+            "common/src/lib.rs",
+            "crates/common-type-ops-core/src/lib.rs",
+            "crates/linecol-core/src/lib.rs",
+            "crates/parsetable-metadata/src/lib.rs",
+            "Cargo.toml",
+            "Cargo.lock",
+            "rust-toolchain.toml",
+            ".cargo/config.toml",
+        )
+        for event in ("merge_group", "pull_request"):
+            for change in ("modify", "delete"):
+                for path in paths:
+                    with self.subTest(event=event, change=change, path=path):
+                        result = self._product_path_selection(path, event=event, change=change)
+                        self.assertEqual("true", result["run_stable"])
+                        self.assertEqual(f"stable_surface:{path}", result["reason"])
+
+    def test_runtime_change_selects_stable_product_lane(self) -> None:
+        for event in ("merge_group", "pull_request"):
+            with self.subTest(event=event):
+                result = self._product_path_selection("runtime/src/lib.rs", event=event)
+                self.assertEqual("true", result["run_stable"])
+                self.assertEqual("stable_surface:runtime/src/lib.rs", result["reason"])
+
+    def test_unrelated_paths_do_not_select_stable_product_lane(self) -> None:
+        for event in ("merge_group", "pull_request"):
+            for path in ("docs/research/fixture.md", "playground/assets/fixture.txt"):
+                with self.subTest(event=event, path=path):
+                    result = self._product_path_selection(path, event=event)
+                    self.assertEqual("false", result["run_stable"])
+                    self.assertEqual("no_stable_product_surface_changed", result["reason"])
+
+    def test_renamed_stable_path_outside_allowlist_selects_stable_product_lane(self) -> None:
+        for event in ("merge_group", "pull_request"):
+            with self.subTest(event=event):
+                result = self._product_path_selection("runtime/src/lib.rs", event=event, change="rename")
+                self.assertEqual("true", result["run_stable"])
+                self.assertEqual("stable_surface:runtime/src/lib.rs", result["reason"])
+
+    def test_contract_tests_run_before_product_path_selection(self) -> None:
+        block = self._job_block(".github/workflows/product-proof.yml", "detect-stable-product-paths")
+        command = "run: python3 scripts/test_evaluate_required_result.py"
+        self.assertIn(command, block)
+        self.assertLess(block.index(command), block.index("- id: detect"))
+
+    def test_windows_job_is_selected_with_the_existing_non_pr_product_proof(self) -> None:
+        import re
+
+        path = ".github/workflows/product-proof.yml"
+        linux = self._job_block(path, "ci-product-stable")
+        windows = self._job_block(path, "ci-product-windows")
+        self.assertEqual(
+            re.search(r"^    if: (.+)$", linux, re.M).group(1),
+            re.search(r"^    if: (.+)$", windows, re.M).group(1),
+        )
+        self.assertIn("needs: detect-stable-product-paths", windows)
+        self.assertIn("runs-on: windows-2022", windows)
+        self.assertNotIn("continue-on-error", windows)
+        self.assertNotIn("shell: bash", windows)
+        self.assertIn("toolchain: 1.95.0", windows)
+        self.assertIn("components: clippy,rustfmt", windows)
+        self.assertIn("targets: x86_64-pc-windows-msvc", windows)
+        self.assertIn("EXPECTED_SHA: ${{ github.sha }}", windows)
+        self.assertIn("$actualSha -cne $env:EXPECTED_SHA", windows)
+        self.assertEqual(2, windows.count("if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"))
+        for token in ("ImageOS", "ImageVersion", "windows_build", "rustc -vV", "lock_sha256"):
+            self.assertIn(token, windows)
+        self.assertIn("run: python scripts/test_run_required_test.py\n", windows)
+        self.assertNotIn("test_run_required_test.py SyntheticProcessControls", windows)
+
+    def test_windows_guards_each_native_contract_and_strict_targeted_clippy(self) -> None:
+        block = self._job_block(".github/workflows/product-proof.yml", "ci-product-windows")
+        commands = [line.strip() for line in block.splitlines()
+                    if "run: python scripts/run-required-test.py " in line]
+        self.assertEqual(8, len(commands))
+        targets = [
+            "--test runner_windows_process_contract -- --nocapture",
+            "--test runner_windows_output_contract -- --nocapture",
+            "--test runner_windows_protocol_contract -- --nocapture",
+            "--test cli_test test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture",
+            "--test cli_test test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture",
+            "--test cli_test parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture",
+            "--bin adze generated_runner_argv_tests::test_generated_runner_protocol_args_precede_input_io -- --exact --nocapture",
+            "--test runner_cache_process_contract -- --nocapture",
+        ]
+        for command, target in zip(commands, targets):
+            self.assertIn("--label ", command)
+            self.assertIn("-- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc ", command)
+            self.assertTrue(command.endswith(target), command)
+        clippy = (
+            "cargo clippy --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze "
+            "--test runner_windows_process_contract --test runner_windows_output_contract "
+            "--test runner_windows_protocol_contract --test runner_cache_process_contract -- -D warnings"
+        )
+        self.assertIn(clippy, block)
+
+    def test_linux_selects_native_cache_and_direct_runner_controls(self) -> None:
+        block = self._job_block(".github/workflows/product-proof.yml", "ci-product-stable")
+        self.assertIn(
+            "run_contract 'disabled cache native process and candidate controls' cargo test --locked -p adze-cli --test runner_cache_process_contract -- --nocapture",
+            block,
+        )
+        self.assertIn(
+            "run_contract 'direct runner protocol admission' cargo test --locked -p adze-cli --bin adze tests::test_direct_runner_keeps_completed_output_admission -- --exact --nocapture",
+            block,
+        )
+        self.assertIn(
+            "--test runner_protocol_contract --test runner_cache_process_contract -- -D warnings",
+            block,
+        )
+
+    def test_required_product_aggregate_receives_the_windows_result(self) -> None:
+        block = self._job_block(".github/workflows/product-proof.yml", "product-proof-result")
+        self.assertIn(
+            "needs: [detect-stable-product-paths, pr-canary-plan, ci-product-stable, ci-product-windows]",
+            block,
+        )
+        self.assertIn("WINDOWS_RESULT: ${{ needs.ci-product-windows.result }}", block)
+        self.assertIn("name: Product Proof Result", block)
+        self.assertIn("always() &&", block)
 
     def test_ready_for_review_triggers_both_workflows(self) -> None:
         import re

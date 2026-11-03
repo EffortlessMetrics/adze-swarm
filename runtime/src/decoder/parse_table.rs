@@ -76,8 +76,26 @@ fn decode_alias_sequences(
         .collect()
 }
 
-/// Decode a ParseTable from a TSLanguage struct
+/// Decode a raw legacy ParseTable.
+///
+/// A native ABI language has no authoritative start field. This compatibility
+/// entrypoint retains historical inference; checked generated entrypoints use
+/// `NativeLanguageIdentityV1` and never invoke that inference.
 pub fn decode_parse_table(lang: &'static TSLanguage) -> ParseTable {
+    decode_parse_table_inner(lang, None)
+}
+
+pub(crate) fn decode_parse_table_with_start(
+    lang: &'static TSLanguage,
+    start: SymbolId,
+) -> ParseTable {
+    decode_parse_table_inner(lang, Some(start))
+}
+
+fn decode_parse_table_inner(
+    lang: &'static TSLanguage,
+    explicit_start: Option<SymbolId>,
+) -> ParseTable {
     let symbol_count = lang.symbol_count as usize;
     let tcols = terminal_column_count(lang);
     let (index_to_symbol, symbol_to_index) = decode_symbol_maps(lang, symbol_count);
@@ -116,7 +134,7 @@ pub fn decode_parse_table(lang: &'static TSLanguage) -> ParseTable {
     let field_names: Vec<String> = grammar.fields.values().cloned().collect();
     grammar.extras = extras.clone();
     let alias_sequences = decode_alias_sequences(lang, &index_to_symbol);
-    let start_symbol = select_start_symbol(lang, tcols, &rules);
+    let start_symbol = explicit_start.unwrap_or_else(|| select_start_symbol(lang, tcols, &rules));
     grammar.set_start_symbol(start_symbol);
 
     let mut table = ParseTable {
@@ -229,9 +247,13 @@ fn decode_parse_rules(
             .collect::<Vec<_>>()
     };
 
-    for rule in &mut rules {
-        if (rule.lhs.0 as usize) < index_to_symbol.len() {
-            rule.lhs = index_to_symbol[rule.lhs.0 as usize];
+    // Native TS_RULES store table columns. The grammar fallback has already
+    // been translated into public IDs by decode_grammar, so map only once.
+    if !lang.rules.is_null() {
+        for rule in &mut rules {
+            if (rule.lhs.0 as usize) < index_to_symbol.len() {
+                rule.lhs = index_to_symbol[rule.lhs.0 as usize];
+            }
         }
     }
 

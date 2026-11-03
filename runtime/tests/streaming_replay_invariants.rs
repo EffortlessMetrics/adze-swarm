@@ -11,10 +11,8 @@
 //!    The deterministic grammar uses production `parse`/`parse_document`.
 //! 2. `validate_structure() == Ok` plus root/parent/edge symmetry and
 //!    bounded spans hold on every replayed document, accepted or rejected.
-//!    Child-span containment additionally holds except for the deliberate
-//!    #1220 exact-span carve-out: a recovery error child that begins at or
-//!    after its parent's end is attached without rewriting the parent's
-//!    exact token span.
+//!    Child byte/point ranges remain contained even for recovery syntax;
+//!    exact lexical spans are preserved by structural parenting.
 //! 3. Multiparse inputs select a deterministic winner across repeated runs.
 //!
 //! Direct streaming-driver invocation uses streaming-routed conflicted tables.
@@ -106,8 +104,8 @@ fn parse_batch(
         panic!("lexically invalid input has no batch-core token stream");
     };
     let mut parse_table = decode_parse_table(language);
-    let grammar = decode_grammar(language);
     adze::__private::align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
+    let grammar = parse_table.grammar.clone();
     let mut parser = GLRParser::new(parse_table.clone(), grammar);
     for &(kind, start, end) in tokens {
         let symbol = parse_table
@@ -223,16 +221,21 @@ fn assert_document_invariants(doc: &AdzeDocument, source: &str, label: &str) {
                     .node(parent_id)
                     .unwrap_or_else(|| panic!("{label}: parent exists"));
                 let parent_span = parent.byte_range();
-                // #1220 exact-span contract (pure_parser): recovery attaches
-                // an error that begins at or after a node's end as a child
-                // without widening the node's exact token span, so such an
-                // error child legitimately starts at/after (and ends outside)
-                // its parent. Containment still holds for every other edge.
-                let recovery_tail = node.is_error() && parent_span.end <= span.start;
                 assert!(
-                    recovery_tail
-                        || (parent_span.start <= span.start && span.end <= parent_span.end),
+                    parent_span.start <= span.start && span.end <= parent_span.end,
                     "{label}: child {raw} span {span:?} lies within parent {parent_id:?} span {parent_span:?}"
+                );
+                let child_points = node.point_range();
+                let parent_points = parent.point_range();
+                assert!(
+                    (parent_points.start.row, parent_points.start.column)
+                        <= (child_points.start.row, child_points.start.column),
+                    "{label}: child start point contained"
+                );
+                assert!(
+                    (child_points.end.row, child_points.end.column)
+                        <= (parent_points.end.row, parent_points.end.column),
+                    "{label}: child end point contained"
                 );
                 assert!(
                     (0..parent.child_count())

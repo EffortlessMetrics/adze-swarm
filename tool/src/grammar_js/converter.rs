@@ -159,7 +159,10 @@ impl GrammarJsConverter {
             word_token: None,
             lexical_metadata: IndexMap::new(),
             start_symbol: None,
+            document_start_symbol: None,
             wrapper_token_relations: IndexMap::new(),
+            optional_origins: IndexMap::new(),
+            optional_field_origins: Vec::new(),
         };
 
         // First pass: collect all symbols (rules and tokens)
@@ -322,6 +325,19 @@ impl GrammarJsConverter {
                     )
                 })?;
             grammar.set_start_symbol(start_id);
+        }
+
+        if let Some(name) = &self.grammar_js.document_start_symbol {
+            let symbol = self.symbol_names.get(name).copied().with_context(|| {
+                format!(
+                    "explicit document_start_symbol '{name}' does not reference an existing rule"
+                )
+            })?;
+            anyhow::ensure!(
+                grammar.rules.contains_key(&symbol),
+                "document start must reference a nonterminal rule"
+            );
+            grammar.document_start_symbol = Some(symbol);
         }
 
         for (wrapper_name, token_key) in &self.grammar_js.wrapper_token_relations {
@@ -646,6 +662,33 @@ impl GrammarJsConverter {
                         _ => self
                             .convert_rule_body(grammar, member, aux_id)
                             .context("failed to convert nested CHOICE member")?,
+                    }
+                }
+                // Retain the source optional choice at allocation time. The
+                // constructor knows which source member is empty; consumers
+                // must not infer this later from the helper's name or shape.
+                if members.len() == 2 {
+                    let empty = members
+                        .iter()
+                        .position(|member| matches!(member, JsRule::Blank));
+                    if let Some(empty_alternative) = empty {
+                        let present_alternative = 1 - empty_alternative;
+                        if let Some(present_rule) = grammar
+                            .rules
+                            .get(&aux_id)
+                            .filter(|rules| rules.len() == 2)
+                            .and_then(|rules| rules.get(present_alternative))
+                            && let [present] = present_rule.rhs.as_slice()
+                        {
+                            grammar.optional_origins.insert(
+                                aux_id,
+                                adze_ir::OptionalOrigin {
+                                    present: present.clone(),
+                                    present_alternative,
+                                    empty_alternative,
+                                },
+                            );
+                        }
                     }
                 }
                 Ok(Symbol::NonTerminal(aux_id))

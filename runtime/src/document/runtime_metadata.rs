@@ -2,11 +2,20 @@ use crate::pure_parser::TSLanguage;
 use adze_glr_core::ParseTable;
 use adze_ir::Grammar;
 
+/// Source of canonical field facts. ABI decoding alone cannot recover them.
+#[derive(Clone, Copy)]
+pub(crate) enum DocumentFieldSchema {
+    CompleteIr,
+    Generated(&'static crate::generated_schema::GeneratedFieldSchemaV1),
+    Unavailable,
+}
+
 /// Runtime parse context used to construct an [`super::AdzeDocument`].
 pub(crate) struct DocumentRuntime<'a> {
     pub(crate) language_name: &'a str,
     pub(crate) grammar: &'a Grammar,
     pub(crate) parse_table: &'a ParseTable,
+    pub(crate) field_schema: DocumentFieldSchema,
     pub(crate) pure_language: Option<&'static TSLanguage>,
 }
 

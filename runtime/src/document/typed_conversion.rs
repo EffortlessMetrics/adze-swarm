@@ -183,6 +183,7 @@ mod tests {
             symbols: Vec::new(),
             fields: vec!["left".to_string(), "right".to_string()],
             field_semantics: Default::default(),
+            field_schema_availability: crate::document::FieldSchemaAvailability::Unavailable,
         }
     }
 
@@ -301,6 +302,7 @@ mod tests {
             child_id: NodeId::new(1),
             child_index: 0,
             field_id: None,
+            unresolved_field_name: None,
         });
         tree.nodes[2].edge_range = EdgeRange::new(2, 1);
         let tables = null_language();
@@ -346,6 +348,7 @@ mod tests {
             child_id: NodeId::new(3),
             child_index: 0,
             field_id: None,
+            unresolved_field_name: None,
         });
         tree.nodes[1].edge_range = EdgeRange::new(3, 1);
         let tables = null_language();

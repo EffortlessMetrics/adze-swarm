@@ -73,6 +73,64 @@ Format map: `tree` renders the document tree; `json` prints the full
 selected tree; `document-json`/`tree-json`/`diagnostics-json`/`ambiguity-json`
 emit the named projection verbatim. `--format` and `--output` are aliases.
 
+## Static runner process limits on Linux
+
+One temporary Cargo-build-and-run invocation may capture up to **64 MiB of
+stdout** and **1 MiB of stderr** (one MiB is 1,048,576 bytes). Capture stops with
+an error if either stream exceeds its limit; incomplete output is never printed
+as a successful projection. The stdout budget includes the private response
+header (at most 4096 bytes including its LF) and the unchanged public payload.
+The invocation has one **600-second deadline**
+covering execution and pipe reads. Output progress does not restart it. After
+the direct child exits, any remaining pipe drain has at most **2 seconds** and
+still cannot exceed the original deadline. These are initial bounded CLI
+limits, not a promise that every grammar or cold build fits them.
+
+On completion, a capture failure, or SIGINT/SIGTERM cancellation, the Linux
+parent terminates the runner's owned process group and allows at most **2
+additional seconds** to confirm reaping its direct child. Cleanup which cannot
+be confirmed is an error. A child exit observed before intervention is retained
+separately from a timeout, capture limit, or cleanup error. Cancellation restores
+the prior signal dispositions, unwinds the temporary runner directory and then
+terminates the CLI conventionally. Inherited ignored signals stay ignored;
+custom cancellation handlers or a child auto-reap policy are refused before
+starting the runner.
+
+This covers ordinary descendants which stay in the inherited process group.
+It does not provide a sandbox or custody of deliberately escaped descendants.
+The existing argv, input path, environment and inherited Cargo working directory
+are preserved. Platforms other than Linux and Windows retain the existing runner
+path and are not qualified for these capture, deadline or cleanup bounds.
+Public projection schemas and parser outcome semantics are unchanged.
+
+## Static runner process limits on Windows
+
+The Windows path targets Windows 10 / Windows Server 2016 and newer. It uses the
+same stdout, stderr, execution and drain limits above, with **2 additional
+seconds** to confirm that its owned job is empty. The helper belongs to that job
+from process creation, before it starts Cargo. Ordinary inherited descendants
+remain owned even if Cargo or the helper exits first; a failed or unconfirmed
+cleanup is reported. Closing the CLI also closes the job's non-inherited handle.
+
+The private launch request has a **1 MiB encoded-byte limit**, including its
+header, counts and UTF-16 fields. Oversized or malformed requests fail before
+external execution. Arguments preserve their Windows code units, input paths
+keep their spelling, and environment changes retain their order. Cargo still
+uses Rust's standard command handling and the CLI's inherited working directory,
+including its Cargo configuration discovery. Cache reuse remains disabled.
+
+Ctrl-C and Ctrl-Break cancel capture, clean up the job and unwind the temporary
+runner directory before this CLI exits with Windows status `0xC000013A`.
+Inherited ignored Ctrl-C remains ignored. The CLI does not broadcast a console
+event to its caller. Forced termination or console closure can prevent Rust
+unwinding; the job still provides descendant custody, while temporary-directory
+removal is not guaranteed in those cases. This remains trusted local grammar
+execution, with the same public schemas and parser outcomes.
+
+Native qualification is specific to the tested Windows image, architecture and
+toolchain. A Linux receipt or a Windows cross-compilation is not Windows process,
+console or installed-package proof.
+
 ## Static runner builds and cache admission
 
 Static parsing currently builds a temporary runner through Cargo on every
@@ -104,8 +162,22 @@ Cache-root handling requires a private owned directory with trusted ancestors
 on Unix; other ACL platforms refuse cache use until equivalent checks exist.
 Cleanup's entry limit is best effort: recent entries have a grace period and
 old entries shrink on a later publication. Executable hashing is an integrity
-check, with no measured performance guarantee. #1066 owns the private runner
-transport/version contract; #869 owns performance reporting.
+check, with no measured performance guarantee. #869 owns performance reporting.
+
+The dormant direct-runner and Cargo-build paths, fresh Cargo execution and
+rustc fingerprint acquisition share the same process boundary. On Linux and
+Windows its existing 64 MiB stdout / 1 MiB stderr capture limits, 600-second
+absolute deadline and 2-second drain/cleanup phases also apply to these sites.
+Process setup, cancellation, capture and coordination refusals propagate as
+errors; they never trigger a fresh fallback. A concurrent first fingerprint
+probe refuses immediately, and only a successful fingerprint is memoized.
+Completed nonzero rustc output leaves the partial candidate unavailable.
+
+Both runner execution paths request private protocol version 2 and preserve
+actual failed-child status before decoding. Cargo and rustc bytes are raw
+process output. All four sites inherit the CLI cwd and environment; only the
+dormant cache build additionally sets its owned CARGO_TARGET_DIR. This does
+not extend cache admission, input/config custody or platform support claims.
 
 ## Windows notes
 

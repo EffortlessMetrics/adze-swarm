@@ -345,6 +345,19 @@ impl<'t> Driver<'t> {
             let token_start = lookahead.start as usize;
             let token_end = lookahead.end as usize;
 
+            // A generated lexer may reach EOF only after consuming declared
+            // extras. Recovery must insert at that proven physical EOF, not
+            // at the request position before those extras. Preserve insertion
+            // limits when the cursor is already there.
+            if token_sym == self.tables.eof_symbol
+                && token_start == input.len()
+                && token_end == input.len()
+                && token_start > pos
+            {
+                pos = token_start;
+                inserts_at_pos = 0;
+            }
+
             // Process all stacks with this token
             let prev_stacks = std::mem::take(&mut state.stacks); // Take ownership to avoid clone
             // state.stacks is now empty, ready for filling with new_stacks

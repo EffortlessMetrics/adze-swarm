@@ -170,6 +170,12 @@ pub mod decoder;
 /// Native parse document alpha.
 #[cfg(feature = "pure-rust")]
 pub mod document;
+
+/// Authoritative native identity for checked generated entrypoints.
+#[cfg(feature = "pure-rust")]
+pub mod generated_identity;
+/// Co-generated Rust language metadata outside the native ABI.
+pub mod generated_schema;
 /// JSON grammar format support.
 #[cfg(feature = "pure-rust")]
 pub mod grammar_json;
@@ -210,9 +216,6 @@ pub mod tree_node_data;
 pub mod serialization;
 /// Subtree representation and utilities.
 pub mod subtree;
-/// Unified parser interface.
-#[cfg(feature = "pure-rust")]
-pub mod unified_parser;
 /// Tree visitor pattern implementations.
 pub mod visitor;
 /// SIMD-accelerated lexer module.
@@ -1363,32 +1366,22 @@ impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
                     child.end_byte
                 }
 
-                // Check if this node has exactly 2 children and the first is the same symbol
-                // This indicates a REPEAT1 recursive structure
-                if node.children.len() == 2
-                    && !node.children.is_empty()
-                    && node.children[0].symbol == node.symbol
-                {
-                    // Recursively process the first child (which contains earlier elements)
-                    flatten_repeat1::<T, U>(&node.children[0], source, last_idx, leaf_fn, out);
-                    // Then extract the second child (the last element)
-                    // eprintln!("  Extracting element from symbol={}", node.children[1].symbol);
-                    push_top_level::<T, U>(
-                        &node.children[1],
-                        source,
-                        node.children[0].end_byte,
-                        leaf_fn,
-                        out,
-                    );
-                } else if node.children.len() == 1 {
-                    // Base case: single element
-                    // eprintln!("  Base case: extracting single element from symbol={}", node.children[0].symbol);
-                    push_top_level::<T, U>(&node.children[0], source, last_idx, leaf_fn, out);
-                } else {
-                    // Fallback: extract all selected children
-                    for child in &node.children {
-                        // eprintln!("  Fallback: extracting child symbol={}", child.symbol);
-                        last_idx = push_top_level::<T, U>(child, source, last_idx, leaf_fn, out);
+                // Repeat recursion describes semantic RHS children. Native
+                // producers may interleave extras at this retained container.
+                let mut semantic = node.children.iter().filter(|child| !child.is_extra);
+                match (semantic.next(), semantic.next(), semantic.next()) {
+                    (Some(first), Some(second), None) if first.symbol == node.symbol => {
+                        flatten_repeat1::<T, U>(first, source, last_idx, leaf_fn, out);
+                        push_top_level::<T, U>(second, source, first.end_byte, leaf_fn, out);
+                    }
+                    (Some(first), None, None) => {
+                        push_top_level::<T, U>(first, source, last_idx, leaf_fn, out);
+                    }
+                    _ => {
+                        for child in node.children.iter().filter(|child| !child.is_extra) {
+                            last_idx =
+                                push_top_level::<T, U>(child, source, last_idx, leaf_fn, out);
+                        }
                     }
                 }
             }
@@ -1488,24 +1481,21 @@ impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
                 }
                 Ok(child.end_byte)
             }
-            if node.children.len() == 2
-                && !node.children.is_empty()
-                && node.children[0].symbol == node.symbol
-            {
-                flatten_repeat1_try::<T, U>(&node.children[0], source, last_idx, leaf_fn, out)?;
-                push_top_level_try::<T, U>(
-                    &node.children[1],
-                    source,
-                    node.children[0].end_byte,
-                    leaf_fn,
-                    out,
-                )?;
-            } else if node.children.len() == 1 {
-                push_top_level_try::<T, U>(&node.children[0], source, last_idx, leaf_fn, out)?;
-            } else {
-                let mut last_idx = last_idx;
-                for child in &node.children {
-                    last_idx = push_top_level_try::<T, U>(child, source, last_idx, leaf_fn, out)?;
+            let mut semantic = node.children.iter().filter(|child| !child.is_extra);
+            match (semantic.next(), semantic.next(), semantic.next()) {
+                (Some(first), Some(second), None) if first.symbol == node.symbol => {
+                    flatten_repeat1_try::<T, U>(first, source, last_idx, leaf_fn, out)?;
+                    push_top_level_try::<T, U>(second, source, first.end_byte, leaf_fn, out)?;
+                }
+                (Some(first), None, None) => {
+                    push_top_level_try::<T, U>(first, source, last_idx, leaf_fn, out)?;
+                }
+                _ => {
+                    let mut last_idx = last_idx;
+                    for child in node.children.iter().filter(|child| !child.is_extra) {
+                        last_idx =
+                            push_top_level_try::<T, U>(child, source, last_idx, leaf_fn, out)?;
+                    }
                 }
             }
             Ok(())
@@ -1827,6 +1817,9 @@ pub mod errors {
     /// An explanation for an error that occurred during parsing.
     #[non_exhaustive]
     pub enum ParseErrorReason {
+        /// Generated native language identity failed before parsing.
+        #[cfg(feature = "pure-rust")]
+        InvalidLanguageIdentity(crate::generated_identity::NativeIdentityError),
         /// The parser did not expect to see some token.
         UnexpectedToken(String),
         /// The parser reached the end of input while expecting more tokens.
@@ -1939,6 +1932,10 @@ pub mod errors {
     impl std::fmt::Display for ParseErrorReason {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
+                #[cfg(feature = "pure-rust")]
+                ParseErrorReason::InvalidLanguageIdentity(error) => {
+                    std::fmt::Display::fmt(error, f)
+                }
                 ParseErrorReason::UnexpectedToken(token) => {
                     if token == "end of input" {
                         write!(f, "unexpected end of input")

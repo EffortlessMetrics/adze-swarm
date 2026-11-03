@@ -133,5 +133,8 @@ expression: grammar_json(&grammar)
   "word_token": null,
   "lexical_metadata": {},
   "start_symbol": 5,
-  "wrapper_token_relations": {}
+  "document_start_symbol": null,
+  "wrapper_token_relations": {},
+  "optional_origins": {},
+  "optional_field_origins": []
 }

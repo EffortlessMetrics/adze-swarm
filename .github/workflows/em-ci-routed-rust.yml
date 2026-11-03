@@ -466,7 +466,13 @@ jobs:
           toolchain: 1.95.0
           components: rustfmt
       - name: Check formatting
-        run: cargo fmt --all -- --check
+        run: |
+          # Collect both format diagnostics while preserving failure. The
+          # standalone native fixture is compiled by rustc, outside Cargo targets.
+          status=0
+          cargo fmt --all -- --check || status=$?
+          rustfmt --edition 2024 --check cli/tests/fixtures/windows_runner_fixture.rs || status=$?
+          exit "$status"
 
   rust-small-cpx42:
     name: Rust Small on CPX42

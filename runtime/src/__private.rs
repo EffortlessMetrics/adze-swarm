@@ -150,6 +150,15 @@ impl<'a> TreeCursor<'a> {
         }
     }
 
+    /// Tuple slots count only direct semantic children, while the cursor
+    /// retains physical positions for field-edge lookup and source traversal.
+    fn semantic_index(&self) -> usize {
+        self.children[..self.current_index]
+            .iter()
+            .filter(|child| !child.is_extra)
+            .count()
+    }
+
     /// Returns the current node.
     pub fn node(&self) -> &'a ParsedNode {
         if self.current_index < self.children.len() {
@@ -292,9 +301,16 @@ pub fn extract_field_try<LT: Extract<T>, T>(
 
         loop {
             let n = cursor.node();
+            if n.is_extra {
+                *last_idx = n.end_byte;
+                if !cursor.goto_next_sibling() {
+                    return LT::try_extract(None, source, *last_idx, closure_ref);
+                }
+                continue;
+            }
             if field_name
                 .parse::<usize>()
-                .is_ok_and(|idx| idx == cursor.current_index)
+                .is_ok_and(|idx| idx == cursor.semantic_index())
             {
                 let out = LT::try_extract(Some(n), source, *last_idx, closure_ref)?;
                 if !cursor.goto_next_sibling() {
@@ -406,9 +422,16 @@ pub fn extract_field<LT: Extract<T>, T>(
 
         loop {
             let n = cursor.node();
+            if n.is_extra {
+                *last_idx = n.end_byte;
+                if !cursor.goto_next_sibling() {
+                    return LT::extract(None, source, *last_idx, closure_ref);
+                }
+                continue;
+            }
             if field_name
                 .parse::<usize>()
-                .is_ok_and(|idx| idx == cursor.current_index)
+                .is_ok_and(|idx| idx == cursor.semantic_index())
             {
                 let out = LT::extract(Some(n), source, *last_idx, closure_ref);
 
@@ -452,7 +475,10 @@ pub fn parse<T: Extract<T>>(
     language: impl Fn() -> tree_sitter::Language,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
     let mut parser = crate::tree_sitter::Parser::new();
-    parser.set_language(&language()).map_err(|_| {
+    let language = language();
+    #[cfg(any(feature = "tree-sitter-standard", feature = "tree-sitter-c2rust"))]
+    let language = &language;
+    parser.set_language(language).map_err(|_| {
         vec![crate::errors::ParseError {
             reason: crate::errors::ParseErrorReason::UnexpectedToken(
                 "Failed to initialize TreeSitter language".to_string(),
@@ -487,7 +513,10 @@ pub fn parse<T: Extract<T>>(
     }
 }
 
-/// Parses an input string and extracts a value using the pure-rust parser.
+/// Legacy raw-language compatibility helper.
+///
+/// This signature cannot guarantee canonical start identity without a sidecar.
+/// Newly generated parsers call [`parse_with_identity`] instead.
 #[cfg(feature = "pure-rust")]
 pub fn parse<T: Extract<T>>(
     input: &str,
@@ -499,13 +528,53 @@ pub fn parse<T: Extract<T>>(
     // result is returned directly: no cross-engine retry (#897).
     let lang = language();
     let parse_table = crate::decoder::decode_parse_table(lang);
+    parse_with_decoded_table(input, lang, parse_table, true)
+}
+
+#[cfg(feature = "pure-rust")]
+fn identity_parse_error(
+    error: crate::generated_identity::NativeIdentityError,
+) -> Vec<crate::errors::ParseError> {
+    vec![crate::errors::ParseError {
+        reason: crate::errors::ParseErrorReason::InvalidLanguageIdentity(error),
+        start: 0,
+        end: 0,
+        expected: vec![],
+    }]
+}
+
+/// Checked generated typed entrypoint. Missing identity never invokes legacy inference.
+#[cfg(feature = "pure-rust")]
+pub fn parse_with_identity<T: Extract<T>>(
+    input: &str,
+    language: &'static crate::pure_parser::TSLanguage,
+    identity: Option<&crate::generated_identity::NativeLanguageIdentityV1>,
+) -> Result<T, Vec<crate::errors::ParseError>> {
+    let identity = identity.ok_or_else(|| {
+        identity_parse_error(crate::generated_identity::NativeIdentityError::Unavailable)
+    })?;
+    let table = identity
+        .decode_for(language)
+        .map_err(identity_parse_error)?;
+    parse_with_decoded_table(input, language, table, false)
+}
+
+#[cfg(feature = "pure-rust")]
+fn parse_with_decoded_table<T: Extract<T>>(
+    input: &str,
+    lang: &'static crate::pure_parser::TSLanguage,
+    parse_table: adze_glr_core::ParseTable,
+    legacy_wrapper: bool,
+) -> Result<T, Vec<crate::errors::ParseError>> {
     match engine_dispatch_for_table(lang, &parse_table) {
-        EngineDispatch::DeterministicLr => parse_with_pure_parser::<T>(input, language),
+        EngineDispatch::DeterministicLr => {
+            parse_with_pure_parser::<T>(input, || lang, legacy_wrapper)
+        }
         #[cfg(feature = "glr")]
         dispatch @ (EngineDispatch::StreamingGlr
         | EngineDispatch::LegacyGlrWithoutLexFn
         | EngineDispatch::UnsupportedConflictedTable) => {
-            parse_with_true_glr_runtime::<T>(input, lang, parse_table, dispatch)
+            parse_with_true_glr_runtime::<T>(input, lang, parse_table, dispatch, legacy_wrapper)
         }
         #[cfg(not(feature = "glr"))]
         EngineDispatch::StreamingGlr
@@ -522,16 +591,174 @@ pub fn parse<T: Extract<T>>(
     }
 }
 
-/// Parses an input string into the native parse document alpha.
+/// Bind generated typed handles to their immutable native language object.
+///
+/// Numeric grammar identities are language-local. This private generated-code
+/// boundary compares the existing document binding without exposing a pointer.
+#[doc(hidden)]
+#[cfg(feature = "pure-rust")]
+pub fn document_matches_language(
+    document: &crate::document::AdzeDocument,
+    language: &'static crate::pure_parser::TSLanguage,
+) -> bool {
+    document.matches_native_language(language)
+}
+
+/// Legacy raw-language document compatibility helper.
+///
+/// Native ABI tables alone omit canonical field targets/cardinality. Documents
+/// produced here explicitly report unavailable schema and retain historical root
+/// inference without a canonical-start guarantee. Newly generated parsers call
+/// [`parse_document_with_descriptor_v2_and_identity`] instead.
 #[cfg(feature = "pure-rust")]
 pub fn parse_document(
     input: &str,
     language: impl Fn() -> &'static crate::pure_parser::TSLanguage,
     grammar_name: &str,
 ) -> core::result::Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
-    let lang = language();
-    let grammar = crate::decoder::decode_grammar(lang);
-    let parse_table = crate::decoder::decode_parse_table(lang);
+    parse_document_with_schema(
+        input,
+        language(),
+        grammar_name,
+        crate::document::DocumentFieldSchema::Unavailable,
+    )
+}
+
+/// Parse using canonical metadata co-generated with the native language.
+#[cfg(feature = "pure-rust")]
+pub fn parse_document_with_descriptor(
+    input: &str,
+    descriptor: &'static crate::generated_schema::GeneratedLanguageDescriptor,
+    grammar_name: &str,
+) -> core::result::Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
+    descriptor.validate().map_err(|error| {
+        vec![crate::errors::ParseError {
+            reason: crate::errors::ParseErrorReason::UnexpectedToken(error.to_string()),
+            start: 0,
+            end: 0,
+            expected: vec![],
+        }]
+    })?;
+    parse_document_with_schema(
+        input,
+        descriptor.language,
+        grammar_name,
+        crate::document::DocumentFieldSchema::Generated(&descriptor.field_schema),
+    )
+}
+
+/// Parse with the explicitly versioned producer-owned optional projection.
+#[cfg(feature = "pure-rust")]
+pub fn parse_document_with_descriptor_v2(
+    input: &str,
+    descriptor: &'static crate::generated_schema::GeneratedLanguageDescriptorV2,
+    grammar_name: &str,
+) -> core::result::Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
+    descriptor.validate().map_err(|error| {
+        vec![crate::errors::ParseError {
+            reason: crate::errors::ParseErrorReason::UnexpectedToken(error.to_string()),
+            start: 0,
+            end: 0,
+            expected: vec![],
+        }]
+    })?;
+    let mut document = parse_document_with_schema(
+        input,
+        descriptor.language,
+        grammar_name,
+        crate::document::DocumentFieldSchema::Generated(&descriptor.field_schema),
+    )?;
+    document.bind_field_projection(descriptor.field_projection.as_ref());
+    Ok(document)
+}
+
+#[cfg(feature = "pure-rust")]
+fn parse_document_with_schema(
+    input: &str,
+    lang: &'static crate::pure_parser::TSLanguage,
+    grammar_name: &str,
+    field_schema: crate::document::DocumentFieldSchema,
+) -> Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
+    let table = crate::decoder::decode_parse_table(lang);
+    parse_document_with_decoded_table(input, lang, grammar_name, table, field_schema)
+}
+
+/// Checked native document setup without canonical field attachments.
+#[cfg(feature = "pure-rust")]
+pub fn parse_document_with_identity(
+    input: &str,
+    language: &'static crate::pure_parser::TSLanguage,
+    identity: Option<&crate::generated_identity::NativeLanguageIdentityV1>,
+    grammar_name: &str,
+) -> Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
+    let identity = identity.ok_or_else(|| {
+        identity_parse_error(crate::generated_identity::NativeIdentityError::Unavailable)
+    })?;
+    let table = identity
+        .decode_for(language)
+        .map_err(identity_parse_error)?;
+    parse_document_with_decoded_table(
+        input,
+        language,
+        grammar_name,
+        table,
+        crate::document::DocumentFieldSchema::Unavailable,
+    )
+}
+
+/// Compose checked native identity with the existing versioned field attachment.
+#[cfg(feature = "pure-rust")]
+pub fn parse_document_with_descriptor_v2_and_identity(
+    input: &str,
+    descriptor: &'static crate::generated_schema::GeneratedLanguageDescriptorV2,
+    identity: Option<&crate::generated_identity::NativeLanguageIdentityV1>,
+    grammar_name: &str,
+) -> Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
+    descriptor.validate().map_err(|error| {
+        vec![crate::errors::ParseError {
+            reason: crate::errors::ParseErrorReason::UnexpectedToken(error.to_string()),
+            start: 0,
+            end: 0,
+            expected: vec![],
+        }]
+    })?;
+    let identity = identity.ok_or_else(|| {
+        identity_parse_error(crate::generated_identity::NativeIdentityError::Unavailable)
+    })?;
+    let table = identity
+        .decode_for(descriptor.language)
+        .map_err(identity_parse_error)?;
+    let mut document = parse_document_with_decoded_table(
+        input,
+        descriptor.language,
+        grammar_name,
+        table,
+        crate::document::DocumentFieldSchema::Generated(&descriptor.field_schema),
+    )?;
+    document.bind_field_projection(descriptor.field_projection.as_ref());
+    Ok(document)
+}
+
+#[cfg(feature = "pure-rust")]
+fn document_start_symbol(
+    language: &'static crate::pure_parser::TSLanguage,
+    table: &adze_glr_core::ParseTable,
+) -> adze_ir::SymbolId {
+    table
+        .grammar
+        .document_start_symbol
+        .unwrap_or_else(|| public_symbol_id_for_index(language, table.start_symbol.0))
+}
+
+#[cfg(feature = "pure-rust")]
+pub(crate) fn parse_document_with_decoded_table(
+    input: &str,
+    lang: &'static crate::pure_parser::TSLanguage,
+    grammar_name: &str,
+    parse_table: adze_glr_core::ParseTable,
+    field_schema: crate::document::DocumentFieldSchema,
+) -> Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
+    let grammar = parse_table.grammar.clone();
 
     // Same table-derived dispatch as `parse()` (#896): both entry points
     // execute the one decision returned for this decoded table.
@@ -554,6 +781,7 @@ pub fn parse_document(
             input,
             lang,
             grammar_name,
+            field_schema,
             grammar,
             parse_table,
             dispatch,
@@ -582,14 +810,14 @@ pub fn parse_document(
         .map(|root_node| {
             wrap_root_in_start_symbol(
                 convert_parsed_node_to_document_node(root_node, lang),
-                public_symbol_id_for_index(lang, parse_table.start_symbol.0),
+                document_start_symbol(lang, &parse_table),
                 input.len(),
             )
         })
         .unwrap_or_else(|| {
             synthetic_document_root_for_errors(
                 input,
-                public_symbol_id_for_index(lang, parse_table.start_symbol.0),
+                document_start_symbol(lang, &parse_table),
                 &diagnostics,
             )
         });
@@ -603,6 +831,7 @@ pub fn parse_document(
                 language_name: grammar_name,
                 grammar: &grammar,
                 parse_table: &parse_table,
+                field_schema,
                 pure_language: Some(lang),
             },
             diagnostics,
@@ -624,6 +853,7 @@ fn parse_document_with_streaming_true_glr_runtime(
     input: &str,
     language: &'static crate::pure_parser::TSLanguage,
     grammar_name: &str,
+    field_schema: crate::document::DocumentFieldSchema,
     grammar: adze_ir::Grammar,
     parse_table: adze_glr_core::ParseTable,
 ) -> core::result::Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
@@ -635,12 +865,17 @@ fn parse_document_with_streaming_true_glr_runtime(
     ) {
         Ok(parsed) => parsed,
         Err(error) => {
-            let errors =
-                crate::glr_streaming_runtime::glr_error_to_parse_errors(input, error, language);
+            let errors = crate::glr_streaming_runtime::glr_error_to_parse_errors(
+                input,
+                error,
+                language,
+                &parse_table,
+            );
             return Ok(parse_document_from_glr_errors(
                 input,
                 language,
                 grammar_name,
+                field_schema,
                 &grammar,
                 &parse_table,
                 errors,
@@ -648,11 +883,12 @@ fn parse_document_with_streaming_true_glr_runtime(
         }
     };
 
-    Ok(adze_document_from_streaming_parse(
+    Ok(adze_document_from_streaming_parse_with_schema(
         input,
         parsed,
         language,
         grammar_name,
+        field_schema,
         &grammar,
         &parse_table,
     ))
@@ -789,6 +1025,9 @@ fn recovery_diagnostics_for_document_root_with_missing(
 }
 
 /// Build an [`crate::document::AdzeDocument`] from a materialized streaming parse (#930).
+///
+/// This native-only entry reports canonical field schema as unavailable. The
+/// supplied grammar is decoded parser metadata, not a complete schema authority.
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
 pub fn adze_document_from_streaming_parse(
     source: &str,
@@ -798,9 +1037,30 @@ pub fn adze_document_from_streaming_parse(
     grammar: &adze_ir::Grammar,
     parse_table: &adze_glr_core::ParseTable,
 ) -> crate::document::AdzeDocument {
+    adze_document_from_streaming_parse_with_schema(
+        source,
+        parsed,
+        language,
+        grammar_name,
+        crate::document::DocumentFieldSchema::Unavailable,
+        grammar,
+        parse_table,
+    )
+}
+
+#[cfg(all(feature = "glr", feature = "pure-rust"))]
+fn adze_document_from_streaming_parse_with_schema(
+    source: &str,
+    parsed: crate::glr_streaming_runtime::StreamingGlrParseResult,
+    language: &'static crate::pure_parser::TSLanguage,
+    grammar_name: &str,
+    field_schema: crate::document::DocumentFieldSchema,
+    grammar: &adze_ir::Grammar,
+    parse_table: &adze_glr_core::ParseTable,
+) -> crate::document::AdzeDocument {
     let root = wrap_root_in_start_symbol(
         convert_subtree_to_document_node(&parsed.root, language, parse_table, grammar),
-        public_symbol_id_for_index(language, parse_table.start_symbol.0),
+        document_start_symbol(language, parse_table),
         source.len(),
     );
     let ambiguities = parsed.ambiguities.into_iter().collect::<Vec<_>>();
@@ -829,6 +1089,7 @@ pub fn adze_document_from_streaming_parse(
             language_name: grammar_name,
             grammar,
             parse_table,
+            field_schema,
             pure_language: Some(language),
         },
         diagnostics,
@@ -841,13 +1102,17 @@ fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
     parsed_node: crate::pure_parser::ParsedNode,
     source: &[u8],
     _language: &'static crate::pure_parser::TSLanguage,
+    parse_table: &adze_glr_core::ParseTable,
+    legacy_wrapper: bool,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
     let non_extra_root_children: Vec<_> = parsed_node
         .children
         .iter()
         .filter(|child| !child.is_extra)
         .collect();
-    let extract_node = if parsed_node.kind() == "source_file" && non_extra_root_children.len() == 1
+    let extract_node = if legacy_wrapper
+        && parsed_node.kind() == "source_file"
+        && non_extra_root_children.len() == 1
     {
         non_extra_root_children[0]
     } else {
@@ -930,9 +1195,9 @@ fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
         // An error chunk at the very start of input carries no missing
         // terminal; the parser was in the initial state there, so the
         // decoded table's initial ACTION row is the native expected set.
+        let mut table = parse_table.clone();
+        align_true_glr_parse_table_to_language_symbols(_language, &mut table);
         if errors.iter().any(|e| e.expected.is_empty() && e.start == 0) {
-            let mut table = crate::decoder::decode_parse_table(_language);
-            align_true_glr_parse_table_to_language_symbols(_language, &mut table);
             let initial = initial_state_expected_names(_language, &table);
             if !initial.is_empty() {
                 for error in &mut errors {
@@ -949,8 +1214,6 @@ fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
         // `glr_expected_names_at_failure`); leave it empty only when
         // that native replay cannot be performed.
         if errors.iter().any(|error| error.expected.is_empty()) {
-            let mut table = crate::decoder::decode_parse_table(_language);
-            align_true_glr_parse_table_to_language_symbols(_language, &mut table);
             let mut leaves: Vec<(u16, usize, usize)> = Vec::new();
             collect_leaf_terminals(extract_node, &mut leaves);
             for error in &mut errors {
@@ -1291,6 +1554,7 @@ fn parse_document_with_true_glr_runtime(
     input: &str,
     language: &'static crate::pure_parser::TSLanguage,
     grammar_name: &str,
+    field_schema: crate::document::DocumentFieldSchema,
     grammar: adze_ir::Grammar,
     parse_table: adze_glr_core::ParseTable,
     dispatch: EngineDispatch,
@@ -1300,6 +1564,7 @@ fn parse_document_with_true_glr_runtime(
             input,
             language,
             grammar_name,
+            field_schema,
             grammar,
             parse_table,
         );
@@ -1310,6 +1575,7 @@ fn parse_document_with_true_glr_runtime(
             input,
             language,
             grammar_name,
+            field_schema,
             &grammar,
             &parse_table,
             unsupported_true_glr_fixed_bridge_error(input),
@@ -1320,16 +1586,18 @@ fn parse_document_with_true_glr_runtime(
     let mut runtime_parse_table = parse_table.clone();
     align_true_glr_parse_table_to_language_symbols(language, &mut runtime_parse_table);
     let initial_expected = initial_state_expected_names(language, &runtime_parse_table);
+    let execution_grammar = &runtime_parse_table.grammar;
     let mut parser =
-        crate::glr_parser::GLRParser::new(runtime_parse_table.clone(), grammar.clone());
+        crate::glr_parser::GLRParser::new(runtime_parse_table.clone(), execution_grammar.clone());
 
-    let mut lexer = match crate::glr_lexer::GLRLexer::new(&grammar, input.to_string()) {
+    let mut lexer = match crate::glr_lexer::GLRLexer::new(execution_grammar, input.to_string()) {
         Ok(lexer) => lexer,
         Err(message) => {
             return Ok(parse_document_from_glr_errors(
                 input,
                 language,
                 grammar_name,
+                field_schema,
                 &grammar,
                 &parse_table,
                 vec![crate::errors::ParseError {
@@ -1350,6 +1618,7 @@ fn parse_document_with_true_glr_runtime(
             input,
             language,
             grammar_name,
+            field_schema,
             &grammar,
             &parse_table,
             vec![crate::errors::ParseError {
@@ -1371,6 +1640,7 @@ fn parse_document_with_true_glr_runtime(
                 input,
                 language,
                 grammar_name,
+                field_schema,
                 &grammar,
                 &parse_table,
                 vec![crate::errors::ParseError {
@@ -1390,7 +1660,7 @@ fn parse_document_with_true_glr_runtime(
         .collect::<Vec<_>>();
     let root = wrap_root_in_start_symbol(
         convert_subtree_to_document_node(&root_node, language, &parse_table, &grammar),
-        public_symbol_id_for_index(language, parse_table.start_symbol.0),
+        document_start_symbol(language, &parse_table),
         source.len(),
     );
 
@@ -1416,6 +1686,7 @@ fn parse_document_with_true_glr_runtime(
                 language_name: grammar_name,
                 grammar: &grammar,
                 parse_table: &parse_table,
+                field_schema,
                 pure_language: Some(language),
             },
             diagnostics,
@@ -1429,6 +1700,7 @@ fn parse_document_from_glr_errors(
     input: &str,
     language: &'static crate::pure_parser::TSLanguage,
     grammar_name: &str,
+    field_schema: crate::document::DocumentFieldSchema,
     grammar: &adze_ir::Grammar,
     parse_table: &adze_glr_core::ParseTable,
     errors: Vec<crate::errors::ParseError>,
@@ -1470,7 +1742,7 @@ fn parse_document_from_glr_errors(
     let error_count = diagnostics.len();
     let root = synthetic_document_root_for_errors(
         input,
-        public_symbol_id_for_index(language, parse_table.start_symbol.0),
+        document_start_symbol(language, parse_table),
         &diagnostics,
     );
 
@@ -1482,6 +1754,7 @@ fn parse_document_from_glr_errors(
             language_name: grammar_name,
             grammar,
             parse_table,
+            field_schema,
             pure_language: Some(language),
         },
         diagnostics,
@@ -1489,8 +1762,6 @@ fn parse_document_from_glr_errors(
     )
 }
 
-/// Parse using the simple LR parser (pure_parser)
-#[cfg(feature = "pure-rust")]
 /// Map one deterministic LR parser error to the public diagnostic shape.
 ///
 /// A trailing list delimiter at end of input is reported at the delimiter
@@ -1500,6 +1771,7 @@ fn parse_document_from_glr_errors(
 /// complete construct (#1097). When the error already expects the
 /// delimiter or end-of-input among other tokens, the parser state is
 /// reported unchanged.
+#[cfg(feature = "pure-rust")]
 fn map_lr_parse_error(
     input: &str,
     lang: &crate::pure_parser::TSLanguage,
@@ -1544,9 +1816,12 @@ fn map_lr_parse_error(
     }
 }
 
+/// Parse using the simple LR parser (pure_parser).
+#[cfg(feature = "pure-rust")]
 fn parse_with_pure_parser<T: Extract<T>>(
     input: &str,
     language: impl Fn() -> &'static crate::pure_parser::TSLanguage,
+    legacy_wrapper: bool,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
     let mut parser = crate::pure_parser::Parser::new();
     let lang = language();
@@ -1603,7 +1878,10 @@ fn parse_with_pure_parser<T: Extract<T>>(
     // source_file is typically a wrapper node with a single non-extra child
     let non_extra_root_children: Vec<_> =
         root_node.children.iter().filter(|c| !c.is_extra).collect();
-    let extract_node = if root_node.kind() == "source_file" && non_extra_root_children.len() == 1 {
+    let extract_node = if legacy_wrapper
+        && root_node.kind() == "source_file"
+        && non_extra_root_children.len() == 1
+    {
         // This is source_file, extract from its first non-extra child
         non_extra_root_children[0]
     } else {
@@ -1621,9 +1899,10 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
     language: &'static crate::pure_parser::TSLanguage,
     mut parse_table: adze_glr_core::ParseTable,
     dispatch: EngineDispatch,
+    legacy_wrapper: bool,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
     if dispatch == EngineDispatch::StreamingGlr {
-        let grammar = crate::decoder::decode_grammar(language);
+        let grammar = parse_table.grammar.clone();
         // Native failure facts (#1030 remainder): a streaming failure is
         // projected directly through `glr_error_to_parse_errors`, whose
         // expected-token names come from the GLR driver's own structured
@@ -1634,20 +1913,29 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
         let parsed = match crate::glr_streaming_runtime::parse_with_streaming_driver(
             input,
             language,
-            parse_table,
+            parse_table.clone(),
             &grammar,
         ) {
             Ok(parsed) => parsed,
             Err(error) => {
                 return Err(crate::glr_streaming_runtime::glr_error_to_parse_errors(
-                    input, error, language,
+                    input,
+                    error,
+                    language,
+                    &parse_table,
                 ));
             }
         };
 
         let source = input.as_bytes();
         let parsed_node = convert_subtree_to_pure(&parsed.root, language, source);
-        return finish_typed_extract_from_parsed_node(parsed_node, source, language);
+        return finish_typed_extract_from_parsed_node(
+            parsed_node,
+            source,
+            language,
+            &parse_table,
+            legacy_wrapper,
+        );
     }
 
     if dispatch == EngineDispatch::UnsupportedConflictedTable {
@@ -1656,8 +1944,8 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
 
     let source = input.as_bytes();
     align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
-    let grammar = crate::decoder::decode_grammar(language);
-    let mut parser = crate::glr_parser::GLRParser::new(parse_table, grammar.clone());
+    let grammar = parse_table.grammar.clone();
+    let mut parser = crate::glr_parser::GLRParser::new(parse_table.clone(), grammar.clone());
 
     let mut lexer = match crate::glr_lexer::GLRLexer::new(&grammar, input.to_string()) {
         Ok(lexer) => lexer,
@@ -1699,7 +1987,13 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
     };
 
     let parsed_node = convert_subtree_to_pure(&root_node, language, source);
-    finish_typed_extract_from_parsed_node(parsed_node, source, language)
+    finish_typed_extract_from_parsed_node(
+        parsed_node,
+        source,
+        language,
+        &parse_table,
+        legacy_wrapper,
+    )
 }
 
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
@@ -1717,7 +2011,7 @@ pub fn align_true_glr_parse_table_to_language_symbols(
 
     let symbol_count = language.symbol_count as usize;
     if symbol_count == 0
-        || symbol_count > u16::MAX as usize
+        || symbol_count > u16::MAX as usize + 1
         || parse_table.index_to_symbol.len() != symbol_count
     {
         return;
@@ -1727,6 +2021,7 @@ pub fn align_true_glr_parse_table_to_language_symbols(
     // still useful for ABI decode callers, but the true-GLR runtime must execute
     // against the same dense symbols used by the generated language tables.
     let public_to_column = parse_table.symbol_to_index.clone();
+    crate::decoder::remap_grammar_to_table_columns(&mut parse_table.grammar, &public_to_column);
     let raw_symbol = |symbol: SymbolId| {
         public_to_column
             .get(&symbol)

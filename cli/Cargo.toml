@@ -25,6 +25,7 @@ dynamic = ["libloading"]
 [dependencies]
 clap.workspace = true
 adze-tool = { version = "0.10.0", path = "../tool" }
+serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 syn = { workspace = true, features = ["visit"] }
 colored = "3.0"
@@ -37,6 +38,24 @@ tempfile.workspace = true
 sha2.workspace = true
 libloading = { version = "0.8", optional = true }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc.workspace = true
+rustix.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Console",
+    "Win32_System_IO",
+    "Win32_System_JobObjects",
+    "Win32_System_Memory",
+    "Win32_System_Pipes",
+    "Win32_System_Threading",
+] }
+
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "3.0"
+sha2 = "0.10"
