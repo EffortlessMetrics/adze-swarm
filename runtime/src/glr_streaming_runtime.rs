@@ -2,7 +2,7 @@
 
 #![cfg(all(feature = "glr", feature = "pure-rust"))]
 
-use crate::decoder::{decode_grammar, decode_rule_fields};
+use crate::decoder::decode_rule_fields;
 use crate::glr_parser::{
     AlternativeSummary, AmbiguitySummary, SelectionReason, canonicalize_alternatives,
     subtree_node_count, subtree_selection_key,
@@ -86,11 +86,11 @@ pub fn should_route_conflict_table_through_streaming_driver(
         return true;
     }
 
-    let grammar = decode_grammar(language);
+    let grammar = &parse_table.grammar;
 
     // Stack-aware contract (#857): meaningful newline and per-state lex modes cannot
     // use the fixed bridge's hard-coded ASCII whitespace skip or state-0 pretokenization.
-    if grammar_requires_stack_aware_streaming_lex_contract(&grammar)
+    if grammar_requires_stack_aware_streaming_lex_contract(grammar)
         && parse_table_has_conflicts(&prepared)
     {
         return true;
@@ -98,7 +98,7 @@ pub fn should_route_conflict_table_through_streaming_driver(
 
     // Gate A (#892): conflicted generated grammars with generated lex ABI preparation
     // and green `glr_route_gate_equivalence` contract.
-    if !grammar_requires_stack_aware_streaming_lex_contract(&grammar)
+    if !grammar_requires_stack_aware_streaming_lex_contract(grammar)
         && parse_table_has_conflicts(&prepared)
         && prepared_lex_modes_match_generated_language_abi(language, &prepared)
     {
@@ -155,13 +155,13 @@ fn populate_streaming_parse_table_lex_modes(
     language: &'static TSLanguage,
     parse_table: &mut ParseTable,
 ) {
-    let grammar = decode_grammar(language);
+    let grammar = &parse_table.grammar;
     let has_external_scanner = parse_table
         .external_scanner_states
         .iter()
         .any(|states| states.iter().any(|active| *active));
 
-    if grammar_requires_stack_aware_streaming_lex_contract(&grammar) {
+    if grammar_requires_stack_aware_streaming_lex_contract(grammar) {
         if language_lex_modes_match_state_count(language, parse_table.state_count) {
             parse_table.lex_modes = lex_modes_from_generated_language(language);
         } else {
@@ -250,6 +250,8 @@ pub fn parse_with_streaming_driver(
     }
 
     record_route(TrueGlrParseRoute::StreamingDriver);
+    let mut parse_table = parse_table;
+    parse_table.grammar = grammar.clone();
     let parse_table = prepare_streaming_parse_table(language, parse_table);
     let mut driver = Driver::new(&parse_table);
     let (mut internal_lexer, lex_failure_pos) = make_generated_internal_streaming_lexer(language);
@@ -298,7 +300,7 @@ pub fn parse_with_streaming_driver(
         }
     };
 
-    materialize_streaming_forest(&forest, language, &parse_table, grammar)
+    materialize_streaming_forest(&forest, language, &parse_table, &parse_table.grammar)
 }
 
 /// Select a complete alternative from an already-produced streaming [`Forest`].
@@ -672,6 +674,7 @@ pub(crate) fn glr_error_to_parse_errors(
     input: &str,
     error: GlrError,
     language: &'static TSLanguage,
+    parse_table: &ParseTable,
 ) -> Vec<crate::errors::ParseError> {
     let source_len = input.len();
     if let GlrError::UnexpectedToken(unexpected) = &error {
@@ -688,7 +691,7 @@ pub(crate) fn glr_error_to_parse_errors(
             // Native table metadata (#1030): a failure at the first byte
             // happened in the initial state, whose ACTION row names the
             // expected terminals. No other engine is consulted.
-            let mut table = crate::decoder::decode_parse_table(language);
+            let mut table = parse_table.clone();
             crate::__private::align_true_glr_parse_table_to_language_symbols(language, &mut table);
             let initial = crate::__private::initial_state_expected_names(language, &table);
             if !initial.is_empty() {

@@ -159,6 +159,7 @@ impl GrammarJsConverter {
             word_token: None,
             lexical_metadata: IndexMap::new(),
             start_symbol: None,
+            document_start_symbol: None,
             wrapper_token_relations: IndexMap::new(),
         };
 
@@ -322,6 +323,19 @@ impl GrammarJsConverter {
                     )
                 })?;
             grammar.set_start_symbol(start_id);
+        }
+
+        if let Some(name) = &self.grammar_js.document_start_symbol {
+            let symbol = self.symbol_names.get(name).copied().with_context(|| {
+                format!(
+                    "explicit document_start_symbol '{name}' does not reference an existing rule"
+                )
+            })?;
+            anyhow::ensure!(
+                grammar.rules.contains_key(&symbol),
+                "document start must reference a nonterminal rule"
+            );
+            grammar.document_start_symbol = Some(symbol);
         }
 
         for (wrapper_name, token_key) in &self.grammar_js.wrapper_token_relations {

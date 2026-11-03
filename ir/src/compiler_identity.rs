@@ -66,6 +66,12 @@ pub fn remap_compiler_identity(grammar: &mut Grammar, old_to_new: &HashMap<Symbo
         grammar.start_symbol = Some(new_start);
     }
 
+    if let Some(start) = grammar.document_start_symbol
+        && let Some(&new_start) = old_to_new.get(&start)
+    {
+        grammar.document_start_symbol = Some(new_start);
+    }
+
     let relations = std::mem::take(&mut grammar.wrapper_token_relations);
     for (wrapper, token) in relations {
         if let (Some(&new_wrapper), Some(&new_token)) =

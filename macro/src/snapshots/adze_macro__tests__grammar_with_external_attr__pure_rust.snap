@@ -1,6 +1,5 @@
 ---
 source: macro/src/lib.rs
-assertion_line: 944
 expression: "rustfmt_code(&expand_grammar(parse_quote!\n{\n    #[adze::grammar(\"test\")] mod grammar\n    {\n        #[adze::language] pub struct Code\n        { #[adze::leaf(pattern = r\"\\w+\")] token: String, } #[adze::external]\n        struct IndentToken { #[adze::leaf(pattern = r\"\\t+\")] _indent: (), }\n    }\n})? .to_token_stream().to_string())"
 ---
 mod grammar {
@@ -66,6 +65,6 @@ mod grammar {
     #[doc = "[`Code`]"]
     #[doc = r" instance containing the parsed structured data."]
     pub fn parse(input: &str) -> core::result::Result<Code, Vec<::adze::errors::ParseError>> {
-        ::adze::__private::parse::<Code>(input, || language())
+        ::adze::__private::parse_with_identity::<Code>(input, language(), Some(&START_IDENTITY))
     }
 }

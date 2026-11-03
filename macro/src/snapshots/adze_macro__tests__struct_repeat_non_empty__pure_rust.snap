@@ -1,6 +1,5 @@
 ---
 source: macro/src/lib.rs
-assertion_line: 844
 expression: "rustfmt_code(&expand_grammar(parse_quote!\n{\n    #[adze::grammar(\"test\")] mod grammar\n    {\n        #[adze::language] pub struct NumberList\n        { #[adze::repeat(non_empty = true)] numbers: Vec<Number>, } pub struct\n        Number\n        {\n            #[adze::leaf(pattern = r\"\\d+\", transform = |v|\n            v.parse().unwrap())] v: i32\n        }\n    }\n})? .to_token_stream().to_string())"
 ---
 mod grammar {
@@ -68,6 +67,10 @@ mod grammar {
     #[doc = "[`NumberList`]"]
     #[doc = r" instance containing the parsed structured data."]
     pub fn parse(input: &str) -> core::result::Result<NumberList, Vec<::adze::errors::ParseError>> {
-        ::adze::__private::parse::<NumberList>(input, || language())
+        ::adze::__private::parse_with_identity::<NumberList>(
+            input,
+            language(),
+            Some(&START_IDENTITY),
+        )
     }
 }

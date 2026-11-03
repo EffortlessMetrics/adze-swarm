@@ -29,6 +29,7 @@ fn create_simple_arithmetic_grammar() -> Grammar {
         word_token: None,
         lexical_metadata: indexmap::IndexMap::new(),
         start_symbol: None,
+        document_start_symbol: None,
         wrapper_token_relations: indexmap::IndexMap::new(),
     };
 

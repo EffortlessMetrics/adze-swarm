@@ -128,3 +128,35 @@ fn imported_grammar_js_records_first_rule_start_and_pattern_relations() {
         Some(&"source_file".to_string())
     );
 }
+
+#[test]
+fn test_explicit_document_role_is_resolved_separately_from_analysis() {
+    let value = json!({"name":"roles", "start_symbol":"analysis", "document_start_symbol":"document_owner", "rules":{
+        "analysis":{"type":"STRING","value":"x"},
+        "document_owner":{"type":"SYMBOL","name":"analysis"}
+    }});
+    let grammar = GrammarJsConverter::new(from_json(&value).unwrap())
+        .convert()
+        .unwrap();
+    assert_eq!(
+        grammar.document_start_symbol,
+        grammar.find_symbol_by_name("document_owner")
+    );
+    assert_ne!(
+        grammar.document_start_symbol,
+        grammar.explicit_start_symbol()
+    );
+}
+#[test]
+fn test_document_role_rejects_unknown_or_malformed_declaration() {
+    let mut value = json!({"name":"roles", "start_symbol":"analysis", "document_start_symbol":"absent", "rules":{
+        "analysis":{"type":"STRING","value":"x"}
+    }});
+    assert!(
+        GrammarJsConverter::new(from_json(&value).unwrap())
+            .convert()
+            .is_err()
+    );
+    value["document_start_symbol"] = json!(42);
+    assert!(from_json(&value).is_err());
+}

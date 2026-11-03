@@ -115,6 +115,15 @@ pub fn from_tree_sitter_json(value: &Value) -> Result<GrammarJs> {
         grammar_js.start_symbol = Some(start_symbol.to_string());
     }
 
+    if let Some(value) = obj.get("document_start_symbol") {
+        grammar_js.document_start_symbol = Some(
+            value
+                .as_str()
+                .context("document_start_symbol must be a string")?
+                .to_string(),
+        );
+    }
+
     if let Some(relations) = obj.get("wrapper_token_relations") {
         if let Some(relations_obj) = relations.as_object() {
             for (wrapper, token) in relations_obj {

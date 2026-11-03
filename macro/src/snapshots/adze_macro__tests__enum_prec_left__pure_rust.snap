@@ -1,6 +1,5 @@
 ---
 source: macro/src/lib.rs
-assertion_line: 488
 expression: "rustfmt_code(&expand_grammar(parse_quote!\n{\n    #[adze::grammar(\"test\")] mod grammar\n    {\n        #[adze::language] pub enum Expression\n        {\n            Number(#[adze::leaf(pattern = r\"\\d+\", transform = |v|\n            v.parse().unwrap())] i32), #[adze::prec_left(1)]\n            Sub(Box<Expression>, #[adze::leaf(text = \"-\")] (),\n            Box<Expression>),\n        }\n    }\n})? .to_token_stream().to_string())"
 ---
 mod grammar {
@@ -135,6 +134,10 @@ mod grammar {
     #[doc = "[`Expression`]"]
     #[doc = r" instance containing the parsed structured data."]
     pub fn parse(input: &str) -> core::result::Result<Expression, Vec<::adze::errors::ParseError>> {
-        ::adze::__private::parse::<Expression>(input, || language())
+        ::adze::__private::parse_with_identity::<Expression>(
+            input,
+            language(),
+            Some(&START_IDENTITY),
+        )
     }
 }
