@@ -78,7 +78,9 @@ emit the named projection verbatim. `--format` and `--output` are aliases.
 One temporary Cargo-build-and-run invocation may capture up to **64 MiB of
 stdout** and **1 MiB of stderr** (one MiB is 1,048,576 bytes). Capture stops with
 an error if either stream exceeds its limit; incomplete output is never printed
-as a successful projection. The invocation has one **600-second deadline**
+as a successful projection. The stdout budget includes the private response
+header (at most 4096 bytes including its LF) and the unchanged public payload.
+The invocation has one **600-second deadline**
 covering execution and pipe reads. Output progress does not restart it. After
 the direct child exits, any remaining pipe drain has at most **2 seconds** and
 still cannot exceed the original deadline. These are initial bounded CLI

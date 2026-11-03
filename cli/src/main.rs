@@ -11,6 +11,7 @@ mod grammar_analysis;
 mod runner_output;
 #[cfg(target_os = "linux")]
 mod runner_process;
+mod runner_protocol;
 
 use grammar_analysis::analyze_grammar_file;
 
@@ -935,7 +936,7 @@ fn run_static_parse_runner(
         parse_runner_main_rs(&grammar, &module),
     )?;
 
-    let output = {
+    let mut output = {
         eprintln!("compiling temporary parse runner (first run may take a while)...");
         let mut command = Command::new("cargo");
         command
@@ -946,8 +947,10 @@ fn run_static_parse_runner(
             .arg("--")
             .arg(&input)
             .arg(output_format)
+            .arg(runner_protocol::request_token())
             .env("ADZE_USE_PURE_RUST", "1");
-        // Preserve the existing argv, environment and inherited Cargo cwd.
+        // Preserve input/operation positions, environment and inherited Cargo
+        // cwd; the explicit private version token follows the existing args.
         // Linux owns bounded group/pipe custody. Other platforms retain the
         // existing path and are not qualified for those bounds by this slice.
         #[cfg(target_os = "linux")]
@@ -958,6 +961,13 @@ fn run_static_parse_runner(
         output
     };
 
+    // A failed child keeps actual status/root-cause precedence even if it
+    // printed a purported success frame or malformed bytes. Only successful
+    // transport reaches framing, then the unchanged public-output admission.
+    if output.status.success() {
+        runner_protocol::unframe(&mut output.stdout, output_format)
+            .with_context(|| format!("static runner protocol rejected for {}", grammar.display()))?;
+    }
     interpret_runner_output(&grammar, output_format, output)
 }
 
@@ -1341,20 +1351,30 @@ fn parse_runner_build_rs(grammar: &Path) -> String {
 
 fn parse_runner_main_rs(grammar: &Path, module: &str) -> String {
     let grammar = rust_string_literal(&grammar.display().to_string());
+    let protocol_name = rust_string_literal(runner_protocol::PROTOCOL_NAME);
+    let protocol_version = runner_protocol::PROTOCOL_VERSION;
+    let request_token = rust_string_literal(&runner_protocol::request_token());
     format!(
         r#"#[path = {grammar}]
 mod grammar_input;
 
+use std::io::Write as _;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {{
     let mut args = std::env::args_os().skip(1);
     let input = args.next().ok_or("missing input path")?;
-    let output = args.next().ok_or("missing output format")?;
+    let output_arg = args.next().ok_or("missing output format")?;
+    let protocol = args.next().ok_or("missing private runner protocol request")?;
+    if protocol.as_os_str() != std::ffi::OsStr::new({request_token}) || args.next().is_some() {{
+        return Err("unsupported private runner protocol request".into());
+    }}
+    let operation = output_arg.to_str().ok_or("output format must be UTF-8")?;
     let source = std::fs::read_to_string(input)?;
 
     let document = grammar_input::{module}::parse_document(&source)
         .map_err(|errors| format!("parse_document failed: {{errors:?}}"))?;
     let document_json = document.to_json_value();
-    let output = match output.to_str().ok_or("output format must be UTF-8")? {{
+    let output = match operation {{
         "document-json" => document_json,
         "tree-json" => serde_json::json!({{
             "schema": "adze.tree.v1",
@@ -1377,7 +1397,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {{
         other => return Err(format!("unsupported output format: {{other}}").into()),
     }};
 
-    println!("{{}}", serde_json::to_string_pretty(&output)?);
+    // Preserve the prior public pretty-JSON bytes and its single newline.
+    // The private terminal reports completed serialization, not parse success.
+    let payload = format!("{{}}\n", serde_json::to_string_pretty(&output)?);
+    let header = serde_json::json!({{
+        "protocol": {protocol_name},
+        "version": {protocol_version},
+        "operation": operation,
+        "terminal": "output",
+        "payload_bytes": payload.len(),
+    }});
+    let stdout = std::io::stdout();
+    let mut stdout = stdout.lock();
+    serde_json::to_writer(&mut stdout, &header)?;
+    stdout.write_all(b"\n")?;
+    stdout.write_all(payload.as_bytes())?;
+    stdout.flush()?;
     Ok(())
 }}
 "#

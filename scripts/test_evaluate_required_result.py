@@ -224,6 +224,7 @@ class WorkflowWiring(unittest.TestCase):
             "cli/tests/cli_test.rs",
             "cli/tests/runner_output_contract.rs",
             "cli/tests/runner_process_contract.rs",
+            "cli/tests/runner_protocol_contract.rs",
         )
         for event in ("merge_group", "pull_request"):
             for change in ("modify", "delete", "rename"):

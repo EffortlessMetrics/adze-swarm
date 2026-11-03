@@ -57,6 +57,7 @@ env:
     cli/tests/cli_test.rs
     cli/tests/runner_output_contract.rs
     cli/tests/runner_process_contract.rs
+    cli/tests/runner_protocol_contract.rs
     docs/product/ACCEPTANCE_MATRIX.md
     docs/README.md
     docs/reference/diagnostics-and-recovery.md
@@ -223,7 +224,7 @@ jobs:
         run: |
           set -euo pipefail
           source scripts/lib/required-test-output.sh
-          cargo clippy --locked -p adze-cli --bin adze --test runner_process_contract --test runner_output_contract -- -D warnings
+          cargo clippy --locked -p adze-cli --bin adze --test runner_process_contract --test runner_output_contract --test runner_protocol_contract -- -D warnings
 
           run_contract() {
             local label="$1" output status
@@ -244,6 +245,7 @@ jobs:
 
           run_contract 'Linux process custody' cargo test --locked -p adze-cli --test runner_process_contract -- --nocapture
           run_contract 'unchanged output interpretation' cargo test --locked -p adze-cli --test runner_output_contract -- --nocapture
+          run_contract 'private runner framing' cargo test --locked -p adze-cli --test runner_protocol_contract -- --nocapture
           run_contract 'actual generated tree output' cargo test --locked -p adze-cli --test cli_test test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture
           run_contract 'actual generated document projections' cargo test --locked -p adze-cli --test cli_test test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
           run_contract 'actual generated recovery diagnostics' cargo test --locked -p adze-cli --test cli_test parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture

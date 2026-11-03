@@ -1,5 +1,8 @@
-//! Completed child output reaches the real CLI parent without a Cargo build.
+//! Completed public output reaches the real CLI parent without a Cargo build.
 //! Unix fake-Cargo fixtures exercise admission, not grammar/parser semantics.
+//! Only the transport helper adds a valid private frame; payloads and their
+//! existing independent assertions remain unchanged. Malformed wire frames
+//! are supplied directly by runner_protocol_contract instead.
 #![cfg(unix)]
 
 use assert_cmd::cargo::cargo_bin_cmd;
@@ -36,7 +39,17 @@ fn run(mode: &str, stdout: &[u8], stderr: &[u8], status: u8) -> std::process::Ou
     std::fs::set_permissions(&cargo, std::fs::Permissions::from_mode(0o755)).unwrap();
     let out = fixture.path().join("out.bin");
     let err = fixture.path().join("err.bin");
-    std::fs::write(&out, stdout).unwrap();
+    let operation = match mode {
+        "tree" | "json" | "sexp" | "dot" => "document-json",
+        other => other,
+    };
+    let header = format!(
+        "{{\"protocol\":\"adze.static-runner\",\"version\":2,\"operation\":\"{operation}\",\"terminal\":\"output\",\"payload_bytes\":{}}}\n",
+        stdout.len()
+    );
+    let mut framed = header.into_bytes();
+    framed.extend_from_slice(stdout);
+    std::fs::write(&out, framed).unwrap();
     std::fs::write(&err, stderr).unwrap();
     let grammar = fixture.path().join("grammar ' λ.rs");
     std::fs::write(&grammar, "#[adze::grammar(\"fixture\")] mod grammar {}\n").unwrap();
