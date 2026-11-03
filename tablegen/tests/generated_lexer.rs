@@ -159,7 +159,6 @@ fn legacy_generate_lexer_entry_still_available() {
 #[test]
 fn test_generated_lexer_executes_config_numeric_whitespace_and_comment_patterns() {
     use adze_ir::{Token, TokenPattern};
-    use std::process::Command;
 
     let mut grammar = Grammar::new("config_lexical_subset".to_string());
     for (id, name, pattern) in [
@@ -176,7 +175,95 @@ fn test_generated_lexer_executes_config_numeric_whitespace_and_comment_patterns(
             },
         );
     }
-    let generated = codegen(&grammar, None);
+    run_generated_lexer_control(
+        &grammar,
+        r###"
+fn main() {
+    check("0", Some((1, 1)));
+    check("65535;", Some((1, 5)));
+    check("-1", None);
+    check("١", None);
+    check(" \t\r\nx", Some((2, 4)));
+    check("\u{000b}", None);
+    check("\u{000c}", None);
+    check("#", Some((3, 1)));
+    check("# café λ\r\nnext", Some((3, "# café λ".len())));
+    check("##\n", Some((3, 2)));
+    check("# no final newline", Some((3, 18)));
+    check("# before\0after\n", Some((3, "# before\0after".len())));
+    check("x#", None);
+}
+"###,
+    );
+}
+
+#[test]
+fn test_generated_lexer_executes_single_lowercase_and_preserves_lowercase_plus() {
+    use adze_ir::{Token, TokenPattern};
+
+    let mut grammar = Grammar::new("single_lowercase".to_string());
+    grammar.tokens.insert(
+        SymbolId(1),
+        Token {
+            name: "letter".to_owned(),
+            pattern: TokenPattern::Regex(r"[a-z]".to_owned()),
+            fragile: false,
+        },
+    );
+    run_generated_lexer_control(
+        &grammar,
+        r###"
+fn main() {
+    check("", None);
+    for byte in 0u8..=127 {
+        let input = char::from(byte).to_string();
+        let expected = (b'a'..=b'z').contains(&byte).then_some((1, 1));
+        check(&input, expected);
+    }
+    check("abcdefghijklmnopqrstuvwxyz", Some((1, 1)));
+    check("abc]", Some((1, 1)));
+    check("za", Some((1, 1)));
+    check("aé", Some((1, 1)));
+    check("a\0", Some((1, 1)));
+    check("éa", None);
+    check("λ", None);
+    check("١", None);
+}
+"###,
+    );
+
+    grammar
+        .tokens
+        .get_mut(&SymbolId(1))
+        .expect("letter")
+        .pattern = TokenPattern::Regex(r"[a-z]+".to_owned());
+    run_generated_lexer_control(
+        &grammar,
+        r###"
+fn main() {
+    check("", None);
+    for byte in 0u8..=127 {
+        let input = char::from(byte).to_string();
+        let expected = (b'a'..=b'z').contains(&byte).then_some((1, 1));
+        check(&input, expected);
+    }
+    check("abcdefghijklmnopqrstuvwxyz", Some((1, 26)));
+    check("abc]", Some((1, 3)));
+    check("za", Some((1, 2)));
+    check("aé", Some((1, 1)));
+    check("a\0", Some((1, 1)));
+    check("éa", None);
+    check("λ", None);
+    check("١", None);
+}
+"###,
+    );
+}
+
+fn run_generated_lexer_control(grammar: &Grammar, control: &str) {
+    use std::process::Command;
+
+    let generated = codegen(grammar, None);
     // Compile and execute the emitted matcher. The minimal callback ABI below
     // provides the same repr(C) input-slice/position backing as the runtime.
     let source = [
@@ -213,22 +300,8 @@ fn check(input: &str, expected: Option<(u16, usize)>) {
         assert_eq!(backing.pos, 0, "failed candidates must not consume input {input:?}");
     }
 }
-fn main() {
-    check("0", Some((1, 1)));
-    check("65535;", Some((1, 5)));
-    check("-1", None);
-    check("١", None);
-    check(" \t\r\nx", Some((2, 4)));
-    check("\u{000b}", None);
-    check("\u{000c}", None);
-    check("#", Some((3, 1)));
-    check("# café λ\r\nnext", Some((3, "# café λ".len())));
-    check("##\n", Some((3, 2)));
-    check("# no final newline", Some((3, 18)));
-    check("# before\0after\n", Some((3, "# before\0after".len())));
-    check("x#", None);
-}
 "###,
+        control,
     ]
     .concat();
     let nonce = std::time::SystemTime::now()

@@ -396,8 +396,11 @@ class WorkflowWiring(unittest.TestCase):
     def _native_dependency_preparation(self, platform: str) -> tuple[str, str, str]:
         import textwrap
 
-        job = "ci-product-stable" if platform == "Linux" else "ci-product-windows"
-        block = self._job_block(".github/workflows/product-proof.yml", job)
+        if platform == "Supported Proof":
+            block = self._job_block(".github/workflows/em-ci-routed-rust.yml", "supported-proof")
+        else:
+            job = "ci-product-stable" if platform == "Linux" else "ci-product-windows"
+            block = self._job_block(".github/workflows/product-proof.yml", job)
         name = f"Prepare locked native dependencies online for {platform} consumers"
         step = block[block.index(f"      - name: {name}\n"):]
         step = step.split("\n      - ", 1)[0]
@@ -407,7 +410,7 @@ class WorkflowWiring(unittest.TestCase):
                 break
             run_lines.append(line)
         script = textwrap.dedent("\n".join(run_lines))
-        if platform == "Linux":
+        if platform != "Windows":
             self.assertIn("shell: bash\n", step)
             self.assertTrue(script.startswith("set -euo pipefail\n"))
             program, suffix = script.split("python3 - <<'PY'\n", 1)[1].split("\nPY", 1)
@@ -422,6 +425,7 @@ class WorkflowWiring(unittest.TestCase):
         for platform, first_consumer in (
             ("Linux", "Qualify Linux static runner process and output contracts"),
             ("Windows", "Strict Clippy for native Windows runner contracts"),
+            ("Supported Proof", "Qualify generated LR diagnostics with GLR enabled"),
         ):
             with self.subTest(platform=platform):
                 block, step, _ = self._native_dependency_preparation(platform)
@@ -432,7 +436,7 @@ class WorkflowWiring(unittest.TestCase):
                 self.assertLess(block.index(step), block.index(first_consumer))
 
     def test_native_dependency_preparation_preserves_failures_and_lock_bytes(self) -> None:
-        """Execute both workflow programs with an actual fake Cargo subprocess.
+        """Execute all three workflow programs with an actual fake Cargo subprocess.
 
         Only Cargo's executable is substituted; the embedded hash, failure and
         lock-refusal code runs unchanged. This is not native Cargo or PowerShell
@@ -469,7 +473,11 @@ class WorkflowWiring(unittest.TestCase):
             ("removed", 0, 1), ("removed", 37, 37),
             ("missing-before", 0, 1),
         )
-        for platform, target in (("Linux", "host-tuple"), ("Windows", "x86_64-pc-windows-msvc")):
+        for platform, target in (
+            ("Linux", "host-tuple"),
+            ("Windows", "x86_64-pc-windows-msvc"),
+            ("Supported Proof", "host-tuple"),
+        ):
             _, _, program = self._native_dependency_preparation(platform)
             # This adapter preserves the workflow's exact Cargo argument list
             # and check policy while using a portable executable fake child.
