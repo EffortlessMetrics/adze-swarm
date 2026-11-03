@@ -52,7 +52,9 @@ fn main() {
             },
         );
     }
-    grammar.rule_names.insert(SymbolId(10), "source_file".into());
+    grammar
+        .rule_names
+        .insert(SymbolId(10), "source_file".into());
     grammar.rule_names.insert(SymbolId(11), "item".into());
     grammar.fields.insert(FieldId(1), "items".into());
     grammar.add_rule(Rule {

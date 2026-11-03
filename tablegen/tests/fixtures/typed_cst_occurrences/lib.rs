@@ -111,7 +111,11 @@ mod tests {
             let document = nullable::parse_document(source).expect("nullable document input");
             assert_complete(&document, source);
             let projected: nullable::NumberList = document.ast().expect("nullable AST projection");
-            assert_eq!(number_values(&projected).as_slice(), *expected, "{source:?}");
+            assert_eq!(
+                number_values(&projected).as_slice(),
+                *expected,
+                "{source:?}"
+            );
             assert_eq!(projected.numbers.span, (0, source.len()));
             assert_eq!(projected.metadata, 123);
         }
@@ -256,9 +260,11 @@ mod tests {
             let document = nullable::parse_document(source).unwrap();
             cases.push(physical_record("annotated_nullable", source, &document));
         }
-        let origin_inputs: Value =
-            serde_json::from_str(include_str!(concat!(env!("OUT_DIR"), "/origin-inputs.json")))
-                .unwrap();
+        let origin_inputs: Value = serde_json::from_str(include_str!(concat!(
+            env!("OUT_DIR"),
+            "/origin-inputs.json"
+        )))
+        .unwrap();
         let manifest = json!({
             "schema": "adze.test.physical-origin.v1",
             "recording_only": true,
