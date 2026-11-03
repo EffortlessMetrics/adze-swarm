@@ -802,12 +802,21 @@ mod fork_controls {
     pub(super) fn controller(mode: &str) {
         // The real fork happens in a fresh exact-test helper, outside the
         // original libtest process and its concurrently held store locks.
-        let fixture = tempfile::Builder::new().prefix("adze fork lock ").tempdir().unwrap();
+        let fixture = tempfile::Builder::new()
+            .prefix("adze fork lock ")
+            .tempdir()
+            .unwrap();
         let result = std::panic::catch_unwind(|| {
             let mut child = LockChild::start(fixture.path(), mode);
             let status = child.wait_status();
-            assert!(status.success(), "{mode}: {status}; {}", retained_logs(&child.directory));
-            let bytes = runner_cache_io::read_regular(&child.directory.join("stdout.log"), 64 << 10).unwrap();
+            assert!(
+                status.success(),
+                "{mode}: {status}; {}",
+                retained_logs(&child.directory)
+            );
+            let bytes =
+                runner_cache_io::read_regular(&child.directory.join("stdout.log"), 64 << 10)
+                    .unwrap();
             let stdout = String::from_utf8(bytes).unwrap();
             assert!(stdout.contains("test result: ok. 1 passed; 0 failed; 0 ignored;"));
             let marker = if mode == "fork-namespace" {
@@ -834,7 +843,11 @@ mod fork_controls {
             let mut inherited = ForkHold::start(&raw);
             drop(raw);
             inherited.assert_alive();
-            let fresh = OpenOptions::new().read(true).write(true).open(&path).unwrap();
+            let fresh = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&path)
+                .unwrap();
             assert!(matches!(fresh.try_lock(), Err(TryLockError::WouldBlock)));
             inherited.finish();
             fresh.try_lock().unwrap();
@@ -856,23 +869,34 @@ mod fork_controls {
             assert_eq!(mode, "fork-slot");
             let mut writer = store.reserve(&key(1), 64).unwrap();
             writer.write(Artifact::Executable, b"abc").unwrap();
-            writer.write(Artifact::Manifest, b"literal manifest").unwrap();
+            writer
+                .write(Artifact::Manifest, b"literal manifest")
+                .unwrap();
             let mut inherited = ForkHold::start(&writer.lock._file);
             // publish drops the old exclusive slot owner, then reacquires a
             // fresh slot description under namespace. Close-only fails Busy.
             writer.publish().unwrap();
             inherited.assert_alive();
-            assert_eq!(store.inspect(&key(1)).unwrap(), Some(b"literal manifest".to_vec()));
+            assert_eq!(
+                store.inspect(&key(1)).unwrap(),
+                Some(b"literal manifest".to_vec())
+            );
             inherited.finish();
 
             let active = store.acquire(&key(1)).unwrap().unwrap().start().unwrap();
             let token = active.token;
             let before = record(store);
             let mut inherited = ForkHold::start(&active.lock._file);
-            assert!(matches!(active.finish(None), Err(StoreError::OwnershipUnknown)));
+            assert!(matches!(
+                active.finish(None),
+                Err(StoreError::OwnershipUnknown)
+            ));
             inherited.assert_alive();
             assert_eq!(record(store), before);
-            assert!(matches!(store.reserve(&key(2), 64), Err(StoreError::Capacity)));
+            assert!(matches!(
+                store.reserve(&key(2), 64),
+                Err(StoreError::Capacity)
+            ));
             let namespace = store.namespace().unwrap();
             let Some(Entry::Published { runs, .. }) = &namespace.state.slots[0].entry else {
                 panic!("the unknown execution owner lost its published entry");
@@ -882,7 +906,9 @@ mod fork_controls {
             assert!(runs[0].started);
             drop(namespace);
             inherited.finish();
-            println!("slot handed off while inherited descriptor remained open; durable owner retained");
+            println!(
+                "slot handed off while inherited descriptor remained open; durable owner retained"
+            );
         }
     }
 
@@ -917,18 +943,40 @@ mod fork_controls {
                     libc::close(release_write.as_raw_fd());
                     libc::close(ready_read.as_raw_fd());
                     let flags = libc::fcntl(raw, libc::F_GETFD);
-                    if flags < 0 || flags & libc::FD_CLOEXEC == 0 { libc::_exit(90); }
+                    if flags < 0 || flags & libc::FD_CLOEXEC == 0 {
+                        libc::_exit(90);
+                    }
                     let ready = b"R";
-                    if libc::write(ready_write.as_raw_fd(), ready.as_ptr().cast(), 1) != 1 { libc::_exit(91); }
-                    let mut poll = libc::pollfd { fd: release_read.as_raw_fd(), events: libc::POLLIN, revents: 0 };
-                    if libc::poll(&mut poll, 1, 5000) != 1 { libc::_exit(92); }
+                    if libc::write(ready_write.as_raw_fd(), ready.as_ptr().cast(), 1) != 1 {
+                        libc::_exit(91);
+                    }
+                    let mut poll = libc::pollfd {
+                        fd: release_read.as_raw_fd(),
+                        events: libc::POLLIN,
+                        revents: 0,
+                    };
+                    if libc::poll(&mut poll, 1, 5000) != 1 {
+                        libc::_exit(92);
+                    }
                     let mut release = 0_u8;
-                    if libc::read(release_read.as_raw_fd(), (&mut release as *mut u8).cast(), 1) != 1 || release != b'X' { libc::_exit(93); }
+                    if libc::read(
+                        release_read.as_raw_fd(),
+                        (&mut release as *mut u8).cast(),
+                        1,
+                    ) != 1
+                        || release != b'X'
+                    {
+                        libc::_exit(93);
+                    }
                     // Parent operations happened before this release. The
                     // inherited description is still live at this instant.
-                    if libc::fcntl(raw, libc::F_GETFD) < 0 { libc::_exit(94); }
+                    if libc::fcntl(raw, libc::F_GETFD) < 0 {
+                        libc::_exit(94);
+                    }
                     let held = b"H";
-                    if libc::write(ready_write.as_raw_fd(), held.as_ptr().cast(), 1) != 1 { libc::_exit(95); }
+                    if libc::write(ready_write.as_raw_fd(), held.as_ptr().cast(), 1) != 1 {
+                        libc::_exit(95);
+                    }
                     libc::_exit(0);
                 }
             }
@@ -936,7 +984,13 @@ mod fork_controls {
             drop(ready_write);
             // Establish the parent-owned wait/cleanup guard before readiness
             // can fail. No other code waits for this fresh exact PID.
-            let mut child = Self { pid, release: release_write, ready: ready_read, status: None, wait_custody: true };
+            let mut child = Self {
+                pid,
+                release: release_write,
+                ready: ready_read,
+                status: None,
+                wait_custody: true,
+            };
             assert_eq!(child.byte(), b'R');
             child.assert_alive();
             child
@@ -946,11 +1000,18 @@ mod fork_controls {
             let until = Instant::now() + Duration::from_secs(5);
             loop {
                 assert!(Instant::now() < until, "fork-lock pipe deadline");
-                let mut poll = libc::pollfd { fd: self.ready.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+                let mut poll = libc::pollfd {
+                    fd: self.ready.as_raw_fd(),
+                    events: libc::POLLIN,
+                    revents: 0,
+                };
                 // SAFETY: one live initialized pollfd, bounded 10-ms wait.
                 let result = unsafe { libc::poll(&mut poll, 1, 10) };
                 if result < 0 {
-                    assert_eq!(io::Error::last_os_error().kind(), io::ErrorKind::Interrupted);
+                    assert_eq!(
+                        io::Error::last_os_error().kind(),
+                        io::ErrorKind::Interrupted
+                    );
                     continue;
                 }
                 if result != 0 {
@@ -962,22 +1023,32 @@ mod fork_controls {
         }
 
         fn observe(&mut self) -> io::Result<Option<i32>> {
-            if self.status.is_some() { return Ok(self.status); }
+            if self.status.is_some() {
+                return Ok(self.status);
+            }
             let mut status = 0;
             // SAFETY: the status pointer is valid; only this exact owned child
             // is queried. WNOHANG never waits beyond the fixture's deadline.
             let result = unsafe { libc::waitpid(self.pid, &mut status, libc::WNOHANG) };
-            if result == self.pid { self.status = Some(status); }
-            else if result < 0 {
+            if result == self.pid {
+                self.status = Some(status);
+            } else if result < 0 {
                 let error = io::Error::last_os_error();
-                if error.raw_os_error() == Some(libc::ECHILD) { self.wait_custody = false; }
-                if error.kind() != io::ErrorKind::Interrupted { return Err(error); }
+                if error.raw_os_error() == Some(libc::ECHILD) {
+                    self.wait_custody = false;
+                }
+                if error.kind() != io::ErrorKind::Interrupted {
+                    return Err(error);
+                }
             }
             Ok(self.status)
         }
 
         fn assert_alive(&mut self) {
-            assert!(self.observe().unwrap().is_none(), "fork holder exited before the ownership assertion");
+            assert!(
+                self.observe().unwrap().is_none(),
+                "fork holder exited before the ownership assertion"
+            );
         }
 
         fn finish(mut self) {
@@ -987,7 +1058,10 @@ mod fork_controls {
             let until = Instant::now() + Duration::from_secs(2);
             loop {
                 if let Some(status) = self.observe().unwrap() {
-                    assert!(std::process::ExitStatus::from_raw(status).success(), "fork holder status {status}");
+                    assert!(
+                        std::process::ExitStatus::from_raw(status).success(),
+                        "fork holder status {status}"
+                    );
                     return;
                 }
                 assert!(Instant::now() < until, "fork holder did not exit");
@@ -998,7 +1072,9 @@ mod fork_controls {
 
     impl Drop for ForkHold {
         fn drop(&mut self) {
-            if !self.wait_custody || self.status.is_some() { return; }
+            if !self.wait_custody || self.status.is_some() {
+                return;
+            }
             // SAFETY: this PID is still an unreaped owned child; the guard has
             // never observed ECHILD. Do not signal after releasing that custody.
             unsafe { libc::kill(self.pid, libc::SIGKILL) };
@@ -1006,9 +1082,14 @@ mod fork_controls {
             loop {
                 match self.observe() {
                     Ok(Some(_)) => return,
-                    Ok(None) if Instant::now() < until => std::thread::sleep(Duration::from_millis(5)),
+                    Ok(None) if Instant::now() < until => {
+                        std::thread::sleep(Duration::from_millis(5))
+                    }
                     _ => {
-                        eprintln!("UNCONFIRMED fork-lock fixture cleanup for owned child {}", self.pid);
+                        eprintln!(
+                            "UNCONFIRMED fork-lock fixture cleanup for owned child {}",
+                            self.pid
+                        );
                         return;
                     }
                 }

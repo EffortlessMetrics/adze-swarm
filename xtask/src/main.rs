@@ -328,6 +328,9 @@ enum Commands {
         /// Write the machine-readable receipt JSON to this path.
         #[arg(long)]
         receipt_out: Option<std::path::PathBuf>,
+        /// Retain source, original/served archives and partial evidence in a new directory outside the checkout.
+        #[arg(long)]
+        artifacts_out: Option<std::path::PathBuf>,
     },
     /// Verify a published crates.io CLI install in an isolated temp root.
     ///
@@ -832,6 +835,7 @@ fn run_cli() -> Result<()> {
             bin,
             dry_run,
             receipt_out,
+            artifacts_out,
         } => {
             local_release_install::run(
                 &version,
@@ -839,6 +843,7 @@ fn run_cli() -> Result<()> {
                 &bin,
                 dry_run,
                 receipt_out.as_deref(),
+                artifacts_out.as_deref(),
             )?;
         }
         Commands::VerifyCratesIoInstall {

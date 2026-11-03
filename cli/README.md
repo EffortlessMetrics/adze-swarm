@@ -96,6 +96,13 @@ terminates the CLI conventionally. Inherited ignored signals stay ignored;
 custom cancellation handlers or a child auto-reap policy are refused before
 starting the runner.
 
+Linux capture also refuses execution when the CLI is PID 1, including namespace
+init processes; their special default-signal behavior is outside this boundary.
+A failed signal-disposition restoration prevents later captures in that CLI
+process. Cancellation already dispatched on another thread is either returned
+to the capture owner or relayed after restoration, including during a later
+capture; it cannot silently disappear when one capture finishes.
+
 This covers ordinary descendants which stay in the inherited process group.
 It does not provide a sandbox or custody of deliberately escaped descendants.
 The existing argv, input path, environment and inherited Cargo working directory

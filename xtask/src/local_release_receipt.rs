@@ -8,9 +8,14 @@ use serde::Serialize;
 
 use crate::local_registry::{CapturedCommand, PublishedCrate};
 
-pub const SCHEMA_VERSION: &str = "1";
+pub const SCHEMA_VERSION: &str = "2";
 pub const RECEIPT_KIND: &str = "local-registry-package-first";
-pub const CLAIM_BOUNDARY: &str = "pre-release local-registry evidence only; not crates.io proof";
+pub const CLAIM_BOUNDARY: &str = "local archive preparation and observed starter commands; install resolution/binary provenance and cross-platform qualification remain incomplete; not crates.io proof";
+
+pub struct SourceBinding<'a> {
+    pub commit: &'a str,
+    pub artifacts_dir: &'a Path,
+}
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct LocalReleaseReceipt {
@@ -18,6 +23,9 @@ pub struct LocalReleaseReceipt {
     pub kind: String,
     pub claim_boundary: String,
     pub source_commit: String,
+    pub artifact_directory: String,
+    pub archive_provenance: String,
+    pub package_first_qualified: bool,
     pub rust_version: String,
     pub target: String,
     pub version: String,
@@ -49,7 +57,7 @@ pub struct ReceiptCommand {
 }
 
 pub fn build_receipt(
-    workspace_root: &Path,
+    source: SourceBinding<'_>,
     version: &str,
     authority: &str,
     registry: &str,
@@ -72,7 +80,10 @@ pub fn build_receipt(
         schema_version: SCHEMA_VERSION.to_string(),
         kind: RECEIPT_KIND.to_string(),
         claim_boundary: CLAIM_BOUNDARY.to_string(),
-        source_commit: source_commit(workspace_root)?,
+        source_commit: source.commit.to_string(),
+        artifact_directory: source.artifacts_dir.display().to_string(),
+        archive_provenance: "archive-provenance.json".to_string(),
+        package_first_qualified: false,
         rust_version: rust_version()?,
         target: host_target()?,
         version: version.to_string(),
@@ -191,25 +202,6 @@ fn excerpt(text: &str, max_chars: usize) -> String {
         }
         format!("{}…", &trimmed[..end])
     }
-}
-
-fn source_commit(workspace_root: &Path) -> Result<String> {
-    let output = Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .current_dir(workspace_root)
-        .output()
-        .context("running git rev-parse HEAD")?;
-    if !output.status.success() {
-        bail!(
-            "git rev-parse HEAD failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-    let commit = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if commit.is_empty() {
-        bail!("git rev-parse HEAD returned an empty commit");
-    }
-    Ok(commit)
 }
 
 fn rust_version() -> Result<String> {
@@ -332,6 +324,9 @@ mod tests {
             kind: RECEIPT_KIND.to_string(),
             claim_boundary: CLAIM_BOUNDARY.to_string(),
             source_commit: "abc123".to_string(),
+            artifact_directory: "/tmp/owned-release-evidence".to_string(),
+            archive_provenance: "archive-provenance.json".to_string(),
+            package_first_qualified: false,
             rust_version: "rustc 1.95.0".to_string(),
             target: "x86_64-unknown-linux-gnu".to_string(),
             version: "0.10.0".to_string(),
@@ -355,8 +350,10 @@ mod tests {
         };
 
         let json = serde_json::to_string(&receipt).expect("serialize receipt");
-        assert!(json.contains("\"schema_version\":\"1\""));
+        assert!(json.contains("\"schema_version\":\"2\""));
         assert!(json.contains("\"source_commit\":\"abc123\""));
+        assert!(json.contains("\"package_first_qualified\":false"));
+        assert!(json.contains("archive-provenance.json"));
         assert!(json.contains("\"checksum\":\"deadbeef\""));
         assert!(json.contains("\"starter-cargo-test\""));
     }

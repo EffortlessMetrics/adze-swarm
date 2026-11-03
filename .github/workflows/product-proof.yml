@@ -57,6 +57,7 @@ env:
     cli/tests/cli_test.rs
     cli/tests/runner_output_contract.rs
     cli/tests/runner_process_contract.rs
+    cli/tests/runner_linux_signal_contract.rs
     cli/tests/runner_protocol_contract.rs
     cli/tests/runner_cache_process_contract.rs
     cli/tests/runner_windows_process_contract.rs
@@ -83,6 +84,20 @@ env:
     docs/status/KNOWN_RED.md
     docs/specs/ADZE-SPEC-0011-product-proof-and-support-tiers.md
     docs/specs/ADZE-SPEC-0012-glr-toolkit-product-contract.md
+    scripts/test_local_release_archive.py
+    xtask/Cargo.toml
+    xtask/src/main.rs
+    xtask/src/policy.rs
+    xtask/src/local_registry.rs
+    xtask/src/local_registry_provenance.rs
+    xtask/src/local_registry_provenance_tests.rs
+    xtask/src/local_release_archive.py
+    xtask/src/local_release_install.rs
+    xtask/src/local_release_receipt.rs
+    xtask/src/release_graph.rs
+    policy/release-graph.toml
+    policy/package-boundary.toml
+    .github/workflows/local-release-receipt.yml
     samples/downstream-demo/**
     scripts/ci-product.sh
     scripts/ci-product-stable.sh
@@ -90,6 +105,10 @@ env:
     scripts/test_required_test_output.py
     scripts/run-required-test.py
     scripts/test_run_required_test.py
+    scripts/check-linux-signal-regression.py
+    scripts/test_linux_signal_regression.py
+    scripts/fixtures/linux-signal/reviewed-source.json
+    scripts/fixtures/linux-signal/legacy-load-red.patch
     scripts/evaluate-required-result.py
     scripts/test_evaluate_required_result.py
     .github/workflows/product-proof.yml
@@ -217,9 +236,15 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: clippy,rustfmt
 
       - name: Test required-proof output guards
         run: python3 scripts/test_required_test_output.py
+
+      - name: Test Linux signal regression parser and wiring
+        run: python3 scripts/test_linux_signal_regression.py
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -260,6 +285,13 @@ jobs:
           raise SystemExit(status)
           PY
 
+      - name: Reproduce Linux signal legacy-load regression
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          OWNED_ROOT: ${{ runner.temp }}/adze-linux-signal-regression-${{ github.run_id }}-${{ github.run_attempt }}
+        run: python3 scripts/check-linux-signal-regression.py red --expected-sha "$EXPECTED_SHA" --owned-root "$OWNED_ROOT"
+
       # #1066 qualifies the Linux CLI boundary separately from the README
       # Stable claims. These checks do not promote CLI/platform support tiers.
       - name: Qualify Linux static runner process and output contracts
@@ -267,7 +299,7 @@ jobs:
         run: |
           set -euo pipefail
           source scripts/lib/required-test-output.sh
-          cargo clippy --locked -p adze-cli --bin adze --test runner_process_contract --test runner_output_contract --test runner_protocol_contract --test runner_cache_process_contract -- -D warnings
+          cargo clippy --locked -p adze-cli --bin adze --test runner_process_contract --test runner_output_contract --test runner_protocol_contract --test runner_cache_process_contract --test runner_linux_signal_contract -- -D warnings
 
           run_contract() {
             local label="$1" output status
@@ -284,9 +316,18 @@ jobs:
               return "$status"
             fi
             required_test_output "$output" "$label"
+            case "$label" in
+              'Linux process custody')
+                printf '%s\n' "$output" | python3 scripts/check-linux-signal-regression.py green --suite process
+                ;;
+              'Linux signal finalization')
+                printf '%s\n' "$output" | python3 scripts/check-linux-signal-regression.py green --suite signal
+                ;;
+            esac
           }
 
           run_contract 'Linux process custody' cargo test --locked -p adze-cli --test runner_process_contract -- --nocapture
+          run_contract 'Linux signal finalization' cargo test --locked -p adze-cli --test runner_linux_signal_contract -- --nocapture --test-threads=1
           run_contract 'unchanged output interpretation' cargo test --locked -p adze-cli --test runner_output_contract -- --nocapture
           run_contract 'private runner framing' cargo test --locked -p adze-cli --test runner_protocol_contract -- --nocapture
           run_contract 'actual generated tree output' cargo test --locked -p adze-cli --test cli_test test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture
@@ -296,8 +337,48 @@ jobs:
           run_contract 'disabled cache native process and candidate controls' cargo test --locked -p adze-cli --test runner_cache_process_contract -- --nocapture
           run_contract 'direct runner protocol admission' cargo test --locked -p adze-cli --bin adze tests::test_direct_runner_keeps_completed_output_admission -- --exact --nocapture
 
+      # #1065 exercises small archive/metadata controls, not a full release install.
+      - name: Qualify local release archive provenance controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/lib/required-test-output.sh
+          python3 scripts/test_local_release_archive.py
+          cargo clippy --locked -p xtask --bin xtask --tests -- -D warnings
+
+          run_release_contract() {
+            local label="$1" output status
+            shift
+            printf '\n[local release] %s\n' "$label"
+            if output="$("$@" 2>&1)"; then
+              status=0
+            else
+              status=$?
+            fi
+            printf '%s\n' "$output"
+            if (( status != 0 )); then
+              printf '%s failed with exit %s.\n' "$label" "$status" >&2
+              return "$status"
+            fi
+            required_test_output "$output" "$label"
+          }
+
+          # Tiny Git/tar/Cargo controls only. The full selected release graph
+          # and installed Linux/Windows journey remain separate candidate proof.
+          run_release_contract 'source archive index and existing registry controls' cargo test --locked -p xtask --bin xtask local_registry:: -- --nocapture
+          run_release_contract 'local release planning' cargo test --locked -p xtask --bin xtask local_release_install:: -- --nocapture
+          run_release_contract 'local release receipt boundaries' cargo test --locked -p xtask --bin xtask local_release_receipt:: -- --nocapture
+
       - name: Run stable product lane
         run: scripts/ci-product-stable.sh
+
+      - name: Retain Linux signal regression receipt
+        if: always()
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: linux-signal-regression-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/adze-linux-signal-regression-${{ github.run_id }}-${{ github.run_attempt }}/receipt
+          if-no-files-found: error
 
   ci-product-windows:
     timeout-minutes: 30
