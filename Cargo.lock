@@ -3494,6 +3494,7 @@ dependencies = [
  "globset",
  "proc-macro2",
  "quote",
+ "semver 1.0.28",
  "serde",
  "serde_json",
  "similar",

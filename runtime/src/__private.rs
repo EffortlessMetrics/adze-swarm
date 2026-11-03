@@ -1848,15 +1848,39 @@ pub fn lex_with_language_fn(
 
     let mut tokens = Vec::new();
     let mut position = 0usize;
-    let lex_mode = if !language.lex_modes.is_null() {
-        // SAFETY: generated languages provide one lex mode per state. State 0 is
-        // the conservative default for the current generated lexers.
-        unsafe { *language.lex_modes }
-    } else {
-        crate::pure_parser::TSLexState {
-            lex_state: 0,
-            external_lex_state: 0,
+    // State-aware lex driving (#892): post-#943 generated lexers partition
+    // tokens across lex states (one `lex_modes` entry per parser state; e.g.
+    // `+` is only reachable in state 1), so a single state-0 pass cannot lex
+    // multi-state grammars. The production route (`pure_parser::lex_token`)
+    // drives `lex_fn` with the current parser state's mode at each position;
+    // this parser-independent harness instead tries every distinct lex mode
+    // at each position and keeps the maximal munch (longest match, then
+    // lowest symbol, mirroring the generated lexers' internal `better_match`
+    // over the priority-opaque `lex_fn` ABI). That union is exactly the set
+    // of tokens production could accept from any active stack.
+    let lex_modes = {
+        let mut modes = Vec::new();
+        if !language.lex_modes.is_null() {
+            // SAFETY: generated languages provide one lex mode per parser
+            // state (`state_count` entries).
+            let count = language.state_count as usize;
+            for index in 0..count {
+                let mode = unsafe { *language.lex_modes.add(index) };
+                if !modes.iter().any(|seen: &crate::pure_parser::TSLexState| {
+                    seen.lex_state == mode.lex_state
+                        && seen.external_lex_state == mode.external_lex_state
+                }) {
+                    modes.push(mode);
+                }
+            }
         }
+        if modes.is_empty() {
+            modes.push(crate::pure_parser::TSLexState {
+                lex_state: 0,
+                external_lex_state: 0,
+            });
+        }
+        modes
     };
 
     while position < source.len() {
@@ -1868,29 +1892,47 @@ pub fn lex_with_language_fn(
         }
 
         let start = position;
-        let mut backing = Backing {
-            input: source,
-            pos: position,
-            mark: position,
-        };
-        let mut ts_lexer = TsLexer {
-            lookahead,
-            advance,
-            mark_end,
-            result_symbol: u16::MAX,
-            data: &mut backing as *mut _ as *mut c_void,
-        };
+        let mut best: Option<(u16, usize)> = None;
+        for lex_mode in &lex_modes {
+            let mut backing = Backing {
+                input: source,
+                pos: position,
+                mark: position,
+            };
+            let mut ts_lexer = TsLexer {
+                lookahead,
+                advance,
+                mark_end,
+                result_symbol: u16::MAX,
+                data: &mut backing as *mut _ as *mut c_void,
+            };
 
-        // SAFETY: `lex_fn` is the generated language lexer. `ts_lexer` uses the
-        // same `TsLexer` ABI layout that generated lexers expect.
-        let ok = unsafe { lex_fn(&mut ts_lexer as *mut _ as *mut c_void, lex_mode) };
-        let end = if backing.mark > start {
-            backing.mark
-        } else {
-            backing.pos
-        };
+            // SAFETY: `lex_fn` is the generated language lexer. `ts_lexer` uses the
+            // same `TsLexer` ABI layout that generated lexers expect.
+            let ok = unsafe { lex_fn(&mut ts_lexer as *mut _ as *mut c_void, *lex_mode) };
+            let end = if backing.mark > start {
+                backing.mark
+            } else {
+                backing.pos
+            };
 
-        if !ok || ts_lexer.result_symbol == u16::MAX || end <= start {
+            if !ok || ts_lexer.result_symbol == u16::MAX || end <= start {
+                continue;
+            }
+            let candidate = (ts_lexer.result_symbol, end);
+            best = Some(match best {
+                None => candidate,
+                Some((old_symbol, old_end)) => {
+                    if end > old_end || (end == old_end && candidate.0 < old_symbol) {
+                        candidate
+                    } else {
+                        (old_symbol, old_end)
+                    }
+                }
+            });
+        }
+
+        let Some((result_symbol, end)) = best else {
             let invalid_end = diagnostic_end_for_byte(source, start);
             return Err(vec![crate::errors::ParseError {
                 reason: crate::errors::ParseErrorReason::UnexpectedToken(
@@ -1900,12 +1942,12 @@ pub fn lex_with_language_fn(
                 end: invalid_end,
                 expected: vec![],
             }]);
-        }
+        };
 
-        if !is_extra_symbol(language, ts_lexer.result_symbol) {
+        if !is_extra_symbol(language, result_symbol) {
             let text = String::from_utf8_lossy(&source[start..end]).into_owned();
             tokens.push(crate::glr_lexer::TokenWithPosition {
-                symbol_id: SymbolId(ts_lexer.result_symbol),
+                symbol_id: SymbolId(result_symbol),
                 text,
                 byte_offset: start,
                 byte_length: end - start,

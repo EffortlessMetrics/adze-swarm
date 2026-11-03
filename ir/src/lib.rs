@@ -247,7 +247,24 @@ impl Grammar {
         None
     }
 
-    /// Build or get the symbol registry
+    /// Build or get the symbol registry, propagating typed capacity errors.
+    ///
+    /// A failed construction leaves the cache unchanged. Cached registries
+    /// originate from private construction or validated deserialization.
+    pub fn try_get_or_build_registry(&mut self) -> Result<&SymbolRegistry, GrammarError> {
+        match self.symbol_registry {
+            Some(ref registry) => Ok(registry),
+            None => {
+                let registry = self.try_build_registry()?;
+                Ok(self.symbol_registry.insert(registry))
+            }
+        }
+    }
+
+    /// Build or get the symbol registry.
+    ///
+    /// This legacy infallible entry point can panic on capacity exhaustion.
+    /// Fallible callers should use [`Self::try_get_or_build_registry`].
     pub fn get_or_build_registry(&mut self) -> &SymbolRegistry {
         match self.symbol_registry {
             Some(ref registry) => registry,

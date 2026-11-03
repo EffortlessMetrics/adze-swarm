@@ -7,7 +7,12 @@ use std::collections::HashMap;
 
 /// A centralized registry for symbol ID assignment and metadata.
 /// Ensures consistent, deterministic symbol ordering across all components.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+///
+/// Deserialization validates exact forward/inverse maps, metadata keys, EOF
+/// identity and the monotonic allocation counter without renumbering IDs.
+/// Coherent sparse imports allocate above their high-water ID; a zero counter
+/// is admitted only when that high-water ID is `u16::MAX` (exhausted).
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SymbolRegistry {
     /// Ordered map of symbol names to IDs (maintains insertion order)
     symbols: IndexMap<String, SymbolId>,
@@ -17,6 +22,32 @@ pub struct SymbolRegistry {
     metadata: HashMap<SymbolId, SymbolMetadata>,
     /// Next available symbol ID
     next_id: u16,
+}
+
+// Preserve the serialized representation while admitting only coherent imported
+// identity graphs. Validating once here keeps normal registration constant-time.
+impl<'de> Deserialize<'de> for SymbolRegistry {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(rename = "SymbolRegistry")]
+        struct Representation {
+            symbols: IndexMap<String, SymbolId>,
+            ids: HashMap<SymbolId, String>,
+            metadata: HashMap<SymbolId, SymbolMetadata>,
+            next_id: u16,
+        }
+        let raw = Representation::deserialize(deserializer)?;
+        let registry = Self {
+            symbols: raw.symbols,
+            ids: raw.ids,
+            metadata: raw.metadata,
+            next_id: raw.next_id,
+        };
+        registry
+            .validate_import()
+            .map_err(serde::de::Error::custom)?;
+        Ok(registry)
+    }
 }
 
 /// Metadata about a symbol
@@ -29,6 +60,50 @@ pub struct SymbolInfo {
 }
 
 impl SymbolRegistry {
+    /// Validate the imported forward/inverse identity graph and allocator state.
+    /// Sparse IDs retain their identities: new allocation starts above the
+    /// high-water ID and never fills old gaps. Zero is an exhausted counter only
+    /// after the high-water ID reaches u16::MAX; it is never a free allocation.
+    fn validate_import(&self) -> Result<(), &'static str> {
+        if self.symbols.get("end") != Some(&SymbolId(0)) {
+            return Err("invalid symbol registry: EOF forward mapping must be end -> 0");
+        }
+        if self.ids.get(&SymbolId(0)).map(String::as_str) != Some("end") {
+            return Err("invalid symbol registry: EOF inverse mapping must be 0 -> end");
+        }
+        let mut used = std::collections::HashSet::with_capacity(self.symbols.len());
+        for id in self.symbols.values() {
+            if !used.insert(*id) {
+                return Err("invalid symbol registry: duplicate forward symbol ID");
+            }
+        }
+        if self.ids.len() != self.symbols.len()
+            || self
+                .symbols
+                .iter()
+                .any(|(name, id)| self.ids.get(id) != Some(name))
+        {
+            return Err("invalid symbol registry: forward and inverse maps must be exact inverses");
+        }
+        if self.metadata.len() != used.len()
+            || used.iter().any(|id| !self.metadata.contains_key(id))
+        {
+            return Err("invalid symbol registry: metadata keys must exactly match symbol IDs");
+        }
+        // EOF was checked above, so the used domain is nonempty.
+        let high_water = self.symbols.values().map(|id| id.0).max().unwrap_or(0);
+        if self.next_id == 0 {
+            if high_water != u16::MAX {
+                return Err(
+                    "invalid symbol registry: zero counter requires exhausted high-water ID",
+                );
+            }
+        } else if self.next_id <= high_water {
+            return Err("invalid symbol registry: next ID must exceed the high-water ID");
+        }
+        Ok(())
+    }
+
     /// Create a new empty registry
     pub fn new() -> Self {
         let mut registry = Self {
@@ -55,7 +130,8 @@ impl SymbolRegistry {
     /// Register a symbol with automatic ID assignment
     ///
     /// # Panics
-    /// Panics only when the `SymbolId(u16)` domain is exhausted; use
+    /// Panics when monotonic `SymbolId` allocation is exhausted, including a
+    /// sparse imported high-water state at `u16::MAX`; use
     /// [`try_register`](Self::try_register) for the typed-error form.
     pub fn register(&mut self, name: &str, metadata: SymbolMetadata) -> SymbolId {
         self.try_register(name, metadata).unwrap_or_else(|error| {
@@ -67,8 +143,11 @@ impl SymbolRegistry {
     /// capacity error instead of panicking, wrapping, or aliasing EOF (#985).
     ///
     /// The reserved EOF id `SymbolId(0)` is handed out exactly once (to
-    /// `"end"` at construction); every other call returns a distinct
-    /// non-zero id, so identical input registers identically.
+    /// `"end"` at construction); each distinct new name receives a fresh
+    /// non-zero ID. An existing name updates metadata without consuming an ID.
+    /// Validated sparse imports allocate above their high-water ID, preserving
+    /// existing identities and leaving gaps unused; an exhausted high-water
+    /// counter refuses new names even when such gaps remain.
     ///
     /// # Errors
     /// Returns [`GrammarError::SymbolSpaceExhausted`] without mutating the
@@ -448,7 +527,7 @@ mod tests {
     }
 
     #[test]
-    fn try_register_returns_distinct_nonzero_ids() {
+    fn test_try_register_returns_distinct_nonzero_ids() {
         let mut reg = SymbolRegistry::new();
         let a = reg.try_register("a", term_meta()).unwrap();
         let b = reg.try_register("b", term_meta()).unwrap();
@@ -459,7 +538,7 @@ mod tests {
     }
 
     #[test]
-    fn try_register_duplicate_name_reuses_id_without_consuming_capacity() {
+    fn test_try_register_duplicate_name_reuses_id_without_consuming_capacity() {
         let mut reg = SymbolRegistry::new();
         reg.next_id = u16::MAX;
         let last = reg.try_register("last", term_meta()).unwrap();
@@ -471,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn try_register_hands_out_last_slot_then_fails_typed() {
+    fn test_try_register_hands_out_last_slot_then_fails_typed() {
         // Falsifier 1 (#985): last valid SymbolId followed by one
         // additional symbol; falsifier 10: deterministic result at the
         // exact highest supported count.
@@ -497,7 +576,7 @@ mod tests {
     }
 
     #[test]
-    fn try_register_is_deterministic_at_the_domain_edge() {
+    fn test_try_register_is_deterministic_at_the_domain_edge() {
         let mut first = SymbolRegistry::new();
         first.next_id = u16::MAX - 1;
         let mut second = SymbolRegistry::new();
@@ -512,7 +591,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "symbol registry exhausted")]
-    fn register_panics_explicitly_when_exhausted() {
+    fn test_register_panics_explicitly_when_exhausted() {
         // The infallible default path fails closed with an actionable
         // message instead of wrapping into EOF; try_register is the
         // typed-error form.

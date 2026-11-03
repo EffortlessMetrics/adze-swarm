@@ -22,7 +22,7 @@ fn external_grammar(count: usize) -> Grammar {
 }
 
 #[test]
-fn try_build_registry_rejects_exhaustion_atomically() {
+fn test_try_build_registry_rejects_exhaustion_atomically() {
     // 70_000 distinct external names exceed the SymbolId(u16) domain
     // (EOF + 65_535 further symbols).
     let grammar = external_grammar(70_000);
@@ -41,7 +41,7 @@ fn try_build_registry_rejects_exhaustion_atomically() {
 }
 
 #[test]
-fn try_build_registry_succeeds_at_highest_supported_count() {
+fn test_try_build_registry_succeeds_at_highest_supported_count() {
     // Falsifier 10 (#985): deterministic result at the exact highest
     // supported count — EOF plus 65_535 distinct names fills the domain.
     let grammar = external_grammar(65_535);
@@ -64,7 +64,7 @@ fn try_build_registry_succeeds_at_highest_supported_count() {
 }
 
 #[test]
-fn try_build_registry_small_grammar_ok() {
+fn test_try_build_registry_small_grammar_ok() {
     let grammar = external_grammar(3);
     let registry = grammar
         .try_build_registry()

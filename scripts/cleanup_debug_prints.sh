@@ -12,7 +12,6 @@ FILES=(
     "runtime/src/pure_parser.rs"
     "runtime/src/unified_parser.rs"
     "runtime/src/scanner_registry.rs"
-    "runtime/src/incremental_v3.rs"
     "runtime/src/query/compiler.rs"
     "runtime/src/query/predicate_eval.rs"
 )

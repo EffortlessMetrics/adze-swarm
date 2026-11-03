@@ -1,7 +1,8 @@
 // Integration tests for the complete adze parsing pipeline
 // These tests verify that all components work together correctly
 
-// TODO: These tests need to be updated to match the new API
+// Source-only sketch: cfg(skip_integration_tests) excludes this target by default.
+// This import port does not qualify compilation, recovery or scanner behavior.
 #![cfg(skip_integration_tests)]
 
 use adze::error_recovery::ErrorRecoveryConfigBuilder;
@@ -9,11 +10,11 @@ use anyhow::Result;
 use indexmap::IndexMap;
 // use adze::external_scanner::ExternalScanner; // Unused
 // use adze::incremental_v3::{Edit, IncrementalParser, Position}; // Feature-gated
+use adze::parser_v4::Parser;
 use adze::query::{QueryCursor, compile_query};
 use adze::scanner_registry::ExternalScannerBuilder;
 use adze::scanners::IndentationScanner;
 use adze::tree_sitter::Point as Position;
-use adze::unified_parser::Parser;
 use adze_glr_core::*;
 use adze_ir::*;
 use adze_tablegen::StaticLanguageGenerator;
@@ -175,14 +176,16 @@ fn test_full_parsing_pipeline() {
         .register_rust::<IndentationScanner>();
 
     // 4. Create parser with error recovery
-    let error_recovery = ErrorRecoveryConfigBuilder::new()
+    // NOTE: `parser_v4::Parser` has no `with_error_recovery` builder; the
+    // unused builder below remains source-only while this file is disabled;
+    // the parser receives no recovery config. No recovery parity is claimed.
+    let _error_recovery = ErrorRecoveryConfigBuilder::new()
         .add_sync_token(SymbolId(102).0) // dedent
         .add_sync_token(SymbolId(100).0) // newline
         .enable_scope_recovery(true)
         .build();
 
-    let mut parser = Parser::new(grammar.clone(), parse_table, "test".to_string())
-        .with_error_recovery(error_recovery);
+    let mut parser = Parser::new(grammar.clone(), parse_table, "test".to_string());
 
     // 5. Parse some Python-like code
     let input = r#"
@@ -194,7 +197,7 @@ def bar:
     z = 3
 "#;
 
-    match parser.parse(input) {
+    match parser.parse_tree(input) {
         Ok(tree) => {
             println!("Successfully parsed Python-like code");
             verify_parse_tree(&tree);
@@ -336,8 +339,10 @@ fn test_error_recovery_integration() {
     let grammar = create_python_like_grammar();
     let parse_table = create_test_parse_table();
 
-    // Configure aggressive error recovery
-    let error_recovery = ErrorRecoveryConfigBuilder::new()
+    // Configure aggressive error recovery (see note above: `parser_v4`
+    // has no recovery builder. This disabled sketch supplies no executed
+    // recovery or builder-API proof).
+    let _error_recovery = ErrorRecoveryConfigBuilder::new()
         .add_sync_token(SymbolId(100).0) // newline
         .add_sync_token(SymbolId(102).0) // dedent
         .add_insertable_token(SymbolId(103).0) // colon
@@ -347,7 +352,7 @@ fn test_error_recovery_integration() {
         .set_max_recovery_attempts(5)
         .build();
 
-    let mut parser = Parser::new(grammar, parse_table).with_error_recovery(error_recovery);
+    let mut parser = Parser::new(grammar, parse_table, "test".to_string());
 
     // Parse code with syntax errors
     let input = r#"
@@ -358,7 +363,7 @@ def bar:
     y == 2  # wrong operator
 "#;
 
-    match parser.parse(input) {
+    match parser.parse_tree(input) {
         Ok(tree) => {
             println!("Parsed with error recovery");
             check_for_error_nodes(&tree);
@@ -417,7 +422,7 @@ fn test_external_scanner_integration() {
         .with_external_tokens(vec![SymbolId(100), SymbolId(101), SymbolId(102)])
         .register_rust::<IndentationScanner>();
 
-    let mut parser = Parser::new(grammar, parse_table);
+    let mut parser = Parser::new(grammar, parse_table, "python_like".to_string());
 
     // Input with indentation
     let input = r#"

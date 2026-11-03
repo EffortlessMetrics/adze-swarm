@@ -215,7 +215,7 @@ fn desugar_pattern_wrappers(grammar: &mut Grammar) -> Result<()> {
     }
 
     // Rebuild symbol registry after changes
-    let _ = grammar.get_or_build_registry();
+    let _ = grammar.try_get_or_build_registry()?;
 
     if !rules_to_add.is_empty() {
         debug_trace!(
@@ -505,6 +505,27 @@ module.exports = grammar({
         assert!(written.contains("pub mod syntax"));
         assert!(written.contains("pub fn parse_document"));
         assert!(written.contains("edge_by_field_name(\"left\")"));
+    }
+
+    #[test]
+    fn test_desugar_pattern_wrappers_returns_registry_capacity_error_without_caching() {
+        let mut grammar = Grammar::new("desugar_capacity".to_string());
+        grammar.externals = (0..=u16::MAX)
+            .map(|index| adze_ir::ExternalToken {
+                name: format!("external_{index:05}"),
+                symbol_id: SymbolId(index),
+            })
+            .collect();
+        let error = desugar_pattern_wrappers(&mut grammar)
+            .expect_err("fallible wrapper lowering must refuse over-domain registry names");
+        assert!(
+            matches!(
+                error.downcast_ref::<adze_ir::GrammarError>(),
+                Some(adze_ir::GrammarError::SymbolSpaceExhausted)
+            ),
+            "expected the typed registry cause from wrapper lowering, got {error:#}"
+        );
+        assert!(grammar.symbol_registry.is_none());
     }
 
     #[test]
