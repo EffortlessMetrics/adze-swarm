@@ -670,19 +670,37 @@ fn artifacts_disabled_still_creates_parser_module() {
 }
 
 #[test]
-fn artifacts_cleans_stale_files_on_rebuild() {
+fn test_artifacts_rebuild_preserves_c_and_authored_files_and_refreshes_rust_parser() {
     let dir = TempDir::new().unwrap();
     let grammar_dir = dir.path().join("grammar_cli_v5_art7");
-    fs::create_dir_all(&grammar_dir).unwrap();
+    fs::create_dir_all(grammar_dir.join("tree_sitter")).unwrap();
     let stale = grammar_dir.join("stale.txt");
     fs::write(&stale, "old").unwrap();
+    let other_owners = [
+        ("parser.c", "C parser owned by the C writer"),
+        ("tree_sitter/parser.h", "C header owned by the C writer"),
+    ];
+    for (name, bytes) in other_owners {
+        fs::write(grammar_dir.join(name), bytes).unwrap();
+    }
 
-    build_parser_from_json(
-        minimal_grammar("cli_v5_art7"),
-        make_opts_with_artifacts(&dir),
-    )
-    .unwrap();
-    assert!(!stale.exists(), "stale file should be cleaned up");
+    for _ in 0..2 {
+        let parser_path = grammar_dir.join("parser_cli_v5_art7.rs");
+        fs::write(&parser_path, "stale Rust parser").unwrap();
+        let result = build_parser_from_json(
+            minimal_grammar("cli_v5_art7"),
+            make_opts_with_artifacts(&dir),
+        )
+        .unwrap();
+        assert_eq!(fs::read(&stale).unwrap(), b"old");
+        for (name, bytes) in other_owners {
+            assert_eq!(fs::read(grammar_dir.join(name)).unwrap(), bytes.as_bytes());
+        }
+        assert_eq!(Path::new(&result.parser_path), parser_path);
+        let parser = fs::read(parser_path).unwrap();
+        assert!(!parser.is_empty());
+        assert_ne!(parser, b"stale Rust parser");
+    }
 }
 
 #[test]

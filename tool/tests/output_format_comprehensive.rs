@@ -316,7 +316,7 @@ fn multiple_builds_overwrite_artifacts() {
     // Build twice with artifacts to the same directory.
     let _r1 = build_js(simple_grammar_js(), temp_opts_with_artifacts(&dir));
     let _r2 = build_js(simple_grammar_js(), temp_opts_with_artifacts(&dir));
-    // Should still succeed (old dir is cleaned up).
+    // Owned artifacts are refreshed while their shared directory is preserved.
     let grammar_dir = dir.path().join("grammar_simple");
     assert!(grammar_dir.is_dir());
 }
