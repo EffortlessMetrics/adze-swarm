@@ -24,6 +24,10 @@
 - [Performance Optimization](guide/performance.md)
 - [Migration: rust-sitter to Adze](guide/migration.md)
 
+# Cookbook
+
+- [Cookbook](cookbook.md)
+
 # Advanced Topics
 
 - [GLR Parsing](advanced/glr-parsing.md)
@@ -35,6 +39,7 @@
 # Reference
 
 - [API Documentation](reference/api.md)
+- [CLI Reference](reference/cli-reference.md)
 - [S-Expression Format](reference/s-expression-format.md)
 - [Grammar Examples](reference/grammar-examples.md)
 - [Language Support](reference/language-support.md)

@@ -81,10 +81,13 @@ impl Parser {
                     self.perform_reduction(rule_id)?;
                 }
                 ParseAction::Accept => {
-                    if self.nodes.len() == 1 {
-                        return Ok(self.nodes.pop().expect("length checked == 1"));
+                    if self.nodes.len() > 1 {
+                        return Err("Accept but multiple nodes remain".to_string());
                     }
-                    return Err("Accept but multiple nodes remain".to_string());
+                    return self
+                        .nodes
+                        .pop()
+                        .ok_or_else(|| "Accept with empty node stack".to_string());
                 }
                 ParseAction::Error => {
                     return Err(format!("Parse error at position {}", position));
@@ -271,7 +274,7 @@ impl Parser {
     }
 
     fn production_id_map_slice(&self) -> Result<&[u16], String> {
-        let len = self.language.production_id_count as usize;
+        let len = self.language.rule_count as usize;
         if len == 0 {
             return Ok(&[]);
         }
@@ -353,7 +356,21 @@ mod tests {
             production_lhs_index: std::ptr::null(),
             production_count: 0,
             eof_symbol: 0,
+            rules: std::ptr::null(),
+            rule_count: 0,
         }
+    }
+
+    #[test]
+    fn test_production_map_slice_uses_rule_count_for_sparse_and_shared_metadata() {
+        static MAP: [u16; 6] = [5, 0, 0, 99, 99, 99];
+        let mut language = null_language();
+        language.production_id_count = 6;
+        language.production_id_map = MAP.as_ptr();
+        language.rule_count = 3;
+        let language = Box::leak(Box::new(language));
+        let parser = Parser::new(language);
+        assert_eq!(parser.production_id_map_slice().unwrap(), &[5, 0, 0]);
     }
 
     #[test]
@@ -400,5 +417,75 @@ mod tests {
 
         let err = parser.parse("1").expect_err("expected parse to fail");
         assert!(err.contains("parse table pointer is null"));
+    }
+
+    #[test]
+    fn test_accept_with_empty_nodes_returns_error() {
+        // Slice length is state_count*2; entries must live inside that window.
+        // State 0 maps symbol 7 straight to Accept; entries sit at [4, 5].
+        static PARSE_TABLE: [u16; 6] = [1, 4, 0, 0, 7, 0xFFFF];
+        let mut lang = null_language();
+        lang.state_count = 3;
+        lang.parse_table = PARSE_TABLE.as_ptr();
+
+        // SAFETY: `lang` outlives `parser` in this test scope; table is static.
+        let mut parser = unsafe {
+            let lang_ptr = &lang as *const TSLanguage;
+            Parser::new(&*lang_ptr)
+        };
+
+        let err = parser.parse("1").expect_err("expected parse to fail");
+        assert_eq!(err, "Accept with empty node stack");
+    }
+
+    #[test]
+    fn test_accept_with_single_node_returns_ok() {
+        // State 0 shifts symbol 7 to state 1 (entries at [6, 7]);
+        // state 1 accepts on EOF (entries at [4, 5]).
+        static PARSE_TABLE: [u16; 8] = [1, 6, 1, 4, 0, 0xFFFF, 7, 1];
+        let mut lang = null_language();
+        lang.state_count = 4;
+        lang.parse_table = PARSE_TABLE.as_ptr();
+
+        // SAFETY: `lang` outlives `parser` in this test scope; table is static.
+        let mut parser = unsafe {
+            let lang_ptr = &lang as *const TSLanguage;
+            Parser::new(&*lang_ptr)
+        };
+
+        let node = parser.parse("1").expect("expected parse to succeed");
+        assert_eq!(node.symbol, 7);
+        assert_eq!((node.start_byte, node.end_byte), (0, 1));
+    }
+
+    #[test]
+    fn test_accept_with_multiple_nodes_preserves_error_and_nodes() {
+        // Two numeric shifts followed by Accept without a reduction.
+        static PARSE_TABLE: [u16; 12] = [1, 6, 1, 8, 1, 10, 7, 1, 7, 2, 0, 0xFFFF];
+        let mut lang = null_language();
+        lang.state_count = 6;
+        lang.parse_table = PARSE_TABLE.as_ptr();
+
+        // SAFETY: `lang` outlives `parser`; the advertised table is static.
+        let mut parser = unsafe {
+            let lang_ptr = &lang as *const TSLanguage;
+            Parser::new(&*lang_ptr)
+        };
+
+        assert_eq!(
+            parser.parse("12").unwrap_err(),
+            "Accept but multiple nodes remain"
+        );
+        assert_eq!(parser.nodes.len(), 2);
+        assert_eq!(parser.nodes[0].symbol, 7);
+        assert_eq!(parser.nodes[1].symbol, 7);
+        assert_eq!(
+            (parser.nodes[0].start_byte, parser.nodes[0].end_byte),
+            (0, 1)
+        );
+        assert_eq!(
+            (parser.nodes[1].start_byte, parser.nodes[1].end_byte),
+            (1, 2)
+        );
     }
 }

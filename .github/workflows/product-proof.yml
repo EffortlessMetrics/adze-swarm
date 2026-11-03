@@ -6,7 +6,7 @@ on:
   # only: cheap real signal so the entry stays queueable. Stable
   # canaries run once per merge-queue entry. Drafts run nothing.
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       lane:
@@ -64,6 +64,7 @@ env:
     samples/downstream-demo/**
     scripts/ci-product.sh
     scripts/ci-product-stable.sh
+    scripts/lib/required-test-output.sh
     .github/workflows/product-proof.yml
     runtime/**
     macro/**

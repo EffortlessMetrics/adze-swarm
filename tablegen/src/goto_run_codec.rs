@@ -55,9 +55,11 @@ impl GotoRunCodec {
             return Ok(());
         }
 
-        let state = self
-            .last_state
-            .expect("run_length > 0 implies last_state is set");
+        let Some(state) = self.last_state else {
+            return Err(TableGenError::Compression(
+                "goto run has nonzero length but no pending state".to_string(),
+            ));
+        };
 
         if self.run_length > 2 {
             self.data.push(CompressedGotoEntry::RunLength {
@@ -83,4 +85,49 @@ fn checked_u16(value: usize, context: &'static str) -> Result<u16> {
             u16::MAX
         ))
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_emit_pending_run_without_state_returns_error() {
+        let mut codec = GotoRunCodec::new();
+        // Invariant violation: nonzero run with no pending state.
+        codec.run_length = 1;
+        assert!(codec.last_state.is_none());
+        let err = codec
+            .emit_pending_run()
+            .expect_err("expected structured error, not a panic");
+        assert!(
+            matches!(err, TableGenError::Compression(_)),
+            "unexpected error: {err:?}"
+        );
+        assert!(err.to_string().contains("no pending state"));
+    }
+
+    #[test]
+    fn test_emit_pending_run_with_no_run_is_ok() {
+        let mut codec = GotoRunCodec::new();
+        assert!(codec.emit_pending_run().is_ok());
+    }
+
+    #[test]
+    fn test_push_repeated_state_emits_singles() {
+        let mut codec = GotoRunCodec::new();
+        codec.begin_row().unwrap();
+        codec.push_state(3).unwrap();
+        codec.push_state(3).unwrap();
+        codec.end_row().unwrap();
+        let (data, offsets) = codec.finish().unwrap();
+        assert!(matches!(
+            data.as_slice(),
+            [
+                CompressedGotoEntry::Single(3),
+                CompressedGotoEntry::Single(3)
+            ]
+        ));
+        assert_eq!(offsets, vec![0, 2]);
+    }
 }

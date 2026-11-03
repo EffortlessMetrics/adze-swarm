@@ -8,18 +8,20 @@ impl<'a> AbiLanguageBuilder<'a> {
     pub(super) fn generate_production_id_map(&self) -> Vec<TokenStream> {
         // Tree-sitter uses 1-based production IDs in the parse table
         // After decoding to zero-based, runtime indexes this map by RULE ID from parse actions.
-        // Therefore this map must be: rule_id -> production_id.
-        // PARSE_ACTIONS / TS_RULES are indexed by production_id.
-        let map_size = self.calculate_counts().production_id_count as usize;
+        // Therefore this map must be: rule_id -> production_id, with exactly
+        // one entry per RuleId in rule order (#1060). ProductionId is
+        // shareable metadata: several rules may map to one slot and slots may
+        // be sparse, so sizing by production count would pad or truncate.
+        // TS_RULES uses the same RuleId order; field/alias metadata stays production-indexed.
+        let map_size = self.grammar.all_rules().count();
 
         // Initialize map with a sentinel value (u16::MAX)
         let mut rule_to_production = vec![u16::MAX; map_size];
 
         // Fill the map in the same rule-id order used by GLR action generation.
+        // `map_size` is the rule count, so every rule has its slot.
         for (rule_id, rule) in self.grammar.all_rules().enumerate() {
-            if rule_id < map_size {
-                rule_to_production[rule_id] = rule.production_id.0;
-            }
+            rule_to_production[rule_id] = rule.production_id.0;
         }
 
         // Convert to TokenStreams
@@ -78,35 +80,10 @@ impl<'a> AbiLanguageBuilder<'a> {
         lhs_indices
     }
     pub(super) fn generate_ts_rules(&self) -> crate::Result<Vec<TokenStream>> {
-        let production_id_count = self.calculate_counts().production_id_count as usize;
-        if self.grammar.all_rules().next().is_none() {
-            return Ok(Vec::new());
-        }
-
-        // Generate TSRule structs indexed by production ID.
-        let mut ts_rules = vec![
-            quote! {
-                TSRule {
-                    lhs: 0,
-                    rhs_len: 0,
-                    _pad: 0,
-                }
-            };
-            production_id_count
-        ];
-
-        // Get all rules sorted by production ID
-        let mut rules: Vec<_> = self
-            .grammar
-            .rules
-            .iter()
-            .flat_map(|(_, rules)| rules.iter())
-            .collect();
-        rules.sort_by_key(|rule| rule.production_id.0);
-
-        // For each production, create a TSRule
-        for rule in &rules {
-            let production_index = rule.production_id.0 as usize;
+        // Syntax facts cannot be stored in shareable metadata slots: two
+        // rules sharing fields/aliases may have different LHS or RHS length.
+        let mut ts_rules = Vec::with_capacity(self.grammar.all_rules().count());
+        for rule in self.grammar.all_rules() {
             let symbol_id = rule.lhs;
             let lhs = self
                 .parse_table
@@ -122,15 +99,13 @@ impl<'a> AbiLanguageBuilder<'a> {
                     symbol_id.0 as usize
                 }) as u16;
             let rhs_len = self.checked_rhs_len(rule)?;
-            if production_index < ts_rules.len() {
-                ts_rules[production_index] = quote! {
-                    TSRule {
-                        lhs: #lhs,
-                        rhs_len: #rhs_len,
-                        _pad: 0,
-                    }
-                };
-            }
+            ts_rules.push(quote! {
+                TSRule {
+                    lhs: #lhs,
+                    rhs_len: #rhs_len,
+                    _pad: 0,
+                }
+            });
         }
 
         Ok(ts_rules)
@@ -183,5 +158,56 @@ impl<'a> AbiLanguageBuilder<'a> {
             .copied()
             .map(|index| index as u16)
             .or(Some(symbol_id.0))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use adze_ir::{Grammar, ProductionId, Rule, SymbolId};
+
+    fn map_value(token: &TokenStream) -> u16 {
+        token.to_string().trim_end_matches("u16").parse().unwrap()
+    }
+
+    fn rule(lhs: SymbolId, production_id: ProductionId) -> Rule {
+        Rule {
+            lhs,
+            rhs: vec![],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id,
+        }
+    }
+
+    /// Encode-side half of the #1060 production-map sizing contract: when a
+    /// shared-ProductionId grammar has MORE rules than production slots, every
+    /// rule still gets exactly one map entry in rule order. Sizing by
+    /// production count (max slot + 1 = 2 here) silently drops RuleId(2),
+    /// which no decoder can recover.
+    #[test]
+    fn test_production_id_map_keeps_rules_beyond_production_slot_count() {
+        let mut grammar = Grammar::new("more_rules_than_slots".to_string());
+        let start = SymbolId(1);
+        grammar.add_rule(rule(start, ProductionId(0)));
+        grammar.add_rule(rule(start, ProductionId(1)));
+        grammar.add_rule(rule(start, ProductionId(0)));
+
+        let table = crate::empty_table!(states: 1, terms: 1, nonterms: 1);
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let map = builder.generate_production_id_map();
+        let values: Vec<u16> = map.iter().map(map_value).collect();
+
+        assert_eq!(
+            values,
+            vec![0, 1, 0],
+            "one entry per RuleId in rule order, even when rule count exceeds production slot count"
+        );
+        assert_eq!(
+            builder.generate_ts_rules().unwrap().len(),
+            values.len(),
+            "map length must match TS_RULES (rule) count for the decode-side rule-id index"
+        );
     }
 }

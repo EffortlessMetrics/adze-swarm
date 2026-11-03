@@ -158,7 +158,7 @@ fn empty_goto_table(lang: &TSLanguage, symbol_count: usize) -> Vec<Vec<StateId>>
     vec![vec![StateId(0); symbol_count]; lang.state_count as usize]
 }
 
-fn decode_symbol_maps(
+pub(super) fn decode_symbol_maps(
     lang: &TSLanguage,
     symbol_count: usize,
 ) -> (Vec<SymbolId>, BTreeMap<SymbolId, usize>) {
@@ -208,28 +208,26 @@ fn decode_parse_rules(
     grammar: &adze_ir::Grammar,
     index_to_symbol: &[SymbolId],
 ) -> Vec<ParseRule> {
-    let mut rules_vec = vec![None; lang.rule_count as usize];
-    for rules_for_lhs in grammar.rules.values() {
-        for rule in rules_for_lhs {
-            let idx = rule.production_id.0 as usize;
-            if idx < rules_vec.len() {
-                rules_vec[idx] = Some(ParseRule {
-                    lhs: rule.lhs,
-                    rhs_len: rule.rhs.len() as u16,
-                });
-            }
-        }
-    }
-
-    let mut rules: Vec<_> = rules_vec
-        .into_iter()
-        .map(|opt_rule| {
-            opt_rule.unwrap_or(ParseRule {
-                lhs: SymbolId(0),
-                rhs_len: 0,
+    // Syntax metadata is already dense in RuleId order. ProductionId is a
+    // field/alias slot and must never select or overwrite a syntax rule.
+    let mut rules = if !lang.rules.is_null() {
+        // SAFETY: the native ABI advertises rule_count TSRule records.
+        unsafe { std::slice::from_raw_parts(lang.rules, lang.rule_count as usize) }
+            .iter()
+            .map(|rule| ParseRule {
+                lhs: SymbolId(rule.lhs),
+                rhs_len: rule.rhs_len as u16,
             })
-        })
-        .collect();
+            .collect::<Vec<_>>()
+    } else {
+        grammar
+            .all_rules()
+            .map(|rule| ParseRule {
+                lhs: rule.lhs,
+                rhs_len: rule.rhs.len() as u16,
+            })
+            .collect::<Vec<_>>()
+    };
 
     for rule in &mut rules {
         if (rule.lhs.0 as usize) < index_to_symbol.len() {
@@ -449,9 +447,16 @@ fn decode_small_action(lang: &TSLanguage, action_index: usize, rules_len: usize)
     let action = if action_index == 0xFFFF {
         Action::Accept
     } else if action_index & 0x8000 != 0 {
-        let encoded_rule_id = (action_index & 0x7FFF) - 1;
-        mapped_production_id(lang, encoded_rule_id, rules_len)
-            .map(|production_id| Action::Reduce(RuleId(production_id)))?
+        let encoded_rule_id = (action_index & 0x7FFF).checked_sub(1)?;
+        // The production map holds one entry per rule (`rule_count`), so the
+        // access is bounded by the map length, not `production_id_count`:
+        // sparse tables (`production_id_count > rule_count`) admit no ids here.
+        if encoded_rule_id >= rules_len || encoded_rule_id >= lang.rule_count as usize {
+            return None;
+        }
+        // Validate the relation, but retain syntax identity in reductions.
+        lang.production_for_rule(encoded_rule_id)?;
+        Action::Reduce(RuleId(encoded_rule_id as u16))
     } else {
         Action::Shift(StateId(action_index as u16))
     };
@@ -505,11 +510,9 @@ fn decode_eof_symbol(lang: &TSLanguage, index_to_symbol: &[SymbolId]) -> SymbolI
 
 fn build_field_map(grammar: &adze_ir::Grammar) -> BTreeMap<(RuleId, u16), u16> {
     let mut field_map = BTreeMap::new();
-    for rules_vec in grammar.rules.values() {
-        for rule in rules_vec {
-            for (fid, pos) in &rule.fields {
-                field_map.insert((RuleId(rule.production_id.0), *pos as u16), fid.0);
-            }
+    for (rule_index, rule) in grammar.all_rules().enumerate() {
+        for (fid, pos) in &rule.fields {
+            field_map.insert((RuleId(rule_index as u16), *pos as u16), fid.0);
         }
     }
     field_map
@@ -672,24 +675,144 @@ pub(super) fn decode_action(
     }
 }
 
-fn mapped_production_id(
-    lang: &TSLanguage,
-    encoded_rule_id: usize,
-    production_count: usize,
-) -> Option<u16> {
-    let production_id = if !lang.production_id_map.is_null()
-        && encoded_rule_id < lang.production_id_count as usize
-    {
-        // SAFETY: `encoded_rule_id` is bounded by `production_id_count`, and
-        // TSLanguage production_id_map contains one entry per production slot.
-        unsafe { *lang.production_id_map.add(encoded_rule_id) }
-    } else {
-        u16::try_from(encoded_rule_id).ok()?
-    };
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::pure_parser::{ExternalScanner, TREE_SITTER_LANGUAGE_VERSION, TSRule};
+    use adze_ir::ProductionId;
 
-    if production_id == u16::MAX || production_id as usize >= production_count {
-        None
-    } else {
-        Some(production_id)
+    /// Sparse-production fixture: FEWER rules than production slots
+    /// (`production_id_count = 5 > rule_count = 2`). The map stays
+    /// rule-count sized (RuleId -> ProductionId); slot VALUES may exceed
+    /// the rule count. Mirrors the tablegen truncation-direction pin
+    /// (#1060): encode sizes by rule count, so decode must bound by it too.
+    static SPARSE_PRODUCTION_ID_MAP: [u16; 2] = [4, 0];
+    static SPARSE_RULES: [TSRule; 2] = [
+        TSRule {
+            lhs: 2,
+            rhs_len: 1,
+            _pad: 0,
+        },
+        TSRule {
+            lhs: 2,
+            rhs_len: 1,
+            _pad: 0,
+        },
+    ];
+    static SPARSE_SMALL_TABLE: [u16; 2] = [1, 0x8001];
+    static SPARSE_SMALL_TABLE_MAP: [u32; 2] = [0, 2];
+    static SPARSE_NAME_ERROR: &[u8] = b"end\0";
+    static SPARSE_NAME_TOKEN: &[u8] = b"token\0";
+    static SPARSE_NAME_NODE: &[u8] = b"node\0";
+
+    fn sparse_language() -> &'static TSLanguage {
+        let symbol_names = Box::leak(Box::new([
+            SPARSE_NAME_ERROR.as_ptr(),
+            SPARSE_NAME_TOKEN.as_ptr(),
+            SPARSE_NAME_NODE.as_ptr(),
+        ]));
+        Box::leak(Box::new(TSLanguage {
+            version: TREE_SITTER_LANGUAGE_VERSION,
+            symbol_count: 3,
+            alias_count: 0,
+            token_count: 2,
+            external_token_count: 0,
+            state_count: 1,
+            large_state_count: 0,
+            production_id_count: 5,
+            field_count: 0,
+            max_alias_sequence_length: 0,
+            production_id_map: SPARSE_PRODUCTION_ID_MAP.as_ptr(),
+            parse_table: std::ptr::null(),
+            small_parse_table: SPARSE_SMALL_TABLE.as_ptr(),
+            small_parse_table_map: SPARSE_SMALL_TABLE_MAP.as_ptr(),
+            parse_actions: std::ptr::null(),
+            symbol_names: symbol_names.as_ptr(),
+            field_names: std::ptr::null(),
+            field_map_slices: std::ptr::null(),
+            field_map_entries: std::ptr::null(),
+            symbol_metadata: std::ptr::null(),
+            public_symbol_map: std::ptr::null(),
+            alias_map: std::ptr::null(),
+            alias_sequences: std::ptr::null(),
+            lex_modes: std::ptr::null(),
+            lex_fn: None,
+            keyword_lex_fn: None,
+            keyword_capture_token: 0,
+            external_scanner: ExternalScanner::default(),
+            primary_state_ids: std::ptr::null(),
+            production_lhs_index: std::ptr::null(),
+            production_count: 5,
+            eof_symbol: 0,
+            rules: SPARSE_RULES.as_ptr(),
+            rule_count: 2,
+        }))
+    }
+
+    #[test]
+    fn test_sparse_production_table_decodes_with_syntax_rule_identity() {
+        let table = decode_parse_table(sparse_language());
+
+        assert_eq!(table.rules.len(), 2);
+        assert_eq!(
+            table.grammar.production_ids.get(&RuleId(0)),
+            Some(&ProductionId(4))
+        );
+        assert_eq!(
+            table.grammar.production_ids.get(&RuleId(1)),
+            Some(&ProductionId(0))
+        );
+        // Slot 4 names metadata, never syntax: the reduce keeps RuleId(0).
+        match table.action_table[0][1][0] {
+            Action::Reduce(RuleId(rule_id)) => assert_eq!(rule_id, 0),
+            ref action => panic!("expected mapped reduce action, got {action:?}"),
+        }
+    }
+
+    #[test]
+    fn test_sparse_production_bound_rejects_ids_at_or_above_rule_count() {
+        let lang = sparse_language();
+        let reduce = |rule_id: u16| decode_small_action(lang, 0x8000 | (rule_id as usize + 1), 2);
+
+        // Valid rule ids decode with syntax identity, however sparse the slots.
+        assert!(matches!(reduce(0), Some(Action::Reduce(RuleId(0)))));
+        assert!(matches!(reduce(1), Some(Action::Reduce(RuleId(1)))));
+        // Rule ids inside `production_id_count` but at/above `rule_count` are
+        // rejected: the old production-count bound admitted them and read
+        // past the rule-count-sized map.
+        assert_eq!(reduce(2), None);
+        assert_eq!(reduce(4), None);
+        assert_eq!(reduce(5), None);
+        // Underflowing encode (rule "minus one") and Accept arm are unaffected.
+        assert_eq!(decode_small_action(lang, 0x8000, 2), None);
+        assert_eq!(decode_small_action(lang, 0xFFFF, 2), Some(Action::Accept));
+
+        // Executable form of the map-sizing contract: the old
+        // `id < production_id_count` bound and the current
+        // `id < rule_count` bound agree on every valid rule id and differ
+        // exactly on the sparse window `[rule_count, production_id_count)`.
+        let (rule_count, production_id_count) =
+            (lang.rule_count as usize, lang.production_id_count as usize);
+        assert!(
+            rule_count < production_id_count,
+            "fixture must be sparse: production_id_count > rule_count"
+        );
+        for id in 0..=production_id_count {
+            let old_admits = id < production_id_count;
+            let new_admits = id < rule_count;
+            if id < rule_count {
+                assert!(
+                    old_admits && new_admits,
+                    "valid rule id {id} admitted by both"
+                );
+            } else if id < production_id_count {
+                assert!(
+                    old_admits && !new_admits,
+                    "sparse-window id {id}: old bound admits, rule-count bound rejects"
+                );
+            } else {
+                assert!(!old_admits && !new_admits, "id {id} beyond both bounds");
+            }
+        }
     }
 }

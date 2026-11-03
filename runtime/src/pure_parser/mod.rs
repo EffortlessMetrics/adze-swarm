@@ -39,6 +39,23 @@ pub type TSStateId = u16;
 #[allow(dead_code)]
 pub type TSFieldId = u16;
 
+impl TSLanguage {
+    /// Resolve a syntax rule to its shareable metadata slot.
+    pub(crate) fn production_for_rule(&self, rule_index: usize) -> Option<u16> {
+        if rule_index >= self.rule_count as usize {
+            return None;
+        }
+        let production = if self.production_id_map.is_null() {
+            u16::try_from(rule_index).ok()?
+        } else {
+            // SAFETY: the native ABI stores exactly rule_count map entries,
+            // and rule_index is bounded above before pointer arithmetic.
+            unsafe { *self.production_id_map.add(rule_index) }
+        };
+        ((production as u32) < self.production_id_count).then_some(production)
+    }
+}
+
 /// Friendly name for [`TSSymbol`]; both names denote the same type.
 pub type Symbol = TSSymbol;
 
@@ -121,7 +138,7 @@ pub struct TSLanguage {
     pub production_id_count: u32,
     pub field_count: u32,
     pub max_alias_sequence_length: u16,
-    pub production_id_map: *const u16,
+    pub production_id_map: *const u16, // rule_count entries, RuleId -> ProductionId
     pub parse_table: *const u16,
     pub small_parse_table: *const u16,
     pub small_parse_table_map: *const u32,
@@ -143,8 +160,8 @@ pub struct TSLanguage {
     pub production_lhs_index: *const u16, // LHS symbols in table index space
     pub production_count: u16,            // Number of productions
     pub eof_symbol: u16,                  // Column index of EOF (usually 0)
-    pub rules: *const TSRule,             // Rule metadata array
-    pub rule_count: u16,                  // Number of rules
+    pub rules: *const TSRule,             // Syntax metadata indexed by RuleId
+    pub rule_count: u16,                  // Length of rules and production_id_map
 }
 
 /// Friendly name for [`TSLanguage`]; both names denote the same type.
@@ -494,7 +511,15 @@ impl Parser {
             // Track parsing progress
 
             // Get action for current state and token
-            let action = self.get_action(language, current_state, token.symbol);
+            // Lexical failure and an EOF column returned before physical EOF
+            // must never reduce/accept an otherwise valid source prefix (#1174).
+            let action = if token.is_invalid
+                || (token.symbol == language.eof_symbol && position < source.len())
+            {
+                Action::Error
+            } else {
+                self.get_action(language, current_state, token.symbol)
+            };
             // Debug logging for arithmetic parsing
             if source.len() < 20 {
                 //if current_state == 0 && position == 0 {
@@ -606,6 +631,10 @@ impl Parser {
                             let mut max_end_point = root.end_point;
 
                             for extra in extra_nodes.drain(..) {
+                                if extra.start_byte < root.start_byte {
+                                    root.start_byte = extra.start_byte;
+                                    root.start_point = extra.start_point;
+                                }
                                 if extra.end_byte > max_end_byte {
                                     max_end_byte = extra.end_byte;
                                     max_end_point = extra.end_point;
@@ -619,6 +648,10 @@ impl Parser {
                         }
                         if !error_nodes.is_empty() {
                             for error in error_nodes.drain(..) {
+                                if error.start_byte < root.start_byte {
+                                    root.start_byte = error.start_byte;
+                                    root.start_point = error.start_point;
+                                }
                                 if error.end_byte > root.end_byte {
                                     root.end_byte = error.end_byte;
                                     root.end_point = error.end_point;
@@ -670,10 +703,17 @@ impl Parser {
 
                     if let Some(top) = self.stack.last_mut() {
                         if let Some(ref mut node) = top.subtree {
-                            let prev_end_byte = node.end_byte;
-                            node.end_byte = node.end_byte.max(error_node.end_byte);
-                            if error_node.end_byte >= prev_end_byte {
-                                node.end_point = error_node.end_point;
+                            // Only widen a node for an error that overlaps it. A
+                            // failure beginning at or after the node's end (e.g.
+                            // trailing input after a complete token) is recorded
+                            // as a child without rewriting the node's exact span:
+                            // token byte ranges cover exactly their lexed text.
+                            if error_node.start_byte < node.end_byte {
+                                let prev_end_byte = node.end_byte;
+                                node.end_byte = node.end_byte.max(error_node.end_byte);
+                                if error_node.end_byte >= prev_end_byte {
+                                    node.end_point = error_node.end_point;
+                                }
                             }
                             node.children.push(error_node);
                         } else {
@@ -683,10 +723,17 @@ impl Parser {
                         error_nodes.push(error_node);
                     }
 
-                    // Simple error recovery: skip token
+                    // Invalid generated tokens consume one complete UTF-8
+                    // scalar (or one raw invalid byte), never half a character.
                     if position < source.len() {
-                        position += 1;
-                        point = advance_point(point, &source[position - 1..position]);
+                        let start = position;
+                        let width = if token.is_invalid {
+                            token.length.max(1)
+                        } else {
+                            1
+                        };
+                        position = position.saturating_add(width).min(source.len());
+                        point = advance_point(point, &source[start..position]);
                     } else {
                         break;
                     }
@@ -718,6 +765,7 @@ impl Parser {
                     symbol: language.eof_symbol,
                     length: 0,
                     is_extra: false,
+                    is_invalid: false,
                 };
             }
         };
@@ -734,6 +782,7 @@ impl Parser {
                 symbol: language.eof_symbol,
                 length: 0,
                 is_extra: false,
+                is_invalid: false,
             }; // EOF
         }
 
@@ -815,6 +864,7 @@ impl Parser {
                         symbol,
                         length: ext_lexer.token_end,
                         is_extra: false,
+                        is_invalid: false,
                     };
                 }
             }
@@ -889,11 +939,14 @@ impl Parser {
                         symbol: language.eof_symbol,
                         length: 0,
                         is_extra: false,
+                        is_invalid: false,
                     };
                 }
 
                 let mut backing = Backing {
-                    input: &lexer.input,
+                    // The appended sentinel belongs to the parser, not the
+                    // generated lexer's logical source (including comments).
+                    input: &lexer.input[..lexer.input.len() - 1],
                     pos: position,
                     mark: position,
                     tok_len: 0,
@@ -916,19 +969,26 @@ impl Parser {
                         backing.pos
                     };
                     let symbol = ts.result_symbol;
+                    if symbol == language.eof_symbol
+                        || end <= position
+                        || end > lexer.input.len() - 1
+                    {
+                        return Token::invalid(
+                            language.eof_symbol,
+                            &lexer.input[position..lexer.input.len() - 1],
+                        );
+                    }
                     return Token {
                         symbol,
                         length: end - position,
                         is_extra: self.is_extra_symbol(language, symbol),
+                        is_invalid: false,
                     };
                 } else {
-                    let at_eof = position >= lexer.input.len() - 1;
-                    let symbol = if at_eof { language.eof_symbol } else { 0 };
-                    return Token {
-                        symbol,
-                        length: 0,
-                        is_extra: false,
-                    };
+                    return Token::invalid(
+                        language.eof_symbol,
+                        &lexer.input[position..lexer.input.len() - 1],
+                    );
                 }
             }
         }
@@ -947,6 +1007,7 @@ impl Parser {
                 symbol: language.eof_symbol, // EOF column index from language
                 length: 0,
                 is_extra: false,
+                is_invalid: false,
             };
         }
 
@@ -965,6 +1026,7 @@ impl Parser {
                 symbol: 1,
                 length: len,
                 is_extra: true,
+                is_invalid: false,
             };
         }
 
@@ -973,6 +1035,7 @@ impl Parser {
             symbol: ch as u16,
             length: 1,
             is_extra: false,
+            is_invalid: false,
         }
     }
 
@@ -1340,7 +1403,7 @@ impl Parser {
 
         // SAFETY: `production_id_map`, `parse_actions`, and `production_lhs_index`
         // are static arrays from TSLanguage. All accesses are guarded by
-        // `production_id_count` bounds checks.
+        // rule_count (syntax) and production_id_count (metadata) bounds checks.
         unsafe {
             // Tree-sitter uses 1-based production IDs in the parse table
             // We need to subtract 1 and then use production_id_map
@@ -1351,37 +1414,25 @@ impl Parser {
 
             let zero_based_id = production_id - 1;
 
-            // Use the production_id_map to get the actual production index
-            let production_index = if zero_based_id < language.production_id_count as u16 {
-                *language.production_id_map.add(zero_based_id as usize)
-            } else {
-                ////eprintln!("DEBUG reduce: Invalid production_id {} (zero_based={}, >= {})",
-                //         production_id, zero_based_id, language.production_id_count);
+            let Some(production_index) = language.production_for_rule(zero_based_id as usize)
+            else {
                 return false;
             };
-
-            // Look up the parse action for this production
-            if production_index >= language.production_id_count as u16 {
-                ////eprintln!($
-                //    "DEBUG reduce: Invalid production_index {} (>= {})",
-                //    production_index, language.production_id_count
-                //);
-                return false;
-            }
-
-            let action = &*language.parse_actions.add(production_index as usize);
-            let child_count = action.child_count as usize;
-
-            // Get the LHS symbol from the production_lhs_index array instead of parse_actions
-            // This ensures the symbol is in table index space
-            let symbol = self.lhs_index_of(language, production_index);
-
-            // Also check what parse_actions says for comparison
-            let _parse_action_symbol = action.symbol;
-            // eprintln!(
-            // "DEBUG: production_index={}, lhs_index={}, parse_action_symbol={}",
-            // production_index, symbol, parse_action_symbol
-            // );
+            // Syntax shape is RuleId-keyed; metadata sharing does not imply
+            // equal child counts or LHS symbols.
+            let (symbol, child_count) = if !language.rules.is_null() {
+                let rule = &*language.rules.add(zero_based_id as usize);
+                (rule.lhs, rule.rhs_len as usize)
+            } else {
+                if language.parse_actions.is_null() || language.production_lhs_index.is_null() {
+                    return false;
+                }
+                let action = &*language.parse_actions.add(production_index as usize);
+                (
+                    self.lhs_index_of(language, production_index),
+                    action.child_count as usize,
+                )
+            };
 
             if source.len() < 20 {
                 // eprintln!(
@@ -1607,20 +1658,6 @@ impl Parser {
         }
     }
 
-    /// Get production ID for field mappings
-    #[allow(dead_code)]
-    fn get_production_id(&self, language: &TSLanguage, action_index: u16) -> u16 {
-        // SAFETY: `production_id_map` is a static array of `production_id_count`
-        // entries. `action_index` is bounds-checked before access.
-        unsafe {
-            if action_index < language.production_id_count as u16 {
-                *language.production_id_map.add(action_index as usize)
-            } else {
-                0
-            }
-        }
-    }
-
     /// Look up the goto state for a non-terminal using the parse table.
     /// Returns `0` when no transition exists, mirroring Tree-sitter's ABI.
     #[allow(dead_code)]
@@ -1693,6 +1730,36 @@ struct Token {
     symbol: TSSymbol,
     length: usize,
     is_extra: bool,
+    is_invalid: bool,
+}
+
+impl Token {
+    fn invalid(eof_symbol: TSSymbol, source: &[u8]) -> Self {
+        let width = match source.first() {
+            Some(0xC2..=0xDF) => 2,
+            Some(0xE0..=0xEF) => 3,
+            Some(0xF0..=0xF4) => 4,
+            Some(_) => 1,
+            None => 0,
+        };
+        let length = if source
+            .get(..width)
+            .is_some_and(|head| std::str::from_utf8(head).is_ok())
+        {
+            width
+        } else {
+            1
+        };
+        Self {
+            // The public diagnostic adapter already resolves a non-EOF source
+            // position to its actual character. The invalid flag prevents this
+            // diagnostic symbol from entering grammar ACTION lookup.
+            symbol: eof_symbol,
+            length,
+            is_extra: false,
+            is_invalid: true,
+        }
+    }
 }
 
 /// Parse action
@@ -2057,6 +2124,94 @@ fn create_ts_lexer(ext_lexer: &mut ExternalLexer) -> crate::lex::TsLexer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_failed_generated_lexer_is_not_eof_for_either_eof_column() {
+        static OBSERVED_LEN: std::sync::atomic::AtomicUsize =
+            std::sync::atomic::AtomicUsize::new(0);
+        unsafe extern "C" fn cannot_lex(state: *mut c_void, _: TSLexState) -> bool {
+            let lexer = state.cast::<crate::lex::TsLexer>();
+            #[repr(C)]
+            struct View {
+                input: *const u8,
+                input_len: usize,
+                pos: usize,
+            }
+            // SAFETY: the parser supplies its repr(C) input/position backing.
+            let view = unsafe { &*((*lexer).data as *const View) };
+            OBSERVED_LEN.store(view.input_len, std::sync::atomic::Ordering::SeqCst);
+            false
+        }
+        static TABLE: [u16; 2] = [u16::MAX, u16::MAX];
+        static METADATA: [u8; 2] = [0, 0];
+        static ACTIONS: [TSParseAction; 1] = [TSParseAction {
+            action_type: 0,
+            extra: 0,
+            child_count: 0,
+            dynamic_precedence: 0,
+            symbol: 0,
+        }];
+        for eof_symbol in [0, 1] {
+            let names = Box::leak(Box::new([
+                c"token".as_ptr().cast::<u8>(),
+                c"end".as_ptr().cast::<u8>(),
+            ]));
+            let language = Box::leak(Box::new(TSLanguage {
+                version: TREE_SITTER_LANGUAGE_VERSION,
+                symbol_count: 2,
+                alias_count: 0,
+                token_count: 2,
+                external_token_count: 0,
+                state_count: 1,
+                large_state_count: 1,
+                production_id_count: 0,
+                field_count: 0,
+                max_alias_sequence_length: 0,
+                production_id_map: std::ptr::null(),
+                parse_table: TABLE.as_ptr(),
+                small_parse_table: std::ptr::null(),
+                small_parse_table_map: std::ptr::null(),
+                parse_actions: ACTIONS.as_ptr(),
+                symbol_names: names.as_ptr(),
+                field_names: std::ptr::null(),
+                field_map_slices: std::ptr::null(),
+                field_map_entries: std::ptr::null(),
+                symbol_metadata: METADATA.as_ptr(),
+                public_symbol_map: std::ptr::null(),
+                alias_map: std::ptr::null(),
+                alias_sequences: std::ptr::null(),
+                lex_modes: std::ptr::null(),
+                lex_fn: Some(cannot_lex),
+                keyword_lex_fn: None,
+                keyword_capture_token: 0,
+                external_scanner: ExternalScanner::default(),
+                primary_state_ids: std::ptr::null(),
+                production_lhs_index: std::ptr::null(),
+                production_count: 0,
+                eof_symbol,
+                rules: std::ptr::null(),
+                rule_count: 0,
+            }));
+            let mut parser = Parser::new();
+            parser.set_language(language).unwrap();
+            let result = parser.parse_string("λ");
+            assert_eq!(
+                result.errors.len(),
+                1,
+                "unlexable source cannot accept either column"
+            );
+            assert_eq!(result.errors[0].position, 0);
+            assert_eq!(
+                OBSERVED_LEN.load(std::sync::atomic::Ordering::SeqCst),
+                2,
+                "callback sees two source bytes, not an appended sentinel"
+            );
+            assert!(
+                parser.parse_string("").errors.is_empty(),
+                "physical EOF remains EOF"
+            );
+        }
+    }
 
     fn pack_field_map_entry(field_id: u16, child_index: u8, inherited: u8) -> [u16; 2] {
         let packed = (field_id as u32) | ((child_index as u32) << 16) | ((inherited as u32) << 24);

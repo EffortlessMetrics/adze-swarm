@@ -126,9 +126,10 @@ pub mod grammar {
     }
 
     #[adze::extra]
-    pub enum Extra {
+    #[allow(dead_code)]
+    struct Whitespace {
         #[adze::leaf(pattern = r"\s+")]
-        Whitespace,
+        _whitespace: (),
     }
 }
 

@@ -83,7 +83,14 @@ impl<'a> AbiLanguageBuilder<'a> {
     /// The single checked RHS-length fact shared by all ABI child-count
     /// consumers (`TS_RULES.rhs_len`, `PARSE_ACTIONS.child_count`).
     pub(super) fn checked_rhs_len(&self, rule: &adze_ir::Rule) -> crate::Result<u8> {
-        let observed = rule.rhs.len();
+        // Normalization represents an empty alternative with a singleton
+        // Epsilon marker. It consumes no syntax child (as LR items already
+        // enforce), so both ABI syntax tables must advertise width zero.
+        let observed = if matches!(rule.rhs.as_slice(), [adze_ir::Symbol::Epsilon]) {
+            0
+        } else {
+            rule.rhs.len()
+        };
         u8::try_from(observed).map_err(|_| crate::TableGenError::RhsLengthExceedsAbiLimit {
             grammar: self.grammar.name.clone(),
             rule: self
@@ -107,6 +114,11 @@ impl<'a> AbiLanguageBuilder<'a> {
     /// (`build_external_scanner_pieces`, etc.), and the final
     /// `TSLanguage` assembly below.
     pub fn try_generate(&self) -> crate::Result<TokenStream> {
+        if self.grammar.all_rules().count() > u16::MAX as usize {
+            return Err(crate::TableGenError::InvalidInput(
+                "rule count exceeds native ABI capacity",
+            ));
+        }
         let language_name = &self.grammar.name;
         let language_fn_ident = quote::format_ident!("tree_sitter_{}", language_name);
 
@@ -421,6 +433,137 @@ mod tests {
         assert_eq!(production_map[0].to_string(), "0u16");
         assert_eq!(production_map[1].to_string(), "1u16");
         assert_eq!(production_map[2].to_string(), "2u16");
+    }
+
+    /// Shared production metadata must not change the rule→production map shape (#1060).
+    ///
+    /// The map is indexed by dense RuleId, so three rules whose production
+    /// slots are shared/sparse still produce exactly one entry per rule.
+    #[test]
+    fn test_rule_count_over_native_abi_capacity_rejects_before_emission() {
+        let mut grammar = Grammar::new("rule_count_boundary".to_string());
+        let lhs = SymbolId(1);
+        let rule = Rule {
+            lhs,
+            rhs: vec![],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        };
+        grammar.rules.insert(lhs, vec![rule; u16::MAX as usize + 1]);
+        let table = crate::empty_table!(states: 1, terms: 1, nonterms: 1);
+        assert!(matches!(
+            AbiLanguageBuilder::new(&grammar, &table).try_generate(),
+            Err(crate::TableGenError::InvalidInput(
+                "rule count exceeds native ABI capacity"
+            ))
+        ));
+    }
+
+    #[test]
+    fn test_production_id_map_is_rule_id_keyed_with_shared_production() {
+        let mut grammar = Grammar::new("shared_prod".to_string());
+        let s = SymbolId(10);
+        let a = SymbolId(11);
+        let t_a = SymbolId(1);
+        let t_b = SymbolId(2);
+        grammar.rule_names.insert(s, "s".to_string());
+        grammar.rule_names.insert(a, "a".to_string());
+        for (id, name) in [(t_a, "a"), (t_b, "b")] {
+            grammar.tokens.insert(
+                id,
+                Token {
+                    name: name.to_string(),
+                    pattern: TokenPattern::String(name.to_string()),
+                    fragile: false,
+                },
+            );
+        }
+        grammar.add_rule(Rule {
+            lhs: s,
+            rhs: vec![Symbol::NonTerminal(a)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(5),
+        });
+        grammar.add_rule(Rule {
+            lhs: a,
+            rhs: vec![Symbol::Terminal(t_a)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        grammar.add_rule(Rule {
+            lhs: a,
+            rhs: vec![Symbol::Terminal(t_b)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+
+        let table = crate::empty_table!(states: 1, terms: 2, nonterms: 2);
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let map = builder.generate_production_id_map();
+        let values: Vec<u16> = map.iter().map(token_stream_u16).collect();
+        assert_eq!(
+            builder.generate_ts_rules().unwrap().len(),
+            3,
+            "syntax metadata and rule map must advertise the same RuleId count"
+        );
+
+        assert_eq!(
+            values,
+            vec![5, 0, 0],
+            "one entry per RuleId in rule order, not one per production slot"
+        );
+    }
+
+    /// Sparse production slots must not pad the rule→production map (#1060).
+    #[test]
+    fn test_production_id_map_is_rule_id_keyed_with_sparse_production() {
+        let mut grammar = Grammar::new("sparse_prod".to_string());
+        let s = SymbolId(10);
+        let t = SymbolId(1);
+        grammar.rule_names.insert(s, "s".to_string());
+        grammar.tokens.insert(
+            t,
+            Token {
+                name: "t".to_string(),
+                pattern: TokenPattern::String("t".to_string()),
+                fragile: false,
+            },
+        );
+        grammar.add_rule(Rule {
+            lhs: s,
+            rhs: vec![Symbol::Terminal(t)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(0),
+        });
+        grammar.add_rule(Rule {
+            lhs: s,
+            rhs: vec![Symbol::Terminal(t)],
+            precedence: None,
+            associativity: None,
+            fields: vec![],
+            production_id: ProductionId(2),
+        });
+
+        let table = crate::empty_table!(states: 1, terms: 1, nonterms: 1);
+        let builder = AbiLanguageBuilder::new(&grammar, &table);
+        let map = builder.generate_production_id_map();
+        let values: Vec<u16> = map.iter().map(token_stream_u16).collect();
+
+        assert_eq!(
+            values,
+            vec![0, 2],
+            "map length follows rule count, not max production slot + 1"
+        );
     }
 
     #[test]

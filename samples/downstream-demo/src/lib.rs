@@ -426,3 +426,115 @@ mod ts_compat_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod open_extract_contract_tests {
+    //! Downstream canary for the open `Extract` contract (#1072 §d).
+    //!
+    //! Mirrors `runtime/tests/extract_open_contract.rs` in the isolated
+    //! consumer: a hand-written `Extract` impl on a downstream-declared type,
+    //! compiled against only the public `adze` surface. If `Extract` is ever
+    //! sealed, this module stops compiling — that is the point.
+
+    use adze::Extract;
+    use adze::pure_parser::{ParsedNode, ParsedNodeBuilder};
+
+    /// A type declared outside `adze`, exactly like a downstream user's type.
+    struct DownstreamLeaf;
+
+    /// A hand-written `Extract` implementation from outside the crate.
+    impl Extract<u32> for DownstreamLeaf {
+        type LeafFn = ();
+
+        fn extract(
+            node: Option<&ParsedNode>,
+            source: &[u8],
+            _last_idx: usize,
+            _leaf_fn: Option<&Self::LeafFn>,
+        ) -> u32 {
+            node.and_then(|node| source.get(node.start_byte()..node.end_byte()))
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                .and_then(|text| text.parse().ok())
+                .unwrap_or_default()
+        }
+    }
+
+    fn number_node(source: &str) -> ParsedNode {
+        ParsedNodeBuilder::new(1, Vec::new(), 0, source.len()).build()
+    }
+
+    #[test]
+    fn test_downstream_hand_written_extract_compiles_and_defaults() {
+        // Compiling at all is the assertion; calling it keeps the impl live.
+        assert_eq!(DownstreamLeaf::extract(None, b"", 0, None), 0);
+    }
+
+    #[test]
+    fn test_downstream_hand_written_extract_returns_exact_value() {
+        let source = b"42";
+        let node = number_node("42");
+        assert_eq!(DownstreamLeaf::extract(Some(&node), source, 0, None), 42);
+    }
+
+    #[test]
+    fn test_downstream_hand_written_extract_reads_exact_span() {
+        // The impl slices the node's own byte span, not the whole source.
+        let source = b"1 + 42";
+        let node = ParsedNodeBuilder::new(1, Vec::new(), 4, 6).build();
+        assert_eq!(DownstreamLeaf::extract(Some(&node), source, 0, None), 42);
+    }
+
+    #[test]
+    fn test_downstream_extract_bound_alone_admits_downstream_type() {
+        // `Extract` alone is a sufficient bound: satisfying it requires no
+        // separate marker implementation from the downstream crate.
+        fn accepts_any_extractor<T: Extract<u32>>() {}
+        accepts_any_extractor::<DownstreamLeaf>();
+    }
+
+    #[test]
+    fn test_downstream_extract_added_items_default_for_downstream_impl() {
+        // The evolution rule in ADZE-ADR-0008: items added to `Extract` carry
+        // defaults, so a downstream impl that names none of them still compiles.
+        const { assert!(!<DownstreamLeaf as Extract<u32>>::HAS_CONFLICTS) };
+        assert_eq!(<DownstreamLeaf as Extract<u32>>::GRAMMAR_NAME, "unknown");
+        assert_eq!(<DownstreamLeaf as Extract<u32>>::GRAMMAR_JSON, "{}");
+    }
+}
+#[cfg(all(test, feature = "pure-rust"))]
+mod child_edge_bounds_tests {
+    use super::grammar;
+
+    #[test]
+    fn test_document_child_edge_valid_index_and_boundary_return_expected_nodes() {
+        let document = grammar::parse_document("17").expect("valid generated document");
+        assert_eq!(document.outcome(), adze::document::ParseOutcome::Complete);
+        assert!(document.diagnostics().is_empty());
+        let root = document.tree().root();
+        let edge = root.child_edge(0).expect("root has a semantic child");
+        let child = edge.child().expect("edge references a real document node");
+        assert_eq!(child.byte_range(), 0..2);
+        assert_eq!(child.utf8_text().unwrap(), "17");
+        assert_eq!(child.parent().unwrap().node_id(), root.node_id());
+        assert!(root.child_edge(root.child_count()).is_none());
+        assert!(root.child_edge(usize::MAX).is_none());
+    }
+
+    #[test]
+    fn test_document_leaf_child_edge_max_index_returns_none() {
+        let document = grammar::parse_document("17").expect("valid generated document");
+        assert_eq!(document.outcome(), adze::document::ParseOutcome::Complete);
+        assert!(document.diagnostics().is_empty());
+        let leaf = (1..document.tree().node_count())
+            .map(|index| {
+                document
+                    .tree()
+                    .node(adze::document::NodeId::new(index))
+                    .unwrap()
+            })
+            .find(|node| node.child_count() == 0 && node.byte_range() == (0..2))
+            .expect("real non-root lexical leaf");
+        assert!(leaf.child_edge(leaf.child_count()).is_none());
+        assert!(leaf.child_edge(usize::MAX).is_none());
+    }
+}

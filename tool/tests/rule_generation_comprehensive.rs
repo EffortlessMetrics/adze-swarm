@@ -830,7 +830,7 @@ fn skip_field_excluded_from_seq() {
 }
 
 #[test]
-fn vec_with_option_elements() {
+fn test_vec_with_option_elements_preserves_fielded_optional_occurrence() {
     let g = extract_one(
         r#"
         #[adze::grammar("vec_opt_elem")]
@@ -845,13 +845,23 @@ fn vec_with_option_elements() {
     );
     let rules = g["rules"].as_object().unwrap();
     let contents = &rules["Root_items_vec_contents"];
-    assert_eq!(contents["type"].as_str().unwrap(), "REPEAT1");
-    // The element inside REPEAT1 should be a CHOICE (optional field element)
-    let inner = &contents["content"];
+    // FIELD encloses both alternatives so a BLANK is a real list occurrence
+    // with the element's identity, distinct from an empty-repeat sentinel.
     assert_eq!(
-        inner["type"].as_str().unwrap(),
-        "CHOICE",
-        "Vec<Option<_>> element should be wrapped in CHOICE, got: {}",
-        serde_json::to_string_pretty(contents).unwrap()
+        contents,
+        &serde_json::json!({
+            "type": "REPEAT1",
+            "content": {
+                "type": "FIELD",
+                "name": "Root_items_vec_element",
+                "content": {
+                    "type": "CHOICE",
+                    "members": [
+                        { "type": "BLANK" },
+                        { "type": "SYMBOL", "name": "Root_items" }
+                    ]
+                }
+            }
+        })
     );
 }

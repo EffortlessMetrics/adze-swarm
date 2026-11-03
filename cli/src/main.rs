@@ -9,6 +9,7 @@ use walkdir::WalkDir;
 
 mod grammar_analysis;
 mod runner_cache;
+mod runner_output;
 
 use grammar_analysis::analyze_grammar_file;
 
@@ -844,21 +845,8 @@ fn parse_file(
 
 fn parse_file_static_tree(grammar: &Path, input: &Path) -> Result<()> {
     let output = run_static_parse_runner(grammar, input, "document-json")?;
-    let document: serde_json::Value = serde_json::from_str(&output).map_err(|err| {
-        anyhow::anyhow!(
-            "static tree output could not read generated document JSON for {}: {}",
-            grammar.display(),
-            err
-        )
-    })?;
-
+    let document = output.json()?;
     let root = &document["tree"]["root"];
-    if root.is_null() {
-        anyhow::bail!(
-            "static tree output could not find document tree root for {}",
-            grammar.display()
-        );
-    }
 
     let mut rendered = String::new();
     render_selected_tree(root, 0, None, &mut rendered);
@@ -868,21 +856,8 @@ fn parse_file_static_tree(grammar: &Path, input: &Path) -> Result<()> {
 
 fn parse_file_static_sexp(grammar: &Path, input: &Path) -> Result<()> {
     let output = run_static_parse_runner(grammar, input, "document-json")?;
-    let document: serde_json::Value = serde_json::from_str(&output).map_err(|err| {
-        anyhow::anyhow!(
-            "static sexp output could not read generated document JSON for {}: {}",
-            grammar.display(),
-            err
-        )
-    })?;
-
+    let document = output.json()?;
     let root = &document["tree"]["root"];
-    if root.is_null() {
-        anyhow::bail!(
-            "static sexp output could not find document tree root for {}",
-            grammar.display()
-        );
-    }
 
     let mut rendered = String::new();
     render_selected_sexp(root, None, &mut rendered);
@@ -893,27 +868,14 @@ fn parse_file_static_sexp(grammar: &Path, input: &Path) -> Result<()> {
 
 fn parse_file_static_json(grammar: &Path, input: &Path) -> Result<()> {
     let output = run_static_parse_runner(grammar, input, "document-json")?;
-    print!("{output}");
+    print!("{}", output.text());
     Ok(())
 }
 
 fn parse_file_static_dot(grammar: &Path, input: &Path) -> Result<()> {
     let output = run_static_parse_runner(grammar, input, "document-json")?;
-    let document: serde_json::Value = serde_json::from_str(&output).map_err(|err| {
-        anyhow::anyhow!(
-            "static dot output could not read generated document JSON for {}: {}",
-            grammar.display(),
-            err
-        )
-    })?;
-
+    let document = output.json()?;
     let root = &document["tree"]["root"];
-    if root.is_null() {
-        anyhow::bail!(
-            "static dot output could not find document tree root for {}",
-            grammar.display()
-        );
-    }
 
     let mut rendered = String::new();
     render_selected_dot(root, &mut rendered);
@@ -927,11 +889,15 @@ fn parse_file_static_document_projection(
     format: OutputFormat,
 ) -> Result<()> {
     let output = run_static_parse_runner(grammar, input, format.cli_name())?;
-    print!("{output}");
+    print!("{}", output.text());
     Ok(())
 }
 
-fn run_static_parse_runner(grammar: &Path, input: &Path, output_format: &str) -> Result<String> {
+fn run_static_parse_runner(
+    grammar: &Path,
+    input: &Path,
+    output_format: &str,
+) -> Result<runner_output::RunnerOutput> {
     let grammar = absolute_path(grammar)?;
     let input = absolute_path(input)?;
     if !input.is_file() {
@@ -992,27 +958,33 @@ fn run_runner_executable(
     input: &Path,
     output_format: &str,
     grammar: &Path,
-) -> Result<String> {
+) -> Result<runner_output::RunnerOutput> {
     let output = Command::new(executable)
         .arg(input)
         .arg(output_format)
         .env("ADZE_USE_PURE_RUST", "1")
         .output()?;
-    interpret_runner_output(grammar, output.status, &output.stdout, &output.stderr)
+    interpret_runner_output(grammar, output_format, output)
 }
 
-/// Interpret a finished runner process, cached or freshly built.
+/// Admit completed process bytes before rendering or printing public output.
+/// A process failure keeps its actual status/root cause and is never replaced
+/// by a success-channel JSON error. Capture/deadlines are unchanged here.
 fn interpret_runner_output(
     grammar: &Path,
-    status: std::process::ExitStatus,
-    stdout: &[u8],
-    stderr: &[u8],
-) -> Result<String> {
-    if !status.success() {
-        return Err(static_parse_runner_error(grammar, status, stdout, stderr));
+    output_format: &str,
+    output: std::process::Output,
+) -> Result<runner_output::RunnerOutput> {
+    if !output.status.success() {
+        return Err(static_parse_runner_error(
+            grammar,
+            output.status,
+            &output.stdout,
+            &output.stderr,
+        ));
     }
-
-    Ok(String::from_utf8_lossy(stdout).into_owned())
+    runner_output::RunnerOutput::parse(&output.stdout, output_format)
+        .with_context(|| format!("static runner output rejected for {}", grammar.display()))
 }
 
 /// Legacy path: fresh temporary Cargo project plus `cargo run`.
@@ -1024,7 +996,7 @@ fn run_static_parse_runner_uncached(
     spec: &runner_cache::RunnerSpec<'_>,
     input: &Path,
     output_format: &str,
-) -> Result<String> {
+) -> Result<runner_output::RunnerOutput> {
     let runner = tempfile::tempdir()?;
     let src_dir = runner.path().join("src");
     fs::create_dir_all(&src_dir)?;
@@ -1047,7 +1019,7 @@ fn run_static_parse_runner_uncached(
             .output()?
     };
 
-    interpret_runner_output(spec.grammar, output.status, &output.stdout, &output.stderr)
+    interpret_runner_output(spec.grammar, output_format, output)
 }
 
 /// Build the top-level error for a failed temporary parse runner.
@@ -1834,6 +1806,46 @@ mod tests {
             !staging.exists(),
             "refused commit must still clean the owned staging tree"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_direct_runner_keeps_completed_output_admission() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = tempfile::tempdir().unwrap();
+        let executable = temp.path().join("runner");
+        let input = temp.path().join("input λ.txt");
+        std::fs::write(&input, "x").unwrap();
+        let payload = r#"{"schema":"adze.ambiguity.v1","document_schema":"adze.document.v1","language":{"name":"fixture"},"ambiguities":[]}"#;
+        std::fs::write(
+            &executable,
+            format!("#!/bin/sh\nprintf '%s' '{payload}'\nprintf 'legitimate stderr' >&2\n"),
+        )
+        .unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let output =
+            super::run_runner_executable(&executable, &input, "ambiguity-json", &input).unwrap();
+        assert_eq!(output.text(), payload);
+        std::fs::write(
+            &executable,
+            format!("#!/bin/sh\nprintf '%s' 'noise{payload}'\n"),
+        )
+        .unwrap();
+        assert!(
+            super::run_runner_executable(&executable, &input, "ambiguity-json", &input).is_err()
+        );
+        std::fs::write(
+            &executable,
+            format!(
+                "#!/bin/sh\nprintf '%s' '{payload}'\nprintf 'Error: owned failure' >&2\nexit 7\n"
+            ),
+        )
+        .unwrap();
+        let error = super::run_runner_executable(&executable, &input, "ambiguity-json", &input)
+            .err()
+            .unwrap();
+        assert!(error.to_string().contains("owned failure"));
+        assert!(error.to_string().contains("exit status: 7"));
     }
 
     #[test]

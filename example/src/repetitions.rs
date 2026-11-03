@@ -11,7 +11,7 @@ pub mod grammar {
             #[adze::leaf(text = ",")]
             ()
         )]
-        #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+        #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<i32>())]
         pub numbers: Spanned<Vec<Spanned<i32>>>,
     }
 
@@ -30,7 +30,7 @@ pub mod grammar2 {
     #[derive(Debug)]
     #[allow(dead_code)]
     pub struct NumberList {
-        #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+        #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<i32>())]
         pub numbers: Spanned<Vec<Spanned<i32>>>,
     }
 
@@ -53,7 +53,7 @@ pub mod grammar3 {
             #[adze::leaf(text = ",")]
             ()
         )]
-        #[adze::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())]
+        #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<i32>())]
         pub numbers: Spanned<Vec<Spanned<Option<i32>>>>,
         #[adze::skip(123)]
         pub metadata: u32,
@@ -238,11 +238,6 @@ mod tests {
                 ],
                 (0, 9),
             ),
-            // Non-numeric input matches zero elements under zero-or-more.
-            // Flagged, not blessed: trailing-vs-leading garbage acceptance
-            // belongs to the diagnostics lane; pinned so it cannot drift
-            // silently.
-            ("abc", vec![], (0, 0)),
         ];
         for (input, expected, container) in cases {
             let parsed = grammar2::parse(input)
@@ -284,20 +279,26 @@ mod tests {
     }
 
     #[test]
-    fn repetitions_undelimited_comma_prefix_is_explicit_1062() {
-        // Flagged, not blessed: the undelimited grammar stops at `,` with no
-        // diagnostic and returns the numeric prefix, silently dropping
-        // `, 2`. True rejection of trailing garbage belongs to the
-        // diagnostics lane. Pinned so the behavior cannot drift silently.
-        let parsed = grammar2::parse("1, 2").expect("current contract: prefix accepted");
-        let items: Vec<(i32, (usize, usize))> = parsed
-            .numbers
-            .value
-            .iter()
-            .map(|item| (item.value, item.span))
-            .collect();
-        assert_eq!(items, vec![(1, (0, 1))]);
-        assert_eq!(parsed.numbers.span, (0, 1));
+    fn test_repetitions_undelimited_rejects_invalid_input_1174() {
+        use adze::errors::ParseErrorReason;
+        use std::collections::BTreeSet;
+
+        // Zero-or-more permits an empty source, not ignored leading or
+        // trailing bytes. Every rejected scalar retains its actual range.
+        for (input, spans) in [("abc", vec![0..1, 1..2, 2..3]), ("1, 2", vec![1..2])] {
+            let errors =
+                grammar2::parse(input).expect_err("invalid input cannot become a prefix AST");
+            assert_eq!(errors.len(), spans.len(), "{input:?}");
+            for (error, span) in errors.iter().zip(spans) {
+                assert!(
+                    matches!(error.reason, ParseErrorReason::UnexpectedToken(_)),
+                    "{error:?}"
+                );
+                assert_eq!(error.byte_span(), span, "{input:?}");
+                let expected: BTreeSet<_> = error.expected.iter().map(String::as_str).collect();
+                assert_eq!(expected, BTreeSet::from(["end", "number"]));
+            }
+        }
     }
 
     #[test]
@@ -343,27 +344,149 @@ mod tests {
     }
 
     #[test]
-    fn repetitions_optional_singleton_rejected_is_explicit_1062() {
-        // Flagged, not blessed: the generated table demands a delimiter even
-        // for one element (`"1"` and `"1,"` are rejected), which does not
-        // follow from the zero-or-more delimited annotation. Owned by the
-        // grammar-construction lane. Pinned so the contract cannot drift
-        // silently.
-        for input in ["1", "1,"] {
-            let errors = grammar3::parse(input).expect_err("singleton rejected by current table");
+    fn test_repetitions_optional_single_and_trailing_none_exact_1062() {
+        for (input, expected) in [
+            ("1", vec![(Some(1), (0, 1))]),
+            ("1,", vec![(Some(1), (0, 1)), (None, (2, 2))]),
+        ] {
+            let parsed = grammar3::parse(input).expect("nullable element values");
+            let items: Vec<_> = parsed
+                .numbers
+                .value
+                .iter()
+                .map(|item| (item.value, item.span))
+                .collect();
+            assert_eq!(items, expected, "{input:?}");
+            assert_eq!(parsed.numbers.span, (0, input.len()));
+            assert_eq!(parsed.metadata, 123);
+        }
+    }
+
+    #[test]
+    fn test_repetitions_optional_gaps_preserve_none_values_1062() {
+        for (input, expected) in [
+            (
+                "1,, 2",
+                vec![(Some(1), (0, 1)), (None, (2, 2)), (Some(2), (4, 5))],
+            ),
+            (
+                "1,, 2,",
+                vec![
+                    (Some(1), (0, 1)),
+                    (None, (2, 2)),
+                    (Some(2), (4, 5)),
+                    (None, (6, 6)),
+                ],
+            ),
+        ] {
+            let parsed = grammar3::parse(input).expect("nullable later elements");
+            let items: Vec<_> = parsed
+                .numbers
+                .value
+                .iter()
+                .map(|item| (item.value, item.span))
+                .collect();
+            assert_eq!(items, expected, "{input:?}");
+            assert_eq!(parsed.numbers.span, (0, input.len()));
+            assert_eq!(parsed.metadata, 123);
+        }
+    }
+
+    #[test]
+    fn test_repetitions_optional_leading_delimiters_rejected_1062() {
+        // The first element remains present; only later element values may
+        // be absent. The nullable-tail repair does not permit a blank first.
+        for input in [",,,", ",,", ",1,2"] {
+            let errors = grammar3::parse(input).expect_err("leading delimiters rejected");
             assert!(!errors.is_empty(), "bounded diagnostics for {input:?}");
         }
     }
 
     #[test]
-    fn repetitions_optional_malformed_delimiters_rejected_1062() {
-        // #1062: malformed leading/repeated/trailing delimiters are rejected
-        // with bounded diagnostics. Empty-gap acceptance semantics are
-        // undecided at the table level, so these rows pin rejection rather
-        // than any gap value.
-        for input in ["1,, 2", "1,, 2,", ",,,", ",,", ",1,2"] {
-            let errors = grammar3::parse(input).expect_err("malformed delimiters rejected");
-            assert!(!errors.is_empty(), "bounded diagnostics for {input:?}");
+    fn test_repetitions_overflow_returns_conversion_error() {
+        // #1062/#1045: numeric overflow is a structured conversion error
+        // through `try_transform`, not a parser panic or a silent zero.
+        // i32::MAX stays valid with its exact value and span.
+        use adze::errors::ParseErrorReason;
+
+        let parsed = grammar::parse("2147483647")
+            .unwrap_or_else(|errors| panic!("i32::MAX parses: {errors:?}"));
+        let items: Vec<(i32, (usize, usize))> = parsed
+            .numbers
+            .value
+            .iter()
+            .map(|item| (item.value, item.span))
+            .collect();
+        assert_eq!(items, vec![(i32::MAX, (0, 10))]);
+
+        for (input, span) in [("2147483648", 0..10), ("1, 2147483648", 3..13)] {
+            let errors = grammar::parse(input)
+                .expect_err("overflow must be a conversion error, not a panic or default");
+            let first = errors
+                .first()
+                .expect("conversion failure carries at least one error");
+            assert!(
+                matches!(first.reason, ParseErrorReason::ConversionFailed(_)),
+                "overflow is ConversionFailed for {input:?}: {first:?}"
+            );
+            assert_eq!(first.byte_span(), span, "token range for {input:?}");
         }
+    }
+
+    #[test]
+    fn test_undelimited_repetitions_overflow_returns_conversion_error() {
+        // #1062/#1045: same overflow contract for the undelimited shape.
+        use adze::errors::ParseErrorReason;
+
+        let parsed = grammar2::parse("2147483647")
+            .unwrap_or_else(|errors| panic!("i32::MAX parses: {errors:?}"));
+        let items: Vec<(i32, (usize, usize))> = parsed
+            .numbers
+            .value
+            .iter()
+            .map(|item| (item.value, item.span))
+            .collect();
+        assert_eq!(items, vec![(i32::MAX, (0, 10))]);
+
+        let errors = grammar2::parse("1 2147483648")
+            .expect_err("overflow must be a conversion error, not a panic or default");
+        let first = errors
+            .first()
+            .expect("conversion failure carries at least one error");
+        assert!(
+            matches!(first.reason, ParseErrorReason::ConversionFailed(_)),
+            "overflow is ConversionFailed: {first:?}"
+        );
+        assert_eq!(first.byte_span(), 2..12);
+    }
+
+    #[test]
+    fn test_optional_repetitions_overflow_returns_conversion_error() {
+        // #1062/#1045: same overflow contract for the nested-optional shape.
+        // Keep the pair control while singleton admission is independently
+        // covered by the nullable-element exact-value contract.
+        use adze::errors::ParseErrorReason;
+
+        let parsed = grammar3::parse("2147483647, 1")
+            .unwrap_or_else(|errors| panic!("i32::MAX pair parses: {errors:?}"));
+        let items: Vec<(Option<i32>, (usize, usize))> = parsed
+            .numbers
+            .value
+            .iter()
+            .map(|item| (item.value, item.span))
+            .collect();
+        assert_eq!(items, vec![(Some(i32::MAX), (0, 10)), (Some(1), (12, 13))]);
+        assert_eq!(parsed.metadata, 123);
+
+        let errors = grammar3::parse("1, 2147483648")
+            .expect_err("overflow must be a conversion error, not a panic or default");
+        let first = errors
+            .first()
+            .expect("conversion failure carries at least one error");
+        assert!(
+            matches!(first.reason, ParseErrorReason::ConversionFailed(_)),
+            "overflow is ConversionFailed: {first:?}"
+        );
+        assert_eq!(first.byte_span(), 3..13);
     }
 }

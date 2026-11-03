@@ -2,25 +2,32 @@
 source: src/repetitions.rs
 expression: "grammar3::parse(\"1,\")"
 ---
-Err(
-    [
-        ParseError {
-            reason: UnexpectedEof,
-            start: 2,
-            end: 2,
-            expected: [
-                ",",
-                "end",
-                "number",
+Ok(
+    NumberList {
+        numbers: Spanned {
+            value: [
+                Spanned {
+                    value: Some(
+                        1,
+                    ),
+                    span: (
+                        0,
+                        1,
+                    ),
+                },
+                Spanned {
+                    value: None,
+                    span: (
+                        2,
+                        2,
+                    ),
+                },
             ],
+            span: (
+                0,
+                2,
+            ),
         },
-        ParseError {
-            reason: UnexpectedEof,
-            start: 2,
-            end: 2,
-            expected: [
-                ",",
-            ],
-        },
-    ],
+        metadata: 123,
+    },
 )

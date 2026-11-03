@@ -86,6 +86,7 @@ impl GrammarJsParserV3 {
             precedences: vec![],
             start_symbol: None,
             wrapper_token_relations: IndexMap::new(),
+            inferred_wrapper_rules: Default::default(),
         };
 
         // Extract name
@@ -249,18 +250,28 @@ impl GrammarJsParserV3 {
 
             // Look for the next rule
             if let Some(next_match) = rule_regex.find_at(content, rule_start) {
-                // Back up to find the comma before the next rule
+                // Back up to find the comma before the next rule.
+                // Byte-oriented scan: ',' is ASCII (0x2C) and can never
+                // appear inside a multi-byte UTF-8 sequence, so a matching
+                // comma index is always a valid split point.
                 let mut pos = next_match.start();
                 while pos > rule_start {
                     pos -= 1;
-                    if content.chars().nth(pos) == Some(',') {
+                    if content.as_bytes().get(pos) == Some(&b',') {
                         rule_end = pos;
                         break;
                     }
                 }
             }
 
-            let rule_def = content[rule_start..rule_end].trim();
+            let rule_def = content
+                .get(rule_start..rule_end)
+                .with_context(|| {
+                    format!(
+                        "Rule body range [{rule_start}..{rule_end}] is not a valid string slice"
+                    )
+                })?
+                .trim();
             let rule_def = rule_def.trim_end_matches(',');
 
             let def_preview = if rule_def.len() > 50 {
@@ -755,10 +766,12 @@ impl GrammarJsParserV3 {
             // Parse nested arrays
             let mut conflicts = Vec::new();
             let mut i = 0;
-            let chars: Vec<char> = conflicts_content.chars().collect();
+            // Bracket matching and slicing both use byte offsets. ASCII '['
+            // cannot occur inside a multibyte UTF-8 character.
+            let bytes = conflicts_content.as_bytes();
 
-            while i < chars.len() {
-                if chars[i] == '[' {
+            while i < bytes.len() {
+                if bytes[i] == b'[' {
                     // Find the matching bracket
                     let sub_end =
                         self.find_matching_bracket(&conflicts_content[i + 1..], '[', ']')?;
@@ -855,13 +868,13 @@ impl GrammarJsParserV3 {
             // Parse the nested array structure
             let mut result = Vec::new();
 
-            // Split by top-level commas and parse each group
+            // Split by top-level commas and parse each group.
+            // Iterate over char boundaries: `precedences_content.len()`
+            // is a byte length, so a byte counter cannot index chars.
             let mut depth = 0;
             let mut current_group_start = 0;
-            let mut i = 0;
 
-            while i < precedences_content.len() {
-                let ch = precedences_content.chars().nth(i).unwrap();
+            for (i, ch) in precedences_content.char_indices() {
                 match ch {
                     '[' => {
                         if depth == 0 {
@@ -873,7 +886,14 @@ impl GrammarJsParserV3 {
                         depth -= 1;
                         if depth == 0 {
                             // Found end of a group
-                            let group_content = &precedences_content[current_group_start + 1..i];
+                            let group_content = precedences_content
+                                .get(current_group_start + 1..i)
+                                .with_context(|| {
+                                    format!(
+                                        "Precedence group range [{}..{i}] is not a valid string slice",
+                                        current_group_start + 1
+                                    )
+                                })?;
                             let group = self.parse_precedence_group(group_content)?;
                             if !group.is_empty() {
                                 result.push(group);
@@ -882,7 +902,6 @@ impl GrammarJsParserV3 {
                     }
                     _ => {}
                 }
-                i += 1;
             }
 
             Ok(result)
@@ -923,7 +942,8 @@ impl GrammarJsParserV3 {
         let mut in_regex = false;
         let mut escape_next = false;
 
-        for (i, ch) in content.chars().enumerate() {
+        // Callers slice the original UTF-8 string at the returned byte offset.
+        for (i, ch) in content.char_indices() {
             if escape_next {
                 escape_next = false;
                 continue;
@@ -982,5 +1002,109 @@ module.exports = grammar({
         let grammar = result.unwrap();
         assert_eq!(grammar.name, "test");
         assert_eq!(grammar.rules.len(), 2);
+    }
+
+    #[test]
+    fn test_precedences_non_ascii_no_panic() {
+        // Regression: the grouping loop counted bytes (`i += 1` against
+        // `precedences_content.len()`) but indexed chars
+        // (`chars().nth(i).unwrap()`), so any multi-byte character made
+        // `nth` return `None` and `unwrap()` panic.
+        let content = r#"
+module.exports = grammar({
+  name: 'test',
+
+  precedences: $ => [['élite', 'member']],
+
+  rules: {
+    program: $ => $.expression,
+    expression: $ => 'hello'
+  }
+})
+"#;
+
+        let mut parser = GrammarJsParserV3::new(content.to_string());
+        let result = parser.parse();
+        assert!(
+            result.is_ok(),
+            "non-ASCII precedences input must not panic, got: {result:?}"
+        );
+        let grammar = result.expect("Unicode precedence names parse");
+        assert_eq!(
+            grammar.precedences,
+            vec![vec![("élite".to_string(), 0), ("member".to_string(), 0),]],
+            "successful parsing must retain the declared precedence names"
+        );
+    }
+
+    #[test]
+    fn test_rules_object_non_ascii_no_panic() {
+        // Regression: the backward comma scan decremented a byte index but
+        // compared `chars().nth(pos)`, so `rule_end` could land inside a
+        // multi-byte character and `content[rule_start..rule_end]` panicked.
+        let content = r#"
+module.exports = grammar({
+  name: 'test',
+
+  rules: {
+    first: $ => '€',
+    second: $ => 'hello'
+  }
+})
+"#;
+
+        let mut parser = GrammarJsParserV3::new(content.to_string());
+        let result = parser.parse();
+        assert!(
+            result.is_ok(),
+            "non-ASCII rule body must not panic, got: {result:?}"
+        );
+
+        let grammar = result.unwrap();
+        assert_eq!(grammar.rules.len(), 2);
+        assert!(matches!(grammar.rules.get("first"), Some(Rule::String { value }) if value == "€"));
+        assert!(
+            matches!(grammar.rules.get("second"), Some(Rule::String { value }) if value == "hello")
+        );
+    }
+    #[test]
+    fn test_parse_nested_unicode_rule_values_are_preserved() {
+        let content = r#"module.exports = grammar({ name: 'unicode', rules: { program: $ => seq('€', choice('é', 'x')), tail: $ => 'done' } })"#;
+        let grammar = GrammarJsParserV3::new(content.to_string())
+            .parse()
+            .expect("compact nested Unicode grammar parses");
+        assert_eq!(grammar.rules.len(), 2);
+        assert_eq!(
+            serde_json::to_value(&grammar.rules["program"]).unwrap(),
+            serde_json::json!({
+                "type": "SEQ", "members": [
+                    {"type": "STRING", "value": "€"},
+                    {"type": "CHOICE", "members": [
+                        {"type": "STRING", "value": "é"},
+                        {"type": "STRING", "value": "x"}
+                    ]}
+                ]
+            })
+        );
+        assert!(
+            matches!(grammar.rules.get("tail"), Some(Rule::String { value }) if value == "done")
+        );
+    }
+
+    #[test]
+    fn test_parse_unicode_conflicts_preserve_following_group() {
+        let content = r#"module.exports = grammar({ name: 'unicode_conflicts', conflicts: $ => [[$.été,$.b],[$.b,$.c]], rules: { été: $ => 'a', b: $ => 'b', c: $ => 'c' } })"#;
+        let grammar = GrammarJsParserV3::new(content.to_string())
+            .parse()
+            .expect("Unicode conflict names parse");
+        assert_eq!(
+            grammar.conflicts,
+            vec![
+                vec!["été".to_string(), "b".to_string()],
+                vec!["b".to_string(), "c".to_string()],
+            ],
+            "a multibyte name must not advance past the following group"
+        );
+        assert_eq!(grammar.rules.len(), 3);
     }
 }

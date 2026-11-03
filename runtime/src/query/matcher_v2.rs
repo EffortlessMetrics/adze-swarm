@@ -72,7 +72,11 @@ trait ViewNode<'s>: Clone + Copy {
     /// Child node by child index
     fn child(self, index: usize) -> Option<Self>;
     /// Whether this node counts as named for pattern matching
-    fn is_named(self) -> bool;
+    fn is_named(self) -> Option<bool>;
+    /// Whether source-dependent capabilities are available to this view.
+    fn source_available(self) -> bool {
+        true
+    }
     /// Whether this node is extra (skipped while sequencing)
     fn is_extra(self) -> bool;
     /// Source text covered by this node, if available and well-formed
@@ -83,7 +87,7 @@ trait ViewNode<'s>: Clone + Copy {
 #[derive(Clone, Copy)]
 struct ParsedView<'s> {
     node: &'s ParseNode,
-    source: &'s str,
+    source: Option<&'s str>,
     symbol_metadata: &'s [SymbolMetadata],
 }
 
@@ -112,11 +116,17 @@ impl<'s> ViewNode<'s> for ParsedView<'s> {
         })
     }
 
-    fn is_named(self) -> bool {
-        self.symbol_metadata
-            .get(self.node.symbol.0 as usize)
-            .map(|metadata| metadata.is_named)
-            .unwrap_or(true)
+    fn is_named(self) -> Option<bool> {
+        self.source.map(|_| {
+            self.symbol_metadata
+                .get(self.node.symbol.0 as usize)
+                .map(|metadata| metadata.is_named)
+                .unwrap_or(true)
+        })
+    }
+
+    fn source_available(self) -> bool {
+        self.source.is_some()
     }
 
     fn is_extra(self) -> bool {
@@ -128,7 +138,7 @@ impl<'s> ViewNode<'s> for ParsedView<'s> {
 
     fn text(self) -> Option<&'s str> {
         let range = self.byte_range();
-        self.source.get(range)
+        self.source?.get(range)
     }
 }
 
@@ -187,13 +197,15 @@ impl<'s> ViewNode<'s> for FlatView<'s> {
         })
     }
 
-    fn is_named(self) -> bool {
+    fn is_named(self) -> Option<bool> {
         // Alias-aware named-ness, consistent with the document's own typed
         // CST/JSON/ts-compat projections.
-        self.record()
-            .and_then(|record| self.language.symbol(record.visible_id()))
-            .map(|kind| kind.is_named())
-            .unwrap_or(true)
+        Some(
+            self.record()
+                .and_then(|record| self.language.symbol(record.visible_id()))
+                .map(|kind| kind.is_named())
+                .unwrap_or(true),
+        )
     }
 
     fn is_extra(self) -> bool {
@@ -235,10 +247,21 @@ struct RepeatSearch {
     anchored_next: bool,
 }
 
+/// Cursor restrictions are shared by every backend, with legacy overlap policy.
+#[derive(Clone, Copy, Default)]
+struct MatchOptions<'a> {
+    byte_range: Option<&'a Range<usize>>,
+    root_only: bool,
+}
+
+fn ranges_overlap(left: &Range<usize>, right: &Range<usize>) -> bool {
+    left.start <= right.end && left.end >= right.start
+}
+
 /// Query pattern matcher with source text
 pub struct QueryMatcher<'a> {
     query: &'a Query,
-    source: &'a str,
+    source: Option<&'a str>,
     symbol_metadata: &'a [SymbolMetadata],
 }
 
@@ -247,38 +270,63 @@ impl<'a> QueryMatcher<'a> {
     pub fn new(query: &'a Query, source: &'a str, symbol_metadata: &'a [SymbolMetadata]) -> Self {
         QueryMatcher {
             query,
-            source,
+            source: Some(source),
             symbol_metadata,
         }
     }
 
-    /// Match all patterns in the query against a parse tree
+    /// Compatibility construction with explicitly unavailable source/metadata.
+    pub(crate) fn source_free(query: &'a Query) -> Self {
+        Self {
+            query,
+            source: None,
+            symbol_metadata: &[],
+        }
+    }
+
+    /// Match all patterns in the query against a parse tree.
     pub fn matches(&self, root: &ParseNode) -> Vec<QueryMatch> {
+        self.matches_with_options(root, None, false)
+    }
+
+    /// Shared compatibility options, also used by the public source-free cursor.
+    pub(crate) fn matches_with_options(
+        &self,
+        root: &ParseNode,
+        byte_range: Option<&Range<usize>>,
+        root_only: bool,
+    ) -> Vec<QueryMatch> {
         let view = ParsedView {
             node: root,
             source: self.source,
             symbol_metadata: self.symbol_metadata,
         };
-        self.match_all(view)
-            .into_iter()
-            .map(|generic| {
-                let mut captures: Vec<_> = generic
-                    .captures
-                    .into_iter()
-                    .flat_map(|(index, nodes)| {
-                        nodes.into_iter().map(move |view| QueryCapture {
-                            index,
-                            node: view.node.clone(),
-                        })
+        self.match_all_with_options(
+            view,
+            MatchOptions {
+                byte_range,
+                root_only,
+            },
+        )
+        .into_iter()
+        .map(|generic| {
+            let mut captures: Vec<_> = generic
+                .captures
+                .into_iter()
+                .flat_map(|(index, nodes)| {
+                    nodes.into_iter().map(move |view| QueryCapture {
+                        index,
+                        node: view.node.clone(),
                     })
-                    .collect();
-                captures.sort_by_key(|capture| capture.index);
-                QueryMatch {
-                    pattern_index: generic.pattern_index,
-                    captures,
-                }
-            })
-            .collect()
+                })
+                .collect();
+            captures.sort_by_key(|capture| capture.index);
+            QueryMatch {
+                pattern_index: generic.pattern_index,
+                captures,
+            }
+        })
+        .collect()
     }
 
     /// Match all patterns in the query against a native parse document.
@@ -299,7 +347,7 @@ impl<'a> QueryMatcher<'a> {
             source: document.source_text(),
             id: syntax.root_id(),
         };
-        self.match_all(view)
+        self.match_all_with_options(view, MatchOptions::default())
             .into_iter()
             .map(|generic| {
                 let captures: Vec<_> = generic
@@ -320,8 +368,12 @@ impl<'a> QueryMatcher<'a> {
             .collect()
     }
 
-    /// Run every pattern against one root view of either backend.
-    fn match_all<'s, V>(&self, root: V) -> Vec<GenericMatch<V>>
+    /// Run every pattern against one root view using shared cursor restrictions.
+    fn match_all_with_options<'s, V>(
+        &self,
+        root: V,
+        options: MatchOptions<'_>,
+    ) -> Vec<GenericMatch<V>>
     where
         V: ViewNode<'s>,
     {
@@ -329,7 +381,7 @@ impl<'a> QueryMatcher<'a> {
 
         // Try each pattern
         for (pattern_index, pattern) in self.query.patterns.iter().enumerate() {
-            self.match_pattern(pattern_index, pattern, root, &mut matches);
+            self.match_pattern(pattern_index, pattern, root, options, &mut matches);
         }
 
         matches
@@ -341,12 +393,13 @@ impl<'a> QueryMatcher<'a> {
         pattern_index: usize,
         pattern: &Pattern,
         root: V,
+        options: MatchOptions<'_>,
         matches: &mut Vec<GenericMatch<V>>,
     ) where
         V: ViewNode<'s>,
     {
         // Walk the tree and try to match at each node
-        self.match_pattern_at_node(pattern_index, pattern, root, matches);
+        self.match_pattern_at_node(pattern_index, pattern, root, options, matches);
     }
 
     /// Try to match pattern starting at a specific node
@@ -355,16 +408,35 @@ impl<'a> QueryMatcher<'a> {
         pattern_index: usize,
         pattern: &Pattern,
         node: V,
+        options: MatchOptions<'_>,
         matches: &mut Vec<GenericMatch<V>>,
     ) where
         V: ViewNode<'s>,
     {
+        if options
+            .byte_range
+            .is_some_and(|range| !ranges_overlap(&node.byte_range(), range))
+        {
+            return;
+        }
         // Try to match the pattern at this node
         let mut state = MatchState {
             captures: HashMap::new(),
         };
 
-        if self.match_node(&pattern.root, node, &mut state) {
+        if self.match_node(&pattern.root, node, &mut state)
+            && options.byte_range.is_none_or(|range| {
+                if state.captures.is_empty() {
+                    ranges_overlap(&node.byte_range(), range)
+                } else {
+                    state
+                        .captures
+                        .values()
+                        .flatten()
+                        .any(|capture| ranges_overlap(&capture.byte_range(), range))
+                }
+            })
+        {
             // Check predicates against every occurrence's text. A constraint
             // holds only when all occurrences satisfy it.
             let texts: HashMap<u32, Vec<Option<&str>>> = state
@@ -378,11 +450,17 @@ impl<'a> QueryMatcher<'a> {
                 })
                 .collect();
             let predicate_ctx = PredicateContext::for_resolved_texts();
-            if pattern
-                .predicates
-                .iter()
-                .all(|pred| predicate_ctx.evaluate_texts(pred, &texts))
-            {
+            if pattern.predicates.iter().all(|pred| {
+                // Unsupported source-free property/custom predicates stay
+                // unavailable. Text predicates use the same evaluator,
+                // whose missing occurrence texts fail closed.
+                let unavailable = !node.source_available()
+                    && matches!(
+                        pred,
+                        Predicate::Is { .. } | Predicate::IsNot { .. } | Predicate::Custom { .. }
+                    );
+                !unavailable && predicate_ctx.evaluate_texts(pred, &texts)
+            }) {
                 // One entry per occurrence, sorted by capture ID with
                 // occurrence order preserved (stable sort over
                 // push-ordered vectors).
@@ -396,10 +474,13 @@ impl<'a> QueryMatcher<'a> {
             }
         }
 
+        if options.root_only {
+            return;
+        }
         // Recursively try child nodes
         for index in 0..node.child_count() {
             if let Some(child) = node.child(index) {
-                self.match_pattern_at_node(pattern_index, pattern, child, matches);
+                self.match_pattern_at_node(pattern_index, pattern, child, options, matches);
             }
         }
     }
@@ -419,7 +500,10 @@ impl<'a> QueryMatcher<'a> {
             return false;
         }
         // Confirm named/anonymous status matches the pattern expectation
-        if self.node_is_named(node) != pattern.is_named {
+        if self
+            .node_is_named(node)
+            .is_some_and(|named| named != pattern.is_named)
+        {
             return false;
         }
 
@@ -514,7 +598,7 @@ impl<'a> QueryMatcher<'a> {
     }
 
     /// Determine if a node should be treated as named.
-    fn node_is_named<'s, V>(&self, node: V) -> bool
+    fn node_is_named<'s, V>(&self, node: V) -> Option<bool>
     where
         V: ViewNode<'s>,
     {
@@ -1307,6 +1391,225 @@ mod tests {
     }
 
     #[test]
+    fn test_matches_with_options_byte_range_keeps_overlapping_capture() {
+        let query = query_with_root(PatternNode::new(SymbolId(2), true).with_capture(0));
+        let root = make_root(
+            vec![make_node(2, 0, 1), make_node(3, 1, 2), make_node(2, 3, 5)],
+            5,
+        );
+        let metadata = test_symbol_metadata();
+        let matcher = QueryMatcher::new(&query, "a+bcd", &metadata);
+
+        let in_range = 3..5;
+        let matches = matcher.matches_with_options(&root, Some(&in_range), false);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 3);
+        assert_eq!(matches[0].captures[0].node.end_byte, 5);
+
+        // A range disjoint from every node prunes the whole subtree.
+        let disjoint = 10..20;
+        assert!(
+            matcher
+                .matches_with_options(&root, Some(&disjoint), false)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn test_matches_with_options_byte_range_parent_root_outside_range_keeps_capture_match() {
+        let mut root_pattern = PatternNode::new(SymbolId(0), true);
+        root_pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        let query = query_with_root(root_pattern);
+        let root = make_root(vec![make_node(1, 3, 5)], 5);
+        let metadata = test_symbol_metadata();
+        let matcher = QueryMatcher::new(&query, "abcde", &metadata);
+
+        // Parent root 0..5 extends outside the range, but the capture
+        // overlaps it, so the match is kept (legacy overlap rule).
+        let overlapping = 3..5;
+        let matches = matcher.matches_with_options(&root, Some(&overlapping), false);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 3);
+        assert_eq!(matches[0].captures[0].node.end_byte, 5);
+
+        // Control: a range overlapping only the parent root drops the match
+        // because no capture overlaps it.
+        let root_only_range = 0..1;
+        assert!(
+            matcher
+                .matches_with_options(&root, Some(&root_only_range), false)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn test_matches_with_options_root_only_matches_only_at_root() {
+        let tree = make_root(
+            vec![make_node(2, 0, 1), make_node(3, 1, 2), make_node(2, 3, 5)],
+            5,
+        );
+        let metadata = test_symbol_metadata();
+
+        // A pattern matching only children is suppressed under root-only.
+        let child_query = query_with_root(PatternNode::new(SymbolId(2), true).with_capture(0));
+        let child_matcher = QueryMatcher::new(&child_query, "a+bcd", &metadata);
+        assert!(
+            child_matcher
+                .matches_with_options(&tree, None, true)
+                .is_empty()
+        );
+        // Teeth: without root-only the same query matches twice.
+        assert_eq!(
+            child_matcher.matches_with_options(&tree, None, false).len(),
+            2
+        );
+
+        // A pattern matching the root itself still matches under root-only.
+        let root_query = query_with_root(PatternNode::new(SymbolId(0), true).with_capture(0));
+        let root_matcher = QueryMatcher::new(&root_query, "a+bcd", &metadata);
+        let matches = root_matcher.matches_with_options(&tree, None, true);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures[0].node.start_byte, 0);
+        assert_eq!(matches[0].captures[0].node.end_byte, 5);
+    }
+
+    #[test]
+    fn test_source_free_literal_token_returns_no_match() {
+        let query = literal_child_query("+");
+        let root = make_root(vec![make_node(1, 0, 1)], 1);
+
+        assert!(
+            QueryMatcher::source_free(&query).matches(&root).is_empty(),
+            "literal text is unavailable without source"
+        );
+
+        // Positive control: the same shape matches once source is attached.
+        let metadata = test_symbol_metadata();
+        let matcher = QueryMatcher::new(&query, "+", &metadata);
+        assert_eq!(matcher.matches(&root).len(), 1);
+    }
+
+    #[test]
+    fn test_source_free_text_predicates_fail_closed_including_negation() {
+        let leaf = make_node(1, 0, 2);
+        let cases: Vec<(&str, Predicate)> = vec![
+            (
+                "eq",
+                Predicate::Eq {
+                    capture1: 0,
+                    capture2: None,
+                    value: Some("ab".to_string()),
+                },
+            ),
+            (
+                "not-eq",
+                Predicate::NotEq {
+                    capture1: 0,
+                    capture2: None,
+                    value: Some("different".to_string()),
+                },
+            ),
+            (
+                "match",
+                Predicate::Match {
+                    capture: 0,
+                    regex: "a+".to_string(),
+                },
+            ),
+            (
+                "not-match",
+                Predicate::NotMatch {
+                    capture: 0,
+                    regex: "z+".to_string(),
+                },
+            ),
+            (
+                "any-of",
+                Predicate::AnyOf {
+                    capture: 0,
+                    values: vec!["ab".to_string(), "cd".to_string()],
+                },
+            ),
+        ];
+        for (name, predicate) in cases {
+            let mut query = query_with_root(PatternNode::new(SymbolId(1), true).with_capture(0));
+            query.patterns[0].predicates.push(predicate);
+            assert!(
+                QueryMatcher::source_free(&query).matches(&leaf).is_empty(),
+                "{name} must fail closed without source text"
+            );
+        }
+
+        // Capture-to-capture comparisons are unavailable without text too:
+        // equal spans are not proof of equal text.
+        let mut pair = PatternNode::new(SymbolId(0), true);
+        pair.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pair.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(1),
+        ));
+        let pair_tree = make_root(vec![make_node(1, 0, 1), make_node(1, 1, 2)], 2);
+        for predicate in [
+            Predicate::Eq {
+                capture1: 0,
+                capture2: Some(1),
+                value: None,
+            },
+            Predicate::NotEq {
+                capture1: 0,
+                capture2: Some(1),
+                value: None,
+            },
+        ] {
+            let mut query = query_with_root(pair.clone());
+            query.patterns[0].predicates.push(predicate);
+            assert!(
+                QueryMatcher::source_free(&query)
+                    .matches(&pair_tree)
+                    .is_empty(),
+                "capture-to-capture must fail closed without source text"
+            );
+        }
+
+        // Positive controls: with source text the same predicates resolve.
+        let metadata = test_symbol_metadata();
+        let controls: Vec<(Predicate, usize)> = vec![
+            (
+                Predicate::Eq {
+                    capture1: 0,
+                    capture2: None,
+                    value: Some("ab".to_string()),
+                },
+                1,
+            ),
+            (
+                Predicate::NotEq {
+                    capture1: 0,
+                    capture2: None,
+                    value: Some("different".to_string()),
+                },
+                1,
+            ),
+            (
+                Predicate::NotMatch {
+                    capture: 0,
+                    regex: "z+".to_string(),
+                },
+                1,
+            ),
+        ];
+        for (predicate, expected) in controls {
+            let mut query = query_with_root(PatternNode::new(SymbolId(1), true).with_capture(0));
+            query.patterns[0].predicates.push(predicate);
+            let matcher = QueryMatcher::new(&query, "ab", &metadata);
+            assert_eq!(matcher.matches(&leaf).len(), expected);
+        }
+    }
+
+    #[test]
     fn test_field_constraint_matches_named_field_child() {
         let mut pattern = PatternNode::new(SymbolId(0), true);
         pattern.add_field(
@@ -1557,6 +1860,55 @@ mod tests {
     }
 
     #[test]
+    fn test_repeated_capture_predicate_failing_first_occurrence_rejects() {
+        // "cd ab": the FIRST occurrence fails (#match? @x "ab") while the
+        // final occurrence passes. Universal semantics reject the match; a
+        // last-occurrence-only inspection would wrongly accept it.
+        let source = "cd ab";
+        let mut repeated = PatternNode::new(SymbolId(0), true);
+        repeated.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        repeated.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        let mut query = query_with_root(repeated);
+        query.patterns[0].predicates.push(Predicate::Match {
+            capture: 0,
+            regex: "ab".to_string(),
+        });
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let root = make_root(vec![make_node(1, 0, 2), make_node(1, 3, 5)], source.len());
+        assert!(
+            matcher.matches(&root).is_empty(),
+            "a failing nonfinal occurrence must not be hidden by a passing final one"
+        );
+
+        // Positive control: a predicate every occurrence satisfies keeps the
+        // match with both occurrences in declared order.
+        query.patterns[0].predicates = vec![Predicate::Match {
+            capture: 0,
+            regex: "ab|cd".to_string(),
+        }];
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures.len(), 2);
+        assert_eq!(
+            matches[0]
+                .captures
+                .iter()
+                .map(|capture| capture.node.start_byte..capture.node.end_byte)
+                .collect::<Vec<_>>(),
+            vec![0..2, 3..5]
+        );
+        assert_eq!(&source[0..2], "cd");
+        assert_eq!(&source[3..5], "ab");
+    }
+
+    #[test]
     fn test_backtrack_returns_only_the_accepted_match_captures() {
         // (identifier @x) . (number): the anchor forces adjacency, so the
         // plausible first identifier fails and only the accepted second
@@ -1586,6 +1938,32 @@ mod tests {
         );
         assert_eq!(matches[0].captures[0].index, 0);
         assert_eq!(matches[0].captures[0].node.start_byte, 1);
+    }
+
+    #[test]
+    fn test_star_zero_occurrences_contributes_no_capture() {
+        // (identifier @x)* matches zero times before the tail number: the
+        // match succeeds with no speculative capture.
+        let source = "b";
+        let root = make_root(vec![make_node(2, 0, 1)], source.len());
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true)
+                .with_capture(0)
+                .with_quantifier(Quantifier::Star),
+        ));
+        pattern.add_child(PatternChild::Node(PatternNode::new(SymbolId(2), true)));
+        let query = query_with_root(pattern);
+        let metadata = test_symbol_metadata();
+
+        let matcher = QueryMatcher::new(&query, source, &metadata);
+        let matches = matcher.matches(&root);
+
+        assert_eq!(matches.len(), 1);
+        assert!(
+            matches[0].captures.is_empty(),
+            "zero-occurrence Star success contributes no speculative capture"
+        );
     }
 
     #[test]
@@ -1832,5 +2210,107 @@ mod tests {
             matches.is_empty(),
             "a failing occurrence must fail the predicate even when another passes"
         );
+    }
+
+    #[cfg(feature = "query")]
+    #[test]
+    fn test_matches_document_rejects_failing_first_occurrence() {
+        // "cd ab" through the flat backend: the FIRST occurrence fails
+        // (#match? @x "ab") while the final passes. Universal semantics
+        // reject the match; a last-occurrence-only inspection would accept.
+        let source = "cd ab";
+        let root = make_root(vec![make_node(1, 0, 2), make_node(1, 3, 5)], source.len());
+        let document = doc_fixture(source, root);
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true).with_capture(0),
+        ));
+        let mut query = query_with_root(pattern);
+        query.patterns[0].predicates.push(Predicate::Match {
+            capture: 0,
+            regex: "ab".to_string(),
+        });
+
+        let matches = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+        assert!(
+            matches.is_empty(),
+            "a failing nonfinal occurrence must not be hidden by a passing final one"
+        );
+    }
+
+    #[cfg(feature = "query")]
+    #[test]
+    fn test_matches_document_star_zero_occurrences_contributes_no_capture() {
+        let source = "b";
+        let root = make_root(vec![make_node(2, 0, 1)], source.len());
+        let document = doc_fixture(source, root);
+        let mut pattern = PatternNode::new(SymbolId(0), true);
+        pattern.add_child(PatternChild::Node(
+            PatternNode::new(SymbolId(1), true)
+                .with_capture(0)
+                .with_quantifier(Quantifier::Star),
+        ));
+        pattern.add_child(PatternChild::Node(PatternNode::new(SymbolId(2), true)));
+        let query = query_with_root(pattern);
+
+        let matches = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+
+        assert_eq!(matches.len(), 1);
+        assert!(
+            matches[0].captures.is_empty(),
+            "zero-occurrence Star success contributes no speculative capture"
+        );
+    }
+
+    #[cfg(feature = "query")]
+    #[test]
+    fn test_matches_document_unavailable_text_fails_predicates_closed() {
+        // Record range 0..3 exceeds source "ab": node text is unavailable, so
+        // every text predicate fails closed through the flat backend.
+        let source = "ab";
+        let document = doc_fixture(source, make_node(1, 0, 3));
+        let predicates = [
+            Predicate::Eq {
+                capture1: 0,
+                capture2: None,
+                value: Some("ab".to_string()),
+            },
+            Predicate::NotEq {
+                capture1: 0,
+                capture2: None,
+                value: Some("different".to_string()),
+            },
+            Predicate::Match {
+                capture: 0,
+                regex: "a+".to_string(),
+            },
+            Predicate::NotMatch {
+                capture: 0,
+                regex: "z+".to_string(),
+            },
+            Predicate::AnyOf {
+                capture: 0,
+                values: vec!["ab".to_string()],
+            },
+        ];
+        for (index, predicate) in predicates.into_iter().enumerate() {
+            let mut query = query_with_root(PatternNode::new(SymbolId(1), true).with_capture(0));
+            query.patterns[0].predicates.push(predicate);
+            let matches = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+            assert!(
+                matches.is_empty(),
+                "flat-backend predicate {index} must fail closed on unavailable text"
+            );
+        }
+
+        // Control: without predicates the node itself still resolves, so only
+        // the text predicates fail closed.
+        let query = query_with_root(PatternNode::new(SymbolId(1), true).with_capture(0));
+        let matches = QueryMatcher::new(&query, source, &[]).matches_document(&document);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].captures.len(), 1);
     }
 }
