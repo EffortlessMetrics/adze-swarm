@@ -5,6 +5,11 @@ use xshell::Shell;
 mod badges;
 mod baseline;
 mod bench;
+/// Shared `cargo test` flag table (#1058); the library target exposes it as
+/// `xtask::cargo_flags`. `dead_code` is allowed because the binary only
+/// reaches the subset consumed through `mod executed_proof`.
+#[allow(dead_code)]
+mod cargo_flags;
 mod ci_plan;
 mod corpus;
 mod dashboard;
