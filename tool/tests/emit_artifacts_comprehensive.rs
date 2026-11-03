@@ -487,7 +487,10 @@ fn rebuild_refreshes_owned_artifacts_and_preserves_other_files() {
     for (name, bytes) in retained {
         assert_eq!(fs::read(gdir.join(name)).unwrap(), bytes.as_bytes());
     }
-    assert_eq!(Path::new(&result.parser_path), gdir.join("parser_simple.rs"));
+    assert_eq!(
+        Path::new(&result.parser_path),
+        gdir.join("parser_simple.rs")
+    );
     for name in owned {
         let bytes = fs::read(gdir.join(name)).unwrap();
         assert!(!bytes.is_empty(), "owned output {name} must be emitted");
