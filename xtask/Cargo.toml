@@ -11,6 +11,7 @@ anyhow.workspace = true
 xshell = "0.2.7"
 camino = "1.2.2"                                        # OS-agnostic path printing
 serde_json.workspace = true
+sha2.workspace = true
 similar = "2.7.0"
 console = "0.16.3"
 walkdir = "2.5.0"

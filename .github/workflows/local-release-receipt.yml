@@ -39,12 +39,12 @@ jobs:
 
       - name: Run local-registry receipt
         if: ${{ !inputs.dry_run }}
-        run: cargo run -q -p xtask -- verify-local-release-install --version "${{ inputs.version }}" --receipt-out target/local-release-receipt.json
+        run: cargo run -q -p xtask -- verify-local-release-install --version "${{ inputs.version }}" --receipt-out target/local-release-receipt.json --artifacts-out "${{ runner.temp }}/adze-release-evidence"
 
       - name: Upload receipt artifact
-        if: ${{ !inputs.dry_run }}
+        if: ${{ always() && !inputs.dry_run }}
         uses: actions/upload-artifact@v7.0.0
         with:
           name: local-release-receipt-${{ inputs.version }}
-          path: target/local-release-receipt.json
+          path: ${{ runner.temp }}/adze-release-evidence
           if-no-files-found: error

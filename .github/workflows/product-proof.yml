@@ -81,6 +81,20 @@ env:
     scripts/ci-product-stable.sh
     scripts/lib/required-test-output.sh
     scripts/test_required_test_output.py
+    scripts/test_local_release_archive.py
+    xtask/Cargo.toml
+    xtask/src/main.rs
+    xtask/src/policy.rs
+    xtask/src/local_registry.rs
+    xtask/src/local_registry_provenance.rs
+    xtask/src/local_registry_provenance_tests.rs
+    xtask/src/local_release_archive.py
+    xtask/src/local_release_install.rs
+    xtask/src/local_release_receipt.rs
+    xtask/src/release_graph.rs
+    policy/release-graph.toml
+    policy/package-boundary.toml
+    .github/workflows/local-release-receipt.yml
     .github/workflows/product-proof.yml
     runtime/**
     macro/**
@@ -216,6 +230,38 @@ jobs:
 
       - name: Show stable canary plan (dry-run)
         run: scripts/ci-product-stable.sh --dry-run
+
+      # #1065 exercises small archive/metadata controls, not a full release install.
+      - name: Qualify local release archive provenance controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/lib/required-test-output.sh
+          python3 scripts/test_local_release_archive.py
+          cargo clippy --locked -p xtask --bin xtask --tests -- -D warnings
+
+          run_release_contract() {
+            local label="$1" output status
+            shift
+            printf '\n[local release] %s\n' "$label"
+            if output="$("$@" 2>&1)"; then
+              status=0
+            else
+              status=$?
+            fi
+            printf '%s\n' "$output"
+            if (( status != 0 )); then
+              printf '%s failed with exit %s.\n' "$label" "$status" >&2
+              return "$status"
+            fi
+            required_test_output "$output" "$label"
+          }
+
+          # Tiny Git/tar/Cargo controls only. The full selected release graph
+          # and installed Linux/Windows journey remain separate candidate proof.
+          run_release_contract 'source archive index and existing registry controls' cargo test --locked -p xtask --bin xtask local_registry:: -- --nocapture
+          run_release_contract 'local release planning' cargo test --locked -p xtask --bin xtask local_release_install:: -- --nocapture
+          run_release_contract 'local release receipt boundaries' cargo test --locked -p xtask --bin xtask local_release_receipt:: -- --nocapture
 
       # #1066 qualifies the Linux CLI boundary separately from the README
       # Stable claims. These checks do not promote CLI/platform support tiers.

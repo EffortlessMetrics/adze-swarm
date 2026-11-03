@@ -14,7 +14,11 @@ use std::process::{Child, Command, Stdio};
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
 use tempfile::TempDir;
+
+#[path = "local_registry_provenance.rs"]
+mod provenance;
 
 pub const REGISTRY_NAME: &str = "adze-local";
 
@@ -57,6 +61,7 @@ pub struct IsolatedRegistry {
     crate_dir: PathBuf,
     published: Vec<PublishedCrate>,
     http_server: Option<HttpServer>,
+    provenance: Option<provenance::Provenance>,
 }
 
 impl IsolatedRegistry {
@@ -88,7 +93,59 @@ impl IsolatedRegistry {
             crate_dir,
             published: Vec::new(),
             http_server: None,
+            provenance: None,
         })
+    }
+
+    pub fn new_for_release(
+        workspace_root: &Path,
+        artifacts_out: Option<&Path>,
+        version: &str,
+        ordered_crates: &[String],
+    ) -> Result<Self> {
+        let mut provenance = provenance::Provenance::create(
+            workspace_root, artifacts_out, version, ordered_crates,
+        )?;
+        let mut registry = match Self::new() {
+            Ok(registry) => registry,
+            Err(error) => {
+                if let Err(checkpoint) = provenance.failed(&error) {
+                    return Err(error.context(format!("also failed to retain provenance: {checkpoint:#}")));
+                }
+                return Err(error);
+            }
+        };
+        registry.index_dir = provenance.root().join("registry/index");
+        registry.crate_dir = provenance.root().join("registry/crates");
+        registry.provenance = Some(provenance);
+        Ok(registry)
+    }
+
+    pub fn evidence_stage(&mut self, stage: &str) -> Result<()> {
+        self.provenance.as_mut().context("qualified source evidence is required")?.stage(stage)
+    }
+
+    pub fn evidence_root(&self) -> Result<&Path> {
+        Ok(self.provenance.as_ref().context("qualified source evidence is required")?.root())
+    }
+
+    pub fn bound_source_commit(&self) -> Result<&str> {
+        self.provenance.as_ref().context("qualified source evidence is required")?.source_commit()
+    }
+
+    pub fn finish_evidence(&mut self, result: Result<()>) -> Result<()> {
+        let provenance = self.provenance.as_mut().context("qualified source evidence is required")?;
+        let result = result.and_then(|()| {
+            provenance.verify_archive_artifacts()?;
+            provenance.finished()
+        });
+        if let Err(error) = result {
+            if let Err(checkpoint) = provenance.failed(&error) {
+                return Err(error.context(format!("also failed to retain provenance: {checkpoint:#}")));
+            }
+            return Err(error);
+        }
+        Ok(())
     }
 
     pub fn published_crates(&self) -> &[PublishedCrate] {
@@ -97,75 +154,85 @@ impl IsolatedRegistry {
 
     pub fn publish_release_graph(
         &mut self,
-        workspace_root: &Path,
         ordered_crates: &[String],
+        selected_version: &str,
     ) -> Result<()> {
-        self.write_index_entries(workspace_root, ordered_crates)
-    }
-
-    fn write_index_entries(
-        &mut self,
-        workspace_root: &Path,
-        ordered_crates: &[String],
-    ) -> Result<()> {
-        let metadata = load_cargo_metadata(workspace_root)?;
+        let snapshot = self.provenance.as_mut()
+            .context("qualified source evidence is required")?.snapshot()?;
+        if crate::release_graph::ordered_crate_names(&snapshot)? != ordered_crates {
+            bail!("selected release graph does not match the committed source snapshot");
+        }
+        self.evidence_stage("selected_version_preflight")?;
+        let metadata = load_cargo_metadata(&snapshot)?;
         let expected_versions = expected_release_versions(&metadata, ordered_crates)?;
+        check_selected_versions(&expected_versions, selected_version)?;
+        let package_roots = ordered_crates.iter().map(|name| {
+            let package = metadata.packages.iter().find(|p| p.name == *name)
+                .with_context(|| format!("selected package `{name}` missing from metadata"))?;
+            let root = Path::new(&package.manifest_path).parent()
+                .context("selected package manifest has no parent")?;
+            Ok((name.clone(), root.to_path_buf()))
+        }).collect::<Result<BTreeMap<_, _>>>()?;
+        self.provenance.as_mut().expect("checked provenance")
+            .check_package_roots(&snapshot, &package_roots)?;
+        fs::create_dir_all(&self.index_dir)?;
+        fs::create_dir_all(&self.crate_dir)?;
         let mut staged = Vec::new();
-
         for crate_name in ordered_crates {
-            let package = metadata
-                .packages
-                .iter()
-                .find(|pkg| pkg.name == *crate_name)
-                .with_context(|| format!("crate `{crate_name}` missing from cargo metadata"))?
-                .clone();
+            self.evidence_stage(&format!("archive:{crate_name}:cargo_package"))?;
+            let package = metadata.packages.iter().find(|p| p.name == *crate_name)
+                .context("selected package disappeared from metadata")?;
             let crate_path = package_crate(
-                workspace_root,
-                self.cargo_home.path(),
-                self.target_dir.path(),
-                crate_name,
-                ordered_crates,
-                &metadata,
+                &snapshot, self.cargo_home.path(), self.target_dir.path(),
+                crate_name, ordered_crates, &metadata,
             )?;
-            inject_registry_deps_into_crate(&crate_path, &expected_versions)?;
-            let manifest = packaged_manifest_text(&crate_path)?;
-            let violations = manifest_isolation_violations(&manifest, &expected_versions);
-            if !violations.is_empty() {
-                bail!(
-                    "packaged crate `{crate_name}` failed {REGISTRY_NAME} isolation: {}",
-                    violations.join("; ")
-                );
+            let prepared = self.provenance.as_mut().expect("checked provenance")
+                .prepare_archive(crate_name, &package.version, &crate_path, |copy| {
+                    inject_registry_deps_into_crate(copy, &expected_versions)?;
+                    let manifest = packaged_manifest_text(copy)?;
+                    let violations = manifest_isolation_violations(&manifest, &expected_versions);
+                    if !violations.is_empty() {
+                        bail!("packaged crate `{crate_name}` failed {REGISTRY_NAME} isolation: {}",
+                            violations.join("; "));
+                    }
+                    Ok(())
+                })?;
+            staged.push((crate_name.clone(), package.version.clone(), prepared));
+        }
+        self.provenance.as_mut().expect("checked provenance").verify_source(&snapshot)?;
+        let index_url = self.activate_http_registry()?;
+        for (name, version, prepared) in staged {
+            self.evidence_stage(&format!("archive:{name}:served_metadata"))?;
+            prepared.verify_extraction()?;
+            let output = served_metadata_output(
+                &prepared.manifest_path, self.cargo_home.path(), self.target_dir.path(),
+            )?;
+            self.provenance.as_mut().expect("checked provenance").record_metadata(prepared.slot, &output)?;
+            if !output.status.success() {
+                bail!("served-manifest metadata for `{name}` failed with status {}: {}",
+                    output.status, String::from_utf8_lossy(&output.stderr));
             }
-
-            let checksum = sha256_hex_file(&crate_path)?;
-            let dest_dir = self.crate_dir.join(crate_name).join(&package.version);
-            fs::create_dir_all(&dest_dir).with_context(|| {
-                format!("creating local registry crate dir {}", dest_dir.display())
-            })?;
-            let dest = dest_dir.join("download");
-            fs::copy(&crate_path, &dest).with_context(|| {
-                format!(
-                    "copying packaged crate `{}` into local registry",
-                    dest.display()
-                )
-            })?;
-            staged.push((package.clone(), checksum.clone()));
+            prepared.verify_extraction()?;
+            let served = validate_served_metadata(
+                &output.stdout, &prepared.manifest_path, &name, &version,
+                &expected_versions, &index_url,
+            )?;
+            self.provenance.as_mut().expect("checked provenance").metadata_validated(prepared.slot)?;
+            if sha256_hex_file(&prepared.download)? != prepared.checksum {
+                bail!("served archive changed while interpreting `{name}` metadata");
+            }
+            write_sparse_index_entry(&self.index_dir, &served, &expected_versions, &prepared.checksum)?;
+            self.provenance.as_mut().expect("checked provenance").record_index(
+                prepared.slot, &sparse_index_file(&self.index_dir, &name),
+            )?;
             self.published.push(PublishedCrate {
-                name: crate_name.clone(),
-                version: package.version.clone(),
-                checksum: checksum.clone(),
+                name: name.clone(), version: version.clone(), checksum: prepared.checksum.clone(),
             });
-            println!(
-                "published to {REGISTRY_NAME}: {crate_name} {} ({checksum})",
-                package.version
-            );
+            println!("published to {REGISTRY_NAME}: {name} {version} ({})", prepared.checksum);
+            // Own the exact extraction through metadata validation and index emission.
+            drop(prepared.extracted);
         }
-
-        self.activate_http_registry()?;
-        for (package, checksum) in staged {
-            write_sparse_index_entry(&self.index_dir, &package, &expected_versions, &checksum)?;
-        }
-        Ok(())
+        self.provenance.as_mut().expect("checked provenance").archives_prepared()
     }
 
     fn activate_http_registry(&mut self) -> Result<String> {
@@ -192,6 +259,9 @@ impl IsolatedRegistry {
         bin: &str,
         version: &str,
     ) -> Result<LocalCliInstall> {
+        if let Some(provenance) = &self.provenance {
+            provenance.verify_archive_artifacts()?;
+        }
         let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
         self.install_cli_with_command(cli_crate, bin, version, Command::new(cargo))
     }
@@ -986,7 +1056,9 @@ fn package_patch_config_args(
         let package_dir = manifest_path
             .parent()
             .with_context(|| format!("missing parent for {}", manifest_path.display()))?;
-        let relative = package_dir.strip_prefix(workspace_root).with_context(|| {
+        let package_dir = fs::canonicalize(package_dir)?;
+        let canonical_workspace = fs::canonicalize(workspace_root)?;
+        let relative = package_dir.strip_prefix(&canonical_workspace).with_context(|| {
             format!(
                 "package path {} is outside workspace {}",
                 package_dir.display(),
@@ -1004,6 +1076,7 @@ fn packaged_manifest_text(crate_path: &Path) -> Result<String> {
     let output = Command::new("tar")
         .args(["-xOf"])
         .arg(crate_path)
+        .arg("--")
         .arg(&manifest_member)
         .output()
         .context("extracting Cargo.toml from packaged crate via tar")?;
@@ -1018,25 +1091,9 @@ fn packaged_manifest_text(crate_path: &Path) -> Result<String> {
 }
 
 fn packaged_manifest_member(crate_path: &Path) -> Result<String> {
-    let output = Command::new("tar")
-        .args(["-tzf"])
-        .arg(crate_path)
-        .output()
-        .with_context(|| format!("listing members of {}", crate_path.display()))?;
-    if !output.status.success() {
-        bail!(
-            "failed to list packaged crate {}: {}",
-            crate_path.display(),
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-    let manifest_member = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .find(|line| line.ends_with("/Cargo.toml"))
-        .map(str::to_string)
-        .with_context(|| format!("Cargo.toml not found in {}", crate_path.display()))?;
-    Ok(manifest_member)
+    provenance::archive_manifest_member(crate_path)
 }
+
 
 const DEPENDENCY_TABLE_NAMES: [&str; 3] =
     ["dependencies", "dev-dependencies", "build-dependencies"];
@@ -1334,19 +1391,9 @@ fn repack_crate_with_manifest(
         .prefix("adze-local-crate-repack-")
         .tempdir()
         .context("creating crate repack extraction directory")?;
-    let status = Command::new("tar")
-        .args(["-xzf"])
-        .arg(crate_path)
-        .arg("-C")
-        .arg(extract_dir.path())
-        .status()
-        .with_context(|| format!("extracting {} for manifest rewrite", crate_path.display()))?;
-    if !status.success() {
-        bail!(
-            "failed to extract {} for manifest rewrite",
-            crate_path.display()
-        );
-    }
+    let expected_root = manifest_member.split_once('/')
+        .context("packaged manifest has no package root")?.0;
+    provenance::extract_package_to(crate_path, extract_dir.path(), expected_root)?;
 
     let manifest_path = extract_dir.path().join(manifest_member);
     fs::write(&manifest_path, manifest).with_context(|| {
@@ -1370,6 +1417,7 @@ fn repack_crate_with_manifest(
         .arg(&repacked_path)
         .arg("-C")
         .arg(extract_dir.path())
+        .arg("--")
         .arg(crate_root_name)
         .status()
         .with_context(|| format!("repacking {}", crate_path.display()))?;
@@ -1388,115 +1436,40 @@ fn repack_crate_with_manifest(
 fn sha256_hex_file(path: &Path) -> Result<String> {
     let mut file =
         File::open(path).with_context(|| format!("opening {} for checksum", path.display()))?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)
-        .with_context(|| format!("reading {} for checksum", path.display()))?;
-    sha256_hex(&buffer)
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let count = file
+            .read(&mut buffer)
+            .with_context(|| format!("reading {} for checksum", path.display()))?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
+#[cfg(test)]
 fn sha256_hex(bytes: &[u8]) -> Result<String> {
-    if let Ok(digest) = sha256_hex_openssl(bytes) {
-        return Ok(digest);
-    }
-    sha256_hex_powershell(bytes)
-}
-
-fn sha256_hex_openssl(bytes: &[u8]) -> Result<String> {
-    use std::io::Write as _;
-
-    let mut child = Command::new("openssl")
-        .args(["dgst", "-sha256", "-hex"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .context("spawning openssl dgst for sha256")?;
-    {
-        let mut stdin = child.stdin.take().context("openssl stdin unavailable")?;
-        stdin.write_all(bytes)?;
-    }
-    let output = child
-        .wait_with_output()
-        .context("waiting for openssl dgst")?;
-    if !output.status.success() {
-        bail!("openssl sha256 failed");
-    }
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let Some((_prefix, digest)) = stdout.split_once('=') else {
-        bail!("unexpected openssl output: {stdout}");
-    };
-    Ok(digest.trim().to_ascii_lowercase())
-}
-
-#[cfg(windows)]
-fn sha256_hex_powershell(bytes: &[u8]) -> Result<String> {
-    use std::io::Write as _;
-
-    let mut child = Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-Command",
-            "$input = [Console]::In.ReadToEnd(); $bytes = [Text.Encoding]::UTF8.GetBytes($input); $hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes); -join ($hash | ForEach-Object { $_.ToString('x2') })",
-        ])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .context("spawning PowerShell sha256 hasher")?;
-    {
-        let mut stdin = child.stdin.take().context("PowerShell stdin unavailable")?;
-        stdin.write_all(bytes)?;
-    }
-    let output = child
-        .wait_with_output()
-        .context("waiting for PowerShell sha256 hasher")?;
-    if !output.status.success() {
-        bail!(
-            "PowerShell sha256 failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .to_ascii_lowercase())
-}
-
-#[cfg(not(windows))]
-fn sha256_hex_powershell(bytes: &[u8]) -> Result<String> {
-    use std::io::Write as _;
-
-    let mut child = Command::new("sha256sum")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .context("spawning sha256sum")?;
-    {
-        let mut stdin = child.stdin.take().context("sha256sum stdin unavailable")?;
-        stdin.write_all(bytes)?;
-    }
-    let output = child.wait_with_output().context("waiting for sha256sum")?;
-    if !output.status.success() {
-        bail!(
-            "sha256sum failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let digest = stdout.split_whitespace().next().unwrap_or_default();
-    if digest.is_empty() {
-        bail!("unexpected sha256sum output: {stdout}");
-    }
-    Ok(digest.to_ascii_lowercase())
+    Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
 #[derive(Debug, Clone, Deserialize)]
 struct CargoMetadata {
     packages: Vec<CargoPackage>,
+    #[serde(default)]
+    workspace_members: Vec<String>,
+    #[serde(default)]
+    workspace_root: String,
+    #[serde(default)]
+    resolve: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 struct CargoPackage {
+    #[serde(default)]
+    id: String,
     name: String,
     version: String,
     manifest_path: String,
@@ -1516,14 +1489,16 @@ struct CargoDependency {
     features: Vec<String>,
     #[serde(default)]
     optional: bool,
-    #[serde(default = "default_true")]
+    #[serde(rename = "uses_default_features")]
     default_features: bool,
     target: Option<String>,
     kind: Option<String>,
-}
-
-fn default_true() -> bool {
-    true
+    #[serde(default)]
+    source: Option<String>,
+    #[serde(default)]
+    registry: Option<String>,
+    #[serde(default)]
+    path: Option<String>,
 }
 
 fn load_cargo_metadata(workspace_root: &Path) -> Result<CargoMetadata> {
@@ -1540,6 +1515,82 @@ fn load_cargo_metadata(workspace_root: &Path) -> Result<CargoMetadata> {
         );
     }
     serde_json::from_slice(&output.stdout).context("parsing cargo metadata output")
+}
+
+fn check_selected_versions(expected_versions: &BTreeMap<String, String>, selected: &str) -> Result<()> {
+    semver::Version::parse(selected).context("selected release version must be exact semver")?;
+    for (name, version) in expected_versions {
+        if version != selected {
+            bail!("selected release version `{selected}` does not match `{name}` version `{version}`");
+        }
+    }
+    Ok(())
+}
+
+fn served_metadata_output(
+    manifest: &Path,
+    cargo_home: &Path,
+    target_dir: &Path,
+) -> Result<std::process::Output> {
+    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
+    Command::new(cargo)
+        .args(["metadata", "--no-deps", "--offline", "--format-version", "1", "--manifest-path"])
+        .arg(manifest)
+        .current_dir(manifest.parent().context("served manifest has no parent")?)
+        .env("CARGO_HOME", cargo_home)
+        .env("CARGO_TARGET_DIR", target_dir)
+        .output()
+        .context("interpreting exact served manifest with cargo metadata --no-deps")
+}
+
+fn validate_served_metadata(
+    raw: &[u8],
+    manifest: &Path,
+    name: &str,
+    version: &str,
+    expected_versions: &BTreeMap<String, String>,
+    local_index_url: &str,
+) -> Result<CargoPackage> {
+    let mut metadata: CargoMetadata = serde_json::from_slice(raw).context("parsing served metadata")?;
+    if metadata.resolve.is_some() || metadata.packages.len() != 1 || metadata.workspace_members.len() != 1 {
+        bail!("served metadata must describe exactly one root package without a resolve graph");
+    }
+    let package = metadata.packages.pop().context("served root package absent")?;
+    if package.name != name || package.version != version || package.id.is_empty()
+        || metadata.workspace_members[0] != package.id
+        || fs::canonicalize(&package.manifest_path)? != fs::canonicalize(manifest)?
+        || fs::canonicalize(&metadata.workspace_root)?
+            != fs::canonicalize(manifest.parent().context("served manifest has no parent")?)?
+    {
+        bail!("served metadata root identity does not match the exact selected archive manifest");
+    }
+    for dependency in &package.dependencies {
+        if !dependency_counts_for_index(dependency) {
+            bail!("unsupported dependency kind in served metadata for `{}`", dependency.name);
+        }
+        if dependency.path.is_some() {
+            bail!("served metadata contains path dependency `{}`", dependency.name);
+        }
+        if let Some(selected) = expected_versions.get(&dependency.name) {
+            if dependency.registry.as_deref() != Some(local_index_url)
+                || dependency.source.as_deref() != Some(local_index_url)
+                || dependency.req != format!("={selected}")
+            {
+                bail!("served dependency `{}` does not name the exact selected local registry/version", dependency.name);
+            }
+        } else {
+            let source_is_crates_io = matches!(dependency.source.as_deref(),
+                Some("registry+https://github.com/rust-lang/crates.io-index")
+                    | Some("sparse+https://index.crates.io/"));
+            let registry_is_crates_io = matches!(dependency.registry.as_deref(),
+                None | Some("https://github.com/rust-lang/crates.io-index")
+                    | Some("sparse+https://index.crates.io/"));
+            if !source_is_crates_io || !registry_is_crates_io {
+                bail!("served dependency `{}` has an unsupported or unknown registry/Git origin", dependency.name);
+            }
+        }
+    }
+    Ok(package)
 }
 
 fn split_index_features(
@@ -1592,6 +1643,7 @@ fn write_sparse_index_entry(
         serde_json::to_value(&features).context("serializing crate features")?,
     );
     if !features2.is_empty() {
+        entry.insert("v".to_string(), Value::from(2));
         entry.insert(
             "features2".to_string(),
             serde_json::to_value(&features2).context("serializing crate features2")?,
@@ -2326,6 +2378,9 @@ adze = "0.10.0"
             default_features: true,
             target: None,
             kind: None,
+            source: None,
+            registry: None,
+            path: None,
         };
         let published = expected_versions_for(&["adze"], "0.10.0");
         let entry = index_dependency(&dep, &published).expect("index dep");
@@ -2344,6 +2399,9 @@ adze = "0.10.0"
             default_features: true,
             target: None,
             kind: None,
+            source: None,
+            registry: None,
+            path: None,
         };
         let published = expected_versions_for(&["adze"], "0.10.0");
         let entry = index_dependency(&dep, &published).expect("index dep");
@@ -2376,6 +2434,9 @@ adze = "0.10.0"
             default_features: true,
             target: None,
             kind: Some("dev".to_string()),
+            source: None,
+            registry: None,
+            path: None,
         };
         assert!(dependency_counts_for_index(&dev));
     }
