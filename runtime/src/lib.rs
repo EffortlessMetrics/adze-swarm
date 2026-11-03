@@ -210,9 +210,6 @@ pub mod tree_node_data;
 pub mod serialization;
 /// Subtree representation and utilities.
 pub mod subtree;
-/// Unified parser interface.
-#[cfg(feature = "pure-rust")]
-pub mod unified_parser;
 /// Tree visitor pattern implementations.
 pub mod visitor;
 /// SIMD-accelerated lexer module.
