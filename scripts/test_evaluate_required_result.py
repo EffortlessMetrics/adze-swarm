@@ -218,6 +218,21 @@ class WorkflowWiring(unittest.TestCase):
                         self.assertEqual("true", result["run_stable"])
                         self.assertEqual(f"stable_surface:{path}", result["reason"])
 
+    def test_static_runner_contract_inputs_select_product_qualification(self) -> None:
+        paths = (
+            "cli/Cargo.toml",
+            "cli/tests/cli_test.rs",
+            "cli/tests/runner_output_contract.rs",
+            "cli/tests/runner_process_contract.rs",
+        )
+        for event in ("merge_group", "pull_request"):
+            for change in ("modify", "delete", "rename"):
+                for path in paths:
+                    with self.subTest(event=event, change=change, path=path):
+                        result = self._product_path_selection(path, event=event, change=change)
+                        self.assertEqual("true", result["run_stable"])
+                        self.assertEqual(f"stable_surface:{path}", result["reason"])
+
     def test_shared_build_inputs_select_stable_product_lane(self) -> None:
         # Recorded #1027 omissions: dependencies and workspace build inputs
         # affect generated product canaries even without a runtime/ change.
