@@ -116,16 +116,6 @@ pub use glr_incremental::{Edit, GLRToken, IncrementalGLRParser};
 // Additional stable re-exports can be added here as needed
 // DO NOT move or remove existing re-exports
 
-// Legacy incremental modules - depend on deprecated parsers
-/// Incremental parsing façade used by older callers.
-#[cfg(feature = "legacy-parsers")]
-pub mod incremental;
-/// Incremental parser v2 (position- and range-centric editing).
-#[cfg(feature = "legacy-parsers")]
-pub mod incremental_v2;
-/// Incremental parser v3 (next-gen prototype).
-#[cfg(feature = "legacy-parsers")]
-pub mod incremental_v3;
 /// Lexer implementation and token types.
 pub mod lexer;
 /// Registry for managing external scanners.
@@ -144,9 +134,6 @@ pub mod parser {
 pub mod error_recovery;
 /// Error reporting utilities.
 pub mod error_reporting;
-/// Legacy GLR module used by `parser_v3`.
-#[cfg(feature = "legacy-parsers")]
-pub mod glr; // Legacy GLR module that depends on parser_v3
 /// GLR parse forest representation.
 #[cfg(feature = "pure-rust")]
 pub mod glr_forest;
@@ -189,12 +176,6 @@ pub mod grammar_json;
 /// Performance optimizations for parsing.
 pub mod optimizations;
 
-// Legacy parser versions - deprecated
-#[cfg(feature = "legacy-parsers")]
-mod parser_v2;
-#[cfg(feature = "legacy-parsers")]
-mod parser_v3;
-
 // Current parser version
 /// Arena allocator for parse tree nodes.
 pub mod arena_allocator;
@@ -212,8 +193,6 @@ mod parser_v4_action_utils;
 /// External-scanner setup helpers for the version 4 parser.
 #[cfg(feature = "pure-rust")]
 mod parser_v4_external_setup;
-/// Pure Rust external scanner support.
-pub mod pure_external_scanner;
 /// Pure Rust incremental parsing support.
 pub mod pure_incremental;
 /// Pure Rust parser implementation.
@@ -1240,6 +1219,28 @@ fn repeat_tail_child_select(node: &crate::pure_parser::ParsedNode) -> RepeatChil
     RepeatChild::Skip
 }
 
+/// Preserve the fielded empty occurrence emitted for an absent optional
+/// repeated element. Named empty values remain present, while unfielded
+/// empty-repeat sentinels are excluded by the child selectors above.
+#[cfg(feature = "pure-rust")]
+fn repeat_element_input(
+    node: &crate::pure_parser::ParsedNode,
+    last_idx: usize,
+) -> (Option<&crate::pure_parser::ParsedNode>, usize) {
+    if node.field_id.is_some()
+        && !node.is_named
+        && node.start_byte == node.end_byte
+        && node.children.is_empty()
+        && !node.is_extra
+        && !node.is_error
+        && !node.is_missing
+    {
+        (None, node.start_byte)
+    } else {
+        (Some(node), last_idx)
+    }
+}
+
 impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
     type LeafFn = T::LeafFn;
 
@@ -1321,7 +1322,8 @@ impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
                 for child in &node.children {
                     match crate::repeat_tail_child_select(child) {
                         crate::RepeatChild::Element => {
-                            out.push(T::extract(Some(child), source, last_idx, leaf_fn));
+                            let (input, at) = crate::repeat_element_input(child, last_idx);
+                            out.push(T::extract(input, source, at, leaf_fn));
                             last_idx = child.end_byte;
                         }
                         crate::RepeatChild::Descend => {
@@ -1350,7 +1352,8 @@ impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
                 ) -> usize {
                     match crate::repeat_child_select(child) {
                         crate::RepeatChild::Element => {
-                            out.push(T::extract(Some(child), source, last_idx, leaf_fn));
+                            let (input, at) = crate::repeat_element_input(child, last_idx);
+                            out.push(T::extract(input, source, at, leaf_fn));
                         }
                         crate::RepeatChild::Descend => {
                             flatten_repeat_tail::<T, U>(child, source, last_idx, leaf_fn, out);
@@ -1453,7 +1456,8 @@ impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
                 for child in &node.children {
                     match crate::repeat_tail_child_select(child) {
                         crate::RepeatChild::Element => {
-                            out.push(T::try_extract(Some(child), source, last_idx, leaf_fn)?);
+                            let (input, at) = crate::repeat_element_input(child, last_idx);
+                            out.push(T::try_extract(input, source, at, leaf_fn)?);
                             last_idx = child.end_byte;
                         }
                         crate::RepeatChild::Descend => {
@@ -1474,7 +1478,8 @@ impl<T: Extract<U>, U> Extract<Vec<U>> for Vec<T> {
             ) -> Result<usize, crate::errors::ParseError> {
                 match crate::repeat_child_select(child) {
                     crate::RepeatChild::Element => {
-                        out.push(T::try_extract(Some(child), source, last_idx, leaf_fn)?);
+                        let (input, at) = crate::repeat_element_input(child, last_idx);
+                        out.push(T::try_extract(input, source, at, leaf_fn)?);
                     }
                     crate::RepeatChild::Descend => {
                         flatten_repeat_tail_try::<T, U>(child, source, last_idx, leaf_fn, out)?;

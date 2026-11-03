@@ -24,3 +24,4 @@ proc-macro2 = { workspace = true }
 quote = { workspace = true }
 toml = "0.8"
 globset = "0.4"
+semver = "1.0"

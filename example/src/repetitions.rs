@@ -344,26 +344,60 @@ mod tests {
     }
 
     #[test]
-    fn repetitions_optional_singleton_rejected_is_explicit_1062() {
-        // Flagged, not blessed: the generated table demands a delimiter even
-        // for one element (`"1"` and `"1,"` are rejected), which does not
-        // follow from the zero-or-more delimited annotation. Owned by the
-        // grammar-construction lane. Pinned so the contract cannot drift
-        // silently.
-        for input in ["1", "1,"] {
-            let errors = grammar3::parse(input).expect_err("singleton rejected by current table");
-            assert!(!errors.is_empty(), "bounded diagnostics for {input:?}");
+    fn test_repetitions_optional_single_and_trailing_none_exact_1062() {
+        for (input, expected) in [
+            ("1", vec![(Some(1), (0, 1))]),
+            ("1,", vec![(Some(1), (0, 1)), (None, (2, 2))]),
+        ] {
+            let parsed = grammar3::parse(input).expect("nullable element values");
+            let items: Vec<_> = parsed
+                .numbers
+                .value
+                .iter()
+                .map(|item| (item.value, item.span))
+                .collect();
+            assert_eq!(items, expected, "{input:?}");
+            assert_eq!(parsed.numbers.span, (0, input.len()));
+            assert_eq!(parsed.metadata, 123);
         }
     }
 
     #[test]
-    fn repetitions_optional_malformed_delimiters_rejected_1062() {
-        // #1062: malformed leading/repeated/trailing delimiters are rejected
-        // with bounded diagnostics. Empty-gap acceptance semantics are
-        // undecided at the table level, so these rows pin rejection rather
-        // than any gap value.
-        for input in ["1,, 2", "1,, 2,", ",,,", ",,", ",1,2"] {
-            let errors = grammar3::parse(input).expect_err("malformed delimiters rejected");
+    fn test_repetitions_optional_gaps_preserve_none_values_1062() {
+        for (input, expected) in [
+            (
+                "1,, 2",
+                vec![(Some(1), (0, 1)), (None, (2, 2)), (Some(2), (4, 5))],
+            ),
+            (
+                "1,, 2,",
+                vec![
+                    (Some(1), (0, 1)),
+                    (None, (2, 2)),
+                    (Some(2), (4, 5)),
+                    (None, (6, 6)),
+                ],
+            ),
+        ] {
+            let parsed = grammar3::parse(input).expect("nullable later elements");
+            let items: Vec<_> = parsed
+                .numbers
+                .value
+                .iter()
+                .map(|item| (item.value, item.span))
+                .collect();
+            assert_eq!(items, expected, "{input:?}");
+            assert_eq!(parsed.numbers.span, (0, input.len()));
+            assert_eq!(parsed.metadata, 123);
+        }
+    }
+
+    #[test]
+    fn test_repetitions_optional_leading_delimiters_rejected_1062() {
+        // The first element remains present; only later element values may
+        // be absent. The nullable-tail repair does not permit a blank first.
+        for input in [",,,", ",,", ",1,2"] {
+            let errors = grammar3::parse(input).expect_err("leading delimiters rejected");
             assert!(!errors.is_empty(), "bounded diagnostics for {input:?}");
         }
     }
@@ -429,7 +463,8 @@ mod tests {
     #[test]
     fn test_optional_repetitions_overflow_returns_conversion_error() {
         // #1062/#1045: same overflow contract for the nested-optional shape.
-        // The table demands a delimiter pair, so the row uses two elements.
+        // Keep the pair control while singleton admission is independently
+        // covered by the nullable-element exact-value contract.
         use adze::errors::ParseErrorReason;
 
         let parsed = grammar3::parse("2147483647, 1")

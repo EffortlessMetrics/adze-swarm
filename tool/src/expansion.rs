@@ -248,14 +248,16 @@ fn gen_field(
         // first element. Later elements keep the optional wrapping.
         let first_field_rule = field_rule_non_optional.clone();
         let field_rule = if field_optional {
+            // The occurrence is a field even when its optional value is
+            // absent. Keeping FIELD outside CHOICE preserves the zero-width
+            // element edge, distinct from an empty whole-repeat sentinel.
             json!({
-                "type": "CHOICE",
-                "members": [
-                    {
-                        "type": "BLANK"
-                    },
-                    field_rule_non_optional
-                ]
+                "type": "FIELD",
+                "name": format!("{path}_vec_element"),
+                "content": {
+                    "type": "CHOICE",
+                    "members": [{ "type": "BLANK" }, field_json]
+                }
             })
         } else {
             field_rule_non_optional
@@ -281,11 +283,7 @@ fn gen_field(
                 "members": [
                     first_field_rule,
                     {
-                        "type": if field_optional {
-                            "REPEAT1"
-                        } else {
-                            "REPEAT"
-                        },
+                        "type": "REPEAT",
                         "content": {
                             "type": "SEQ",
                             "members": [
@@ -520,27 +518,13 @@ impl<'a> Precs<'a> {
 ///    reduce/reduce variant identity)
 /// 5. Default: → inline (enables GLR conflict preservation)
 fn should_inline_variant(attrs: &[Attribute], fields: &Fields) -> bool {
-    // Rule 1: Check for explicit no_inline attribute
-    if attrs
-        .iter()
-        .any(|attr| attr.path() == &syn::parse_quote!(adze::no_inline))
-    {
+    // Explicit no_inline and precedence share extraction's wrapper policy.
+    if variant_has_explicit_wrapper(attrs) {
         return false;
     }
 
-    // Rule 2: Unit variants never inline (backward compatibility)
+    // Unit variants never inline (backward compatibility).
     if matches!(fields, Fields::Unit) {
-        return false;
-    }
-
-    // Rule 3: Variants with precedence never inline (backward compatibility)
-    let has_precedence = attrs.iter().any(|attr| {
-        attr.path() == &syn::parse_quote!(adze::prec)
-            || attr.path() == &syn::parse_quote!(adze::prec_left)
-            || attr.path() == &syn::parse_quote!(adze::prec_right)
-    });
-
-    if has_precedence {
         return false;
     }
 

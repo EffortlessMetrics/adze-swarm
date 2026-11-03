@@ -386,13 +386,43 @@ pub mod grammar {
         #[adze::leaf(text = ")")]
         _close: (),
     }
+
+    #[adze::extra]
+    #[allow(dead_code)]
+    struct Whitespace {
+        #[adze::leaf(pattern = r"\s")]
+        _whitespace: (),
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use adze::pure_parser::Parser;
+
     #[test]
     fn test_simple_program() {
         // Grammar builds successfully - this test just ensures the grammar compiles
         let _language = super::grammar::language();
+    }
+
+    /// Whitespace is declared as an extra, so spacing around tokens must not
+    /// produce lexical errors and must not be absorbed into token spans
+    /// (span contract: the `;` token text stays `";"`, covered by the
+    /// golden canary `canary_expression.js` = `";\n"`).
+    #[test]
+    fn test_whitespace_variants_parse_without_errors() {
+        for source in [";\n", "; ;", ";\n", "  ;  ", "; ;\n", ";;", "; ;;"] {
+            let mut parser = Parser::new();
+            parser
+                .set_language(super::grammar::language())
+                .expect("failed to construct adze-javascript language");
+            let result = parser.parse_bytes(source.as_bytes());
+            assert!(result.root.is_some(), "expected parse root for {source:?}");
+            assert!(
+                result.errors.is_empty(),
+                "expected zero errors for {source:?}, got: {:?}",
+                result.errors
+            );
+        }
     }
 }

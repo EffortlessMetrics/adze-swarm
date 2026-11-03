@@ -10,6 +10,10 @@ mod corpus;
 mod dashboard;
 mod debug_blocks;
 mod doctor;
+/// Reused by `mod proof`; test-only helpers (e.g. `matches_identity`) are
+/// exercised through the lib/test targets, not the binary.
+#[allow(dead_code)]
+mod executed_proof;
 mod fixtures;
 mod golden;
 mod goto_indexing;
@@ -23,6 +27,7 @@ mod perf_receipt;
 mod policy;
 mod profile;
 mod promotion_packet;
+mod proof;
 mod publish_install;
 mod queue_admission;
 mod release_graph;
@@ -372,6 +377,12 @@ enum Commands {
         #[command(subcommand)]
         action: Box<QueueAdmissionAction>,
     },
+    /// Durable executed-proof receipts (#1058): run the stable canary and
+    /// retain the receipt, or re-validate a retained receipt.
+    Proof {
+        #[command(subcommand)]
+        action: Box<ProofAction>,
+    },
     /// Generate or check the promotion packet from one typed schema (#1123).
     PromotionPacket {
         /// Selected candidate swarm SHA.
@@ -524,6 +535,33 @@ impl Grammar {
             Grammar::C => Some("https://github.com/tree-sitter/tree-sitter-c"),
         }
     }
+}
+
+#[derive(Subcommand)]
+enum ProofAction {
+    /// Run the stable canary (or --command) and write ProofReceipt JSON +
+    /// raw log. Mirrors `--receipt-out` idiom: --ledger selects the receipt
+    /// JSON path, defaulting to <out>/proof-receipt.json.
+    Run {
+        /// Output dir receiving proof-receipt.json + raw-output.log.
+        #[arg(long)]
+        out: std::path::PathBuf,
+        /// Receipt JSON path (defaults to <out>/proof-receipt.json).
+        #[arg(long)]
+        ledger: Option<std::path::PathBuf>,
+        /// Override the exercised `cargo test ...` command.
+        #[arg(long)]
+        command: Option<String>,
+    },
+    /// Re-check a retained receipt against its raw output.
+    Validate {
+        /// Receipt JSON path.
+        #[arg(long)]
+        receipt: Option<std::path::PathBuf>,
+        /// Alias of --receipt.
+        #[arg(long)]
+        ledger: Option<std::path::PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -874,6 +912,24 @@ fn run_cli() -> Result<()> {
                 withdraw,
                 out,
             } => queue_admission::run_revoke(&record, &reason, at, withdraw, out.as_deref())?,
+        },
+        Commands::Proof { action } => match *action {
+            ProofAction::Run {
+                out,
+                ledger,
+                command,
+            } => {
+                let written =
+                    proof::run_stable_canary(&out, ledger.as_deref(), command.as_deref())?;
+                println!("proof receipt: {}", written.display());
+            }
+            ProofAction::Validate { receipt, ledger } => {
+                let path = receipt
+                    .or(ledger)
+                    .ok_or_else(|| anyhow::anyhow!("--receipt (or --ledger) is required"))?;
+                proof::validate_receipt_file(&path)?;
+                println!("proof receipt valid: {}", path.display());
+            }
         },
         Commands::PromotionPacket {
             source,

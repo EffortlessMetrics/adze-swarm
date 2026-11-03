@@ -83,7 +83,14 @@ impl<'a> AbiLanguageBuilder<'a> {
     /// The single checked RHS-length fact shared by all ABI child-count
     /// consumers (`TS_RULES.rhs_len`, `PARSE_ACTIONS.child_count`).
     pub(super) fn checked_rhs_len(&self, rule: &adze_ir::Rule) -> crate::Result<u8> {
-        let observed = rule.rhs.len();
+        // Normalization represents an empty alternative with a singleton
+        // Epsilon marker. It consumes no syntax child (as LR items already
+        // enforce), so both ABI syntax tables must advertise width zero.
+        let observed = if matches!(rule.rhs.as_slice(), [adze_ir::Symbol::Epsilon]) {
+            0
+        } else {
+            rule.rhs.len()
+        };
         u8::try_from(observed).map_err(|_| crate::TableGenError::RhsLengthExceedsAbiLimit {
             grammar: self.grammar.name.clone(),
             rule: self
