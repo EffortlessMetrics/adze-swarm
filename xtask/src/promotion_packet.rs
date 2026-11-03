@@ -267,8 +267,9 @@ pub fn ensure_version_matches(version: &str, entries: &[ReleaseCrateEntry]) -> R
     Ok(())
 }
 
-/// Validate one receipt against the selected source commit and its timestamp.
-pub fn validate_receipt(
+/// Test convenience wrapper using the current generation time.
+#[cfg(test)]
+fn validate_receipt(
     receipt: &Receipt,
     source_commit: &str,
     source_time: chrono::DateTime<chrono::Utc>,
@@ -276,7 +277,7 @@ pub fn validate_receipt(
     validate_receipt_at(receipt, source_commit, source_time, chrono::Utc::now())
 }
 
-/// [`validate_receipt`] with an explicit generation time (test seam).
+/// Validate one receipt against the selected source and explicit generation time.
 pub fn validate_receipt_at(
     receipt: &Receipt,
     source_commit: &str,
@@ -586,16 +587,15 @@ fn ensure_commit_available(root: &Path, sha: &str) -> Result<()> {
             .args(["fetch", "--no-tags", remote, sha])
             .current_dir(root)
             .output();
-        if let Ok(out) = status {
-            if out.status.success()
-                && git_output(
-                    root,
-                    &["rev-parse", "--verify", &format!("{sha}^{{commit}}")],
-                )
-                .is_ok()
-            {
-                return Ok(());
-            }
+        if let Ok(out) = status
+            && out.status.success()
+            && git_output(
+                root,
+                &["rev-parse", "--verify", &format!("{sha}^{{commit}}")],
+            )
+            .is_ok()
+        {
+            return Ok(());
         }
     }
     bail!("commit {sha} is not available locally and could not be fetched")

@@ -875,60 +875,116 @@ fn generated_parser_multi_error_diagnostics_are_ordered() {
     }
 }
 
+// SPEC0005 permits different diagnostic richness across engines. Preserve
+// repeated deterministic recovery and exact streaming hard-failure facts without
+// borrowing another engine's diagnostics (#1030/#1238).
 #[test]
 fn generated_parser_multi_error_diagnostics_are_not_duplicated() {
+    use adze::__private::EngineDispatch;
+    use adze::document::{AdzeDocument, ParseOutcome};
+
     struct Case {
         label: &'static str,
         source: &'static str,
+        clean_source: &'static str,
         parse: fn(&str) -> Result<(), Vec<adze::errors::ParseError>>,
+        document: fn(&str) -> Result<AdzeDocument, Vec<adze::errors::ParseError>>,
+        language: fn() -> &'static adze::pure_parser::TSLanguage,
+        route: EngineDispatch,
+        first_span: Range<usize>,
+        first_found: &'static str,
+        first_expected: &'static str,
     }
 
     let cases = [
         Case {
             label: "typed AST contract repeated bad tokens",
             source: "@ + @",
+            clean_source: "1 + 2",
             parse: |source| {
                 adze_example::typed_ast_contract::grammar::parse(source)
                     .map(|_: adze_example::typed_ast_contract::grammar::Expr| ())
             },
+            document: adze_example::typed_ast_contract::grammar::parse_document,
+            language: adze_example::typed_ast_contract::grammar::language,
+            route: EngineDispatch::DeterministicLr,
+            first_span: 0..1,
+            first_found: "@",
+            first_expected: "number",
         },
         Case {
             label: "CSV repeated delimiter errors",
             source: ", ,",
+            clean_source: "alpha, beta",
             parse: |source| {
                 adze_example::csv_list::grammar::parse(source)
                     .map(|_: adze_example::csv_list::grammar::CsvList| ())
             },
+            document: adze_example::csv_list::grammar::parse_document,
+            language: adze_example::csv_list::grammar::language,
+            route: if cfg!(feature = "glr") {
+                EngineDispatch::StreamingGlr
+            } else {
+                EngineDispatch::DeterministicLr
+            },
+            first_span: 0..1,
+            first_found: ",",
+            first_expected: "identifier",
         },
         Case {
             label: "object-like repeated structural errors",
             source: "{ name 1 bad }",
+            clean_source: "{ name: 1 }",
             parse: |source| {
                 adze_example::object_like_contract::grammar::parse(source)
                     .map(|_: adze_example::object_like_contract::grammar::Object| ())
             },
+            document: adze_example::object_like_contract::grammar::parse_document,
+            language: adze_example::object_like_contract::grammar::language,
+            route: EngineDispatch::DeterministicLr,
+            first_span: 7..8,
+            first_found: "1",
+            first_expected: ":",
         },
     ];
 
     for case in cases {
+        let route = adze::__private::engine_dispatch_for_language((case.language)());
+        assert_eq!(route, case.route, "{} selected route", case.label);
         let errors = match (case.parse)(case.source) {
             Ok(()) => panic!("{} should fail", case.label),
             Err(errors) => errors,
         };
-        assert!(
-            errors.len() > 1,
-            "{} should exercise a multi-error diagnostic vector, got {:?}",
-            case.label,
-            errors
-        );
+        match route {
+            EngineDispatch::DeterministicLr => assert!(
+                errors.len() > 1,
+                "{} should exercise a multi-error diagnostic vector, got {:?}",
+                case.label,
+                errors
+            ),
+            EngineDispatch::StreamingGlr => assert_eq!(
+                errors.len(),
+                1,
+                "{} stops at the first native lexer stall",
+                case.label
+            ),
+            other => panic!("{} unexpected route {other:?}", case.label),
+        }
+        let first = &errors[0];
+        assert_eq!(first.byte_span(), case.first_span, "{}", case.label);
+        assert!(matches!(first.reason, ParseErrorReason::UnexpectedToken(_)));
+        assert_eq!(first.expected, [case.first_expected], "{}", case.label);
 
         let mut seen = HashSet::new();
-        for error in errors {
+        for error in &errors {
+            assert!(error.start <= error.end && error.end <= case.source.len());
+            assert!(case.source.is_char_boundary(error.start));
+            assert!(case.source.is_char_boundary(error.end));
             let key = (
                 error.start,
                 error.end,
                 format!("{:?}", error.reason),
-                error.expected,
+                error.expected.clone(),
             );
             assert!(
                 seen.insert(key),
@@ -936,6 +992,35 @@ fn generated_parser_multi_error_diagnostics_are_not_duplicated() {
                 case.label
             );
         }
+
+        let document = (case.document)(case.source).expect("bad syntax yields a document");
+        assert_eq!(document.outcome(), ParseOutcome::Failed, "{}", case.label);
+        assert_eq!(document.diagnostics().len(), errors.len(), "{}", case.label);
+        // Check the exact initial cause. Later delimiter/EOF presentation
+        // equivalence is a separate #875 requirement, not proved by this test.
+        assert_eq!(
+            document.diagnostics()[0].byte_span(),
+            case.first_span,
+            "{}",
+            case.label
+        );
+        assert_eq!(
+            document.diagnostics()[0].expected,
+            [case.first_expected],
+            "{}",
+            case.label
+        );
+        assert_eq!(
+            document.diagnostics()[0].found.as_deref(),
+            Some(case.first_found),
+            "{}",
+            case.label
+        );
+
+        (case.parse)(case.clean_source).expect("clean typed parse after failure");
+        let clean = (case.document)(case.clean_source).expect("clean document after failure");
+        assert_eq!(clean.outcome(), ParseOutcome::Complete, "{}", case.label);
+        assert!(clean.diagnostics().is_empty(), "{}", case.label);
     }
 }
 

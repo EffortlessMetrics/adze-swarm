@@ -475,7 +475,10 @@ pub fn parse<T: Extract<T>>(
     language: impl Fn() -> tree_sitter::Language,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
     let mut parser = crate::tree_sitter::Parser::new();
-    parser.set_language(&language()).map_err(|_| {
+    let language = language();
+    #[cfg(any(feature = "tree-sitter-standard", feature = "tree-sitter-c2rust"))]
+    let language = &language;
+    parser.set_language(language).map_err(|_| {
         vec![crate::errors::ParseError {
             reason: crate::errors::ParseErrorReason::UnexpectedToken(
                 "Failed to initialize TreeSitter language".to_string(),
@@ -1759,8 +1762,6 @@ fn parse_document_from_glr_errors(
     )
 }
 
-/// Parse using the simple LR parser (pure_parser)
-#[cfg(feature = "pure-rust")]
 /// Map one deterministic LR parser error to the public diagnostic shape.
 ///
 /// A trailing list delimiter at end of input is reported at the delimiter
@@ -1770,6 +1771,7 @@ fn parse_document_from_glr_errors(
 /// complete construct (#1097). When the error already expects the
 /// delimiter or end-of-input among other tokens, the parser state is
 /// reported unchanged.
+#[cfg(feature = "pure-rust")]
 fn map_lr_parse_error(
     input: &str,
     lang: &crate::pure_parser::TSLanguage,
@@ -1814,6 +1816,8 @@ fn map_lr_parse_error(
     }
 }
 
+/// Parse using the simple LR parser (pure_parser).
+#[cfg(feature = "pure-rust")]
 fn parse_with_pure_parser<T: Extract<T>>(
     input: &str,
     language: impl Fn() -> &'static crate::pure_parser::TSLanguage,

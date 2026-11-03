@@ -7,7 +7,7 @@
 
 use adze::__private::align_true_glr_parse_table_to_language_symbols;
 use adze::decoder::{decode_grammar, decode_parse_table};
-use adze::glr_parser::SelectionReason;
+use adze::glr_parser::{AlternativeSummary, AmbiguitySummary, SelectionReason};
 use adze::glr_streaming_runtime::{
     materialize_streaming_forest, materialize_streaming_forest_document,
 };
@@ -437,6 +437,75 @@ fn find_node_by_kind<'a>(
     None
 }
 
+// SPEC-0007 B6 indexes canonical alternatives, not wrap_forest retention order.
+// The literal keys begin (0, 1, 2, ...) and (0, 2, 2, ...), so the independently
+// expected selected tree 0..1 is canonical alternative 0 after reordering.
+fn expected_constructed_summary() -> AmbiguitySummary {
+    AmbiguitySummary {
+        span: 0..2,
+        selected: Some(0),
+        selection_reason: SelectionReason::StableStructuralTieBreak,
+        alternatives: vec![
+            AlternativeSummary {
+                index: 0,
+                root_symbol: SymbolId(2),
+                span: 0..1,
+                dynamic_precedence: 0,
+                in_error: false,
+                cost: 0,
+                node_count: 2,
+            },
+            AlternativeSummary {
+                index: 1,
+                root_symbol: SymbolId(2),
+                span: 0..2,
+                dynamic_precedence: 0,
+                in_error: false,
+                cost: 0,
+                node_count: 2,
+            },
+        ],
+    }
+}
+
+fn assert_selected_constructed_tree(root: &adze::subtree::Subtree, summary: &AmbiguitySummary) {
+    assert_eq!(root.node.symbol_id, SymbolId(2));
+    assert_eq!(root.node.byte_range, 0..1);
+    assert!(!root.node.is_error);
+    assert_eq!(root.dynamic_prec, 0);
+    assert_eq!(root.children.len(), 1);
+    let edge = &root.children[0];
+    assert_eq!(edge.field_id, adze::subtree::FIELD_NONE);
+    assert_eq!(edge.subtree.node.symbol_id, SymbolId(1));
+    assert_eq!(edge.subtree.node.byte_range, 0..1);
+    assert!(!edge.subtree.node.is_error);
+    assert_eq!(edge.subtree.dynamic_prec, 0);
+    assert!(edge.subtree.children.is_empty());
+    let selected = &summary.alternatives[summary.selected.expect("known canonical selection")];
+    assert_eq!(selected.root_symbol, root.node.symbol_id);
+    assert_eq!(selected.span, root.node.byte_range);
+    assert_eq!(selected.node_count, 2);
+}
+
+fn assert_selected_constructed_document(
+    root: adze::document::AdzeNode<'_>,
+    summary: &AmbiguitySummary,
+) {
+    assert_eq!(root.symbol_id(), SymbolId(2));
+    assert_eq!(root.byte_range(), 0..1);
+    assert!(!root.is_error());
+    assert_eq!(root.child_count(), 1);
+    let child = root.child(0).expect("selected direct token child");
+    assert_eq!(child.symbol_id(), SymbolId(1));
+    assert_eq!(child.byte_range(), 0..1);
+    assert!(!child.is_error());
+    assert_eq!(child.child_count(), 0);
+    let selected = &summary.alternatives[summary.selected.expect("known canonical selection")];
+    assert_eq!(selected.root_symbol, root.symbol_id());
+    assert_eq!(selected.span, root.byte_range());
+    assert_eq!(selected.node_count, 2);
+}
+
 #[test]
 fn test_materialize_streaming_forest_constructed_roots_selects_deterministically() {
     let grammar = tiny_grammar();
@@ -457,14 +526,10 @@ fn test_materialize_streaming_forest_constructed_roots_selects_deterministically
         .as_ref()
         .expect("second materialization should retain ambiguity");
 
-    assert_eq!(first_summary.alternatives.len(), 2);
-    // wrap_forest orders roots by largest span first, then stable structural
-    // selection chooses the shorter complete root (byte range 0..1) at index 1.
-    assert_eq!(first_summary.selected, Some(1));
-    assert_eq!(
-        first_summary.selection_reason,
-        SelectionReason::StableStructuralTieBreak
-    );
+    assert_eq!(first_summary, &expected_constructed_summary());
+    assert_eq!(second_summary, &expected_constructed_summary());
+    assert_selected_constructed_tree(&first.root, first_summary);
+    assert_selected_constructed_tree(&second.root, second_summary);
     assert_eq!(first_summary.selected, second_summary.selected);
     assert_eq!(first_summary.alternatives, second_summary.alternatives);
     assert_eq!(first.root.node.byte_range, 0..1);
@@ -503,18 +568,133 @@ fn test_materialize_streaming_forest_document_preserves_selected_and_ambiguity_f
     assert_eq!(second.ambiguities(), first.ambiguities());
 
     let summary = &first.ambiguities()[0];
-    assert_eq!(summary.selected, Some(1));
-    assert_eq!(summary.alternatives.len(), 2);
-    assert_eq!(
-        summary.selection_reason,
-        SelectionReason::StableStructuralTieBreak
-    );
+    assert_eq!(summary, &expected_constructed_summary());
+    assert_selected_constructed_document(first.tree().root(), summary);
+    assert_selected_constructed_document(second.tree().root(), &second.ambiguities()[0]);
 
     assert_eq!(first.tree().root().byte_range(), 0..1);
     assert_eq!(
         second.tree().root().byte_range(),
         first.tree().root().byte_range()
     );
+}
+
+#[test]
+fn test_materialize_streaming_forest_canonical_selection_survives_retention_and_arena_permutations()
+{
+    #[repr(transparent)]
+    struct Names([*const u8; 4]);
+    // SAFETY: all pointers refer to immutable static NUL-terminated names.
+    unsafe impl Sync for Names {}
+    static NAMES: Names = Names([
+        SYMBOL_EOF.as_ptr(),
+        SYMBOL_A.as_ptr(),
+        SYMBOL_S.as_ptr(),
+        c"wrapped".as_ptr().cast(),
+    ]);
+    static METADATA: [u8; 4] = [0x01, 0x01, 0x03, 0x03];
+    static LANGUAGE: TSLanguage = TSLanguage {
+        symbol_count: 4,
+        symbol_names: NAMES.0.as_ptr(),
+        symbol_metadata: METADATA.as_ptr(),
+        ..TEST_LANGUAGE
+    };
+    let grammar = GrammarBuilder::new("same_span_ambiguity")
+        .token("a", "a")
+        .rule("s", vec!["a"])
+        .rule("s", vec!["wrapped"])
+        .rule("wrapped", vec!["a"])
+        .start("s")
+        .build();
+    assert_eq!(grammar.find_symbol_by_name("a"), Some(SymbolId(1)));
+    assert_eq!(grammar.start_symbol(), Some(SymbolId(2)));
+    assert_eq!(grammar.find_symbol_by_name("wrapped"), Some(SymbolId(3)));
+    let parse_table = empty_parse_table(grammar.clone());
+    // Both derivations cover the actual source "a": s -> a and s -> wrapped
+    // -> a. Their first differing child symbol is 1 versus 3, so the direct
+    // tree wins the declared structural key regardless of node IDs/discovery.
+    let expected = AmbiguitySummary {
+        span: 0..1,
+        selected: Some(0),
+        selection_reason: SelectionReason::StableStructuralTieBreak,
+        alternatives: vec![
+            AlternativeSummary {
+                index: 0,
+                root_symbol: SymbolId(2),
+                span: 0..1,
+                dynamic_precedence: 0,
+                in_error: false,
+                cost: 0,
+                node_count: 2,
+            },
+            AlternativeSummary {
+                index: 1,
+                root_symbol: SymbolId(2),
+                span: 0..1,
+                dynamic_precedence: 0,
+                in_error: false,
+                cost: 0,
+                node_count: 3,
+            },
+        ],
+    };
+    for [direct_id, nested_id, wrapper_id, leaf_id] in [[0, 1, 2, 3], [42, 7, 99, 21]] {
+        for reverse in [false, true] {
+            let token = leaf(leaf_id, SymbolId(1), (0, 1));
+            let parent = |id, symbol, child| ForestNode {
+                id,
+                symbol: SymbolId(symbol),
+                span: (0, 1),
+                alternatives: vec![ForestAlternative {
+                    children: vec![child],
+                }],
+                error_meta: ErrorMeta::default(),
+            };
+            let direct = parent(direct_id, 2, leaf_id);
+            let wrapper = parent(wrapper_id, 3, leaf_id);
+            let nested = parent(nested_id, 2, wrapper_id);
+            let mut roots = vec![direct.clone(), nested.clone()];
+            let mut nodes = vec![direct, nested, wrapper, token];
+            if reverse {
+                roots.reverse();
+                nodes.reverse();
+            }
+            let forest = Forest::from_parse_forest_for_test(ParseForest {
+                roots,
+                nodes: nodes.into_iter().map(|node| (node.id, node)).collect(),
+                grammar: grammar.clone(),
+                source: "a".to_string(),
+                next_node_id: 100,
+            });
+            // Equal root spans ensure wrapping preserves both tested orders.
+            let retained = if reverse {
+                [nested_id as u32, direct_id as u32]
+            } else {
+                [direct_id as u32, nested_id as u32]
+            };
+            assert_eq!(forest.view().roots(), retained);
+            let parsed = materialize_streaming_forest(&forest, &LANGUAGE, &parse_table, &grammar)
+                .expect("both constructed derivations are source-bounded");
+            let summary = parsed.ambiguities.as_ref().expect("two distinct trees");
+            assert_eq!(summary, &expected);
+            assert_selected_constructed_tree(&parsed.root, summary);
+            let document = materialize_streaming_forest_document(
+                "a",
+                &forest,
+                &LANGUAGE,
+                "same_span_ambiguity",
+                &grammar,
+                &parse_table,
+            )
+            .expect("constructed document should materialize");
+            assert!(document.diagnostics().is_empty());
+            assert_eq!(document.ambiguities(), std::slice::from_ref(&expected));
+            assert_selected_constructed_document(
+                document.tree().root(),
+                &document.ambiguities()[0],
+            );
+        }
+    }
 }
 
 #[test]

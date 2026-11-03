@@ -667,7 +667,7 @@ mod tests {
             labels: vec!["ready".into()],
         }
     }
-    fn codes(e: &Vec<Refusal>) -> Vec<&'static str> {
+    fn codes(e: &[Refusal]) -> Vec<&'static str> {
         e.iter().map(|r| r.code).collect()
     }
 
