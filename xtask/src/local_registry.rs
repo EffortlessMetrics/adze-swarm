@@ -192,6 +192,17 @@ impl IsolatedRegistry {
         bin: &str,
         version: &str,
     ) -> Result<LocalCliInstall> {
+        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
+        self.install_cli_with_command(cli_crate, bin, version, Command::new(cargo))
+    }
+
+    fn install_cli_with_command(
+        &self,
+        cli_crate: &str,
+        bin: &str,
+        version: &str,
+        mut command: Command,
+    ) -> Result<LocalCliInstall> {
         let published = self
             .published_crates()
             .iter()
@@ -210,8 +221,7 @@ impl IsolatedRegistry {
             .prefix("adze-local-install-root-")
             .tempdir()
             .context("creating temporary cargo install root")?;
-        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
-        let status = Command::new(&cargo)
+        let status = command
             .args([
                 "install",
                 "--registry",
@@ -1685,6 +1695,47 @@ fn index_dependency(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_cli_install_executes_locked_request_with_isolated_roots() {
+        let mut registry = IsolatedRegistry::new().expect("isolated registry");
+        registry.published.push(PublishedCrate {
+            name: "adze-cli".into(),
+            version: "0.10.0".into(),
+            checksum: "fixture".into(),
+        });
+        // Exercise the real install method without packaging or running Cargo.
+        // A child checks argv boundaries and creates the expected installed file.
+        let mut command = fake_server_command(
+            r#"import os, pathlib, sys
+args = sys.argv[1:]
+assert args[:-1] == ['install', '--locked', '--registry', 'adze-local', 'adze-cli', '--bin', 'adze fixture', '--version', '0.10.0', '--root'], args
+assert os.environ['CARGO_HOME'] == os.environ['EXPECTED_CARGO_HOME']
+assert os.environ['CARGO_TARGET_DIR'] == os.environ['EXPECTED_TARGET_DIR']
+binary = pathlib.Path(args[-1]) / 'bin' / ('adze fixture.exe' if os.name == 'nt' else 'adze fixture')
+binary.parent.mkdir()
+binary.write_text('installed fixture')
+"#,
+        );
+        command
+            .env("EXPECTED_CARGO_HOME", registry.cargo_home.path())
+            .env("EXPECTED_TARGET_DIR", registry.target_dir.path());
+        let install = registry
+            .install_cli_with_command("adze-cli", "adze fixture", "0.10.0", command)
+            .expect("locked install request");
+        assert_eq!(fs::read_to_string(install.binary_path).unwrap(), "installed fixture");
+
+        let error = registry
+            .install_cli_with_command(
+                "adze-cli",
+                "adze fixture",
+                "0.10.0",
+                fake_server_command("import sys; sys.exit(23)"),
+            )
+            .err()
+            .expect("nonzero installer must fail");
+        assert!(error.to_string().contains("23"), "{error:#}");
+    }
 
     fn fake_server_command(script: &str) -> Command {
         for python in ["python3", "python"] {
