@@ -489,9 +489,79 @@ serde_json = {{ version = "1.0", features = ["preserve_order"] }}
         ("annotated_nullable", "1,, 2,"),
     ];
     assert_eq!(cases.len(), expected_cases.len());
+    let origins = recorded["origin_inputs"].as_object().unwrap();
+    for field in [
+        "annotated_source",
+        "repeat_source_ir",
+        "repeat_normalized_ir",
+        "generated_rust",
+    ] {
+        assert!(origins.contains_key(field), "missing origin input {field}");
+    }
+    assert!(!origins["generated_rust"].as_array().unwrap().is_empty());
+    for name in ["explicit_ir_descriptor", "annotated_descriptor"] {
+        let descriptor = recorded[name].as_object().unwrap();
+        for field in [
+            "route",
+            "public_symbols",
+            "field_names",
+            "schema_revision",
+            "facts",
+            "projection",
+            "decoded_rules",
+            "rule_to_production",
+        ] {
+            assert!(descriptor.contains_key(field), "{name} lacks {field}");
+        }
+        assert!(!descriptor["decoded_rules"].as_array().unwrap().is_empty());
+    }
     for (case, (kind, source)) in cases.iter().zip(expected_cases) {
         assert_eq!(case["case"], kind);
         assert_eq!(case["source"], source);
+        for field in ["root", "outcome", "error_count", "diagnostic_count"] {
+            assert!(case.get(field).is_some(), "{kind} {source:?} lacks {field}");
+        }
+        let nodes = case["nodes"].as_array().unwrap();
+        assert!(!nodes.is_empty(), "{kind} {source:?} has no physical nodes");
+        for node in nodes {
+            for field in [
+                "id",
+                "parent",
+                "child_index",
+                "grammar_id",
+                "visible_id",
+                "grammar_name",
+                "visible_name",
+                "alias_id",
+                "text",
+                "bytes",
+                "points",
+            ] {
+                assert!(node.get(field).is_some(), "physical node lacks {field}");
+            }
+            for flag in [
+                "named",
+                "visible",
+                "terminal",
+                "extra",
+                "error",
+                "missing",
+                "has_error",
+            ] {
+                assert!(node["flags"][flag].is_boolean(), "missing node flag {flag}");
+            }
+            assert_eq!(node["bytes"].as_array().unwrap().len(), 2);
+            let points = node["points"].as_array().unwrap();
+            assert_eq!(points.len(), 2);
+            for point in points {
+                assert_eq!(point.as_array().unwrap().len(), 2);
+            }
+            for edge in node["edges"].as_array().unwrap() {
+                for field in ["parent", "child", "child_index", "field_id", "field_name"] {
+                    assert!(edge.get(field).is_some(), "physical edge lacks {field}");
+                }
+            }
+        }
     }
     std::fs::remove_dir_all(fixture).unwrap();
 }
