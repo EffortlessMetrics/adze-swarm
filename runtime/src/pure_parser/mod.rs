@@ -380,6 +380,8 @@ impl Parser {
             state: initial_state,
             subtree: None,
             position: 0,
+            point: Point { row: 0, column: 0 },
+            pending: Vec::new(),
         });
 
         // Initialize lexer with sentinel byte to prevent OOB reads. `source`
@@ -398,10 +400,8 @@ impl Parser {
         let mut position = 0;
         let mut point = Point { row: 0, column: 0 };
         let start_time = Instant::now();
-        // Collect extra tokens so they can be attached to the final tree after parsing
-        let mut extra_nodes: Vec<Subtree> = Vec::new();
-        // Collect error nodes so callers can harvest structured diagnostics from ParsedNode.
-        let mut error_nodes: Vec<Subtree> = Vec::new();
+        // Prefix non-RHS attachments retain their actual encounter order.
+        let mut prefix_nodes: Vec<Subtree> = Vec::new();
 
         // Main parsing loop
         let mut iteration_count = 0;
@@ -489,17 +489,18 @@ impl Parser {
                     field_id: None,
                 };
 
-                // Attach to current stack node if possible, otherwise stash for later
+                // Extras are not grammar RHS children. Keep them beside the
+                // semantic entry until a retained nonterminal can own them.
                 if let Some(top) = self.stack.last_mut() {
-                    if let Some(ref mut node) = top.subtree {
-                        node.end_byte = extra.end_byte;
-                        node.end_point = extra.end_point;
-                        node.children.push(extra);
+                    if top.subtree.is_some() {
+                        top.pending.push(extra);
                     } else {
-                        extra_nodes.push(extra);
+                        prefix_nodes.push(extra);
                     }
+                    top.position = token_end;
+                    top.point = end_point;
                 } else {
-                    extra_nodes.push(extra);
+                    prefix_nodes.push(extra);
                 }
 
                 // Advance position and point
@@ -583,6 +584,8 @@ impl Parser {
                         state: next_state,
                         subtree: Some(subtree),
                         position: token_end,
+                        point: end_point,
+                        pending: Vec::new(),
                     });
 
                     // Advance position (using safe calculation)
@@ -625,40 +628,14 @@ impl Parser {
                         && let Some(subtree) = entry.subtree
                     {
                         let mut root = subtree;
-                        if !extra_nodes.is_empty() {
-                            // Track the maximum end position of all extra tokens
-                            let mut max_end_byte = root.end_byte;
-                            let mut max_end_point = root.end_point;
-
-                            for extra in extra_nodes.drain(..) {
-                                if extra.start_byte < root.start_byte {
-                                    root.start_byte = extra.start_byte;
-                                    root.start_point = extra.start_point;
-                                }
-                                if extra.end_byte > max_end_byte {
-                                    max_end_byte = extra.end_byte;
-                                    max_end_point = extra.end_point;
-                                }
-                                root.children.push(extra);
-                            }
-
-                            // Update root to span all tokens including extras
-                            root.end_byte = max_end_byte;
-                            root.end_point = max_end_point;
-                        }
-                        if !error_nodes.is_empty() {
-                            for error in error_nodes.drain(..) {
-                                if error.start_byte < root.start_byte {
-                                    root.start_byte = error.start_byte;
-                                    root.start_point = error.start_point;
-                                }
-                                if error.end_byte > root.end_byte {
-                                    root.end_byte = error.end_byte;
-                                    root.end_point = error.end_point;
-                                }
-                                root.children.push(error);
-                            }
-                        }
+                        // Prefix attachments precede semantic children; the
+                        // selected entry's deferred suffix follows them. Keep
+                        // encounter order even at zero-width occurrences.
+                        let mut children = std::mem::take(&mut prefix_nodes);
+                        children.append(&mut root.children);
+                        children.extend(entry.pending);
+                        root.children = children;
+                        Self::include_child_bounds(&mut root);
                         return ParseResult {
                             root: Some(subtree_to_node(root, Some(language as *const _))),
                             errors,
@@ -702,25 +679,15 @@ impl Parser {
                     };
 
                     if let Some(top) = self.stack.last_mut() {
-                        if let Some(ref mut node) = top.subtree {
-                            // Only widen a node for an error that overlaps it. A
-                            // failure beginning at or after the node's end (e.g.
-                            // trailing input after a complete token) is recorded
-                            // as a child without rewriting the node's exact span:
-                            // token byte ranges cover exactly their lexed text.
-                            if error_node.start_byte < node.end_byte {
-                                let prev_end_byte = node.end_byte;
-                                node.end_byte = node.end_byte.max(error_node.end_byte);
-                                if error_node.end_byte >= prev_end_byte {
-                                    node.end_point = error_node.end_point;
-                                }
-                            }
-                            node.children.push(error_node);
+                        if top.subtree.is_some() {
+                            top.pending.push(error_node);
                         } else {
-                            error_nodes.push(error_node);
+                            prefix_nodes.push(error_node);
                         }
+                        top.position = end_byte;
+                        top.point = end_point;
                     } else {
-                        error_nodes.push(error_node);
+                        prefix_nodes.push(error_node);
                     }
 
                     // Invalid generated tokens consume one complete UTF-8
@@ -1462,57 +1429,52 @@ impl Parser {
                 return false;
             }
 
-            // Pop child_count entries from the stack
-            let mut children = Vec::new();
-            let mut start_byte = usize::MAX;
-            let mut end_byte = 0;
-            let mut start_point = Point {
-                row: u32::MAX,
-                column: u32::MAX,
+            // Validate the destination before consuming entries, so a bad
+            // reduction cannot discard semantic nodes or pending attachments.
+            let base = self.stack.len() - child_count;
+            let prev_state = base
+                .checked_sub(1)
+                .and_then(|index| self.stack.get(index))
+                .map_or(0, |entry| entry.state);
+            let Some(goto_state) = self.get_goto(language, prev_state, symbol) else {
+                return false;
             };
-            let mut end_point = Point { row: 0, column: 0 };
-
-            // Pop children in reverse order
-            for _ in 0..child_count {
-                if let Some(entry) = self.stack.pop()
-                    && let Some(subtree) = entry.subtree
-                {
-                    // Update bounds
-                    if subtree.start_byte < start_byte {
-                        start_byte = subtree.start_byte;
-                        start_point = subtree.start_point;
-                    }
-                    if subtree.end_byte > end_byte {
-                        end_byte = subtree.end_byte;
-                        end_point = subtree.end_point;
-                    }
+            let consumed_position = self.stack.last().map_or(0, |entry| entry.position);
+            let consumed_point = self
+                .stack
+                .last()
+                .map_or(Point { row: 0, column: 0 }, |entry| entry.point);
+            let entries = self.stack.split_off(base);
+            let mut children = Vec::with_capacity(child_count);
+            let mut attachments = Vec::with_capacity(child_count);
+            for entry in entries {
+                if let Some(subtree) = entry.subtree {
                     children.push(subtree);
+                    attachments.push(entry.pending);
                 }
             }
-
-            // Reverse children to correct order
-            children.reverse();
+            // Field-map child indices describe semantic RHS slots, never
+            // extras or recovery attachments.
             self.assign_field_ids_for_production(language, production_index, &mut children);
-
-            // Handle empty reduction
-            if children.is_empty() && child_count == 0 {
-                // For empty reductions, use position from top of stack
-                if let Some(top) = self.stack.last() {
-                    start_byte = top.position;
-                    end_byte = top.position;
-                    start_point = Point {
-                        row: 0,
-                        column: top.position as u32,
-                    };
-                    end_point = start_point;
-                }
-            }
+            let start_byte = children
+                .first()
+                .map_or(consumed_position, |node| node.start_byte);
+            let end_byte = children
+                .last()
+                .map_or(consumed_position, |node| node.end_byte);
+            let start_point = children
+                .first()
+                .map_or(consumed_point, |node| node.start_point);
+            let end_point = children
+                .last()
+                .map_or(consumed_point, |node| node.end_point);
+            let mut pending = Vec::new();
 
             // Check if this symbol is hidden (e.g., _Expression)
             let is_hidden = self.is_hidden_symbol(language, symbol);
 
             // Create parent node or unwrap if hidden
-            let parent = if is_hidden && children.len() == 1 {
+            let mut parent = if is_hidden && children.len() == 1 {
                 // Return the child directly, skipping the hidden wrapper
                 if let Some(node) = children.pop() {
                     node
@@ -1548,61 +1510,45 @@ impl Parser {
                 }
             };
 
-            // Check if this is the start symbol (source_file)
-            // The start symbol is typically the one that appears on the left side of the start rule
-            // In Tree-sitter, the start symbol is typically called "source_file" or similar
-            // We need to determine this dynamically from the language structure
-
-            ////eprintln!($
-            //    "DEBUG reduce: After reduction, stack size would be: {}",
-            //    self.stack.len()
-            //);
-
-            // Get the goto state for the reduced symbol
-            let prev_state = if let Some(entry) = self.stack.last() {
-                entry.state
-            } else {
-                0
-            };
-
-            // eprintln!(
-            // "DEBUG reduce: Looking up goto for symbol {} from state {}",
-            // symbol, prev_state
-            // );
-
-            // Debug: Show all gotos available from this state
-            if source.len() < 20 && prev_state == 0 {
-                // eprintln!("DEBUG reduce: Available gotos from state 0:");
-                for sym_idx in 0..12 {
-                    if let Some(_goto_state) = self.get_goto(language, 0, sym_idx) {
-                        // eprintln!("  Symbol {} -> state {}", sym_idx, goto_state);
-                    }
+            if is_hidden && attachments.len() == 1 {
+                pending = attachments.pop().unwrap_or_default();
+                // Existing unary elision may promote another retained
+                // container. It can own attachments, but terminals and empty
+                // occurrence nodes must remain exact and childless.
+                if parent.symbol >= language.token_count as u16 && !parent.children.is_empty() {
+                    parent.children.append(&mut pending);
+                    Self::include_child_bounds(&mut parent);
                 }
+            } else if !parent.children.is_empty() {
+                let semantic = std::mem::take(&mut parent.children);
+                for (child, mut after) in semantic.into_iter().zip(attachments) {
+                    parent.children.push(child);
+                    parent.children.append(&mut after);
+                }
+                Self::include_child_bounds(&mut parent);
             }
+            self.stack.push(StackEntry {
+                state: goto_state,
+                subtree: Some(parent),
+                position: consumed_position,
+                point: consumed_point,
+                pending,
+            });
+            true
+        }
+    }
 
-            // Look up goto state for the non-terminal we just reduced to
-            // eprintln!(
-            // "DEBUG reduce: About to call get_goto with prev_state={}, symbol={}, token_count={}",
-            // prev_state, symbol, language.token_count
-            // );
-            if let Some(goto_state) = self.get_goto(language, prev_state, symbol) {
-                // eprintln!("DEBUG reduce: Found goto_state={}", goto_state);
-                // Push the reduced node with the goto state
-                self.stack.push(StackEntry {
-                    state: goto_state,
-                    subtree: Some(parent),
-                    position: end_byte,
-                });
-                true
-            } else {
-                // No goto found - this shouldn't happen in a valid parse table
-                // eprintln!(
-                // "DEBUG reduce: No goto for symbol {} from state {} (symbol >= token_count: {})",
-                // symbol,
-                // prev_state,
-                // symbol >= language.token_count as u16
-                // );
-                false
+    /// Extend a retained container around its actual ordered attachments.
+    /// This never changes any child's lexical range or semantic field.
+    fn include_child_bounds(node: &mut Subtree) {
+        for child in &node.children {
+            if child.start_byte < node.start_byte {
+                node.start_byte = child.start_byte;
+                node.start_point = child.start_point;
+            }
+            if child.end_byte > node.end_byte {
+                node.end_byte = child.end_byte;
+                node.end_point = child.end_point;
             }
         }
     }

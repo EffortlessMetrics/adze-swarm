@@ -150,6 +150,15 @@ impl<'a> TreeCursor<'a> {
         }
     }
 
+    /// Tuple slots count only direct semantic children, while the cursor
+    /// retains physical positions for field-edge lookup and source traversal.
+    fn semantic_index(&self) -> usize {
+        self.children[..self.current_index]
+            .iter()
+            .filter(|child| !child.is_extra)
+            .count()
+    }
+
     /// Returns the current node.
     pub fn node(&self) -> &'a ParsedNode {
         if self.current_index < self.children.len() {
@@ -292,9 +301,16 @@ pub fn extract_field_try<LT: Extract<T>, T>(
 
         loop {
             let n = cursor.node();
+            if n.is_extra {
+                *last_idx = n.end_byte;
+                if !cursor.goto_next_sibling() {
+                    return LT::try_extract(None, source, *last_idx, closure_ref);
+                }
+                continue;
+            }
             if field_name
                 .parse::<usize>()
-                .is_ok_and(|idx| idx == cursor.current_index)
+                .is_ok_and(|idx| idx == cursor.semantic_index())
             {
                 let out = LT::try_extract(Some(n), source, *last_idx, closure_ref)?;
                 if !cursor.goto_next_sibling() {
@@ -406,9 +422,16 @@ pub fn extract_field<LT: Extract<T>, T>(
 
         loop {
             let n = cursor.node();
+            if n.is_extra {
+                *last_idx = n.end_byte;
+                if !cursor.goto_next_sibling() {
+                    return LT::extract(None, source, *last_idx, closure_ref);
+                }
+                continue;
+            }
             if field_name
                 .parse::<usize>()
-                .is_ok_and(|idx| idx == cursor.current_index)
+                .is_ok_and(|idx| idx == cursor.semantic_index())
             {
                 let out = LT::extract(Some(n), source, *last_idx, closure_ref);
 
