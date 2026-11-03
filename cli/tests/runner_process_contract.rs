@@ -117,12 +117,12 @@ fn test_cancellation_restores_disposition_before_conventional_relay() {
 
 #[test]
 fn test_real_cli_sigint_cleans_group_and_unwinds_runner_directory() {
-    cli_cancellation(Signal::Int, libc::SIGINT);
+    cli_cancellation(Signal::INT, libc::SIGINT);
 }
 
 #[test]
 fn test_real_cli_sigterm_cleans_group_and_unwinds_runner_directory() {
-    cli_cancellation(Signal::Term, libc::SIGTERM);
+    cli_cancellation(Signal::TERM, libc::SIGTERM);
 }
 
 /// Selected only by the outer tests in a fresh controller process. Its
@@ -330,7 +330,7 @@ fn fixture_controller() {
             let sender_ready = ready.clone();
             let sender = std::thread::spawn(move || {
                 wait_for_file(&sender_ready);
-                kill_process(getpid(), Signal::Term).unwrap();
+                kill_process(getpid(), Signal::TERM).unwrap();
             });
             let mut command = shell(": > \"$READY\"; exec sleep 30");
             command.env("READY", &ready);

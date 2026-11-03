@@ -81,8 +81,8 @@ impl Cancellation {
 
     fn signal(self) -> Signal {
         match self {
-            Self::Interrupt => Signal::Int,
-            Self::Terminate => Signal::Term,
+            Self::Interrupt => Signal::INT,
+            Self::Terminate => Signal::TERM,
         }
     }
 }
@@ -426,7 +426,7 @@ impl OwnedChild {
         }
         // No wait/try_wait has reaped the leader. Even a leader that exited
         // first retains the process-group identity until this group signal.
-        match kill_process_group(self.pid, Signal::Kill) {
+        match kill_process_group(self.pid, Signal::KILL) {
             Ok(()) => report.group_signal_sent = true,
             Err(rustix::io::Errno::SRCH) => {
                 // An empty group needs no signal. Still request termination of
