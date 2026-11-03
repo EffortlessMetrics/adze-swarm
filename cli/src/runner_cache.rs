@@ -922,18 +922,16 @@ fn enforce_bounds(root: &Path, max_entries: usize) {
         if !is_entry_name(&name) {
             continue;
         }
-        let built = runner_cache_io::read_regular(
-            &entry.path().join("manifest.json"),
-            MAX_MANIFEST_BYTES,
-        )
-            .ok()
-            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-            .and_then(|manifest| {
-                manifest
-                    .get("built_unix")
-                    .and_then(serde_json::Value::as_u64)
-            })
-            .unwrap_or(0);
+        let built =
+            runner_cache_io::read_regular(&entry.path().join("manifest.json"), MAX_MANIFEST_BYTES)
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+                .and_then(|manifest| {
+                    manifest
+                        .get("built_unix")
+                        .and_then(serde_json::Value::as_u64)
+                })
+                .unwrap_or(0);
         ranked.push((built, entry.path()));
     }
     ranked.sort();

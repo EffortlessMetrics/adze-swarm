@@ -113,7 +113,9 @@ pub(crate) fn read_regular(path: &Path, limit: u64) -> io::Result<Vec<u8>> {
     let mut file = open_regular(path, limit)?;
     let mut bytes = Vec::new();
     bounded_chunks(&mut file, limit, |chunk| {
-        bytes.try_reserve_exact(chunk.len()).map_err(io::Error::other)?;
+        bytes
+            .try_reserve_exact(chunk.len())
+            .map_err(io::Error::other)?;
         bytes.extend_from_slice(chunk);
         Ok(())
     })?;
@@ -218,7 +220,10 @@ mod tests {
         struct FailedRead;
         impl Read for FailedRead {
             fn read(&mut self, _output: &mut [u8]) -> io::Result<usize> {
-                Err(io::Error::new(io::ErrorKind::PermissionDenied, "source denied"))
+                Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "source denied",
+                ))
             }
         }
         assert_eq!(
@@ -253,7 +258,11 @@ mod tests {
         {
             use std::os::unix::fs::PermissionsExt;
             assert_eq!(
-                std::fs::metadata(&destination).unwrap().permissions().mode() & 0o777,
+                std::fs::metadata(&destination)
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
                 0o700,
             );
         }
@@ -271,8 +280,14 @@ mod tests {
         let source = directory.path().join("oversize");
         let destination = directory.path().join("never-created");
         File::create(&source).unwrap().set_len(9).unwrap();
-        assert_eq!(read_regular(&source, 8).unwrap_err().kind(), io::ErrorKind::InvalidData);
-        assert_eq!(digest_regular(&source, 8).unwrap_err().kind(), io::ErrorKind::InvalidData);
+        assert_eq!(
+            read_regular(&source, 8).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        assert_eq!(
+            digest_regular(&source, 8).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
         assert_eq!(
             copy_regular(&source, &destination, 8).unwrap_err().kind(),
             io::ErrorKind::InvalidData,
