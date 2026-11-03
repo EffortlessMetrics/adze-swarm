@@ -97,7 +97,9 @@ pub struct Grammar {
     #[serde(default)]
     pub start_symbol: Option<SymbolId>,
     /// Producer-declared document root, distinct from the analysis start when needed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Always serialize the Option slot, including None, for positional formats.
+    /// Older map-based inputs may omit it and retain the absent default.
+    #[serde(default)]
     pub document_start_symbol: Option<SymbolId>,
     /// Explicit pattern-wrapper nonterminal to backing-token relations.
     #[serde(default)]

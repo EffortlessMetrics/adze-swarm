@@ -21,5 +21,6 @@ Grammar {
     word_token: None,
     lexical_metadata: {},
     start_symbol: None,
+    document_start_symbol: None,
     wrapper_token_relations: {},
 }

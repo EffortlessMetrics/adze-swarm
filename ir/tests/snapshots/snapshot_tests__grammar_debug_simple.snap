@@ -110,5 +110,6 @@ Grammar {
             3,
         ),
     ),
+    document_start_symbol: None,
     wrapper_token_relations: {},
 }
