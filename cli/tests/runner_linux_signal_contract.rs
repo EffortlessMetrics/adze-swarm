@@ -32,7 +32,12 @@ fn policy() -> CapturePolicy {
 fn controller(case: &str) -> Output {
     let mut command = Command::new(std::env::current_exe().unwrap());
     command
-        .args(["--exact", "fixture_signal_controller", "--ignored", "--nocapture"])
+        .args([
+            "--exact",
+            "fixture_signal_controller",
+            "--ignored",
+            "--nocapture",
+        ])
         .env("ADZE_SIGNAL_CASE", case)
         .process_group(0);
     assert_cmd::Command::from_std(command)
@@ -44,8 +49,7 @@ fn controller(case: &str) -> Output {
 fn conventional(case: &str, signal: i32) {
     let output = controller(case);
     assert!(
-        output.status.signal() == Some(signal)
-            || output.status.code() == Some(128 + signal),
+        output.status.signal() == Some(signal) || output.status.code() == Some(128 + signal),
         "{case}: code={:?}, signal={:?}; {output:?}",
         output.status.code(),
         output.status.signal()
@@ -89,10 +93,17 @@ fn test_successful_late_relay_allows_a_new_owner_to_clean_up() {
 #[test]
 fn test_restore_poison_refuses_reuse_and_late_callback_exits_once() {
     let output = controller("poison");
-    assert_eq!(output.status.code(), Some(128 + libc::SIGTERM), "{output:?}");
+    assert_eq!(
+        output.status.code(),
+        Some(128 + libc::SIGTERM),
+        "{output:?}"
+    );
     let text = String::from_utf8_lossy(&output.stdout);
     assert!(text.contains("owned cleanup checked"), "{output:?}");
-    assert!(text.contains("poisoned reuse refused before spawn"), "{output:?}");
+    assert!(
+        text.contains("poisoned reuse refused before spawn"),
+        "{output:?}"
+    );
 }
 
 #[test]
@@ -110,7 +121,11 @@ fn test_partial_setup_drop_does_not_discard_delayed_cancellation() {
 #[ignore = "actual signal subprocess selected by runner_linux_signal_contract"]
 fn fixture_signal_controller() {
     let case = std::env::var("ADZE_SIGNAL_CASE").expect("signal fixture case");
-    let signal = if case == "late_int" { libc::SIGINT } else { libc::SIGTERM };
+    let signal = if case == "late_int" {
+        libc::SIGINT
+    } else {
+        libc::SIGTERM
+    };
     let temp = tempfile::tempdir().unwrap();
     let first = Paths::new(temp.path(), "first");
     let second = Paths::new(temp.path(), "second");
@@ -225,7 +240,10 @@ fn fixture_signal_controller() {
             let error = runner_process::capture(&mut second.command(), policy()).unwrap_err();
             assert!(matches!(error.cause, CaptureCause::Setup(_)), "{error:?}");
             assert!(error.to_string().contains("poisoned"), "{error:?}");
-            assert!(!second.ready.exists(), "poison must refuse before child creation");
+            assert!(
+                !second.ready.exists(),
+                "poison must refuse before child creation"
+            );
             println!("poisoned reuse refused before spawn");
             std::io::stdout().flush().unwrap();
             std::fs::write(&first.checked, b"checked").unwrap();
@@ -239,10 +257,20 @@ fn fixture_signal_controller() {
                 signal_probe::PANIC_INSTALL.store(true, Ordering::Release);
             }
             let error = runner_process::capture(&mut second.command(), policy()).unwrap_err();
-            assert_eq!(case, "setup_error", "Drop must relay during the deliberate panic");
+            assert_eq!(
+                case, "setup_error",
+                "Drop must relay during the deliberate panic"
+            );
             assert!(matches!(error.cause, CaptureCause::Setup(_)), "{error:?}");
-            assert!(error.to_string().contains("deliberate signal fixture partial-install failure"));
-            assert!(!second.ready.exists(), "partial setup must precede child creation");
+            assert!(
+                error
+                    .to_string()
+                    .contains("deliberate signal fixture partial-install failure")
+            );
+            assert!(
+                !second.ready.exists(),
+                "partial setup must precede child creation"
+            );
             sender.join().unwrap();
             receiver.join().unwrap();
             runner_process::exit_after_cancellation(error.cancellation().unwrap());
@@ -307,7 +335,10 @@ fn receiver_thread(
         assert_eq!(unsafe { libc::sigemptyset(&mut mask) }, 0);
         assert_eq!(unsafe { libc::sigaddset(&mut mask, libc::SIGINT) }, 0);
         assert_eq!(unsafe { libc::sigaddset(&mut mask, libc::SIGTERM) }, 0);
-        assert_eq!(unsafe { libc::pthread_sigmask(libc::SIG_UNBLOCK, &mask, std::ptr::null_mut()) }, 0);
+        assert_eq!(
+            unsafe { libc::pthread_sigmask(libc::SIG_UNBLOCK, &mask, std::ptr::null_mut()) },
+            0
+        );
         // SAFETY: pthread_self is valid for the currently running thread.
         send.send(unsafe { libc::pthread_self() }).unwrap();
         let until = Instant::now() + Duration::from_secs(10);
@@ -317,7 +348,10 @@ fn receiver_thread(
         }
         done.store(true, Ordering::Release);
     });
-    (receive.recv_timeout(Duration::from_secs(3)).unwrap(), thread)
+    (
+        receive.recv_timeout(Duration::from_secs(3)).unwrap(),
+        thread,
+    )
 }
 
 fn wait_for_flag(flag: &AtomicBool) {
@@ -331,7 +365,10 @@ fn wait_for_flag(flag: &AtomicBool) {
 fn wait_for_file(path: &Path) {
     let until = Instant::now() + Duration::from_secs(4);
     while !path.exists() {
-        assert!(Instant::now() < until, "fixture file did not arrive: {path:?}");
+        assert!(
+            Instant::now() < until,
+            "fixture file did not arrive: {path:?}"
+        );
         std::thread::sleep(Duration::from_millis(1));
     }
 }
@@ -344,7 +381,9 @@ fn assert_not_running(pid: i32) {
     let until = Instant::now() + Duration::from_secs(1);
     loop {
         let state = std::fs::read_to_string(format!("/proc/{pid}/stat"));
-        if state.as_ref().is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+        if state
+            .as_ref()
+            .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
             || state.as_ref().is_ok_and(|stat| {
                 stat.rsplit_once(')').is_some_and(|(_, tail)| {
                     matches!(tail.split_whitespace().next(), Some("Z" | "X"))
@@ -353,7 +392,10 @@ fn assert_not_running(pid: i32) {
         {
             return;
         }
-        assert!(Instant::now() < until, "owned fixture descendant {pid} is still running: {state:?}");
+        assert!(
+            Instant::now() < until,
+            "owned fixture descendant {pid} is still running: {state:?}"
+        );
         std::thread::sleep(Duration::from_millis(1));
     }
 }

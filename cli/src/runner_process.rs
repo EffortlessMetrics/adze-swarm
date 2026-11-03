@@ -164,9 +164,9 @@ impl fmt::Display for CaptureError {
             CaptureCause::Setup(message) => {
                 write!(f, "static runner capture setup failed: {message}")?
             }
-            CaptureCause::UnsupportedInitProcess => {
-                f.write_str("static runner signal custody is unavailable when the CLI is Linux PID 1")?
-            }
+            CaptureCause::UnsupportedInitProcess => f.write_str(
+                "static runner signal custody is unavailable when the CLI is Linux PID 1",
+            )?,
             CaptureCause::Spawn(error) => write!(f, "static runner could not start: {error}")?,
             CaptureCause::Read(channel, error) => {
                 write!(f, "static runner {channel} read failed: {error}")?
@@ -494,7 +494,10 @@ pub(crate) mod signal_probe {
         INSTALL_ENTERED.store(true, Ordering::Release);
         let until = Instant::now() + Duration::from_secs(4);
         while !INSTALL_RELEASE.load(Ordering::Acquire) {
-            assert!(Instant::now() < until, "signal fixture install rendezvous expired");
+            assert!(
+                Instant::now() < until,
+                "signal fixture install rendezvous expired"
+            );
             std::thread::sleep(Duration::from_millis(1));
         }
         assert!(

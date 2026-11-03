@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "reviewed_source_packet": "Linux signal close source tree 956a71779b359499f3776c3cd1c2971edd99f7c1",
+  "reviewed_source_packet": "Hosted formatting of H3c124c8f signal source at Pdcab4f560857146ed1943242d236f7303ed824ec, formatter job126141602260",
   "green_sources": {
     "cli/src/runner_process.rs": {
-      "blob": "9216ea7fe592481f62795e9115d10475a90cebf4",
-      "sha256": "f02215e39b03fab9b6531381114f8c22334f9a313b0c018337e892b951fc42bc"
+      "blob": "62f52349c2f1e6010b6e5dfddff81eaba75992eb",
+      "sha256": "fcaaba81952baca0f05c2afd4f2aa4fa7b43277dc5b9c29ddb491840b60b38fe"
     },
     "cli/tests/runner_linux_signal_contract.rs": {
-      "blob": "a9c60a07b8f9ca15bdcf559770536a2ed5dfdaf4",
-      "sha256": "b1bbfc00d78e2ad7539dc8227e7a9b6ec72dca3290daa20b96ac0c87b31c0ff6"
+      "blob": "cd4e36a7ac903578ccf4a900f6b9c3a52351b3c5",
+      "sha256": "336a994a56dd1fe1c4439e90638e52ac27a29d873e109264cda6cb8e8f98d1fe"
     },
     "cli/tests/runner_process_contract.rs": {
       "blob": "f030b51dcbb242f30f5d28fdea2031b52b6eb4e1",
@@ -16,8 +16,8 @@
     }
   },
   "red_module": {
-    "blob": "99eaa9b5f428267adbe5ef99fdbc4766b9e3088e",
-    "sha256": "62cbb1c99f8501cec0c94557a4b9383f8fcfcb1c3b59df20c317e07f9d41cb5a"
+    "blob": "b77029d65884240bed98fe11e88471a561699487",
+    "sha256": "4c789a2aca1134aac3ddda7014d5025b3aa48c4970dd96c09ef07a47f2507ac6"
   },
   "red_patch_sha256": "e6c5286e516a223eb3507f05c64799b8186c88230c0ec59f3b6ff926d4074077",
   "green": {
