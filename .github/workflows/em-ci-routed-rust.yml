@@ -30,9 +30,6 @@ jobs:
       rust_needed: ${{ steps.detect.outputs.rust_needed }}
       reason: ${{ steps.detect.outputs.reason }}
     steps:
-      - uses: actions/checkout@v6.0.2
-        with:
-          fetch-depth: 0
       - id: detect
         name: Detect whether Rust lanes are needed
         shell: bash
