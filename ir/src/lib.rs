@@ -100,6 +100,9 @@ pub struct Grammar {
     /// Authoritative start symbol declared at grammar-definition or import time.
     #[serde(default)]
     pub start_symbol: Option<SymbolId>,
+    /// Producer-declared document root, distinct from the analysis start when needed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document_start_symbol: Option<SymbolId>,
     /// Explicit pattern-wrapper nonterminal to backing-token relations.
     #[serde(default)]
     pub wrapper_token_relations: IndexMap<SymbolId, SymbolId>,
@@ -570,6 +573,7 @@ impl Grammar {
             word_token: None,
             lexical_metadata: IndexMap::new(),
             start_symbol: None,
+            document_start_symbol: None,
             wrapper_token_relations: IndexMap::new(),
             optional_origins: IndexMap::new(),
             optional_field_origins: Vec::new(),
@@ -650,6 +654,12 @@ impl Grammar {
             }
         }
 
+        if let Some(start) = self.document_start_symbol
+            && !self.rules.contains_key(&start)
+        {
+            return Err(GrammarError::UnresolvedSymbol(start));
+        }
+
         // Validate symbol references
         for rule in self.all_rules() {
             for symbol in &rule.rhs {
@@ -720,6 +730,9 @@ impl Grammar {
             .chain(&self.inline_rules)
         {
             mark(&mut occupied, *id);
+        }
+        if let Some(start) = self.document_start_symbol {
+            mark(&mut occupied, start);
         }
         if let Some(start) = self.start_symbol {
             mark(&mut occupied, start);

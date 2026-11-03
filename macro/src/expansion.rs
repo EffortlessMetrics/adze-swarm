@@ -50,24 +50,39 @@ fn leaf_transforms(attrs: &[Attribute]) -> Result<LeafTransforms> {
     })
 }
 
-/// The `text = "..."` literal of an `#[adze::leaf]` attribute, if present.
-fn leaf_text(attrs: &[Attribute]) -> Option<String> {
+/// Canonical token kind declared by a literal text or regex leaf.
+fn leaf_token_kind(attrs: &[Attribute]) -> Option<String> {
     let leaf_attr = attrs
         .iter()
         .find(|attr| attr.path() == &syn::parse_quote!(adze::leaf))?;
     let params = leaf_attr
         .parse_args_with(Punctuated::<NameValueExpr, Token![,]>::parse_terminated)
         .ok()?;
-    params.iter().find_map(|param| {
-        if param.path == "text"
-            && let Expr::Lit(ExprLit {
-                lit: Lit::Str(s), ..
-            }) = &param.expr
-        {
-            return Some(s.value());
-        }
-        None
-    })
+    let literal_param = |name: &str| {
+        params.iter().find_map(|param| {
+            if param.path == name
+                && let Expr::Lit(ExprLit {
+                    lit: Lit::Str(value),
+                    ..
+                }) = &param.expr
+            {
+                Some(value.value())
+            } else {
+                None
+            }
+        })
+    };
+    literal_param("text")
+        .map(|text| format!("\"{text}\""))
+        .or_else(|| {
+            // Regex kind spelling is supplied by the pure-Rust converter.
+            // The legacy C backend retains its existing wrapper dispatch.
+            if cfg!(feature = "pure-rust") {
+                literal_param("pattern").map(|pattern| pattern_token_name(&pattern))
+            } else {
+                None
+            }
+        })
 }
 
 fn attrs_have_try_transform(attrs: &[Attribute]) -> bool {
@@ -589,6 +604,12 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                     }).collect::<Vec<_>>();
 
                     let leaf_variant_detection = e.variants.iter().filter_map(|v| {
+                        // Pure-Rust wrapped variants use their named identity,
+                        // never a sibling's inline token. Keep the legacy C
+                        // backend's existing extraction output unchanged.
+                        if cfg!(feature = "pure-rust") && variant_has_explicit_wrapper(&v.attrs) {
+                            return None;
+                        }
                         let leaf_attr_source = if let Fields::Unnamed(ref unnamed) = v.fields {
                             if unnamed.unnamed.len() == 1 && unnamed.unnamed[0]
                                 .attrs
@@ -619,12 +640,11 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                             extraction_mode,
                         ).ok()?;
 
-                        // A `text = "..."` leaf names its token kind (`"true"`),
-                        // which discriminates sibling leaf variants; a pattern
-                        // leaf keeps the historical unconditional fallback.
-                        match leaf_text(leaf_attr_source) {
-                            Some(text) => {
-                                let expected_kind = format!("\"{text}\"");
+                        // Dispatch from the selected native identity for both
+                        // literal and regex leaves. Never replay a regex or
+                        // try another variant after a selected conversion fails.
+                        match leaf_token_kind(leaf_attr_source) {
+                            Some(expected_kind) => {
                                 Some(quote! {
                                     if unwrapped_node.kind() == #expected_kind {
                                         return #extract_expr;
@@ -682,6 +702,29 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                         };
 
                     let fallible = extraction_mode == ExtractMode::Fallible;
+                    // A `None` node reaches generated `try_extract` whenever a
+                    // required child is absent (see `extract_field_try`, which
+                    // forwards `None`, and `Box<T>`, which forwards its input).
+                    // The fallible path reports that as a structured
+                    // `MissingToken` error; the infallible `extract() -> Self`
+                    // signature has no error channel, so it keeps the
+                    // historical `expect` (owner decision under ADR-0008).
+                    let none_arm = if fallible {
+                        quote! {
+                            let Some(node) = node else {
+                                return Err(::adze::errors::ParseError {
+                                    reason: ::adze::errors::ParseErrorReason::MissingToken(format!("Extract called with None node for enum {}", stringify!(#enum_name))),
+                                    start: _last_idx,
+                                    end: _last_idx,
+                                    expected: Vec::new(),
+                                });
+                            };
+                        }
+                    } else {
+                        quote! {
+                            let node = node.expect("Extract called with None node for enum");
+                        }
+                    };
                     let enum_body: proc_macro2::TokenStream = if cfg!(feature = "pure-rust") {
                         let self_call = if fallible {
                             quote!(Self::try_extract)
@@ -707,7 +750,7 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                             }
                         };
                         quote! {
-                            let node = node.expect("Extract called with None node for enum");
+                            #none_arm
 
                             fn unwrap_hidden_rules<'a>(node: &'a ::adze::pure_parser::ParsedNode) -> &'a ::adze::pure_parser::ParsedNode {
                                 let non_extra_children: Vec<_> = node.children.iter().filter(|c| !c.is_extra).collect();
@@ -762,7 +805,7 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                             }
                         };
                         quote! {
-                            let node = node.expect("Extract called with None node for enum");
+                            #none_arm
 
                             fn unwrap_hidden_rules(node: ::adze::tree_sitter::Node) -> ::adze::tree_sitter::Node {
                                 let mut cursor = node.walk();
@@ -877,7 +920,14 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                                 }
 
                                 fn try_extract(node: Option<&::adze::pure_parser::ParsedNode>, source: &[u8], last_idx: usize, _leaf_fn: Option<&Self::LeafFn>) -> Result<Self, ::adze::errors::ParseError> {
-                                    let node = node.expect("Extract called with None node for struct");
+                                    let Some(node) = node else {
+                                        return Err(::adze::errors::ParseError {
+                                            reason: ::adze::errors::ParseErrorReason::MissingToken(format!("Extract called with None node for struct {}", stringify!(#struct_name))),
+                                            start: last_idx,
+                                            end: last_idx,
+                                            expected: Vec::new(),
+                                        });
+                                    };
                                     #extract_expr
                                 }
                             }
@@ -903,7 +953,14 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
                                 }
 
                                 fn try_extract(node: Option<::adze::tree_sitter::Node>, source: &[u8], last_idx: usize, _leaf_fn: Option<&Self::LeafFn>) -> Result<Self, ::adze::errors::ParseError> {
-                                    let node = node.expect("Extract called with None node for struct");
+                                    let Some(node) = node else {
+                                        return Err(::adze::errors::ParseError {
+                                            reason: ::adze::errors::ParseErrorReason::MissingToken(format!("Extract called with None node for struct {}", stringify!(#struct_name))),
+                                            start: last_idx,
+                                            end: last_idx,
+                                            expected: Vec::new(),
+                                        });
+                                    };
                                     #extract_expr
                                 }
                             }
@@ -953,7 +1010,7 @@ pub fn expand_grammar(input: ItemMod) -> Result<ItemMod> {
             #[doc = #root_type_docstr]
             /// instance containing the parsed structured data.
             pub fn parse(input: &str) -> core::result::Result<#root_type, Vec<::adze::errors::ParseError>> {
-                ::adze::__private::parse::<#root_type>(input, || language())
+                ::adze::__private::parse_with_identity::<#root_type>(input, language(), Some(&START_IDENTITY))
             }
         });
     } else {
@@ -1143,6 +1200,135 @@ mod name_hygiene_1086_tests {
         assert!(
             text.contains("__adze_error"),
             "generated error mapping must survive adversarial input: {text}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod none_node_error_tests {
+    use super::*;
+
+    fn expanded_text(grammar: ItemMod) -> String {
+        expand_grammar(grammar)
+            .expect("test grammar must expand")
+            .to_token_stream()
+            .to_string()
+    }
+
+    fn fallible_struct_text() -> String {
+        expanded_text(syn::parse_quote! {
+            #[adze::grammar("none_struct_test")]
+            mod grammar {
+                #[adze::language]
+                pub struct Root {
+                    #[adze::leaf(pattern = r"\d+", try_transform = |v: &str| v.parse::<i32>())]
+                    value: i32,
+                }
+            }
+        })
+    }
+
+    fn fallible_enum_text() -> String {
+        expanded_text(syn::parse_quote! {
+            #[adze::grammar("none_enum_test")]
+            mod grammar {
+                #[adze::language]
+                pub enum Root {
+                    Count(#[adze::leaf(pattern = r"\d+", try_transform = |v: &str| v.parse::<i32>())] i32),
+                    Flag(bool),
+                }
+            }
+        })
+    }
+
+    fn infallible_struct_text() -> String {
+        expanded_text(syn::parse_quote! {
+            #[adze::grammar("none_infallible_struct_test")]
+            mod grammar {
+                #[adze::language]
+                pub struct Root {
+                    #[adze::leaf(pattern = r"\d+")]
+                    value: String,
+                }
+            }
+        })
+    }
+
+    fn infallible_enum_text() -> String {
+        expanded_text(syn::parse_quote! {
+            #[adze::grammar("none_infallible_enum_test")]
+            mod grammar {
+                #[adze::language]
+                pub enum Root {
+                    #[adze::leaf(text = "true")]
+                    Yes(bool),
+                    #[adze::leaf(text = "false")]
+                    No(bool),
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn test_fallible_struct_none_node_returns_missing_token() {
+        let text = fallible_struct_text();
+        assert!(
+            text.contains("try_extract"),
+            "fallible grammar must emit a try_extract path: {text}"
+        );
+        assert!(
+            text.contains("MissingToken"),
+            "None node must surface as a structured MissingToken error, not a panic: {text}"
+        );
+        assert!(
+            !text.contains("expect ("),
+            "fallible try_extract must not unwrap the node option: {text}"
+        );
+    }
+
+    #[test]
+    fn test_fallible_enum_none_node_returns_missing_token() {
+        let text = fallible_enum_text();
+        assert!(
+            text.contains("try_extract"),
+            "fallible grammar must emit a try_extract path: {text}"
+        );
+        assert!(
+            text.contains("MissingToken"),
+            "None node must surface as a structured MissingToken error, not a panic: {text}"
+        );
+        assert!(
+            !text.contains("expect ("),
+            "fallible try_extract must not unwrap the node option: {text}"
+        );
+    }
+
+    #[test]
+    fn test_infallible_struct_keeps_expect_without_error_channel() {
+        // `extract() -> Self` cannot return `ParseError`; changing that is a
+        // trait-signature decision owned under ADR-0008, so the infallible
+        // path keeps its historical `expect` until that decision lands.
+        let text = infallible_struct_text();
+        assert!(
+            !text.contains("try_extract"),
+            "infallible grammar must not emit a fallible path: {text}"
+        );
+        assert!(
+            text.contains("Extract called with None node for struct"),
+            "infallible struct keeps the documented expect boundary: {text}"
+        );
+    }
+
+    #[test]
+    fn test_infallible_enum_keeps_expect_without_error_channel() {
+        let text = infallible_enum_text();
+        assert!(
+            !text.contains("try_extract"),
+            "infallible grammar must not emit a fallible path: {text}"
+        );
+        assert!(
+            text.contains("Extract called with None node for enum"),
+            "infallible enum keeps the documented expect boundary: {text}"
         );
     }
 }

@@ -360,7 +360,7 @@ fn generated_ambiguous_expr_glr_runtime_retains_multiple_complete_alternatives()
     let language = grammar::language();
     let mut parse_table = decoder::decode_parse_table(language);
     adze::__private::align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
-    let grammar = decoder::decode_grammar(language);
+    let grammar = parse_table.grammar.clone();
     let mut parser = GLRParser::new(parse_table, grammar);
 
     let lex_fn = language
@@ -442,7 +442,7 @@ fn generated_ambiguous_expr_glr_runtime_retains_three_or_more_complete_alternati
     let language = grammar::language();
     let mut parse_table = decoder::decode_parse_table(language);
     adze::__private::align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
-    let grammar = decoder::decode_grammar(language);
+    let grammar = parse_table.grammar.clone();
     let mut parser = GLRParser::new(parse_table, grammar);
 
     let lex_fn = language
@@ -623,7 +623,7 @@ fn generated_ambiguous_expr_runtime_fork_count_is_deterministic() {
         let language = grammar::language();
         let mut parse_table = decoder::decode_parse_table(language);
         adze::__private::align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
-        let grammar = decoder::decode_grammar(language);
+        let grammar = parse_table.grammar.clone();
         let mut parser = GLRParser::new(parse_table, grammar);
         let lex_fn = language
             .lex_fn

@@ -487,7 +487,10 @@ pub fn parse<T: Extract<T>>(
     }
 }
 
-/// Parses an input string and extracts a value using the pure-rust parser.
+/// Legacy raw-language compatibility helper.
+///
+/// This signature cannot guarantee canonical start identity without a sidecar.
+/// Newly generated parsers call [`parse_with_identity`] instead.
 #[cfg(feature = "pure-rust")]
 pub fn parse<T: Extract<T>>(
     input: &str,
@@ -499,13 +502,53 @@ pub fn parse<T: Extract<T>>(
     // result is returned directly: no cross-engine retry (#897).
     let lang = language();
     let parse_table = crate::decoder::decode_parse_table(lang);
+    parse_with_decoded_table(input, lang, parse_table, true)
+}
+
+#[cfg(feature = "pure-rust")]
+fn identity_parse_error(
+    error: crate::generated_identity::NativeIdentityError,
+) -> Vec<crate::errors::ParseError> {
+    vec![crate::errors::ParseError {
+        reason: crate::errors::ParseErrorReason::InvalidLanguageIdentity(error),
+        start: 0,
+        end: 0,
+        expected: vec![],
+    }]
+}
+
+/// Checked generated typed entrypoint. Missing identity never invokes legacy inference.
+#[cfg(feature = "pure-rust")]
+pub fn parse_with_identity<T: Extract<T>>(
+    input: &str,
+    language: &'static crate::pure_parser::TSLanguage,
+    identity: Option<&crate::generated_identity::NativeLanguageIdentityV1>,
+) -> Result<T, Vec<crate::errors::ParseError>> {
+    let identity = identity.ok_or_else(|| {
+        identity_parse_error(crate::generated_identity::NativeIdentityError::Unavailable)
+    })?;
+    let table = identity
+        .decode_for(language)
+        .map_err(identity_parse_error)?;
+    parse_with_decoded_table(input, language, table, false)
+}
+
+#[cfg(feature = "pure-rust")]
+fn parse_with_decoded_table<T: Extract<T>>(
+    input: &str,
+    lang: &'static crate::pure_parser::TSLanguage,
+    parse_table: adze_glr_core::ParseTable,
+    legacy_wrapper: bool,
+) -> Result<T, Vec<crate::errors::ParseError>> {
     match engine_dispatch_for_table(lang, &parse_table) {
-        EngineDispatch::DeterministicLr => parse_with_pure_parser::<T>(input, language),
+        EngineDispatch::DeterministicLr => {
+            parse_with_pure_parser::<T>(input, || lang, legacy_wrapper)
+        }
         #[cfg(feature = "glr")]
         dispatch @ (EngineDispatch::StreamingGlr
         | EngineDispatch::LegacyGlrWithoutLexFn
         | EngineDispatch::UnsupportedConflictedTable) => {
-            parse_with_true_glr_runtime::<T>(input, lang, parse_table, dispatch)
+            parse_with_true_glr_runtime::<T>(input, lang, parse_table, dispatch, legacy_wrapper)
         }
         #[cfg(not(feature = "glr"))]
         EngineDispatch::StreamingGlr
@@ -527,6 +570,7 @@ pub fn parse<T: Extract<T>>(
 /// Numeric grammar identities are language-local. This private generated-code
 /// boundary compares the existing document binding without exposing a pointer.
 #[doc(hidden)]
+#[cfg(feature = "pure-rust")]
 pub fn document_matches_language(
     document: &crate::document::AdzeDocument,
     language: &'static crate::pure_parser::TSLanguage,
@@ -607,9 +651,87 @@ fn parse_document_with_schema(
     lang: &'static crate::pure_parser::TSLanguage,
     grammar_name: &str,
     field_schema: crate::document::DocumentFieldSchema,
-) -> core::result::Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
-    let grammar = crate::decoder::decode_grammar(lang);
-    let parse_table = crate::decoder::decode_parse_table(lang);
+) -> Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
+    let table = crate::decoder::decode_parse_table(lang);
+    parse_document_with_decoded_table(input, lang, grammar_name, table, field_schema)
+}
+
+/// Checked native document setup without canonical field attachments.
+#[cfg(feature = "pure-rust")]
+pub fn parse_document_with_identity(
+    input: &str,
+    language: &'static crate::pure_parser::TSLanguage,
+    identity: Option<&crate::generated_identity::NativeLanguageIdentityV1>,
+    grammar_name: &str,
+) -> Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
+    let identity = identity.ok_or_else(|| {
+        identity_parse_error(crate::generated_identity::NativeIdentityError::Unavailable)
+    })?;
+    let table = identity
+        .decode_for(language)
+        .map_err(identity_parse_error)?;
+    parse_document_with_decoded_table(
+        input,
+        language,
+        grammar_name,
+        table,
+        crate::document::DocumentFieldSchema::Unavailable,
+    )
+}
+
+/// Compose checked native identity with the existing versioned field attachment.
+#[cfg(feature = "pure-rust")]
+pub fn parse_document_with_descriptor_v2_and_identity(
+    input: &str,
+    descriptor: &'static crate::generated_schema::GeneratedLanguageDescriptorV2,
+    identity: Option<&crate::generated_identity::NativeLanguageIdentityV1>,
+    grammar_name: &str,
+) -> Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
+    descriptor.validate().map_err(|error| {
+        vec![crate::errors::ParseError {
+            reason: crate::errors::ParseErrorReason::UnexpectedToken(error.to_string()),
+            start: 0,
+            end: 0,
+            expected: vec![],
+        }]
+    })?;
+    let identity = identity.ok_or_else(|| {
+        identity_parse_error(crate::generated_identity::NativeIdentityError::Unavailable)
+    })?;
+    let table = identity
+        .decode_for(descriptor.language)
+        .map_err(identity_parse_error)?;
+    let mut document = parse_document_with_decoded_table(
+        input,
+        descriptor.language,
+        grammar_name,
+        table,
+        crate::document::DocumentFieldSchema::Generated(&descriptor.field_schema),
+    )?;
+    document.bind_field_projection(descriptor.field_projection.as_ref());
+    Ok(document)
+}
+
+#[cfg(feature = "pure-rust")]
+fn document_start_symbol(
+    language: &'static crate::pure_parser::TSLanguage,
+    table: &adze_glr_core::ParseTable,
+) -> adze_ir::SymbolId {
+    table
+        .grammar
+        .document_start_symbol
+        .unwrap_or_else(|| public_symbol_id_for_index(language, table.start_symbol.0))
+}
+
+#[cfg(feature = "pure-rust")]
+pub(crate) fn parse_document_with_decoded_table(
+    input: &str,
+    lang: &'static crate::pure_parser::TSLanguage,
+    grammar_name: &str,
+    parse_table: adze_glr_core::ParseTable,
+    field_schema: crate::document::DocumentFieldSchema,
+) -> Result<crate::document::AdzeDocument, Vec<crate::errors::ParseError>> {
+    let grammar = parse_table.grammar.clone();
 
     // Same table-derived dispatch as `parse()` (#896): both entry points
     // execute the one decision returned for this decoded table.
@@ -661,14 +783,14 @@ fn parse_document_with_schema(
         .map(|root_node| {
             wrap_root_in_start_symbol(
                 convert_parsed_node_to_document_node(root_node, lang),
-                public_symbol_id_for_index(lang, parse_table.start_symbol.0),
+                document_start_symbol(lang, &parse_table),
                 input.len(),
             )
         })
         .unwrap_or_else(|| {
             synthetic_document_root_for_errors(
                 input,
-                public_symbol_id_for_index(lang, parse_table.start_symbol.0),
+                document_start_symbol(lang, &parse_table),
                 &diagnostics,
             )
         });
@@ -716,8 +838,12 @@ fn parse_document_with_streaming_true_glr_runtime(
     ) {
         Ok(parsed) => parsed,
         Err(error) => {
-            let errors =
-                crate::glr_streaming_runtime::glr_error_to_parse_errors(input, error, language);
+            let errors = crate::glr_streaming_runtime::glr_error_to_parse_errors(
+                input,
+                error,
+                language,
+                &parse_table,
+            );
             return Ok(parse_document_from_glr_errors(
                 input,
                 language,
@@ -907,7 +1033,7 @@ fn adze_document_from_streaming_parse_with_schema(
 ) -> crate::document::AdzeDocument {
     let root = wrap_root_in_start_symbol(
         convert_subtree_to_document_node(&parsed.root, language, parse_table, grammar),
-        public_symbol_id_for_index(language, parse_table.start_symbol.0),
+        document_start_symbol(language, parse_table),
         source.len(),
     );
     let ambiguities = parsed.ambiguities.into_iter().collect::<Vec<_>>();
@@ -949,13 +1075,17 @@ fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
     parsed_node: crate::pure_parser::ParsedNode,
     source: &[u8],
     _language: &'static crate::pure_parser::TSLanguage,
+    parse_table: &adze_glr_core::ParseTable,
+    legacy_wrapper: bool,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
     let non_extra_root_children: Vec<_> = parsed_node
         .children
         .iter()
         .filter(|child| !child.is_extra)
         .collect();
-    let extract_node = if parsed_node.kind() == "source_file" && non_extra_root_children.len() == 1
+    let extract_node = if legacy_wrapper
+        && parsed_node.kind() == "source_file"
+        && non_extra_root_children.len() == 1
     {
         non_extra_root_children[0]
     } else {
@@ -1038,9 +1168,9 @@ fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
         // An error chunk at the very start of input carries no missing
         // terminal; the parser was in the initial state there, so the
         // decoded table's initial ACTION row is the native expected set.
+        let mut table = parse_table.clone();
+        align_true_glr_parse_table_to_language_symbols(_language, &mut table);
         if errors.iter().any(|e| e.expected.is_empty() && e.start == 0) {
-            let mut table = crate::decoder::decode_parse_table(_language);
-            align_true_glr_parse_table_to_language_symbols(_language, &mut table);
             let initial = initial_state_expected_names(_language, &table);
             if !initial.is_empty() {
                 for error in &mut errors {
@@ -1057,8 +1187,6 @@ fn finish_typed_extract_from_parsed_node<T: Extract<T>>(
         // `glr_expected_names_at_failure`); leave it empty only when
         // that native replay cannot be performed.
         if errors.iter().any(|error| error.expected.is_empty()) {
-            let mut table = crate::decoder::decode_parse_table(_language);
-            align_true_glr_parse_table_to_language_symbols(_language, &mut table);
             let mut leaves: Vec<(u16, usize, usize)> = Vec::new();
             collect_leaf_terminals(extract_node, &mut leaves);
             for error in &mut errors {
@@ -1431,10 +1559,11 @@ fn parse_document_with_true_glr_runtime(
     let mut runtime_parse_table = parse_table.clone();
     align_true_glr_parse_table_to_language_symbols(language, &mut runtime_parse_table);
     let initial_expected = initial_state_expected_names(language, &runtime_parse_table);
+    let execution_grammar = &runtime_parse_table.grammar;
     let mut parser =
-        crate::glr_parser::GLRParser::new(runtime_parse_table.clone(), grammar.clone());
+        crate::glr_parser::GLRParser::new(runtime_parse_table.clone(), execution_grammar.clone());
 
-    let mut lexer = match crate::glr_lexer::GLRLexer::new(&grammar, input.to_string()) {
+    let mut lexer = match crate::glr_lexer::GLRLexer::new(execution_grammar, input.to_string()) {
         Ok(lexer) => lexer,
         Err(message) => {
             return Ok(parse_document_from_glr_errors(
@@ -1504,7 +1633,7 @@ fn parse_document_with_true_glr_runtime(
         .collect::<Vec<_>>();
     let root = wrap_root_in_start_symbol(
         convert_subtree_to_document_node(&root_node, language, &parse_table, &grammar),
-        public_symbol_id_for_index(language, parse_table.start_symbol.0),
+        document_start_symbol(language, &parse_table),
         source.len(),
     );
 
@@ -1586,7 +1715,7 @@ fn parse_document_from_glr_errors(
     let error_count = diagnostics.len();
     let root = synthetic_document_root_for_errors(
         input,
-        public_symbol_id_for_index(language, parse_table.start_symbol.0),
+        document_start_symbol(language, parse_table),
         &diagnostics,
     );
 
@@ -1664,6 +1793,7 @@ fn map_lr_parse_error(
 fn parse_with_pure_parser<T: Extract<T>>(
     input: &str,
     language: impl Fn() -> &'static crate::pure_parser::TSLanguage,
+    legacy_wrapper: bool,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
     let mut parser = crate::pure_parser::Parser::new();
     let lang = language();
@@ -1720,7 +1850,10 @@ fn parse_with_pure_parser<T: Extract<T>>(
     // source_file is typically a wrapper node with a single non-extra child
     let non_extra_root_children: Vec<_> =
         root_node.children.iter().filter(|c| !c.is_extra).collect();
-    let extract_node = if root_node.kind() == "source_file" && non_extra_root_children.len() == 1 {
+    let extract_node = if legacy_wrapper
+        && root_node.kind() == "source_file"
+        && non_extra_root_children.len() == 1
+    {
         // This is source_file, extract from its first non-extra child
         non_extra_root_children[0]
     } else {
@@ -1738,9 +1871,10 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
     language: &'static crate::pure_parser::TSLanguage,
     mut parse_table: adze_glr_core::ParseTable,
     dispatch: EngineDispatch,
+    legacy_wrapper: bool,
 ) -> core::result::Result<T, Vec<crate::errors::ParseError>> {
     if dispatch == EngineDispatch::StreamingGlr {
-        let grammar = crate::decoder::decode_grammar(language);
+        let grammar = parse_table.grammar.clone();
         // Native failure facts (#1030 remainder): a streaming failure is
         // projected directly through `glr_error_to_parse_errors`, whose
         // expected-token names come from the GLR driver's own structured
@@ -1751,20 +1885,29 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
         let parsed = match crate::glr_streaming_runtime::parse_with_streaming_driver(
             input,
             language,
-            parse_table,
+            parse_table.clone(),
             &grammar,
         ) {
             Ok(parsed) => parsed,
             Err(error) => {
                 return Err(crate::glr_streaming_runtime::glr_error_to_parse_errors(
-                    input, error, language,
+                    input,
+                    error,
+                    language,
+                    &parse_table,
                 ));
             }
         };
 
         let source = input.as_bytes();
         let parsed_node = convert_subtree_to_pure(&parsed.root, language, source);
-        return finish_typed_extract_from_parsed_node(parsed_node, source, language);
+        return finish_typed_extract_from_parsed_node(
+            parsed_node,
+            source,
+            language,
+            &parse_table,
+            legacy_wrapper,
+        );
     }
 
     if dispatch == EngineDispatch::UnsupportedConflictedTable {
@@ -1773,8 +1916,8 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
 
     let source = input.as_bytes();
     align_true_glr_parse_table_to_language_symbols(language, &mut parse_table);
-    let grammar = crate::decoder::decode_grammar(language);
-    let mut parser = crate::glr_parser::GLRParser::new(parse_table, grammar.clone());
+    let grammar = parse_table.grammar.clone();
+    let mut parser = crate::glr_parser::GLRParser::new(parse_table.clone(), grammar.clone());
 
     let mut lexer = match crate::glr_lexer::GLRLexer::new(&grammar, input.to_string()) {
         Ok(lexer) => lexer,
@@ -1816,7 +1959,13 @@ fn parse_with_true_glr_runtime<T: Extract<T>>(
     };
 
     let parsed_node = convert_subtree_to_pure(&root_node, language, source);
-    finish_typed_extract_from_parsed_node(parsed_node, source, language)
+    finish_typed_extract_from_parsed_node(
+        parsed_node,
+        source,
+        language,
+        &parse_table,
+        legacy_wrapper,
+    )
 }
 
 #[cfg(all(feature = "glr", feature = "pure-rust"))]
@@ -1834,7 +1983,7 @@ pub fn align_true_glr_parse_table_to_language_symbols(
 
     let symbol_count = language.symbol_count as usize;
     if symbol_count == 0
-        || symbol_count > u16::MAX as usize
+        || symbol_count > u16::MAX as usize + 1
         || parse_table.index_to_symbol.len() != symbol_count
     {
         return;
@@ -1844,6 +1993,7 @@ pub fn align_true_glr_parse_table_to_language_symbols(
     // still useful for ABI decode callers, but the true-GLR runtime must execute
     // against the same dense symbols used by the generated language tables.
     let public_to_column = parse_table.symbol_to_index.clone();
+    crate::decoder::remap_grammar_to_table_columns(&mut parse_table.grammar, &public_to_column);
     let raw_symbol = |symbol: SymbolId| {
         public_to_column
             .get(&symbol)
@@ -1965,15 +2115,39 @@ pub fn lex_with_language_fn(
 
     let mut tokens = Vec::new();
     let mut position = 0usize;
-    let lex_mode = if !language.lex_modes.is_null() {
-        // SAFETY: generated languages provide one lex mode per state. State 0 is
-        // the conservative default for the current generated lexers.
-        unsafe { *language.lex_modes }
-    } else {
-        crate::pure_parser::TSLexState {
-            lex_state: 0,
-            external_lex_state: 0,
+    // State-aware lex driving (#892): post-#943 generated lexers partition
+    // tokens across lex states (one `lex_modes` entry per parser state; e.g.
+    // `+` is only reachable in state 1), so a single state-0 pass cannot lex
+    // multi-state grammars. The production route (`pure_parser::lex_token`)
+    // drives `lex_fn` with the current parser state's mode at each position;
+    // this parser-independent harness instead tries every distinct lex mode
+    // at each position and keeps the maximal munch (longest match, then
+    // lowest symbol, mirroring the generated lexers' internal `better_match`
+    // over the priority-opaque `lex_fn` ABI). That union is exactly the set
+    // of tokens production could accept from any active stack.
+    let lex_modes = {
+        let mut modes = Vec::new();
+        if !language.lex_modes.is_null() {
+            // SAFETY: generated languages provide one lex mode per parser
+            // state (`state_count` entries).
+            let count = language.state_count as usize;
+            for index in 0..count {
+                let mode = unsafe { *language.lex_modes.add(index) };
+                if !modes.iter().any(|seen: &crate::pure_parser::TSLexState| {
+                    seen.lex_state == mode.lex_state
+                        && seen.external_lex_state == mode.external_lex_state
+                }) {
+                    modes.push(mode);
+                }
+            }
         }
+        if modes.is_empty() {
+            modes.push(crate::pure_parser::TSLexState {
+                lex_state: 0,
+                external_lex_state: 0,
+            });
+        }
+        modes
     };
 
     while position < source.len() {
@@ -1985,29 +2159,47 @@ pub fn lex_with_language_fn(
         }
 
         let start = position;
-        let mut backing = Backing {
-            input: source,
-            pos: position,
-            mark: position,
-        };
-        let mut ts_lexer = TsLexer {
-            lookahead,
-            advance,
-            mark_end,
-            result_symbol: u16::MAX,
-            data: &mut backing as *mut _ as *mut c_void,
-        };
+        let mut best: Option<(u16, usize)> = None;
+        for lex_mode in &lex_modes {
+            let mut backing = Backing {
+                input: source,
+                pos: position,
+                mark: position,
+            };
+            let mut ts_lexer = TsLexer {
+                lookahead,
+                advance,
+                mark_end,
+                result_symbol: u16::MAX,
+                data: &mut backing as *mut _ as *mut c_void,
+            };
 
-        // SAFETY: `lex_fn` is the generated language lexer. `ts_lexer` uses the
-        // same `TsLexer` ABI layout that generated lexers expect.
-        let ok = unsafe { lex_fn(&mut ts_lexer as *mut _ as *mut c_void, lex_mode) };
-        let end = if backing.mark > start {
-            backing.mark
-        } else {
-            backing.pos
-        };
+            // SAFETY: `lex_fn` is the generated language lexer. `ts_lexer` uses the
+            // same `TsLexer` ABI layout that generated lexers expect.
+            let ok = unsafe { lex_fn(&mut ts_lexer as *mut _ as *mut c_void, *lex_mode) };
+            let end = if backing.mark > start {
+                backing.mark
+            } else {
+                backing.pos
+            };
 
-        if !ok || ts_lexer.result_symbol == u16::MAX || end <= start {
+            if !ok || ts_lexer.result_symbol == u16::MAX || end <= start {
+                continue;
+            }
+            let candidate = (ts_lexer.result_symbol, end);
+            best = Some(match best {
+                None => candidate,
+                Some((old_symbol, old_end)) => {
+                    if end > old_end || (end == old_end && candidate.0 < old_symbol) {
+                        candidate
+                    } else {
+                        (old_symbol, old_end)
+                    }
+                }
+            });
+        }
+
+        let Some((result_symbol, end)) = best else {
             let invalid_end = diagnostic_end_for_byte(source, start);
             return Err(vec![crate::errors::ParseError {
                 reason: crate::errors::ParseErrorReason::UnexpectedToken(
@@ -2017,12 +2209,12 @@ pub fn lex_with_language_fn(
                 end: invalid_end,
                 expected: vec![],
             }]);
-        }
+        };
 
-        if !is_extra_symbol(language, ts_lexer.result_symbol) {
+        if !is_extra_symbol(language, result_symbol) {
             let text = String::from_utf8_lossy(&source[start..end]).into_owned();
             tokens.push(crate::glr_lexer::TokenWithPosition {
-                symbol_id: SymbolId(ts_lexer.result_symbol),
+                symbol_id: SymbolId(result_symbol),
                 text,
                 byte_offset: start,
                 byte_length: end - start,

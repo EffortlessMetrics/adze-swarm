@@ -196,7 +196,7 @@ impl AdzeDocument {
         // `root` is consumed once by flat construction above and dropped:
         // no persistent recursive tree is retained.
         let _ = root;
-        Self {
+        let mut document = Self {
             source: source.to_string(),
             projection: field_projection::ProjectionIndex::default(),
             syntax,
@@ -205,7 +205,11 @@ impl AdzeDocument {
             ambiguities,
             metadata: ParseMetadata::new(error_count),
             pure_language: runtime.pure_language,
+        };
+        if matches!(runtime.field_schema, DocumentFieldSchema::CompleteIr) {
+            document.bind_complete_ir_projection(runtime.grammar);
         }
+        document
     }
 
     pub(crate) fn matches_native_language(
@@ -213,7 +217,7 @@ impl AdzeDocument {
         language: &'static crate::pure_parser::TSLanguage,
     ) -> bool {
         self.pure_language
-            .is_some_and(|actual| std::ptr::eq(actual, language))
+            .is_some_and(|actual| crate::generated_identity::matches_language(actual, language))
     }
 
     /// Return the generic native CST view.
@@ -929,7 +933,10 @@ impl EdgeRange {
     }
 
     fn get(self, child_index: usize) -> Option<usize> {
-        (child_index < self.len).then_some(self.start + child_index)
+        if child_index >= self.len {
+            return None;
+        }
+        self.start.checked_add(child_index)
     }
 }
 
@@ -3074,6 +3081,56 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_fields_legacy_grants_accept_direct_payload_alternatives() {
+        for payload in [1u16, 2] {
+            let mut item = direct_schema_item(0);
+            item.children[0].symbol = SymbolId(payload);
+            item.children[0].symbol_id = SymbolId(payload);
+            let document = direct_schema_document(vec![item]);
+            assert!(document.tree().validate_structure().is_ok());
+            assert!(document.diagnostics().is_empty());
+            let fact = document
+                .language
+                .field_semantics(SymbolId(10), "value")
+                .unwrap();
+            assert!(fact.required);
+            assert!(!fact.multiple);
+            assert_eq!(fact.target_kinds, vec![SymbolId(11)]);
+            assert_eq!(document.validate_fields(), Ok(()));
+        }
+    }
+
+    #[test]
+    fn test_validate_fields_strict_at_direct_owner_accepts_both_payload_alternatives() {
+        for payload in [1u16, 2] {
+            let mut item = direct_schema_item(0);
+            item.children[0].symbol = SymbolId(payload);
+            item.children[0].symbol_id = SymbolId(payload);
+            let document = direct_schema_document(vec![item]);
+            assert_eq!(
+                document.validate_fields_strict_at(document.tree().root().node_id()),
+                Ok(())
+            );
+            // This operation validates only this owner, not item.value's selected alternative.
+            assert_eq!(document.validate_fields(), Ok(()));
+        }
+    }
+
+    #[test]
+    fn test_validate_fields_strict_at_rejects_unfielded_extra_rhs_slot() {
+        let mut extra = schema_leaf(1, 1, 2, "value");
+        extra.field_name = None;
+        let document = direct_schema_document(vec![direct_schema_item(0), extra]);
+        let node = document.tree().root().node_id();
+        assert!(document.tree().validate_structure().is_ok());
+        assert_eq!(document.validate_fields(), Ok(()));
+        assert_eq!(
+            document.validate_fields_strict_at(node),
+            Err(FieldProjectionError::Incomplete { node })
+        );
+    }
+
+    #[test]
     fn test_validate_fields_rejects_direct_wrong_target() {
         let document = direct_schema_document(vec![schema_leaf(1, 0, 1, "value")]);
         let fact = document
@@ -3083,9 +3140,16 @@ mod tests {
         assert_eq!(fact.target_kinds, vec![SymbolId(11)]);
         assert!(document.tree().validate_structure().is_ok());
         assert!(document.diagnostics().is_empty());
-        assert!(
-            document.validate_fields().is_err(),
-            "doc.value cannot target num(1)"
+        let node = document.tree().root().node_id();
+        let target = document.tree().root().child(0).unwrap().node_id();
+        assert_eq!(
+            document.validate_fields_strict_at(node),
+            Err(FieldProjectionError::WrongTarget {
+                node,
+                field: "value".into(),
+                target,
+                actual: SymbolId(1)
+            })
         );
     }
 
@@ -3099,9 +3163,13 @@ mod tests {
         assert!(fact.required);
         assert!(document.tree().validate_structure().is_ok());
         assert!(document.diagnostics().is_empty());
-        assert!(
-            document.validate_fields().is_err(),
-            "doc.value requires an occurrence"
+        let node = document.tree().root().node_id();
+        assert_eq!(
+            document.validate_fields_strict_at(node),
+            Err(FieldProjectionError::MissingRequired {
+                node,
+                field: "value".into()
+            })
         );
     }
 
@@ -3115,9 +3183,20 @@ mod tests {
         assert!(!fact.multiple);
         assert!(document.tree().validate_structure().is_ok());
         assert!(document.diagnostics().is_empty());
-        assert!(
-            document.validate_fields().is_err(),
-            "doc.value permits only one occurrence"
+        let node = document.tree().root().node_id();
+        let targets = document
+            .tree()
+            .root()
+            .child_edges()
+            .map(|edge| edge.child().unwrap().node_id())
+            .collect();
+        assert_eq!(
+            document.validate_fields_strict_at(node),
+            Err(FieldProjectionError::TooMany {
+                node,
+                field: "value".into(),
+                targets
+            })
         );
     }
 

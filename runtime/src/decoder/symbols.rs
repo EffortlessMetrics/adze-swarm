@@ -220,13 +220,73 @@ fn remap_symbol(symbol: &mut adze_ir::Symbol, public_symbols: &[SymbolId]) {
     }
 }
 
+/// Derive a dense execution grammar from the canonical public grammar.
+/// The caller prepares a clone; public document facts keep their original IDs.
+#[cfg(feature = "glr")]
+pub(crate) fn remap_grammar_to_table_columns(
+    grammar: &mut adze_ir::Grammar,
+    public_to_column: &std::collections::BTreeMap<SymbolId, usize>,
+) {
+    let map_len = public_to_column
+        .keys()
+        .map(|id| usize::from(id.0) + 1)
+        .max()
+        .unwrap_or(0);
+    let mut inverse: Vec<_> = (0..map_len).map(|id| SymbolId(id as u16)).collect();
+    for (&public, &column) in public_to_column {
+        if let Ok(column) = u16::try_from(column) {
+            inverse[usize::from(public.0)] = SymbolId(column);
+        }
+    }
+    remap_grammar_symbols(grammar, &inverse);
+    let remap = |id: SymbolId| inverse.get(usize::from(id.0)).copied().unwrap_or(id);
+    for external in &mut grammar.externals {
+        external.symbol_id = remap(external.symbol_id);
+    }
+    for symbol in grammar
+        .extras
+        .iter_mut()
+        .chain(&mut grammar.supertypes)
+        .chain(&mut grammar.inline_rules)
+    {
+        *symbol = remap(*symbol);
+    }
+    for precedence in &mut grammar.precedences {
+        for symbol in &mut precedence.symbols {
+            *symbol = remap(*symbol);
+        }
+    }
+    for conflict in &mut grammar.conflicts {
+        for symbol in &mut conflict.symbols {
+            *symbol = remap(*symbol);
+        }
+    }
+    grammar.rule_names = std::mem::take(&mut grammar.rule_names)
+        .into_iter()
+        .map(|(id, name)| (remap(id), name))
+        .collect();
+    grammar.lexical_metadata = std::mem::take(&mut grammar.lexical_metadata)
+        .into_iter()
+        .map(|(id, metadata)| (remap(id), metadata))
+        .collect();
+    grammar.wrapper_token_relations = std::mem::take(&mut grammar.wrapper_token_relations)
+        .into_iter()
+        .map(|(wrapper, token)| (remap(wrapper), remap(token)))
+        .collect();
+    grammar.start_symbol = grammar.start_symbol.map(remap);
+    grammar.document_start_symbol = grammar.document_start_symbol.map(remap);
+    grammar.word_token = grammar.word_token.map(remap);
+    // A producer registry belongs to its public grammar, never this derived view.
+    grammar.symbol_registry = None;
+}
+
 #[cfg(test)]
 mod identity_tests {
     use super::*;
     use adze_ir::{ExternalToken, FieldId, Grammar, ProductionId, Rule, Symbol};
 
     #[test]
-    fn decoded_grammar_maps_public_owner_targets_and_tokens_once() {
+    fn test_decoded_grammar_maps_public_owner_targets_and_tokens_once() {
         let mut grammar = Grammar::new("decoded_grammar".to_string());
         grammar.tokens.insert(
             SymbolId(1),

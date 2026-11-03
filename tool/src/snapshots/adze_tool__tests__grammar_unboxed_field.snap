@@ -2,4 +2,4 @@
 source: tool/src/lib.rs
 expression: grammar
 ---
-{"name":"test","start_symbol":"Language","word":null,"rules":{"source_file":{"type":"SYMBOL","name":"Language"},"Language":{"type":"FIELD","name":"e","content":{"type":"SYMBOL","name":"Expression"}},"Expression":{"type":"CHOICE","members":[{"type":"PATTERN","value":"\\d+"}]}},"extras":[]}
+{"name":"test","start_symbol":"Language","document_start_symbol":"source_file","word":null,"rules":{"source_file":{"type":"SYMBOL","name":"Language"},"Language":{"type":"FIELD","name":"e","content":{"type":"SYMBOL","name":"Expression"}},"Expression":{"type":"CHOICE","members":[{"type":"PATTERN","value":"\\d+"}]}},"extras":[]}

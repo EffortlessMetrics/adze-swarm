@@ -41,20 +41,16 @@ pub(super) fn flat_subtree_to_parsed_node(
     let mut slots: Vec<Option<crate::pure_parser::ParsedNode>> =
         (0..order.len()).map(|_| None).collect();
     for node_id in order.iter().rev() {
-        let record = tree
-            .node_record(*node_id)
-            .expect("visited ids have records");
+        let record = tree.node_record(*node_id)?;
         let range = record.byte_range();
         let mut children = Vec::with_capacity(record.edge_range().len());
         for child_index in 0..record.edge_range().len() {
-            let child_id = tree
-                .child_id(*node_id, child_index)
-                .expect("visited edges resolve");
-            children.push(
-                slots[child_id.as_usize() - base]
-                    .take()
-                    .expect("reverse preorder builds children first"),
-            );
+            let child_id = tree.child_id(*node_id, child_index)?;
+            let slot = child_id
+                .as_usize()
+                .checked_sub(base)
+                .and_then(|offset| slots.get_mut(offset))?;
+            children.push(slot.take()?);
         }
         let symbol = table_symbol_for_public_id(parsed_language, record.grammar_id());
         let (is_named, is_extra) = symbol_flags(parsed_language, symbol);
@@ -62,35 +58,36 @@ pub(super) fn flat_subtree_to_parsed_node(
             record.grammar_id().0 == 0 && children.is_empty() && range.start == range.end;
         let start_point = positions.point(range.start);
         let end_point = positions.point(range.end);
-        slots[node_id.as_usize() - base] = Some(crate::pure_parser::ParsedNode {
-            symbol,
-            children,
-            start_byte: range.start,
-            end_byte: range.end,
-            start_point: crate::pure_parser::Point {
-                row: start_point.row,
-                column: start_point.column,
-            },
-            end_point: crate::pure_parser::Point {
-                row: end_point.row,
-                column: end_point.column,
-            },
-            is_extra,
-            is_error: symbol_name(parsed_language, symbol) == Some("ERROR")
-                || is_empty_error_node
-                || record.grammar_id().0 == 0,
-            is_missing: is_empty_error_node,
-            is_named,
-            field_id: tree
-                .parent_edge_record(*node_id)
-                .and_then(|edge| edge.field_id())
-                .and_then(|document_field| {
-                    language
-                        .field_name_for_id(document_field.get())
-                        .and_then(|name| field_id_for_name(parsed_language, name))
-                }),
-            language: Some(parsed_language as *const _),
-        });
+        *slots.get_mut(node_id.as_usize().checked_sub(base)?)? =
+            Some(crate::pure_parser::ParsedNode {
+                symbol,
+                children,
+                start_byte: range.start,
+                end_byte: range.end,
+                start_point: crate::pure_parser::Point {
+                    row: start_point.row,
+                    column: start_point.column,
+                },
+                end_point: crate::pure_parser::Point {
+                    row: end_point.row,
+                    column: end_point.column,
+                },
+                is_extra,
+                is_error: symbol_name(parsed_language, symbol) == Some("ERROR")
+                    || is_empty_error_node
+                    || record.grammar_id().0 == 0,
+                is_missing: is_empty_error_node,
+                is_named,
+                field_id: tree
+                    .parent_edge_record(*node_id)
+                    .and_then(|edge| edge.field_id())
+                    .and_then(|document_field| {
+                        language
+                            .field_name_for_id(document_field.get())
+                            .and_then(|name| field_id_for_name(parsed_language, name))
+                    }),
+                language: Some(parsed_language as *const _),
+            });
     }
     slots.into_iter().next().flatten()
 }
@@ -276,6 +273,87 @@ mod tests {
         let tables = null_language();
         assert!(
             flat_subtree_to_parsed_node(&tree, &language, &tables, "x", NodeId::new(7)).is_none()
+        );
+    }
+
+    #[test]
+    fn test_flat_subtree_backward_edge_returns_none() {
+        // root(0) > [a(1), b(2)]; corrupt b to point back at a (id 1 < base 2).
+        // `child_id.as_usize() - base` must not wrap/panic on the bad edge.
+        let root = ParseNode {
+            symbol: SymbolId(1),
+            symbol_id: SymbolId(1),
+            start_byte: 0,
+            end_byte: 2,
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![leaf(1, 0, 1), leaf(1, 1, 2)],
+        };
+        let language = conversion_language();
+        let built = build_flat_tree(&root, "xy", &language, 0);
+        let mut tree = SyntaxTree {
+            root_id: NodeId::new(0),
+            nodes: built.nodes,
+            edges: built.edges,
+            parents: built.parents,
+        };
+        tree.edges.push(EdgeRecord {
+            parent_id: NodeId::new(2),
+            child_id: NodeId::new(1),
+            child_index: 0,
+            field_id: None,
+            unresolved_field_name: None,
+        });
+        tree.nodes[2].edge_range = EdgeRange::new(2, 1);
+        let tables = null_language();
+        assert!(
+            flat_subtree_to_parsed_node(&tree, &language, &tables, "xy", NodeId::new(2)).is_none()
+        );
+    }
+
+    #[test]
+    fn test_flat_subtree_forward_edge_outside_subtree_returns_none() {
+        // root(0) > [m(1), n(2) > c(3)]; corrupt leaf m to point at c.
+        // Walk collects [1, 3] (len 2) but slot index 3 - 1 == 2 is OOB.
+        let root = ParseNode {
+            symbol: SymbolId(1),
+            symbol_id: SymbolId(1),
+            start_byte: 0,
+            end_byte: 2,
+            field_name: None,
+            alias_symbol_id: None,
+            children: vec![
+                leaf(1, 0, 1),
+                ParseNode {
+                    symbol: SymbolId(1),
+                    symbol_id: SymbolId(1),
+                    start_byte: 1,
+                    end_byte: 2,
+                    field_name: None,
+                    alias_symbol_id: None,
+                    children: vec![leaf(1, 1, 2)],
+                },
+            ],
+        };
+        let language = conversion_language();
+        let built = build_flat_tree(&root, "xy", &language, 0);
+        let mut tree = SyntaxTree {
+            root_id: NodeId::new(0),
+            nodes: built.nodes,
+            edges: built.edges,
+            parents: built.parents,
+        };
+        tree.edges.push(EdgeRecord {
+            parent_id: NodeId::new(1),
+            child_id: NodeId::new(3),
+            child_index: 0,
+            field_id: None,
+            unresolved_field_name: None,
+        });
+        tree.nodes[1].edge_range = EdgeRange::new(3, 1);
+        let tables = null_language();
+        assert!(
+            flat_subtree_to_parsed_node(&tree, &language, &tables, "xy", NodeId::new(1)).is_none()
         );
     }
 }

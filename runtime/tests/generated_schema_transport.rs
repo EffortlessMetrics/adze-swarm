@@ -45,6 +45,11 @@ fn test_pair_descriptor_carries_canonical_owner_targets_and_cardinality() {
         Ok(None)
     );
     assert_eq!(document.validate_fields(), Ok(()));
+    let pair_owner = (0..document.tree().node_count())
+        .map(adze::document::NodeId::new)
+        .find(|id| document.tree().node(*id).unwrap().grammar_id() == SymbolId(4))
+        .unwrap();
+    assert_eq!(document.validate_fields_strict_at(pair_owner), Ok(()));
 }
 
 #[test]
@@ -336,5 +341,58 @@ fn test_real_streaming_glr_success_and_error_documents_keep_generated_facts() {
             raw.validate_fields(),
             Err(FieldValidationError::SchemaUnavailable)
         );
+    }
+}
+
+#[test]
+fn test_projection_revisions_preserve_legacy_positional_and_reject_unknown() {
+    assert_eq!(
+        pair::LANGUAGE_DESCRIPTOR_V2
+            .field_projection
+            .unwrap()
+            .projection_revision,
+        2
+    );
+    for revision in [1, 2] {
+        let mut descriptor = pair::LANGUAGE_DESCRIPTOR_V2;
+        descriptor
+            .field_projection
+            .as_mut()
+            .unwrap()
+            .projection_revision = revision;
+        assert_eq!(descriptor.validate(), Ok(()));
+        let descriptor = Box::leak(Box::new(descriptor));
+        let document = adze::__private::parse_document_with_descriptor_v2_and_identity(
+            "123+",
+            descriptor,
+            Some(&pair::START_IDENTITY),
+            "pair",
+        )
+        .unwrap();
+        let owner = (0..document.tree().node_count())
+            .map(adze::document::NodeId::new)
+            .find(|id| document.tree().node(*id).unwrap().grammar_id() == SymbolId(4))
+            .unwrap();
+        let view = document
+            .field_projection_view(owner, &["left", "right"])
+            .unwrap();
+        let left = view.nodes("left").next().unwrap().node_id();
+        assert_eq!(
+            document.tree().node(left).unwrap().utf8_text().unwrap(),
+            "123"
+        );
+        assert_eq!(document.validate_fields_strict_at(owner), Ok(()));
+    }
+    for revision in [0, 3, u32::MAX] {
+        let mut descriptor = pair::LANGUAGE_DESCRIPTOR_V2;
+        descriptor
+            .field_projection
+            .as_mut()
+            .unwrap()
+            .projection_revision = revision;
+        assert!(matches!(
+            descriptor.validate(),
+            Err(GeneratedSchemaError::InvalidProjection)
+        ));
     }
 }

@@ -3,7 +3,13 @@
 //! This sidecar transports canonical grammar facts that the native parsing ABI
 //! cannot represent. It does not extend or reinterpret `TSLanguage`.
 
+#[cfg(feature = "pure-rust")]
+use crate::generated_identity::matches_language;
 use crate::pure_parser::TSLanguage;
+#[cfg(not(feature = "pure-rust"))]
+fn matches_language(left: &'static TSLanguage, right: &'static TSLanguage) -> bool {
+    std::ptr::eq(left, right)
+}
 
 /// Supported generated field-schema transport format.
 pub const FIELD_SCHEMA_FORMAT_VERSION: u32 = 1;
@@ -98,7 +104,7 @@ impl GeneratedLanguageDescriptor {
         if schema.schema_revision != adze_tablegen::field_schema::FIELD_SCHEMA_REVISION {
             return Err(E::UnsupportedRevision(schema.schema_revision));
         }
-        if !std::ptr::eq(self.language, schema.language) {
+        if !matches_language(self.language, schema.language) {
             return Err(E::LanguageIdentity);
         }
         let language = self.language;
@@ -195,7 +201,9 @@ pub struct GeneratedOwnerProjection {
 pub struct GeneratedFieldProjectionV1 {
     /// Projection transport version; currently one.
     pub format_version: u32,
-    /// Projection semantics revision; currently one, single-rule optional only.
+    /// Projection semantics revision. Revision 1 retains positional optional
+    /// interpretation; revision 2 additionally certifies direct FIELD observations
+    /// on admitted owners without optional transitions. Transport layout is unchanged.
     pub projection_revision: u32,
     /// Co-generated native language identity.
     pub language: &'static TSLanguage,
@@ -226,9 +234,9 @@ impl GeneratedLanguageDescriptorV2 {
             return Ok(());
         };
         if projection.format_version != 1
-            || projection.projection_revision != 1
+            || !matches!(projection.projection_revision, 1 | 2)
             || projection.schema_revision != self.field_schema.schema_revision
-            || !std::ptr::eq(projection.language, self.language)
+            || !matches_language(projection.language, self.language)
         {
             return Err(GeneratedSchemaError::InvalidProjection);
         }

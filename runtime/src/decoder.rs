@@ -28,6 +28,9 @@ use adze_glr_core::{Action, RuleId, StateId};
 #[cfg(test)]
 use parse_table::decode_action;
 pub use parse_table::decode_parse_table;
+pub(crate) use parse_table::decode_parse_table_with_start;
+#[cfg(feature = "glr")]
+pub(crate) use symbols::remap_grammar_to_table_columns;
 
 /// Load token patterns from a Tree-sitter `grammar.json` file.
 ///
@@ -161,6 +164,7 @@ pub fn decode_grammar_with_patterns(
         word_token: None,
         lexical_metadata: IndexMap::new(),
         start_symbol: None,
+        document_start_symbol: None,
         wrapper_token_relations: IndexMap::new(),
         optional_origins: IndexMap::new(),
         optional_field_origins: Vec::new(),

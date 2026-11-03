@@ -1,9 +1,11 @@
-//! Preserve explicit compiler identity from imported grammar JSON/grammar.js (#862 PR3).
+//! Preserve compiler identity and imported token-binding provenance (#862).
 
 use super::{GrammarJs, Rule};
 use crate::grammar_js::hidden_pattern_token_name;
 
-/// Record declared start and wrapper-token metadata for imported grammars.
+/// Record start and token-binding metadata for imported grammars.
+///
+/// Inference supplies a backing token, not an explicit semantic wrapper request.
 ///
 /// Tree-sitter grammars treat the first `rules` entry as the start production when
 /// no explicit `start_symbol` is present. Pattern and literal wrapper rules map to
@@ -20,18 +22,16 @@ pub fn infer_imported_compiler_identity(grammar: &mut GrammarJs) {
             continue;
         }
 
-        match rule {
-            Rule::Pattern { value } => {
-                grammar
-                    .wrapper_token_relations
-                    .insert(rule_name.clone(), hidden_pattern_token_name(value));
-            }
-            Rule::String { value } => {
-                grammar
-                    .wrapper_token_relations
-                    .insert(rule_name.clone(), value.clone());
-            }
-            _ => {}
+        let binding = match rule {
+            Rule::Pattern { value } => Some(hidden_pattern_token_name(value)),
+            Rule::String { value } => Some(value.clone()),
+            _ => None,
+        };
+        if let Some(binding) = binding {
+            grammar
+                .wrapper_token_relations
+                .insert(rule_name.clone(), binding);
+            grammar.inferred_wrapper_rules.insert(rule_name.clone());
         }
     }
 }

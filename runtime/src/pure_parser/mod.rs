@@ -703,10 +703,17 @@ impl Parser {
 
                     if let Some(top) = self.stack.last_mut() {
                         if let Some(ref mut node) = top.subtree {
-                            let prev_end_byte = node.end_byte;
-                            node.end_byte = node.end_byte.max(error_node.end_byte);
-                            if error_node.end_byte >= prev_end_byte {
-                                node.end_point = error_node.end_point;
+                            // Only widen a node for an error that overlaps it. A
+                            // failure beginning at or after the node's end (e.g.
+                            // trailing input after a complete token) is recorded
+                            // as a child without rewriting the node's exact span:
+                            // token byte ranges cover exactly their lexed text.
+                            if error_node.start_byte < node.end_byte {
+                                let prev_end_byte = node.end_byte;
+                                node.end_byte = node.end_byte.max(error_node.end_byte);
+                                if error_node.end_byte >= prev_end_byte {
+                                    node.end_point = error_node.end_point;
+                                }
                             }
                             node.children.push(error_node);
                         } else {

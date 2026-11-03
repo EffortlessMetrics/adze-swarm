@@ -4,7 +4,7 @@
 //! to Adze's internal representation.
 
 use anyhow::{Result, bail};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -57,10 +57,21 @@ pub struct GrammarJs {
     /// Explicit start symbol from `#[adze::language]` or imported grammar metadata.
     #[serde(default)]
     pub start_symbol: Option<String>,
+    /// Explicit producer-owned document root, if different from analysis start.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document_start_symbol: Option<String>,
 
-    /// Explicit pattern-wrapper nonterminal to backing-token relations by name.
+    /// Pattern/string rule to backing-token relations, declared or import-inferred.
     #[serde(default)]
     pub wrapper_token_relations: IndexMap<String, String>,
+
+    /// Relations inferred solely as imported leaf token bindings.
+    ///
+    /// These names do not request semantic intermediate wrappers in CHOICE.
+    /// Persist this provenance so a JSON round trip cannot turn a binding into
+    /// an explicit declaration. Empty legacy/default metadata remains explicit.
+    #[serde(default, skip_serializing_if = "IndexSet::is_empty")]
+    pub inferred_wrapper_rules: IndexSet<String>,
 }
 
 /// Represents a grammar rule
@@ -161,12 +172,25 @@ impl GrammarJs {
             rules: IndexMap::new(),
             supertypes: Vec::new(),
             start_symbol: None,
+            document_start_symbol: None,
             wrapper_token_relations: IndexMap::new(),
+            inferred_wrapper_rules: IndexSet::new(),
         }
+    }
+
+    /// Whether a backing-token relation was explicitly declared by the source.
+    pub(crate) fn has_explicit_wrapper_relation(&self, name: &str) -> bool {
+        self.wrapper_token_relations.contains_key(name)
+            && !self.inferred_wrapper_rules.contains(name)
     }
 
     /// Validate the grammar structure
     pub fn validate(&self) -> Result<()> {
+        for name in &self.inferred_wrapper_rules {
+            if !self.wrapper_token_relations.contains_key(name) {
+                bail!("inferred wrapper origin '{name}' has no token binding");
+            }
+        }
         // Check that all referenced symbols exist
         for (rule_name, rule) in &self.rules {
             self.validate_rule(rule, rule_name)?;

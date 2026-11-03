@@ -89,6 +89,7 @@ mod projected_tests {
                 .map(NodeId::new)
                 .find(|id| document.tree().node(*id).unwrap().kind_name() == Some("Document"))
                 .unwrap();
+            assert_eq!(document.validate_fields_strict_at(owner), Ok(()));
             let typed = grammar::syntax::Document::try_cast(&document, owner)
                 .unwrap()
                 .unwrap();

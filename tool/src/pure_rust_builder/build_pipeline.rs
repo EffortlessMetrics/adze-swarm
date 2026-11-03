@@ -184,6 +184,7 @@ impl BuildPipeline {
                     owner: #id, rhs: &[#(#rhs),*], fields: &[#(#fields),*],
                 })
             });
+        let projection_revision = adze_tablegen::field_projection::FIELD_PROJECTION_REVISION;
         let projection_code = quote::quote! {
             /// Canonical optional-origin projection, versioned separately from field facts.
             pub static LANGUAGE_DESCRIPTOR_V2: ::adze::generated_schema::GeneratedLanguageDescriptorV2 =
@@ -191,17 +192,32 @@ impl BuildPipeline {
                     language: &LANGUAGE,
                     field_schema: LANGUAGE_DESCRIPTOR.field_schema,
                     field_projection: Some(::adze::generated_schema::GeneratedFieldProjectionV1 {
-                        format_version: 1, projection_revision: 1, language: &LANGUAGE,
+                        format_version: 1, projection_revision: #projection_revision, language: &LANGUAGE,
                         schema_revision: #schema_revision, owners: &[#(#projection_owners),*],
                     }),
                 };
         };
+        let analysis_start = parse_table.start_symbol.0;
+        let document_start = self
+            .grammar
+            .document_start_symbol
+            .unwrap_or(parse_table.start_symbol)
+            .0;
+        anyhow::ensure!(
+            self.grammar.rules.contains_key(&SymbolId(document_start)),
+            "document start must name a prepared nonterminal"
+        );
         let parse_document_code = quote::quote! {
+            /// Authoritative native identity, paired with this generated language.
+            pub static START_IDENTITY: ::adze::generated_identity::NativeLanguageIdentityV1 = ::adze::generated_identity::NativeLanguageIdentityV1 {
+                language: &LANGUAGE, version: 1, public_symbols: PUBLIC_SYMBOL_MAP,
+                analysis_start: #analysis_start, document_start: #document_start,
+            };
             /// Parse source into the native Adze document alpha.
             pub fn parse_document(
                 input: &str,
             ) -> core::result::Result<::adze::document::AdzeDocument, Vec<::adze::errors::ParseError>> {
-                ::adze::__private::parse_document_with_descriptor_v2(input, &LANGUAGE_DESCRIPTOR_V2, GRAMMAR_NAME)
+                ::adze::__private::parse_document_with_descriptor_v2_and_identity(input, &LANGUAGE_DESCRIPTOR_V2, Some(&START_IDENTITY), GRAMMAR_NAME)
             }
         };
         let typed_cst_code = TypedCstGenerator::new(&self.grammar).generate();

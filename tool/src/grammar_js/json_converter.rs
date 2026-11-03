@@ -115,6 +115,15 @@ pub fn from_tree_sitter_json(value: &Value) -> Result<GrammarJs> {
         grammar_js.start_symbol = Some(start_symbol.to_string());
     }
 
+    if let Some(value) = obj.get("document_start_symbol") {
+        grammar_js.document_start_symbol = Some(
+            value
+                .as_str()
+                .context("document_start_symbol must be a string")?
+                .to_string(),
+        );
+    }
+
     if let Some(relations) = obj.get("wrapper_token_relations") {
         if let Some(relations_obj) = relations.as_object() {
             for (wrapper, token) in relations_obj {
@@ -140,6 +149,18 @@ pub fn from_tree_sitter_json(value: &Value) -> Result<GrammarJs> {
                         .insert(wrapper.to_string(), token.to_string());
                 }
             }
+        }
+    }
+
+    if let Some(origins) = obj.get("inferred_wrapper_rules") {
+        let names = origins
+            .as_array()
+            .context("inferred_wrapper_rules must be an array")?;
+        for name in names {
+            let name = name
+                .as_str()
+                .context("inferred_wrapper_rules entry must be a string")?;
+            grammar_js.inferred_wrapper_rules.insert(name.to_owned());
         }
     }
 

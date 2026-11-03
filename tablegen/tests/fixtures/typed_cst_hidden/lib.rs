@@ -13,6 +13,7 @@ fn test_normalized_hidden_target_accessor_returns_exact_document_child() {
     );
     assert!(document.diagnostics().is_empty());
     let root = syntax::source_file(&document).expect("cast actual generated root");
+    assert_eq!(document.validate_fields_strict_at(root.node_id()), Ok(()));
     let items = root.value_item();
     let separators = root.value_sep();
     assert_eq!(items.len(), 1);
@@ -62,6 +63,7 @@ fn test_absent_optional_keeps_required_item_without_synthetic_separator() {
     assert!(document.diagnostics().is_empty());
     assert_eq!(document.tree().root().byte_range(), 0..1);
     let root = syntax::source_file(&document).expect("cast actual generated root");
+    assert_eq!(document.validate_fields_strict_at(root.node_id()), Ok(()));
     let items = root.value_item();
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].text(), Some("x"));
@@ -131,6 +133,8 @@ fn test_fact_only_descriptor_does_not_grant_projection_or_fake_empty_getter() {
 fn test_recovered_selected_field_path_reports_incomplete() {
     use adze::document::{FieldProjectionError, ParseOutcome};
     let document = parse_document("x?").expect("native recovered document retained");
+    assert!(matches!(document.validate_fields_strict_at(document.tree().root().node_id()),
+        Err(adze::document::FieldProjectionError::Incomplete { .. })));
     assert_ne!(document.outcome(), ParseOutcome::Complete);
     let id = document.tree().root_id();
     assert!(
@@ -208,4 +212,21 @@ fn test_foreign_grammar_id_collision_does_not_grant_generated_leaf_wrapper() {
         syntax::SepToken::try_cast(&document, id).unwrap().is_none(),
         "grammar-local numeric IDs cannot identify another grammar's typed wrapper"
     );
+}
+
+#[test]
+fn test_revision_one_keeps_positional_optional_presence() {
+    use adze::document::SyntaxNode;
+    for (source, separators) in [("x ", 1), ("x", 0)] {
+        let mut descriptor = LANGUAGE_DESCRIPTOR_V2;
+        descriptor.field_projection.as_mut().unwrap().projection_revision = 1;
+        assert_eq!(descriptor.validate(), Ok(()));
+        let descriptor = Box::leak(Box::new(descriptor));
+        let document = adze::__private::parse_document_with_descriptor_v2_and_identity(
+            source, descriptor, Some(&START_IDENTITY), GRAMMAR_NAME).unwrap();
+        let root = syntax::source_file(&document).unwrap();
+        assert_eq!(root.value_item()[0].text(), Some("x"));
+        assert_eq!(root.value_sep().len(), separators);
+        assert_eq!(document.validate_fields_strict_at(root.node_id()), Ok(()));
+    }
 }

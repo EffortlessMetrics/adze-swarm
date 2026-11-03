@@ -159,6 +159,7 @@ impl GrammarJsConverter {
             word_token: None,
             lexical_metadata: IndexMap::new(),
             start_symbol: None,
+            document_start_symbol: None,
             wrapper_token_relations: IndexMap::new(),
             optional_origins: IndexMap::new(),
             optional_field_origins: Vec::new(),
@@ -326,6 +327,19 @@ impl GrammarJsConverter {
             grammar.set_start_symbol(start_id);
         }
 
+        if let Some(name) = &self.grammar_js.document_start_symbol {
+            let symbol = self.symbol_names.get(name).copied().with_context(|| {
+                format!(
+                    "explicit document_start_symbol '{name}' does not reference an existing rule"
+                )
+            })?;
+            anyhow::ensure!(
+                grammar.rules.contains_key(&symbol),
+                "document start must reference a nonterminal rule"
+            );
+            grammar.document_start_symbol = Some(symbol);
+        }
+
         for (wrapper_name, token_key) in &self.grammar_js.wrapper_token_relations {
             let wrapper_id = self
                 .symbol_names
@@ -336,8 +350,11 @@ impl GrammarJsConverter {
                         "wrapper_token_relations wrapper '{wrapper_name}' does not reference an existing rule"
                     )
                 })?;
-            let token_id = self
-                .resolve_token_symbol(grammar, token_key)
+            // Prefer the token actually created for this wrapper rule. Equal
+            // regexes may share a diagnostic name while retaining distinct IDs.
+            let token_id = self.token_symbols.get(&wrapper_id).copied()
+                .filter(|id| grammar.tokens.get(id).is_some_and(|token| token.name == *token_key))
+                .or_else(|| self.resolve_token_symbol(grammar, token_key))
                 .with_context(|| {
                     format!(
                         "wrapper_token_relations token '{token_key}' for wrapper '{wrapper_name}' was not found"
@@ -511,9 +528,12 @@ impl GrammarJsConverter {
     }
 
     fn get_or_create_pattern_token(&mut self, grammar: &mut Grammar, pattern: &str) -> SymbolId {
-        // Check if we already have this token
+        // Inline regex identity is separate from rule-scoped wrapper tokens,
+        // even when their regex text is equal.
+        let token_name = adze_common::pattern_token_name(pattern);
         for (id, token) in &grammar.tokens {
-            if let TokenPattern::Regex(p) = &token.pattern
+            if token.name == token_name
+                && let TokenPattern::Regex(p) = &token.pattern
                 && p == pattern
             {
                 return *id;
@@ -523,7 +543,7 @@ impl GrammarJsConverter {
         // Create new token
         let id = self.alloc_symbol_id();
         let token = Token {
-            name: format!("/{}/", pattern),
+            name: token_name,
             pattern: TokenPattern::Regex(pattern.to_string()),
             fragile: false,
         };
@@ -751,8 +771,17 @@ impl GrammarJsConverter {
                 .ok()?,
             JsRule::Pattern { value } => {
                 let token_name = hidden_pattern_token_name(&value);
-                self.get_or_create_token(grammar, &token_name, TokenPattern::Regex(value.clone()))
-                    .ok()?
+                // A reference may precede conversion of its leaf rule. Use
+                // exactly that rule constructor's scoped allocation key, so
+                // later conversion cannot replace the binding with a fresh ID.
+                let registry_key = format!("__pattern::{name}");
+                self.get_or_create_token_named(
+                    grammar,
+                    &registry_key,
+                    &token_name,
+                    TokenPattern::Regex(value.clone()),
+                )
+                .ok()?
             }
             _ => return None,
         };

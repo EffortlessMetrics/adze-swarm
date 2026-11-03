@@ -2,7 +2,7 @@
 
 #![cfg(all(feature = "glr", feature = "pure-rust"))]
 
-use crate::decoder::{decode_grammar, decode_rule_fields};
+use crate::decoder::decode_rule_fields;
 use crate::glr_parser::{
     AlternativeSummary, AmbiguitySummary, SelectionReason, canonicalize_alternatives,
     subtree_node_count, subtree_selection_key,
@@ -24,7 +24,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 #[cfg(feature = "external_scanners")]
-use crate::glr_streaming_external_scanner::make_generated_external_streaming_scanner;
+use crate::glr_streaming_external_scanner::{
+    GeneratedExternalStreamingScanner, make_generated_external_streaming_scanner,
+};
 
 /// Which engine executed the most recent true-GLR parse.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,11 +86,11 @@ pub fn should_route_conflict_table_through_streaming_driver(
         return true;
     }
 
-    let grammar = decode_grammar(language);
+    let grammar = &parse_table.grammar;
 
     // Stack-aware contract (#857): meaningful newline and per-state lex modes cannot
     // use the fixed bridge's hard-coded ASCII whitespace skip or state-0 pretokenization.
-    if grammar_requires_stack_aware_streaming_lex_contract(&grammar)
+    if grammar_requires_stack_aware_streaming_lex_contract(grammar)
         && parse_table_has_conflicts(&prepared)
     {
         return true;
@@ -96,7 +98,7 @@ pub fn should_route_conflict_table_through_streaming_driver(
 
     // Gate A (#892): conflicted generated grammars with generated lex ABI preparation
     // and green `glr_route_gate_equivalence` contract.
-    if !grammar_requires_stack_aware_streaming_lex_contract(&grammar)
+    if !grammar_requires_stack_aware_streaming_lex_contract(grammar)
         && parse_table_has_conflicts(&prepared)
         && prepared_lex_modes_match_generated_language_abi(language, &prepared)
     {
@@ -153,13 +155,13 @@ fn populate_streaming_parse_table_lex_modes(
     language: &'static TSLanguage,
     parse_table: &mut ParseTable,
 ) {
-    let grammar = decode_grammar(language);
+    let grammar = &parse_table.grammar;
     let has_external_scanner = parse_table
         .external_scanner_states
         .iter()
         .any(|states| states.iter().any(|active| *active));
 
-    if grammar_requires_stack_aware_streaming_lex_contract(&grammar) {
+    if grammar_requires_stack_aware_streaming_lex_contract(grammar) {
         if language_lex_modes_match_state_count(language, parse_table.state_count) {
             parse_table.lex_modes = lex_modes_from_generated_language(language);
         } else {
@@ -248,6 +250,8 @@ pub fn parse_with_streaming_driver(
     }
 
     record_route(TrueGlrParseRoute::StreamingDriver);
+    let mut parse_table = parse_table;
+    parse_table.grammar = grammar.clone();
     let parse_table = prepare_streaming_parse_table(language, parse_table);
     let mut driver = Driver::new(&parse_table);
     let (mut internal_lexer, lex_failure_pos) = make_generated_internal_streaming_lexer(language);
@@ -296,7 +300,7 @@ pub fn parse_with_streaming_driver(
         }
     };
 
-    materialize_streaming_forest(&forest, language, &parse_table, grammar)
+    materialize_streaming_forest(&forest, language, &parse_table, &parse_table.grammar)
 }
 
 /// Select a complete alternative from an already-produced streaming [`Forest`].
@@ -400,6 +404,37 @@ pub fn materialize_streaming_forest_document(
     ))
 }
 
+/// Evaluate one speculative external-scanner candidate with branch isolation (#931).
+///
+/// The streaming driver invokes its external-scanner closure once per distinct
+/// lex mode at each position, so sibling GLR branches would otherwise observe
+/// each other's mutations through the one shared wrapper instance. Snapshot
+/// before the call and restore after, so every speculative evaluation starts
+/// from the same pre-evaluation state. Fail closed: when the pre-evaluation
+/// state cannot be rolled back, surface no token rather than an un-isolated one.
+///
+/// Scanners without serializable state (`snapshot` unsupported) keep the legacy
+/// direct-call behavior bit-for-bit: isolation is impossible there, and the
+/// Experimental boundary (#931 Option A) still applies.
+#[cfg(feature = "external_scanners")]
+fn scan_candidate_isolated(
+    scanner: &mut GeneratedExternalStreamingScanner<'_>,
+    input: &str,
+    pos: usize,
+    valid: &[bool],
+    mode: LexMode,
+) -> Option<adze_glr_core::ts_lexer::NextToken> {
+    let baseline = match scanner.snapshot() {
+        Ok(saved) => saved,
+        Err(_) => return scanner.scan_at(input, pos, valid, mode).ok().flatten(),
+    };
+    let token = scanner.scan_at(input, pos, valid, mode).ok().flatten();
+    if scanner.restore(&baseline).is_err() {
+        return None;
+    }
+    token
+}
+
 fn parse_with_optional_external_scanner<L>(
     driver: &mut Driver<'_>,
     input: &str,
@@ -420,17 +455,31 @@ where
     {
         if language.external_scanner.scan.is_some() {
             let mut external_scanner = make_generated_external_streaming_scanner(language);
-            let external_lexer = move |scan_input: &str,
-                                       pos: usize,
-                                       valid: &[bool],
-                                       mode: LexMode|
-                  -> Option<adze_glr_core::ts_lexer::NextToken> {
-                external_scanner
-                    .scan_at(scan_input, pos, valid, mode)
-                    .ok()
-                    .flatten()
+            // Clean-state capture (#931): snapshot once at creation so a failed
+            // parse can reset before surfacing the error. `None`
+            // (unserializable state) skips the reset; the per-candidate
+            // fallback already preserves legacy behavior.
+            let clean_snapshot = external_scanner.snapshot().ok();
+            let outcome = {
+                let external_lexer =
+                    |scan_input: &str,
+                     pos: usize,
+                     valid: &[bool],
+                     mode: LexMode|
+                     -> Option<adze_glr_core::ts_lexer::NextToken> {
+                        scan_candidate_isolated(&mut external_scanner, scan_input, pos, valid, mode)
+                    };
+                driver.parse_streaming(input, internal_lexer, Some(external_lexer))
             };
-            return driver.parse_streaming(input, internal_lexer, Some(external_lexer));
+            if outcome.is_err()
+                && let Some(clean) = clean_snapshot.as_deref()
+            {
+                // A failed parse must not leak speculative scanner mutations:
+                // roll back to clean state even though this wrapper drops here,
+                // enforcing the contract at the seam for any future reuse.
+                let _ = external_scanner.restore(clean);
+            }
+            return outcome;
         }
     }
 
@@ -625,6 +674,7 @@ pub(crate) fn glr_error_to_parse_errors(
     input: &str,
     error: GlrError,
     language: &'static TSLanguage,
+    parse_table: &ParseTable,
 ) -> Vec<crate::errors::ParseError> {
     let source_len = input.len();
     if let GlrError::UnexpectedToken(unexpected) = &error {
@@ -641,7 +691,7 @@ pub(crate) fn glr_error_to_parse_errors(
             // Native table metadata (#1030): a failure at the first byte
             // happened in the initial state, whose ACTION row names the
             // expected terminals. No other engine is consulted.
-            let mut table = crate::decoder::decode_parse_table(language);
+            let mut table = parse_table.clone();
             crate::__private::align_true_glr_parse_table_to_language_symbols(language, &mut table);
             let initial = crate::__private::initial_state_expected_names(language, &table);
             if !initial.is_empty() {
@@ -818,5 +868,249 @@ mod tests {
             match_rule_id(&table, &grammar, SymbolId(10), &[SymbolId(11)]),
             Some(0)
         );
+    }
+
+    /// Branch-isolation proof for the streaming scanner seam (#931). A
+    /// counter-mutating stub scanner makes cross-branch leakage observable.
+    #[cfg(feature = "external_scanners")]
+    mod branch_isolation_tests {
+        use super::super::scan_candidate_isolated;
+        use crate::glr_streaming_external_scanner::GeneratedExternalStreamingScanner;
+        use crate::lex::TsLexer;
+        use crate::pure_parser::{ExternalScanner, TSLanguage, TSParseAction, TSRule};
+        use adze_glr_core::LexMode;
+        use core::ptr;
+
+        fn mode() -> LexMode {
+            LexMode {
+                lex_state: 0,
+                external_lex_state: 0b001,
+            }
+        }
+
+        unsafe extern "C" fn stub_scan_fn(
+            _scanner: *mut core::ffi::c_void,
+            lexer: *mut core::ffi::c_void,
+            valid_symbols: *const bool,
+        ) -> bool {
+            if lexer.is_null() || valid_symbols.is_null() {
+                return false;
+            }
+            let lexer = lexer as *mut TsLexer;
+            if unsafe { *valid_symbols.add(1) } {
+                let first = unsafe { ((*lexer).lookahead)(lexer) };
+                if first == b'x' as u32 {
+                    unsafe {
+                        ((*lexer).advance)(lexer, false);
+                        (*lexer).result_symbol = 1;
+                        ((*lexer).mark_end)(lexer);
+                    }
+                    return true;
+                }
+            }
+            false
+        }
+
+        unsafe extern "C" fn stateful_create() -> *mut core::ffi::c_void {
+            Box::into_raw(Box::new(0u32)) as *mut core::ffi::c_void
+        }
+
+        unsafe extern "C" fn stateful_destroy(scanner: *mut core::ffi::c_void) {
+            if !scanner.is_null() {
+                unsafe {
+                    let _ = Box::from_raw(scanner as *mut u32);
+                }
+            }
+        }
+
+        unsafe extern "C" fn stateful_scan_fn(
+            scanner: *mut core::ffi::c_void,
+            lexer: *mut core::ffi::c_void,
+            valid_symbols: *const bool,
+        ) -> bool {
+            if scanner.is_null() {
+                return false;
+            }
+            unsafe {
+                let counter = &mut *(scanner as *mut u32);
+                *counter = counter.wrapping_add(1);
+            }
+            unsafe { stub_scan_fn(scanner, lexer, valid_symbols) }
+        }
+
+        unsafe extern "C" fn stateful_serialize(
+            scanner: *mut core::ffi::c_void,
+            buffer: *mut u8,
+        ) -> u32 {
+            if scanner.is_null() || buffer.is_null() {
+                return 0;
+            }
+            unsafe {
+                let bytes = (*(scanner as *const u32)).to_le_bytes();
+                ptr::copy_nonoverlapping(bytes.as_ptr(), buffer, bytes.len());
+                bytes.len() as u32
+            }
+        }
+
+        unsafe extern "C" fn stateful_deserialize(
+            scanner: *mut core::ffi::c_void,
+            buffer: *const u8,
+            length: u32,
+        ) {
+            if scanner.is_null() || buffer.is_null() || length < 4 {
+                return;
+            }
+            unsafe {
+                let mut bytes = [0u8; 4];
+                ptr::copy_nonoverlapping(buffer, bytes.as_mut_ptr(), 4);
+                *(scanner as *mut u32) = u32::from_le_bytes(bytes);
+            }
+        }
+
+        fn stub_language(
+            scan: Option<
+                unsafe extern "C" fn(
+                    *mut core::ffi::c_void,
+                    *mut core::ffi::c_void,
+                    *const bool,
+                ) -> bool,
+            >,
+        ) -> TSLanguage {
+            static SYMBOL_MAP: [u16; 2] = [0, 42];
+            TSLanguage {
+                version: 15,
+                symbol_count: 8,
+                alias_count: 0,
+                token_count: 4,
+                external_token_count: 1,
+                state_count: 1,
+                large_state_count: 0,
+                production_id_count: 0,
+                field_count: 0,
+                max_alias_sequence_length: 0,
+                production_id_map: ptr::null(),
+                parse_table: ptr::null(),
+                small_parse_table: ptr::null(),
+                small_parse_table_map: ptr::null(),
+                parse_actions: ptr::null::<TSParseAction>(),
+                symbol_names: ptr::null(),
+                field_names: ptr::null(),
+                field_map_slices: ptr::null(),
+                field_map_entries: ptr::null(),
+                symbol_metadata: ptr::null(),
+                public_symbol_map: ptr::null(),
+                alias_map: ptr::null(),
+                alias_sequences: ptr::null(),
+                lex_modes: ptr::null(),
+                lex_fn: None,
+                keyword_lex_fn: None,
+                keyword_capture_token: 0,
+                external_scanner: ExternalScanner {
+                    states: ptr::null(),
+                    symbol_map: SYMBOL_MAP.as_ptr(),
+                    create: None,
+                    destroy: None,
+                    scan,
+                    serialize: None,
+                    deserialize: None,
+                },
+                primary_state_ids: ptr::null(),
+                production_lhs_index: ptr::null(),
+                production_count: 0,
+                eof_symbol: 0,
+                rules: ptr::null::<TSRule>(),
+                rule_count: 0,
+            }
+        }
+
+        fn stateful_language() -> TSLanguage {
+            let mut language = stub_language(Some(stateful_scan_fn));
+            language.external_scanner.create = Some(stateful_create);
+            language.external_scanner.destroy = Some(stateful_destroy);
+            language.external_scanner.serialize = Some(stateful_serialize);
+            language.external_scanner.deserialize = Some(stateful_deserialize);
+            language
+        }
+
+        fn counter_of(scanner: &GeneratedExternalStreamingScanner) -> u32 {
+            let bytes = scanner.snapshot().expect("counter read needs hooks");
+            u32::from_le_bytes(
+                bytes[..4]
+                    .try_into()
+                    .expect("fixture serializes exactly one u32"),
+            )
+        }
+
+        #[test]
+        fn test_sibling_speculative_evals_do_not_observe_mutations() {
+            // Two speculative evaluations of the same position (sibling GLR
+            // branches): the second must not see the first one's mutation.
+            let language = stateful_language();
+            let mut scanner = GeneratedExternalStreamingScanner::new(&language);
+            let clean = scanner.snapshot().expect("fixture must snapshot");
+            for _ in 0..2 {
+                let token = scan_candidate_isolated(&mut scanner, "x", 0, &[true], mode())
+                    .expect("isolated candidate must lex");
+                assert_eq!((token.kind, token.start, token.end), (42, 0, 1));
+                assert_eq!(
+                    counter_of(&scanner),
+                    0,
+                    "sibling branch must not observe speculative mutation"
+                );
+            }
+            assert_eq!(scanner.snapshot().unwrap(), clean);
+        }
+
+        #[test]
+        fn test_failure_path_resets_to_clean_state() {
+            // Mirrors the parse-error reset in `parse_with_optional_external_scanner`:
+            // clean snapshot, speculative mutation, failure, restore(clean).
+            let language = stateful_language();
+            let mut scanner = GeneratedExternalStreamingScanner::new(&language);
+            let clean = scanner.snapshot().expect("fixture must snapshot");
+            scanner
+                .scan_at("x", 0, &[true], mode())
+                .expect("branch scan must succeed")
+                .expect("token expected");
+            assert_eq!(counter_of(&scanner), 1);
+            scanner.restore(&clean).expect("failure reset must succeed");
+            assert_eq!(
+                counter_of(&scanner),
+                0,
+                "failed parse must restart from clean scanner state"
+            );
+        }
+
+        #[test]
+        fn test_hookless_stateless_scanner_isolation_is_noop() {
+            // No hooks, no instance: empty-state convention, legacy tokens
+            // unchanged through the isolation wrapper.
+            let language = stub_language(Some(stub_scan_fn));
+            let mut scanner = GeneratedExternalStreamingScanner::new(&language);
+            for _ in 0..2 {
+                let token = scan_candidate_isolated(&mut scanner, "x", 0, &[true], mode())
+                    .expect("stateless candidate must lex");
+                assert_eq!((token.kind, token.start, token.end), (42, 0, 1));
+            }
+            assert_eq!(scanner.snapshot(), Ok(Vec::new()));
+        }
+
+        #[test]
+        fn test_unserializable_scanner_keeps_legacy_direct_call() {
+            // Allocated state without serialize/deserialize hooks: snapshot is
+            // unsupported, so the helper preserves legacy direct-call behavior
+            // (documented #931 boundary: no isolation possible, Experimental).
+            let mut language = stateful_language();
+            language.external_scanner.serialize = None;
+            language.external_scanner.deserialize = None;
+            let mut scanner = GeneratedExternalStreamingScanner::new(&language);
+            let token = scan_candidate_isolated(&mut scanner, "x", 0, &[true], mode())
+                .expect("legacy fallback must still lex");
+            assert_eq!((token.kind, token.start, token.end), (42, 0, 1));
+            assert!(
+                scanner.snapshot().is_err(),
+                "unserializable state cannot be isolated; legacy path performs no rollback"
+            );
+        }
     }
 }

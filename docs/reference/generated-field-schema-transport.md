@@ -54,3 +54,31 @@ encodes descriptor rejection as `UnexpectedToken` at 0..0. That error describes
 metadata setup, not an offending input token; callers needing the exact failure
 class should validate the descriptor directly. A dedicated parser setup error
 channel remains diagnostic-class work under #875/#1165.
+
+## Bounded node-scoped strict validation
+
+`AdzeDocument::validate_fields_strict_at(owner)` validates one selected owner
+through the same producer program and runtime observation index used by checked
+typed-CST handles. It does not recursively validate every field-owning descendant
+or change the legacy grant-only `validate_fields()` operation.
+
+Projection transport layout remains version 1. Interpretation revision 2, emitted
+by the shared tablegen authority, additionally certifies direct FIELD observations
+for admitted single-rule owners without Optional transitions. Revision 1 retains
+its positional Optional interpretation. Complete-IR construction compiles the
+same authority into the same runtime interpreter; fact-only descriptors without
+a bound projection remain explicitly unavailable.
+
+The bounded strict operation reports `WrongTarget` with the actual offending
+document-local NodeId and grammar identity, `MissingRequired`, or `TooMany` with
+all actual occurrence NodeIds in source order. Correct grants alone do not certify
+a positional path: mismatched unfielded slots or field tags remain incomplete.
+Recovered owners remain incomplete. Explicit producer Optional transitions retain
+present/absent meaning without descendant search or helper-name inference.
+
+This slice covers the generated no-alias Pair, annotated and explicit-IR Optional
+present/absent controls, and direct-owner malformed/cardinality controls. Wider
+repeat/nullable occurrence, ambiguous selected alternatives, native LR aliases,
+query/compatibility field-path integration and genuine-RHS extras remain separate
+acceptance obligations. It does not establish whole-document strict validation
+or close the parent shared-schema requirements.

@@ -30,5 +30,26 @@ test_args=(--test-threads="$RUST_TEST_THREADS" --quiet)
 ./scripts/fmt-workspace.sh --check "${supported_crate_paths[@]}"
 
 cargo clippy "${supported_crates[@]}" --all-targets -- -D warnings
-cargo test "${supported_crates[@]}" --lib --tests --bins -- "${test_args[@]}"
-cargo test -p adze-glr-core --features serialization --doc -- "${test_args[@]}"
+
+# Keep executed-test accounting shared with the individual product canaries.
+source "$(dirname "${BASH_SOURCE[0]}")/lib/required-test-output.sh"
+
+set +e
+supported_output="$(cargo test "${supported_crates[@]}" --lib --tests --bins -- "${test_args[@]}" 2>&1)"
+supported_status=$?
+set -e
+printf '%s\n' "$supported_output"
+if [[ $supported_status -ne 0 ]]; then
+  exit "$supported_status"
+fi
+required_test_output "$supported_output" "supported lib/tests/bins"
+
+set +e
+doctest_output="$(cargo test -p adze-glr-core --features serialization --doc -- "${test_args[@]}" 2>&1)"
+doctest_status=$?
+set -e
+printf '%s\n' "$doctest_output"
+if [[ $doctest_status -ne 0 ]]; then
+  exit "$doctest_status"
+fi
+required_test_output "$doctest_output" "supported doctests"

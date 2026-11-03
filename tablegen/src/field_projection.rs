@@ -4,6 +4,10 @@
 //! Unsupported alternatives and composite origins are omitted, never guessed.
 use adze_ir::{Grammar, Symbol, SymbolId};
 
+/// Shared projection interpretation revision. Revision 2 certifies direct FIELD
+/// observations for admitted single-rule owners with no optional transitions.
+pub const FIELD_PROJECTION_REVISION: u32 = 2;
+
 /// One original field occurrence in an unambiguous prepared owner rule.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FieldOccurrence {

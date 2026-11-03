@@ -76,8 +76,26 @@ fn decode_alias_sequences(
         .collect()
 }
 
-/// Decode a ParseTable from a TSLanguage struct
+/// Decode a raw legacy ParseTable.
+///
+/// A native ABI language has no authoritative start field. This compatibility
+/// entrypoint retains historical inference; checked generated entrypoints use
+/// `NativeLanguageIdentityV1` and never invoke that inference.
 pub fn decode_parse_table(lang: &'static TSLanguage) -> ParseTable {
+    decode_parse_table_inner(lang, None)
+}
+
+pub(crate) fn decode_parse_table_with_start(
+    lang: &'static TSLanguage,
+    start: SymbolId,
+) -> ParseTable {
+    decode_parse_table_inner(lang, Some(start))
+}
+
+fn decode_parse_table_inner(
+    lang: &'static TSLanguage,
+    explicit_start: Option<SymbolId>,
+) -> ParseTable {
     let symbol_count = lang.symbol_count as usize;
     let tcols = terminal_column_count(lang);
     let (index_to_symbol, symbol_to_index) = decode_symbol_maps(lang, symbol_count);
@@ -116,7 +134,7 @@ pub fn decode_parse_table(lang: &'static TSLanguage) -> ParseTable {
     let field_names: Vec<String> = grammar.fields.values().cloned().collect();
     grammar.extras = extras.clone();
     let alias_sequences = decode_alias_sequences(lang, &index_to_symbol);
-    let start_symbol = select_start_symbol(lang, tcols, &rules);
+    let start_symbol = explicit_start.unwrap_or_else(|| select_start_symbol(lang, tcols, &rules));
     grammar.set_start_symbol(start_symbol);
 
     let mut table = ParseTable {
@@ -452,6 +470,9 @@ fn decode_small_action(lang: &TSLanguage, action_index: usize, rules_len: usize)
         Action::Accept
     } else if action_index & 0x8000 != 0 {
         let encoded_rule_id = (action_index & 0x7FFF).checked_sub(1)?;
+        // The production map holds one entry per rule (`rule_count`), so the
+        // access is bounded by the map length, not `production_id_count`:
+        // sparse tables (`production_id_count > rule_count`) admit no ids here.
         if encoded_rule_id >= rules_len || encoded_rule_id >= lang.rule_count as usize {
             return None;
         }
@@ -672,6 +693,148 @@ pub(super) fn decode_action(
         _ => {
             // Unknown action type // Expected: V for Recover
             Action::Error
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::pure_parser::{ExternalScanner, TREE_SITTER_LANGUAGE_VERSION, TSRule};
+    use adze_ir::ProductionId;
+
+    /// Sparse-production fixture: FEWER rules than production slots
+    /// (`production_id_count = 5 > rule_count = 2`). The map stays
+    /// rule-count sized (RuleId -> ProductionId); slot VALUES may exceed
+    /// the rule count. Mirrors the tablegen truncation-direction pin
+    /// (#1060): encode sizes by rule count, so decode must bound by it too.
+    static SPARSE_PRODUCTION_ID_MAP: [u16; 2] = [4, 0];
+    static SPARSE_RULES: [TSRule; 2] = [
+        TSRule {
+            lhs: 2,
+            rhs_len: 1,
+            _pad: 0,
+        },
+        TSRule {
+            lhs: 2,
+            rhs_len: 1,
+            _pad: 0,
+        },
+    ];
+    static SPARSE_SMALL_TABLE: [u16; 2] = [1, 0x8001];
+    static SPARSE_SMALL_TABLE_MAP: [u32; 2] = [0, 2];
+    static SPARSE_NAME_ERROR: &[u8] = b"end\0";
+    static SPARSE_NAME_TOKEN: &[u8] = b"token\0";
+    static SPARSE_NAME_NODE: &[u8] = b"node\0";
+
+    fn sparse_language() -> &'static TSLanguage {
+        let symbol_names = Box::leak(Box::new([
+            SPARSE_NAME_ERROR.as_ptr(),
+            SPARSE_NAME_TOKEN.as_ptr(),
+            SPARSE_NAME_NODE.as_ptr(),
+        ]));
+        Box::leak(Box::new(TSLanguage {
+            version: TREE_SITTER_LANGUAGE_VERSION,
+            symbol_count: 3,
+            alias_count: 0,
+            token_count: 2,
+            external_token_count: 0,
+            state_count: 1,
+            large_state_count: 0,
+            production_id_count: 5,
+            field_count: 0,
+            max_alias_sequence_length: 0,
+            production_id_map: SPARSE_PRODUCTION_ID_MAP.as_ptr(),
+            parse_table: std::ptr::null(),
+            small_parse_table: SPARSE_SMALL_TABLE.as_ptr(),
+            small_parse_table_map: SPARSE_SMALL_TABLE_MAP.as_ptr(),
+            parse_actions: std::ptr::null(),
+            symbol_names: symbol_names.as_ptr(),
+            field_names: std::ptr::null(),
+            field_map_slices: std::ptr::null(),
+            field_map_entries: std::ptr::null(),
+            symbol_metadata: std::ptr::null(),
+            public_symbol_map: std::ptr::null(),
+            alias_map: std::ptr::null(),
+            alias_sequences: std::ptr::null(),
+            lex_modes: std::ptr::null(),
+            lex_fn: None,
+            keyword_lex_fn: None,
+            keyword_capture_token: 0,
+            external_scanner: ExternalScanner::default(),
+            primary_state_ids: std::ptr::null(),
+            production_lhs_index: std::ptr::null(),
+            production_count: 5,
+            eof_symbol: 0,
+            rules: SPARSE_RULES.as_ptr(),
+            rule_count: 2,
+        }))
+    }
+
+    #[test]
+    fn test_sparse_production_table_decodes_with_syntax_rule_identity() {
+        let table = decode_parse_table(sparse_language());
+
+        assert_eq!(table.rules.len(), 2);
+        assert_eq!(
+            table.grammar.production_ids.get(&RuleId(0)),
+            Some(&ProductionId(4))
+        );
+        assert_eq!(
+            table.grammar.production_ids.get(&RuleId(1)),
+            Some(&ProductionId(0))
+        );
+        // Slot 4 names metadata, never syntax: the reduce keeps RuleId(0).
+        match table.action_table[0][1][0] {
+            Action::Reduce(RuleId(rule_id)) => assert_eq!(rule_id, 0),
+            ref action => panic!("expected mapped reduce action, got {action:?}"),
+        }
+    }
+
+    #[test]
+    fn test_sparse_production_bound_rejects_ids_at_or_above_rule_count() {
+        let lang = sparse_language();
+        let reduce = |rule_id: u16| decode_small_action(lang, 0x8000 | (rule_id as usize + 1), 2);
+
+        // Valid rule ids decode with syntax identity, however sparse the slots.
+        assert!(matches!(reduce(0), Some(Action::Reduce(RuleId(0)))));
+        assert!(matches!(reduce(1), Some(Action::Reduce(RuleId(1)))));
+        // Rule ids inside `production_id_count` but at/above `rule_count` are
+        // rejected: the old production-count bound admitted them and read
+        // past the rule-count-sized map.
+        assert_eq!(reduce(2), None);
+        assert_eq!(reduce(4), None);
+        assert_eq!(reduce(5), None);
+        // Underflowing encode (rule "minus one") and Accept arm are unaffected.
+        assert_eq!(decode_small_action(lang, 0x8000, 2), None);
+        assert_eq!(decode_small_action(lang, 0xFFFF, 2), Some(Action::Accept));
+
+        // Executable form of the map-sizing contract: the old
+        // `id < production_id_count` bound and the current
+        // `id < rule_count` bound agree on every valid rule id and differ
+        // exactly on the sparse window `[rule_count, production_id_count)`.
+        let (rule_count, production_id_count) =
+            (lang.rule_count as usize, lang.production_id_count as usize);
+        assert!(
+            rule_count < production_id_count,
+            "fixture must be sparse: production_id_count > rule_count"
+        );
+        for id in 0..=production_id_count {
+            let old_admits = id < production_id_count;
+            let new_admits = id < rule_count;
+            if id < rule_count {
+                assert!(
+                    old_admits && new_admits,
+                    "valid rule id {id} admitted by both"
+                );
+            } else if id < production_id_count {
+                assert!(
+                    old_admits && !new_admits,
+                    "sparse-window id {id}: old bound admits, rule-count bound rejects"
+                );
+            } else {
+                assert!(!old_admits && !new_admits, "id {id} beyond both bounds");
+            }
         }
     }
 }
