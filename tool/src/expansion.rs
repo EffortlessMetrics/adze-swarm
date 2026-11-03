@@ -248,14 +248,16 @@ fn gen_field(
         // first element. Later elements keep the optional wrapping.
         let first_field_rule = field_rule_non_optional.clone();
         let field_rule = if field_optional {
+            // The occurrence is a field even when its optional value is
+            // absent. Keeping FIELD outside CHOICE preserves the zero-width
+            // element edge, distinct from an empty whole-repeat sentinel.
             json!({
-                "type": "CHOICE",
-                "members": [
-                    {
-                        "type": "BLANK"
-                    },
-                    field_rule_non_optional
-                ]
+                "type": "FIELD",
+                "name": format!("{path}_vec_element"),
+                "content": {
+                    "type": "CHOICE",
+                    "members": [{ "type": "BLANK" }, field_json]
+                }
             })
         } else {
             field_rule_non_optional
@@ -281,11 +283,7 @@ fn gen_field(
                 "members": [
                     first_field_rule,
                     {
-                        "type": if field_optional {
-                            "REPEAT1"
-                        } else {
-                            "REPEAT"
-                        },
+                        "type": "REPEAT",
                         "content": {
                             "type": "SEQ",
                             "members": [
