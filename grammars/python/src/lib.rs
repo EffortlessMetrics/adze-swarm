@@ -477,7 +477,7 @@ pub mod grammar {
 
     #[adze::language]
     pub struct Identifier {
-        #[adze::leaf(pattern = r"[a-zA-Z_][a-zA-Z0-9_]*")]
+        #[adze::leaf(pattern = r"[\p{XID_Start}_][\p{XID_Continue}_]*")]
         pub name: String,
     }
 
