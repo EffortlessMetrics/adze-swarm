@@ -310,3 +310,258 @@ adze-ir = {{ path = {:?} }}
     );
     std::fs::remove_dir_all(fixture).unwrap();
 }
+
+#[test]
+fn test_generated_occurrence_physical_baseline_1187() {
+    use sha2::{Digest, Sha256};
+    use std::io::Write;
+
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap();
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let fixture = std::env::temp_dir().join(format!(
+        "adze-occurrence-baseline-{}-{nonce}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(fixture.join("src")).unwrap();
+    let manifest = format!(
+        r#"[package]
+name = "adze-occurrence-baseline-consumer"
+version = "0.0.0"
+edition = "2024"
+[workspace]
+[features]
+default = ["pure-rust"]
+pure-rust = ["adze/pure-rust"]
+[dependencies]
+adze = {{ path = {:?}, default-features = false, features = ["pure-rust"] }}
+[build-dependencies]
+adze-tool = {{ path = {:?} }}
+adze-ir = {{ path = {:?} }}
+serde_json = {{ version = "1.0", features = ["preserve_order"] }}
+sha2 = "0.10"
+[dev-dependencies]
+serde_json = {{ version = "1.0", features = ["preserve_order"] }}
+"#,
+        repository.join("runtime"),
+        repository.join("tool"),
+        repository.join("ir")
+    );
+    std::fs::write(fixture.join("Cargo.toml"), &manifest).unwrap();
+    let repository_lock = std::fs::read(repository.join("Cargo.lock")).unwrap();
+    std::fs::write(fixture.join("Cargo.lock"), &repository_lock).unwrap();
+    let build_source = include_str!("fixtures/typed_cst_occurrences/build.rs");
+    let library_source = include_str!("fixtures/typed_cst_occurrences/lib.rs");
+    std::fs::write(fixture.join("build.rs"), build_source).unwrap();
+    std::fs::write(fixture.join("src/lib.rs"), library_source).unwrap();
+
+    // Prepare the standalone consumer's lockfile offline for this native host
+    // from the reviewed repository lock, then require it unchanged during tests.
+    // This unique target also excludes a previous fixture's generated binary.
+    let target = fixture.join("target");
+    let preparation = std::process::Command::new(env!("CARGO"))
+        .args([
+            "metadata",
+            "--offline",
+            "--format-version",
+            "1",
+            "--filter-platform",
+            "host-tuple",
+        ])
+        .arg("--manifest-path")
+        .arg(fixture.join("Cargo.toml"))
+        .current_dir(&fixture)
+        .env("CARGO_TARGET_DIR", &target)
+        .output()
+        .expect("prepare the standalone generated fixture lockfile");
+    assert!(
+        preparation.status.success(),
+        "lock preparation failed; fixture retained at {}\nstdout:\n{}\nstderr:\n{}",
+        fixture.display(),
+        String::from_utf8_lossy(&preparation.stdout),
+        String::from_utf8_lossy(&preparation.stderr)
+    );
+    let prepared_lock = std::fs::read(fixture.join("Cargo.lock")).unwrap();
+    let record_path = fixture.join("physical-origin-baseline.json");
+    let output = std::process::Command::new(env!("CARGO"))
+        .args(["test", "--locked", "--offline", "--manifest-path"])
+        .arg(fixture.join("Cargo.toml"))
+        .args(["--lib", "--", "--nocapture", "--test-threads=1"])
+        .current_dir(&fixture)
+        .env("CARGO_TARGET_DIR", &target)
+        .env("ADZE_OCCURRENCE_MANIFEST", &record_path)
+        .output()
+        .expect("execute the real generated physical-origin fixture");
+
+    // Write the receipt directly so the passing parent harness retains it even
+    // without --nocapture. Prefix child output so it is not a parent summary.
+    // This is a recording, not an expected physical-tree oracle or new gate.
+    let mut evidence = Vec::new();
+    let receipt = serde_json::json!({
+        "repository_commit": std::env::var("GITHUB_SHA").ok(),
+        "fixture": fixture,
+        "features": ["pure-rust"],
+        "preparation_args": [
+            "metadata", "--offline", "--format-version", "1",
+            "--filter-platform", "host-tuple",
+            "--manifest-path", "Cargo.toml",
+        ],
+        "native_args": [
+            "test", "--locked", "--offline", "--manifest-path", "Cargo.toml",
+            "--lib", "--", "--nocapture", "--test-threads=1",
+        ],
+        "native_status": output.status.code(),
+        "repository_lock_sha256": format!("{:x}", Sha256::digest(&repository_lock)),
+        "prepared_lock_sha256": format!("{:x}", Sha256::digest(&prepared_lock)),
+        "manifest_sha256": format!("{:x}", Sha256::digest(manifest.as_bytes())),
+        "build_source_sha256": format!("{:x}", Sha256::digest(build_source.as_bytes())),
+        "library_source_sha256": format!("{:x}", Sha256::digest(library_source.as_bytes())),
+    });
+    writeln!(evidence, "ADZE_OCCURRENCE_RECEIPT {receipt}").unwrap();
+    let child_stdout = String::from_utf8_lossy(&output.stdout);
+    for line in child_stdout.lines() {
+        writeln!(evidence, "ADZE_OCCURRENCE_CHILD_STDOUT {line}").unwrap();
+    }
+    for line in String::from_utf8_lossy(&output.stderr).lines() {
+        writeln!(evidence, "ADZE_OCCURRENCE_CHILD_STDERR {line}").unwrap();
+    }
+    let recorded_bytes = std::fs::read(&record_path).ok();
+    if let Some(bytes) = &recorded_bytes {
+        writeln!(
+            evidence,
+            "ADZE_OCCURRENCE_BASELINE_BEGIN sha256={:x} bytes={}",
+            Sha256::digest(bytes),
+            bytes.len()
+        )
+        .unwrap();
+        for line in String::from_utf8_lossy(bytes).lines() {
+            writeln!(evidence, "ADZE_OCCURRENCE_BASELINE {line}").unwrap();
+        }
+        writeln!(evidence, "ADZE_OCCURRENCE_BASELINE_END").unwrap();
+    }
+    std::io::stdout().lock().write_all(&evidence).unwrap();
+    assert!(
+        output.status.success(),
+        "native baseline failed with {}; fixture retained at {}",
+        output.status,
+        fixture.display()
+    );
+    let expected_tests = [
+        "test_explicit_ir_zero_one_several_values_and_spans",
+        "test_nullable_values_and_spans_match_retained_independent_cases",
+        "test_record_physical_origins_without_assigning_expected_node_ids",
+    ];
+    for name in expected_tests {
+        let expected = format!("test tests::{name} ... ok");
+        assert!(
+            child_stdout.lines().any(|line| line == expected),
+            "required child test did not pass: {name}"
+        );
+    }
+    assert!(
+        child_stdout.contains("test result: ok. 3 passed; 0 failed; 0 ignored;"),
+        "all three child controls must execute and pass"
+    );
+    assert_eq!(
+        std::fs::read(fixture.join("Cargo.lock")).unwrap(),
+        prepared_lock,
+        "the native run must preserve the prepared lockfile"
+    );
+    let recorded: serde_json::Value =
+        serde_json::from_slice(&recorded_bytes.expect("physical recorder must produce its file"))
+            .unwrap();
+    assert_eq!(recorded["schema"], "adze.test.physical-origin.v1");
+    assert_eq!(recorded["recording_only"], true);
+    let cases = recorded["cases"].as_array().unwrap();
+    let expected_cases = [
+        ("explicit_ir_repeat", "[]"),
+        ("explicit_ir_repeat", "[a]"),
+        ("explicit_ir_repeat", "[abc]"),
+        ("annotated_nullable", ""),
+        ("annotated_nullable", "1"),
+        ("annotated_nullable", "1, 2"),
+        ("annotated_nullable", "1,"),
+        ("annotated_nullable", "1,, 2"),
+        ("annotated_nullable", "1,, 2,"),
+    ];
+    assert_eq!(cases.len(), expected_cases.len());
+    let origins = recorded["origin_inputs"].as_object().unwrap();
+    for field in [
+        "annotated_source",
+        "repeat_source_ir",
+        "repeat_normalized_ir",
+        "generated_rust",
+    ] {
+        assert!(origins.contains_key(field), "missing origin input {field}");
+    }
+    assert!(!origins["generated_rust"].as_array().unwrap().is_empty());
+    for name in ["explicit_ir_descriptor", "annotated_descriptor"] {
+        let descriptor = recorded[name].as_object().unwrap();
+        for field in [
+            "route",
+            "public_symbols",
+            "field_names",
+            "schema_revision",
+            "facts",
+            "projection",
+            "decoded_rules",
+            "rule_to_production",
+        ] {
+            assert!(descriptor.contains_key(field), "{name} lacks {field}");
+        }
+        assert!(!descriptor["decoded_rules"].as_array().unwrap().is_empty());
+    }
+    for (case, (kind, source)) in cases.iter().zip(expected_cases) {
+        assert_eq!(case["case"], kind);
+        assert_eq!(case["source"], source);
+        for field in ["root", "outcome", "error_count", "diagnostic_count"] {
+            assert!(case.get(field).is_some(), "{kind} {source:?} lacks {field}");
+        }
+        let nodes = case["nodes"].as_array().unwrap();
+        assert!(!nodes.is_empty(), "{kind} {source:?} has no physical nodes");
+        for node in nodes {
+            for field in [
+                "id",
+                "parent",
+                "child_index",
+                "grammar_id",
+                "visible_id",
+                "grammar_name",
+                "visible_name",
+                "alias_id",
+                "text",
+                "bytes",
+                "points",
+            ] {
+                assert!(node.get(field).is_some(), "physical node lacks {field}");
+            }
+            for flag in [
+                "named",
+                "visible",
+                "terminal",
+                "extra",
+                "error",
+                "missing",
+                "has_error",
+            ] {
+                assert!(node["flags"][flag].is_boolean(), "missing node flag {flag}");
+            }
+            assert_eq!(node["bytes"].as_array().unwrap().len(), 2);
+            let points = node["points"].as_array().unwrap();
+            assert_eq!(points.len(), 2);
+            for point in points {
+                assert_eq!(point.as_array().unwrap().len(), 2);
+            }
+            for edge in node["edges"].as_array().unwrap() {
+                for field in ["parent", "child", "child_index", "field_id", "field_name"] {
+                    assert!(edge.get(field).is_some(), "physical edge lacks {field}");
+                }
+            }
+        }
+    }
+    std::fs::remove_dir_all(fixture).unwrap();
+}

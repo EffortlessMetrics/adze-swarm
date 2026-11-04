@@ -855,6 +855,38 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: supported-proof
+      # Prepare the locked native dependency cache online; generated consumers
+      # retain their offline metadata/build/test commands and independent oracles.
+      - name: Prepare locked native dependencies online for Supported Proof consumers
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import pathlib
+          import subprocess
+          import sys
+
+          lock = pathlib.Path("Cargo.lock")
+          before = hashlib.sha256(lock.read_bytes()).hexdigest()
+          print(f"dependency_preparation_lock_before_sha256={before}", flush=True)
+          status = subprocess.run(
+              ["cargo", "fetch", "--locked", "--target", "host-tuple"], check=False
+          ).returncode
+          print(f"dependency_preparation_fetch_status={status}", flush=True)
+          try:
+              after = hashlib.sha256(lock.read_bytes()).hexdigest()
+          except OSError as error:
+              print(f"Dependency preparation could not read Cargo.lock afterward: {error}", file=sys.stderr)
+              raise SystemExit(status or 1)
+          print(f"dependency_preparation_lock_after_sha256={after}", flush=True)
+          if before != after:
+              print("Dependency preparation changed Cargo.lock bytes.", file=sys.stderr)
+              status = status or 1
+          raise SystemExit(status)
+          PY
+
       - name: Qualify generated LR diagnostics with GLR enabled
         shell: bash
         run: |
