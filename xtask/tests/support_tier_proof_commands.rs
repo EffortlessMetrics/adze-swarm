@@ -974,9 +974,8 @@ fn test_validator_rejects_unmodeled_harness_arguments() {
         "--audit-bogus-harness-flag",
         "another_filter",
     ] {
-        let command = format!(
-            "cargo test -p xtask --test picked selected -- --exact --nocapture {suffix}"
-        );
+        let command =
+            format!("cargo test -p xtask --test picked selected -- --exact --nocapture {suffix}");
         let error = parse_command(&command)
             .expect_err("unmodeled harness arguments must never be silently dropped");
         assert!(error.starts_with("UNSUPPORTED[flag]"), "{suffix}: {error}");
