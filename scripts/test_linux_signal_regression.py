@@ -241,7 +241,13 @@ class WorkflowControls(unittest.TestCase):
         block = self._linux()
         self.assertIn("toolchain: 1.95.0", block)
         self.assertIn("run: python3 scripts/test_linux_signal_regression.py", block)
-        self.assertIn("--test runner_protocol_contract --test runner_linux_signal_contract -- -D warnings", block)
+        self.assertIn(
+            "cargo clippy --locked -p adze-cli --bin adze "
+            "--test runner_process_contract --test runner_output_contract "
+            "--test runner_protocol_contract --test runner_cache_process_contract "
+            "--test runner_linux_signal_contract -- -D warnings",
+            block,
+        )
         red = 'python3 scripts/check-linux-signal-regression.py red --expected-sha "$EXPECTED_SHA" --owned-root "$OWNED_ROOT"'
         green = "run_contract 'Linux signal finalization' cargo test --locked -p adze-cli --test runner_linux_signal_contract -- --nocapture --test-threads=1"
         self.assertIn(red, block)

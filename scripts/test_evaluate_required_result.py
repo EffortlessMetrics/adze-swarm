@@ -248,6 +248,7 @@ class WorkflowWiring(unittest.TestCase):
             "cli/tests/runner_process_contract.rs",
             "cli/tests/runner_linux_signal_contract.rs",
             "cli/tests/runner_protocol_contract.rs",
+            "cli/tests/runner_cache_process_contract.rs",
             "cli/tests/runner_windows_process_contract.rs",
             "cli/tests/runner_windows_output_contract.rs",
             "cli/tests/runner_windows_protocol_contract.rs",
@@ -589,7 +590,7 @@ class WorkflowWiring(unittest.TestCase):
         block = self._job_block(".github/workflows/product-proof.yml", "ci-product-windows")
         commands = [line.strip() for line in block.splitlines()
                     if "run: python scripts/run-required-test.py " in line]
-        self.assertEqual(9, len(commands))
+        self.assertEqual(10, len(commands))
         targets = [
             "--test runner_windows_process_contract -- --nocapture",
             "--test runner_windows_output_contract -- --nocapture",
@@ -598,8 +599,9 @@ class WorkflowWiring(unittest.TestCase):
             "--test cli_test test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture",
             "--test cli_test parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture",
             "--bin adze generated_runner_argv_tests::test_generated_runner_protocol_args_precede_input_io -- --exact --nocapture",
+            "--test runner_cache_process_contract -- --nocapture",
         ]
-        for command, target in zip(commands[:7], targets):
+        for command, target in zip(commands[:8], targets):
             self.assertIn("--label ", command)
             self.assertIn("-- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc ", command)
             self.assertTrue(command.endswith(target), command)
@@ -607,21 +609,39 @@ class WorkflowWiring(unittest.TestCase):
             'run: python scripts/run-required-test.py --label "Windows release command journal data" '
             "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc "
             "--test local_release_command_contract -- --nocapture",
-            commands[7],
+            commands[8],
         )
         self.assertEqual(
             'run: python scripts/run-required-test.py --label "Windows Cargo lock and offline install assumptions" '
             "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask "
             "local_registry::provenance::tests::lock_fixture::test_actual_transformed_packaged_lock_prefetch_and_offline_install "
             "-- --exact --nocapture",
-            commands[8],
+            commands[9],
         )
         clippy = (
             "cargo clippy --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze "
             "--test runner_windows_process_contract --test runner_windows_output_contract "
-            "--test runner_windows_protocol_contract -- -D warnings"
+            "--test runner_windows_protocol_contract --test runner_cache_process_contract -- -D warnings"
         )
         self.assertIn(clippy, block)
+
+    def test_linux_selects_native_cache_and_direct_runner_controls(self) -> None:
+        block = self._job_block(".github/workflows/product-proof.yml", "ci-product-stable")
+        self.assertIn(
+            "run_contract 'disabled cache native process and candidate controls' cargo test --locked -p adze-cli --test runner_cache_process_contract -- --nocapture",
+            block,
+        )
+        self.assertIn(
+            "run_contract 'direct runner protocol admission' cargo test --locked -p adze-cli --bin adze tests::test_direct_runner_keeps_completed_output_admission -- --exact --nocapture",
+            block,
+        )
+        self.assertIn(
+            "cargo clippy --locked -p adze-cli --bin adze "
+            "--test runner_process_contract --test runner_output_contract "
+            "--test runner_protocol_contract --test runner_cache_process_contract "
+            "--test runner_linux_signal_contract -- -D warnings",
+            block,
+        )
 
     def test_required_product_aggregate_receives_the_windows_result(self) -> None:
         block = self._job_block(".github/workflows/product-proof.yml", "product-proof-result")

@@ -27,7 +27,7 @@ clap.workspace = true
 adze-tool = { version = "0.10.0", path = "../tool" }
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
-syn.workspace = true
+syn = { workspace = true, features = ["visit"] }
 colored = "3.0"
 anyhow.workspace = true
 env_logger = "0.11"
@@ -35,6 +35,7 @@ log = "0.4"
 walkdir = "2.5"
 notify = "8"
 tempfile.workspace = true
+sha2.workspace = true
 libloading = { version = "0.8", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -57,4 +58,4 @@ windows-sys = { workspace = true, features = [
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "3.0"
-sha2 = "0.10"
+sha2.workspace = true

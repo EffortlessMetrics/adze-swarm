@@ -59,6 +59,7 @@ env:
     cli/tests/runner_process_contract.rs
     cli/tests/runner_linux_signal_contract.rs
     cli/tests/runner_protocol_contract.rs
+    cli/tests/runner_cache_process_contract.rs
     cli/tests/runner_windows_process_contract.rs
     cli/tests/runner_windows_output_contract.rs
     cli/tests/runner_windows_protocol_contract.rs
@@ -301,7 +302,7 @@ jobs:
         run: |
           set -euo pipefail
           source scripts/lib/required-test-output.sh
-          cargo clippy --locked -p adze-cli --bin adze --test runner_process_contract --test runner_output_contract --test runner_protocol_contract --test runner_linux_signal_contract -- -D warnings
+          cargo clippy --locked -p adze-cli --bin adze --test runner_process_contract --test runner_output_contract --test runner_protocol_contract --test runner_cache_process_contract --test runner_linux_signal_contract -- -D warnings
 
           run_contract() {
             local label="$1" output status
@@ -336,6 +337,8 @@ jobs:
           run_contract 'actual generated document projections' cargo test --locked -p adze-cli --test cli_test test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture
           run_contract 'actual generated recovery diagnostics' cargo test --locked -p adze-cli --test cli_test parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture
           run_contract 'actual generated child argv rejection' cargo test --locked -p adze-cli --bin adze generated_runner_argv_tests::test_generated_runner_protocol_args_precede_input_io -- --exact --nocapture
+          run_contract 'disabled cache native process and candidate controls' cargo test --locked -p adze-cli --test runner_cache_process_contract -- --nocapture
+          run_contract 'direct runner protocol admission' cargo test --locked -p adze-cli --bin adze tests::test_direct_runner_keeps_completed_output_admission -- --exact --nocapture
 
       # #1065 exercises small archive/metadata controls, not a full release install.
       - name: Qualify local release archive provenance controls
@@ -480,7 +483,7 @@ jobs:
           exit $LASTEXITCODE
 
       - name: Strict Clippy for native Windows runner contracts
-        run: cargo clippy --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze --test runner_windows_process_contract --test runner_windows_output_contract --test runner_windows_protocol_contract -- -D warnings
+        run: cargo clippy --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze --test runner_windows_process_contract --test runner_windows_output_contract --test runner_windows_protocol_contract --test runner_cache_process_contract -- -D warnings
 
       - name: Qualify Windows process custody
         run: python scripts/run-required-test.py --label "Windows process custody" -- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc --test runner_windows_process_contract -- --nocapture
@@ -502,6 +505,9 @@ jobs:
 
       - name: Qualify Windows actual generated child argv rejection
         run: python scripts/run-required-test.py --label "Windows actual generated child argv rejection" -- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze generated_runner_argv_tests::test_generated_runner_protocol_args_precede_input_io -- --exact --nocapture
+
+      - name: Qualify Windows disabled cache process and candidate controls
+        run: python scripts/run-required-test.py --label "Windows disabled cache process and candidate controls" -- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc --test runner_cache_process_contract -- --nocapture
 
       - name: Strict Clippy for native Windows release command journal
         run: cargo clippy --locked -p xtask --target x86_64-pc-windows-msvc --test local_release_command_contract -- -D warnings

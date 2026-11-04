@@ -4,11 +4,13 @@ use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::fs;
 use std::path::{Path, PathBuf};
-#[cfg(not(windows))]
-use std::process::Command;
 use walkdir::WalkDir;
 
 mod grammar_analysis;
+mod runner_cache;
+mod runner_cache_io;
+mod runner_cache_store;
+mod runner_invocation;
 mod runner_output;
 #[cfg(target_os = "linux")]
 mod runner_process;
@@ -951,85 +953,142 @@ fn run_static_parse_runner(
     }
 
     let module = single_top_level_grammar_module(&grammar)?;
+    let process = runner_invocation::ProcessRunner::new(
+        std::env::current_exe().context(runner_invocation::ProcessFailure)?,
+    );
+    let spec = runner_cache::RunnerSpec {
+        grammar: &grammar,
+        module: &module,
+        cargo_toml: parse_runner_cargo_toml()?,
+        build_rs: parse_runner_build_rs(&grammar),
+        main_rs: parse_runner_main_rs(&grammar, &module),
+    };
+
+    // Production lookup and build both refuse before cache storage access.
+    // This branch remains dormant until #1067 proves a complete build identity.
+    if let Some(lease) = runner_cache::lookup(&spec) {
+        return run_leased_runner(&process, lease, &input, output_format, &grammar);
+    }
+
+    let started = std::time::Instant::now();
+    let lease = match runner_cache::build_cached(&spec, &process) {
+        Ok(runner_cache::CachedBuild::Ready(lease)) => lease,
+        Ok(runner_cache::CachedBuild::Unavailable) => {
+            return run_static_parse_runner_uncached(&process, &spec, &input, output_format);
+        }
+        Err(error) => {
+            if let Some(failed) = error.downcast_ref::<runner_cache::CargoFailed>() {
+                let semantic = static_parse_runner_error(
+                    &grammar,
+                    failed.status,
+                    &failed.stdout,
+                    &failed.stderr,
+                );
+                if let Some(finalization) = error.downcast_ref::<runner_cache_store::StoreError>() {
+                    return Err(
+                        semantic.context(format!("runner cache finalization: {finalization}"))
+                    );
+                }
+                return Err(semantic);
+            }
+            return Err(error);
+        }
+    };
+    log::debug!("parse runner build finished in {:?}", started.elapsed());
+    run_leased_runner(&process, lease, &input, output_format, &grammar)
+}
+
+fn run_leased_runner(
+    process: &runner_invocation::ProcessRunner,
+    lease: runner_cache_store::UnstartedLease,
+    input: &Path,
+    output_format: &str,
+    grammar: &Path,
+) -> Result<runner_output::RunnerOutput> {
+    let active = lease.start()?;
+    let outcome = (|| {
+        let executable = active.executable()?;
+        run_runner_executable(process, &executable, input, output_format, grammar)
+    })();
+    // Generic Output has no qualified empty-owner authority. Keep the durable
+    // execution token and propagate failure without attempting a fresh parse.
+    // build_key remains None until this and the immutable envelope are proved.
+    runner_cache::finalize_execution(active, outcome, None)
+}
+
+/// Execute an already-built runner with the same explicit argv/environment and
+/// completed-output admission as fresh Cargo execution. Reuse stays disabled.
+fn run_runner_executable(
+    process: &runner_invocation::ProcessRunner,
+    executable: &Path,
+    input: &Path,
+    output_format: &str,
+    grammar: &Path,
+) -> Result<runner_output::RunnerOutput> {
+    let invocation = runner_invocation::RunnerInvocation {
+        program: executable.as_os_str().to_owned(),
+        args: vec![
+            input.as_os_str().to_owned(),
+            output_format.into(),
+            runner_protocol::request_token().into(),
+        ],
+        environment: vec![("ADZE_USE_PURE_RUST".into(), "1".into())],
+    };
+    let output = process
+        .capture(&invocation)
+        .with_context(|| format!("static runner process for {}", grammar.display()))?;
+    admit_runner_output(grammar, output_format, output)
+}
+
+/// Build and execute a temporary runner with the inherited Cargo cwd/config.
+fn run_static_parse_runner_uncached(
+    process: &runner_invocation::ProcessRunner,
+    spec: &runner_cache::RunnerSpec<'_>,
+    input: &Path,
+    output_format: &str,
+) -> Result<runner_output::RunnerOutput> {
     let runner = tempfile::tempdir()?;
     let src_dir = runner.path().join("src");
     fs::create_dir_all(&src_dir)?;
-    fs::write(runner.path().join("Cargo.toml"), parse_runner_cargo_toml()?)?;
-    fs::write(
-        runner.path().join("build.rs"),
-        parse_runner_build_rs(&grammar),
-    )?;
-    fs::write(
-        src_dir.join("main.rs"),
-        parse_runner_main_rs(&grammar, &module),
-    )?;
+    fs::write(runner.path().join("Cargo.toml"), &spec.cargo_toml)?;
+    fs::write(runner.path().join("build.rs"), &spec.build_rs)?;
+    fs::write(src_dir.join("main.rs"), &spec.main_rs)?;
 
-    let mut output = {
-        eprintln!("compiling temporary parse runner (first run may take a while)...");
-        #[cfg(windows)]
-        {
-            use runner_windows_request::{EnvironmentChange, EnvironmentPolicy, RunnerRequest};
-            let request = RunnerRequest {
-                program: "cargo".into(),
-                args: vec![
-                    "run".into(),
-                    "--quiet".into(),
-                    "--manifest-path".into(),
-                    runner.path().join("Cargo.toml").into_os_string(),
-                    "--".into(),
-                    input.clone().into_os_string(),
-                    output_format.into(),
-                    runner_protocol::request_token().into(),
-                ],
-                environment: EnvironmentPolicy::Inherit,
-                changes: vec![EnvironmentChange::Set(
-                    "ADZE_USE_PURE_RUST".into(),
-                    "1".into(),
-                )],
-                cwd: None,
-            };
-            runner_windows::capture(
-                &request,
-                &std::env::current_exe()?,
-                runner_windows::CARGO_RUN_POLICY,
-            )
-            .with_context(|| format!("static runner process for {}", grammar.display()))?
-        }
-        #[cfg(not(windows))]
-        {
-            let mut command = Command::new("cargo");
-            command
-                .arg("run")
-                .arg("--quiet")
-                .arg("--manifest-path")
-                .arg(runner.path().join("Cargo.toml"))
-                .arg("--")
-                .arg(&input)
-                .arg(output_format)
-                .arg(runner_protocol::request_token())
-                .env("ADZE_USE_PURE_RUST", "1");
-            // Preserve input/operation positions, environment and inherited Cargo
-            // cwd; the explicit private version token follows the existing args.
-            // Linux owns bounded group/pipe custody. Other non-Windows platforms
-            // retain the existing path and are not qualified for those bounds.
-            #[cfg(target_os = "linux")]
-            let output = runner_process::capture(&mut command, runner_process::CARGO_RUN_POLICY)
-                .with_context(|| format!("static runner process for {}", grammar.display()))?;
-            #[cfg(not(target_os = "linux"))]
-            let output = command.output()?;
-            output
-        }
+    eprintln!("compiling temporary parse runner (first run may take a while)...");
+    runner_cache::note_cargo_spawn();
+    let invocation = runner_invocation::RunnerInvocation {
+        program: "cargo".into(),
+        args: vec![
+            "run".into(),
+            "--quiet".into(),
+            "--manifest-path".into(),
+            runner.path().join("Cargo.toml").into_os_string(),
+            "--".into(),
+            input.as_os_str().to_owned(),
+            output_format.into(),
+            runner_protocol::request_token().into(),
+        ],
+        environment: vec![("ADZE_USE_PURE_RUST".into(), "1".into())],
     };
+    let output = process
+        .capture(&invocation)
+        .with_context(|| format!("static runner process for {}", spec.grammar.display()))?;
+    admit_runner_output(spec.grammar, output_format, output)
+}
 
-    // A failed child keeps actual status/root-cause precedence even if it
-    // printed a purported success frame or malformed bytes. Only successful
-    // transport reaches framing, then the unchanged public-output admission.
+/// A failed child retains status/root-cause precedence. Only completed zero-exit
+/// output reaches private framing, then the unchanged public interpreter.
+fn admit_runner_output(
+    grammar: &Path,
+    output_format: &str,
+    mut output: std::process::Output,
+) -> Result<runner_output::RunnerOutput> {
     if output.status.success() {
         runner_protocol::unframe(&mut output.stdout, output_format).with_context(|| {
             format!("static runner protocol rejected for {}", grammar.display())
         })?;
     }
-    interpret_runner_output(&grammar, output_format, output)
+    interpret_runner_output(grammar, output_format, output)
 }
 
 /// Admit completed process bytes before rendering or printing public output.
@@ -1865,6 +1924,57 @@ mod tests {
             !staging.exists(),
             "refused commit must still clean the owned staging tree"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_direct_runner_keeps_completed_output_admission() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = tempfile::tempdir().unwrap();
+        let process = super::runner_invocation::ProcessRunner::new(
+            std::env::current_exe().expect("test executable identity"),
+        );
+        let executable = temp.path().join("runner");
+        let input = temp.path().join("input λ.txt");
+        std::fs::write(&input, "x").unwrap();
+        let payload = r#"{"schema":"adze.ambiguity.v1","document_schema":"adze.document.v1","language":{"name":"fixture"},"ambiguities":[]}"#;
+        let header = format!(
+            "{{\"protocol\":\"adze.static-runner\",\"version\":2,\"operation\":\"ambiguity-json\",\"terminal\":\"output\",\"payload_bytes\":{}}}\n",
+            payload.len()
+        );
+        let framed = format!("{header}{payload}");
+        std::fs::write(
+            &executable,
+            format!("#!/bin/sh\n[ \"$#\" -eq 3 ] || exit 9\n[ \"$3\" = \"--adze-static-runner-protocol=2\" ] || exit 9\nprintf '%s' '{framed}'\nprintf 'legitimate stderr' >&2\n"),
+        )
+        .unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let output =
+            super::run_runner_executable(&process, &executable, &input, "ambiguity-json", &input)
+                .unwrap();
+        assert_eq!(output.text(), payload);
+        std::fs::write(
+            &executable,
+            format!("#!/bin/sh\n[ \"$#\" -eq 3 ] || exit 9\n[ \"$3\" = \"--adze-static-runner-protocol=2\" ] || exit 9\nprintf '%s' 'noise{framed}'\n"),
+        )
+        .unwrap();
+        assert!(
+            super::run_runner_executable(&process, &executable, &input, "ambiguity-json", &input)
+                .is_err()
+        );
+        std::fs::write(
+            &executable,
+            format!(
+                "#!/bin/sh\n[ \"$#\" -eq 3 ] || exit 9\n[ \"$3\" = \"--adze-static-runner-protocol=2\" ] || exit 9\nprintf '%s' '{framed}'\nprintf 'Error: owned failure' >&2\nexit 7\n"
+            ),
+        )
+        .unwrap();
+        let error =
+            super::run_runner_executable(&process, &executable, &input, "ambiguity-json", &input)
+                .err()
+                .unwrap();
+        assert!(error.to_string().contains("owned failure"));
+        assert!(error.to_string().contains("exit status: 7"));
     }
 
     #[test]
