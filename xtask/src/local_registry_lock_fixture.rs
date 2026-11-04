@@ -506,25 +506,50 @@ fn args(values: &[&str]) -> Vec<OsString> {
     values.iter().map(|value| OsString::from(*value)).collect()
 }
 
-fn pack(probe: &mut Probe, name: &'static str, directory: &Path, archive: &Path) -> Result<()> {
-    let mut argv = args(&["-czf"]);
-    argv.push(archive.as_os_str().to_owned());
-    argv.push("-C".into());
-    argv.push(
-        directory
-            .parent()
-            .context("package directory parent")?
-            .as_os_str()
-            .to_owned(),
-    );
-    argv.push("--".into());
-    argv.push(
+/// Rebase fixture-owned paths without sending the Unicode root through tar's
+/// command-line encoding (#1266). This is a lexical check for our fresh owned
+/// fixture tree, not a general symlink-containment or archive-admission policy.
+fn archive_args(root: &Path, directory: &Path, archive: &Path) -> Result<Vec<OsString>> {
+    ensure!(root.is_absolute(), "fixture archive cwd must be absolute");
+    let relative = |path: &Path| -> Result<PathBuf> {
+        let path = path
+            .strip_prefix(root)
+            .context("fixture archive path must be inside its owned root")?;
+        ensure!(
+            !path.as_os_str().is_empty()
+                && path
+                    .components()
+                    .all(|part| matches!(part, std::path::Component::Normal(_))),
+            "fixture archive path must be nonempty and have no parent traversal"
+        );
+        Ok(path.to_owned())
+    };
+    let directory = relative(directory)?;
+    let archive = relative(archive)?;
+    let parent = directory.parent().context("package directory parent")?;
+    let parent = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
+    Ok(vec![
+        "-czf".into(),
+        archive.into_os_string(),
+        "-C".into(),
+        parent.as_os_str().to_owned(),
+        "--".into(),
         directory
             .file_name()
             .context("package directory name")?
             .to_owned(),
-    );
-    let request = probe.request(name, "tar".into(), argv, &probe.cwd);
+    ])
+}
+
+fn pack(probe: &mut Probe, name: &'static str, directory: &Path, archive: &Path) -> Result<()> {
+    let argv = archive_args(&probe.root, directory, archive)?;
+    // Rust supplies cwd as a native OS path. Both tar path operands are now
+    // relative to that same owned root; do not replace or rename the root.
+    let request = probe.request(name, "tar".into(), argv, &probe.root);
     probe.run(request)?.success(name)?;
     Ok(())
 }
@@ -1540,7 +1565,122 @@ fn run_assumptions(probe: &mut Probe) -> Result<Value> {
 }
 
 #[test]
+fn test_fixture_archive_request_paths_are_relative_and_contained() {
+    let root = std::env::temp_dir().join("adze archive λ with spaces");
+    let directory = root.join("literal").join("fixture-1.0.0");
+    let archive = root.join("original").join("fixture-1.0.0.crate");
+    let expected = vec![
+        OsString::from("-czf"),
+        Path::new("original")
+            .join("fixture-1.0.0.crate")
+            .into_os_string(),
+        OsString::from("-C"),
+        OsString::from("literal"),
+        OsString::from("--"),
+        OsString::from("fixture-1.0.0"),
+    ];
+    assert_eq!(archive_args(&root, &directory, &archive).unwrap(), expected);
+    let direct = archive_args(&root, &root.join("fixture-1.0.0"), &archive).unwrap();
+    assert_eq!(direct[3].as_os_str(), OsStr::new("."));
+    for (source, output) in [
+        (root.clone(), archive.clone()),
+        (directory.clone(), root.clone()),
+        (root.join("..").join("outside"), archive.clone()),
+        (directory.clone(), root.join("..").join("outside.crate")),
+        (
+            root.with_file_name("sibling").join("fixture"),
+            archive.clone(),
+        ),
+        (
+            directory.clone(),
+            root.with_file_name("sibling").join("fixture.crate"),
+        ),
+    ] {
+        assert!(
+            archive_args(&root, &source, &output).is_err(),
+            "invalid fixture paths must be refused: {source:?}, {output:?}"
+        );
+    }
+    assert!(archive_args(Path::new("relative-root"), &directory, &archive).is_err());
+}
+
+#[test]
+fn test_fixture_archive_unicode_cwd_roundtrip_and_failure() {
+    // This small native control uses the same argv builder and request executor
+    // as pack; it needs tar and the existing extractor, but no Rust/Cargo build.
+    let root = retained_directory("adze-lock-fixture-archive-λ with spaces-").unwrap();
+    println!("ADZE_LOCK_FIXTURE_ARCHIVE_ARTIFACTS={}", root.display());
+    let package = root.join("literal").join("fixture-1.0.0");
+    fs::create_dir_all(package.join("src")).unwrap();
+    fs::create_dir(root.join("original")).unwrap();
+    fs::write(
+        package.join("Cargo.toml"),
+        "[package]\nname = 'fixture'\nversion = '1.0.0'\nedition = '2021'\n",
+    )
+    .unwrap();
+    let payload = b"literal archive bytes\0\xff\n";
+    fs::write(package.join("src/payload.bin"), payload).unwrap();
+    let archive = root.join("original").join("fixture-1.0.0.crate");
+    let request_for = |name, output: &Path| Request {
+        name,
+        program: "tar".into(),
+        args: archive_args(&root, &package, output).unwrap(),
+        cwd: root.clone(),
+        environment: Vec::new(),
+    };
+    let positive_dir = root.join("positive-command");
+    fs::create_dir(&positive_dir).unwrap();
+    execute_request(
+        &request_for("unicode_root_archive", &archive),
+        &positive_dir,
+        Instant::now() + COMMAND_BUDGET,
+    )
+    .and_then(|output| output.success("unicode root archive"))
+    .unwrap();
+    let extracted = root.join("extracted");
+    fs::create_dir(&extracted).unwrap();
+    extract_package_to(&archive, &extracted, "fixture-1.0.0").unwrap();
+    assert_eq!(
+        fs::read(extracted.join("fixture-1.0.0/src/payload.bin")).unwrap(),
+        payload
+    );
+    assert!(
+        file_inventory(&package).unwrap()
+            == file_inventory(&extracted.join("fixture-1.0.0")).unwrap(),
+        "archive roundtrip must preserve every member and byte"
+    );
+
+    // A missing output parent must remain a natural nonzero tar failure with
+    // retained request/status/raw stderr, not a successful archive receipt.
+    let missing = root.join("missing-parent").join("refused.crate");
+    let negative_dir = root.join("negative-command");
+    fs::create_dir(&negative_dir).unwrap();
+    let refused = execute_request(
+        &request_for("archive_missing_parent", &missing),
+        &negative_dir,
+        Instant::now() + COMMAND_BUDGET,
+    )
+    .unwrap();
+    assert!(!refused.status.success());
+    assert!(!refused.stderr.is_empty());
+    assert_eq!(
+        fs::read(negative_dir.join("stderr-observed.bin")).unwrap(),
+        refused.stderr
+    );
+    let observation: Value =
+        serde_json::from_slice(&fs::read(negative_dir.join("observation.json")).unwrap()).unwrap();
+    assert_eq!(observation["natural_status"], true);
+    assert_eq!(observation["exit_code"], json!(refused.status.code()));
+    assert!(refused.success("archive_missing_parent").is_err());
+    assert!(!missing.exists());
+    assert_eq!(fs::read(package.join("src/payload.bin")).unwrap(), payload);
+}
+
+#[test]
 fn test_actual_transformed_packaged_lock_prefetch_and_offline_install() {
+    // The existing exact Windows selector also runs both cheap path controls.
+    test_fixture_archive_request_paths_are_relative_and_contained();
+    test_fixture_archive_unicode_cwd_roundtrip_and_failure();
     let root = retained_directory("adze-lock-fixture-controller-").unwrap();
     println!("ADZE_LOCK_FIXTURE_CONTROLLER_ARTIFACTS={}", root.display());
     let request = Request {
