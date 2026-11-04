@@ -38,7 +38,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/required-test-output.sh"
 # Passing these regressions does not prove the ledger commands were executed.
 python3 scripts/test_support_tier_qualification.py
 cargo clippy --locked -p xtask --lib --test support_tier_proof_commands -- -D warnings
-python3 scripts/run-required-test.py --label "support-tier validator regressions (static screen only)" -- \
+python3 scripts/run-required-test.py --label "support-tier validator regressions (static screen only)" --expected-tests 15 -- \
   cargo test --locked -p xtask --test support_tier_proof_commands -- --nocapture
 
 set +e

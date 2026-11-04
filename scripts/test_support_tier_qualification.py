@@ -50,6 +50,22 @@ if validator:
         summary = summary.replace("15 passed", "0 passed")
     elif case == "ignored":
         summary = summary.replace("15 passed", "0 passed").replace("0 ignored", "15 ignored")
+    elif case == "partially_ignored":
+        summary = summary.replace("15 passed", "14 passed").replace("0 ignored", "1 ignored")
+    elif case == "too_few":
+        summary = summary.replace("15 passed", "14 passed")
+    elif case == "too_many":
+        summary = summary.replace("15 passed", "16 passed")
+    elif case == "ignored_extra":
+        summary = summary.replace("0 ignored", "1 ignored")
+    elif case == "measured_extra":
+        summary = summary.replace("0 measured", "1 measured")
+    elif case == "filtered_extra":
+        summary = summary.replace("0 filtered out", "1 filtered out")
+    elif case == "duplicate":
+        summary += summary
+    elif case == "split":
+        summary = summary.replace("15 passed", "7 passed") + summary.replace("15 passed", "8 passed")
     elif case == "missing":
         summary = "running 15 tests\n"
     elif case == "malformed":
@@ -133,6 +149,17 @@ class SupportedQualificationControls(unittest.TestCase):
             with self.subTest(case=case):
                 result, calls = self.run_case(case)
                 self.assertNotEqual(result.returncode, 0, result.stdout.decode(errors="replace"))
+                self.assertEqual(len(calls), 3)
+                self.assertIn(TARGET, calls[-1])
+
+    def test_validator_requires_one_complete_fifteen_method_suite(self):
+        for case in (
+            "partially_ignored", "too_few", "too_many", "ignored_extra",
+            "measured_extra", "filtered_extra", "duplicate", "split",
+        ):
+            with self.subTest(case=case):
+                result, calls = self.run_case(case)
+                self.assertEqual(result.returncode, 1, result.stdout.decode(errors="replace"))
                 self.assertEqual(len(calls), 3)
                 self.assertIn(TARGET, calls[-1])
 
