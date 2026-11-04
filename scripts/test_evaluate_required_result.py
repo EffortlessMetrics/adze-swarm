@@ -312,6 +312,7 @@ class WorkflowWiring(unittest.TestCase):
             "xtask/src/local_registry.rs",
             "xtask/src/local_registry_provenance.rs",
             "xtask/src/local_registry_provenance_tests.rs",
+            "xtask/src/local_registry_lock_fixture.rs",
             "xtask/src/local_release_archive.py",
             "xtask/src/local_release_install.rs",
             "xtask/src/local_release_receipt.rs",
@@ -371,6 +372,37 @@ class WorkflowWiring(unittest.TestCase):
                 result = self._product_path_selection("runtime/src/lib.rs", event=event)
                 self.assertEqual("true", result["run_stable"])
                 self.assertEqual("stable_surface:runtime/src/lib.rs", result["reason"])
+
+    def test_actual_cargo_lock_fixture_is_selected_and_retains_owned_artifacts(self) -> None:
+        linux = self._job_block(".github/workflows/product-proof.yml", "ci-product-stable")
+        windows = self._job_block(".github/workflows/product-proof.yml", "ci-product-windows")
+        self.assertEqual(1, linux.count("cargo test --locked -p xtask --bin xtask local_registry:: -- --nocapture"))
+        self.assertIn("cargo clippy --locked -p xtask --bin xtask --tests -- -D warnings", linux)
+        target = (
+            "local_registry::provenance::tests::lock_fixture::"
+            "test_actual_transformed_packaged_lock_prefetch_and_offline_install"
+        )
+        self.assertEqual(1, windows.count(
+            'run: python scripts/run-required-test.py --label "Windows Cargo lock and offline install assumptions" '
+            "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc "
+            f"--bin xtask {target} -- --exact --nocapture"
+        ))
+        self.assertIn(
+            "cargo clippy --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask --tests -- -D warnings",
+            windows,
+        )
+        for platform, block in (("linux", linux), ("windows", windows)):
+            with self.subTest(platform=platform):
+                marker = f"      - name: Retain {platform.title()} Cargo lock assumption artifacts\n"
+                self.assertEqual(1, block.count(marker))
+                upload = block.split(marker, 1)[1].split("\n      - ", 1)[0]
+                self.assertIn("if: always()", upload)
+                self.assertIn("uses: actions/upload-artifact@v7.0.0", upload)
+                self.assertIn("path: ${{ runner.temp }}/adze-lock-fixture-*", upload)
+                self.assertIn("include-hidden-files: true", upload)
+                self.assertIn("if-no-files-found: error", upload)
+                self.assertNotIn("continue-on-error", block)
+                self.assertNotIn("verify-local-release-install", block)
 
     def test_unrelated_paths_do_not_select_stable_product_lane(self) -> None:
         for event in ("merge_group", "pull_request"):
@@ -557,7 +589,7 @@ class WorkflowWiring(unittest.TestCase):
         block = self._job_block(".github/workflows/product-proof.yml", "ci-product-windows")
         commands = [line.strip() for line in block.splitlines()
                     if "run: python scripts/run-required-test.py " in line]
-        self.assertEqual(8, len(commands))
+        self.assertEqual(9, len(commands))
         targets = [
             "--test runner_windows_process_contract -- --nocapture",
             "--test runner_windows_output_contract -- --nocapture",
@@ -576,6 +608,13 @@ class WorkflowWiring(unittest.TestCase):
             "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc "
             "--test local_release_command_contract -- --nocapture",
             commands[7],
+        )
+        self.assertEqual(
+            'run: python scripts/run-required-test.py --label "Windows Cargo lock and offline install assumptions" '
+            "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask "
+            "local_registry::provenance::tests::lock_fixture::test_actual_transformed_packaged_lock_prefetch_and_offline_install "
+            "-- --exact --nocapture",
+            commands[8],
         )
         clippy = (
             "cargo clippy --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze "
