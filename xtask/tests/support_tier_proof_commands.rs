@@ -14,10 +14,16 @@
 //! explicit reason and counted, never passed vacuously: package-wide rows
 //! without `--test`/`--lib` need compiled `cargo test --no-run` + `-- --list`
 //! enumeration, and flags the executed runner (`xtask/src/executed_proof.rs`)
-//! rejects are mirrored here. `UNSUPPORTED` is a quarantine, not proof.
+//! rejects are rejected here via the shared `xtask::cargo_flags` table.
+//! `UNSUPPORTED` is a quarantine, not proof. Historical enumeration and a
+//! matching command string do not establish selection on the current source.
+//! Package-wide rows remain quarantined here; actual compiled selection and
+//! execution belong to the executed proof runner, not this source screen.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+
+use xtask::cargo_flags as flag_table;
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -92,14 +98,17 @@ struct ParsedCommand {
     exact: bool,
 }
 
-/// Flag table mirrored from `xtask/src/executed_proof.rs` (read-only here):
-/// only `-p/--package`, `--manifest-path`, `--features`, `--test`, `--lib`
+/// Flag table imported from `xtask::cargo_flags` (single source for this
+/// validator; agreement with `xtask/src/executed_proof.rs` is pinned by
+/// `test_shared_flag_table_agrees_with_executed_runner`): only
+/// `-p/--package`, `--manifest-path`, `--features`, `--test`, `--lib`
 /// and `--profile` select a supported compiled set. `--doc` needs an
 /// explicit doctest adapter; every other target/profile selector or unknown
-/// `-`/`--*` token is rejected, never silently dropped. Post-`--` harness
-/// passthroughs other than `--exact` (e.g. `--nocapture`) are deliberately
-/// still ignored: they do not change selection, while the executed runner is
-/// stricter. That divergence is a known unification gap (filed separately).
+/// `-`/`--*` token is rejected, never silently dropped. After `--`, only
+/// `--exact` and the display-only `--nocapture` are screened here. Every
+/// other argument is quarantined: ignored/skip/list options and extra filters
+/// must not silently change selection or replace execution with enumeration.
+/// This static screen is not a compiled-selection or execution receipt.
 fn parse_command(command: &str) -> Result<ParsedCommand, String> {
     let tokens = tokenize(command);
     let mut parsed = ParsedCommand::default();
@@ -108,8 +117,15 @@ fn parse_command(command: &str) -> Result<ParsedCommand, String> {
         match token.as_str() {
             "--" => {
                 for rest in iter.by_ref() {
-                    if rest == "--exact" {
-                        parsed.exact = true;
+                    match rest.as_str() {
+                        "--exact" => parsed.exact = true,
+                        "--nocapture" => {}
+                        _ => {
+                            return Err(format!(
+                                "UNSUPPORTED[flag]: unmodeled test-harness argument {rest}; \
+                                only --exact and --nocapture are screened statically"
+                            ));
+                        }
                     }
                 }
                 break;
@@ -160,26 +176,17 @@ fn parse_command(command: &str) -> Result<ParsedCommand, String> {
                         .to_string(),
                 );
             }
-            "--bin"
-            | "--bins"
-            | "--tests"
-            | "--examples"
-            | "--example"
-            | "--benches"
-            | "--bench"
-            | "--all-targets"
-            | "--release"
-            | "--all-features"
-            | "--no-default-features" => {
+            token if flag_table::is_rejected_flag(token) => {
                 return Err(format!(
                     "UNSUPPORTED[flag]: {token} changes the selected build/test set \
-                    (supported: -p/--package, --manifest-path, --features, --test, --lib, --profile)"
+                    (supported: {})",
+                    flag_table::SUPPORTED_SUMMARY
                 ));
             }
             token if token.starts_with('-') => {
                 return Err(format!(
-                    "UNSUPPORTED[flag]: unknown cargo test flag {token} (supported: \
-                    -p/--package, --manifest-path, --features, --test, --lib, --profile)"
+                    "UNSUPPORTED[flag]: unknown cargo test flag {token} (supported: {})",
+                    flag_table::SUPPORTED_SUMMARY
                 ));
             }
             token => parsed.filters.push(token.trim_matches('"').to_string()),
@@ -600,6 +607,8 @@ fn validate_command(root: &Path, command: &str) -> Result<(), String> {
         // Package-wide rows (no --test/--lib scope): a bare filter or no
         // filter at all proves nothing statically (#1058 item 1). Mark
         // Unsupported — explicit and counted — instead of passing vacuously.
+        // A historical enumeration or matching command string cannot prove
+        // the selected methods still exist on this candidate.
         return Err(
             "UNSUPPORTED[package-wide]: package-wide selection without --test/--lib scope; \
             compiled `cargo test --no-run` + `-- --list` enumeration with >=1 selected test required"
@@ -610,12 +619,23 @@ fn validate_command(root: &Path, command: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Historical false-accept inputs retained only as regression fixtures.
+/// This is not an admission list or a copy of the live enumeration inventory.
+/// No validation branch consults these strings to authorize selection.
+const FORMER_ALLOWLIST_ROWS: &[&str] = &[
+    "cargo test -p downstream-demo -- --nocapture",
+    "cargo test -p adze-python test_python_language_exists -- --exact --nocapture",
+    "cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_matrix_returns_diagnostic_document --features pure-rust -- --exact --nocapture",
+    "cargo test -p adze-golden-tests javascript_canary_expression_golden --features javascript-grammar -- --nocapture",
+    "cargo test -p adze-cli test_parse_help_documents_available_modes -- --exact --nocapture",
+];
+
 /// Pinned quarantine counts (#1058 items 1-2). Rows the static check cannot
 /// prove are explicit and counted here instead of passing vacuously. If the
 /// ledger changes, update these counts deliberately — a mismatch fails
 /// loudly with the full row list.
 const EXPECTED_UNSUPPORTED: &[(&str, usize)] = &[
-    ("package-wide", 41),
+    ("package-wide", 39),
     ("flag", 4),
     ("harness", 1),
     ("cfg", 0),
@@ -884,4 +904,181 @@ fn test_validator_marks_cfg_disabled_targets_unsupported() {
         .expect_err("platform gate needs the real runner, not a static claim");
     assert!(error.starts_with("UNSUPPORTED[cfg]"), "{error}");
     let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn test_historical_enumeration_does_not_lift_package_wide_quarantine() {
+    let root = workspace_root();
+    let markdown = std::fs::read_to_string(root.join("docs/status/SUPPORT_TIERS.md"))
+        .expect("read SUPPORT_TIERS.md");
+    assert_eq!(FORMER_ALLOWLIST_ROWS.len(), 5);
+    for command in FORMER_ALLOWLIST_ROWS {
+        assert!(
+            markdown.contains(*command),
+            "missing regression row: {command}"
+        );
+        let error = validate_command(&root, command)
+            .expect_err("a command string is not current-candidate compiled proof");
+        assert!(
+            error.starts_with("UNSUPPORTED[package-wide]"),
+            "{command}: {error}"
+        );
+    }
+}
+
+#[test]
+fn test_unchanged_package_command_stays_quarantined_when_source_changes() {
+    // Preserve the exact formerly allowlisted command while the source moves
+    // through present, cfg-disabled and removed test states. This checks the
+    // static refusal boundary; it does not claim to compile these fixtures.
+    let root = fixture_tree(
+        "package-source-drift",
+        "",
+        &[(
+            "samples/downstream-demo/Cargo.toml",
+            "[package]\nname = \"downstream-demo\"\nversion = \"0.0.0\"\n",
+        )],
+    );
+    let source_path = root.join("samples/downstream-demo/src/lib.rs");
+    std::fs::create_dir_all(source_path.parent().expect("source parent"))
+        .expect("create source directory");
+    let command = "cargo test -p downstream-demo -- --nocapture";
+    for source in [
+        "#[test]\nfn previously_listed() {}\n",
+        "#[cfg(any())]\n#[test]\nfn previously_listed() {}\n",
+        "// The previously listed test has been removed.\n",
+    ] {
+        std::fs::write(&source_path, source).expect("write changed source");
+        let error = validate_command(&root, command)
+            .expect_err("unchanged argv must not authorize changed source");
+        assert!(error.starts_with("UNSUPPORTED[package-wide]"), "{error}");
+    }
+    std::fs::remove_dir_all(&root).expect("remove owned fixture");
+}
+
+#[test]
+fn test_validator_rejects_unmodeled_harness_arguments() {
+    // These probes stop during parsing, before any source read or child run.
+    for suffix in [
+        "--ignored",
+        "--include-ignored",
+        "--skip selected",
+        "--skip=selected",
+        "--list",
+        "--bench",
+        "--test",
+        "--exclude-should-panic",
+        "--format json",
+        "--format=json",
+        "--test-threads=1",
+        "--audit-bogus-harness-flag",
+        "another_filter",
+    ] {
+        let command =
+            format!("cargo test -p xtask --test picked selected -- --exact --nocapture {suffix}");
+        let error = parse_command(&command)
+            .expect_err("unmodeled harness arguments must never be silently dropped");
+        assert!(error.starts_with("UNSUPPORTED[flag]"), "{suffix}: {error}");
+        assert!(error.contains("test-harness argument"), "{suffix}: {error}");
+    }
+}
+
+#[test]
+fn test_validator_preserves_supported_harness_arguments() {
+    for (suffix, exact) in [
+        ("--exact --nocapture", true),
+        ("--nocapture --exact", true),
+        ("--exact", true),
+        ("--nocapture", false),
+    ] {
+        let parsed = parse_command(&format!(
+            "cargo test -p xtask --test picked selected -- {suffix}"
+        ))
+        .expect("supported static harness options must remain accepted");
+        assert_eq!(parsed.exact, exact);
+        assert_eq!(parsed.filters, vec!["selected".to_string()]);
+        assert_eq!(parsed.test_target.as_deref(), Some("picked"));
+    }
+    let error = parse_command("cargo test -p xtask --test picked -- --exact --nocapture")
+        .expect_err("--exact still requires a named filter");
+    assert!(error.contains("without a test name filter"), "{error}");
+}
+
+#[test]
+fn test_shared_flag_table_agrees_with_executed_runner() {
+    // Pin the shared `xtask::cargo_flags` table against the executed
+    // runner's own inline table in `xtask/src/executed_proof.rs` (read-only
+    // for this slice). Probing runs the runner's parse only: a rejected flag
+    // fails parse before any Cargo invocation, and `--doc` terminates parse
+    // for accepted flags, so every probe is hermetic (no builds, no reads).
+    use xtask::executed_proof::{ProofSpec, run_executed_proof};
+    fn probe_error(command: &str) -> String {
+        let spec = ProofSpec {
+            root: PathBuf::from("probe-root-unused-by-parse"),
+            command: command.to_string(),
+            raw_output_path: PathBuf::from("probe-output-unused-by-parse"),
+            include_ignored: false,
+        };
+        match run_executed_proof(&spec) {
+            Ok(_) => panic!("probe unexpectedly proved: {command}"),
+            Err(error) => error.to_string(),
+        }
+    }
+    // Every rejected-by-name flag must be UnsupportedFlag in the runner too.
+    for flag in flag_table::REJECTED_TARGET_SELECTORS
+        .iter()
+        .chain(flag_table::REJECTED_PROFILE_SHORTCUTS)
+    {
+        assert!(flag_table::is_rejected_flag(flag), "{flag}");
+        assert!(!flag_table::is_supported_flag(flag), "{flag}");
+        let error = probe_error(&format!("cargo test -p adze-glr-core {flag}"));
+        assert!(
+            error.starts_with("unsupported cargo test flag:"),
+            "{flag}: {error}"
+        );
+    }
+    // Unknown flags: rejected by both, never silently dropped.
+    for flag in ["--workspace", "--audit-bogus-flag"] {
+        assert!(!flag_table::is_supported_flag(flag), "{flag}");
+        assert!(!flag_table::is_rejected_flag(flag), "{flag}");
+        let error = probe_error(&format!("cargo test -p adze-glr-core {flag}"));
+        assert!(
+            error.starts_with("unsupported cargo test flag:"),
+            "{flag}: {error}"
+        );
+    }
+    // Every supported flag must survive the runner's parse: appending `--doc`
+    // makes parse terminate with UnsupportedHarness instead, proving the flag
+    // itself was accepted.
+    let supported: Vec<String> = flag_table::SUPPORTED_VALUE_FLAGS
+        .iter()
+        .map(|flag| format!("{flag} probe-value"))
+        .chain(
+            flag_table::SUPPORTED_BOOL_FLAGS
+                .iter()
+                .map(|flag| (*flag).to_string()),
+        )
+        .collect();
+    assert_eq!(
+        supported.len(),
+        7,
+        "supported table shape changed; review the probes"
+    );
+    for flag in &supported {
+        let bare = flag.split_whitespace().next().expect("flag has a name");
+        assert!(flag_table::is_supported_flag(bare), "{flag}");
+        let error = probe_error(&format!("cargo test -p adze-glr-core {flag} --doc"));
+        assert!(
+            error.starts_with("unsupported test harness:"),
+            "{flag}: {error}"
+        );
+    }
+    // Harness-only flag and summary string stay aligned with the runner.
+    assert_eq!(flag_table::HARNESS_ONLY_FLAG, "--doc");
+    let error = probe_error("cargo test -p adze-glr-core --doc");
+    assert!(error.starts_with("unsupported test harness:"), "{error}");
+    assert!(
+        probe_error("cargo test -p adze-glr-core --bins").contains(flag_table::SUPPORTED_SUMMARY),
+        "SUPPORTED_SUMMARY drifted from the runner message"
+    );
 }
