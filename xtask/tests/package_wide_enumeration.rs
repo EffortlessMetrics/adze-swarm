@@ -10,13 +10,17 @@
 //! from `--message-format=json`, runs each executable with the ledger filter
 //! plus `--list`, and asserts at least one test is selected in total.
 //!
-//! Scope is [`ENUMERATED_ROWS`] plus `UNSUPPORTED_ROWS`: the 5 smallest
-//! package-wide rows from PR #1247 plus the remaining unique package-wide
-//! ledger rows (adze, glr-core, tablegen, rest of cli). Nine ledger entries
-//! are byte-for-byte duplicates of table rows and enumerate identically, so
-//! the tables hold each unique command once: 31 enumerated + 1 unsupported,
-//! covering all 41 quarantined package-wide entries. Do not extend this list without
-//! ledger-lane coordination: the pinned quarantine counts in
+//! Scope is [`ENUMERATED_ROWS`] plus `UNSUPPORTED_ROWS`. The static
+//! validator pins 39 quarantined `UNSUPPORTED[package-wide]` entries
+//! (`EXPECTED_UNSUPPORTED` in `support_tier_proof_commands.rs`,
+//! verified against `docs/status/SUPPORT_TIERS.md`): those 39 entries are
+//! 30 unique ledger commands plus 9 byte-for-byte duplicate entries that
+//! enumerate identically. The tables hold each of those 30 unique ledger
+//! commands once, plus 2 non-ledger dynamic-gate variants (one enumerated,
+//! one pinned-red unsupported): 31 enumerated + 1 unsupported = 32 rows,
+//! covering the 30 unique ledger commands behind all 39 pinned entries.
+//! Do not extend this list without ledger-lane coordination: the pinned
+//! quarantine counts in
 //! `support_tier_proof_commands.rs` still count these rows as quarantined
 //! until the ledger lane repairs them.
 //!
@@ -40,8 +44,10 @@ fn workspace_root() -> PathBuf {
 }
 
 /// Exact ledger commands (`docs/status/SUPPORT_TIERS.md`), smallest packages
-/// first. Byte-for-byte ledger strings; the ledger lane owns repairing these
-/// rows from `UNSUPPORTED[package-wide]` to enumerated.
+/// first. The first 30 are byte-for-byte ledger strings; the ledger lane owns
+/// repairing these rows from `UNSUPPORTED[package-wide]` to enumerated. The
+/// last row is a non-ledger dynamic-gate variant (substring filter under
+/// `--features dynamic`), included as extra compiled-selection evidence.
 const ENUMERATED_ROWS: &[&str] = &[
     "cargo test -p downstream-demo -- --nocapture",
     "cargo test -p adze-python test_python_language_exists -- --exact --nocapture",
@@ -80,14 +86,16 @@ const ENUMERATED_ROWS: &[&str] = &[
     "cargo test -p adze-cli --features dynamic dynamic -- --nocapture",
 ];
 
-/// Package-wide ledger rows the compiled harness itself rejects, with
+/// Extra pinned-red variants the compiled harness itself rejects, with
 /// reasons. Never silently skipped, never counted as enumerated: each entry
 /// must still fail `enumerate_row` (pinned red proof in
 /// `test_unsupported_rows_still_fail_enumeration`); a row that starts
-/// enumerating must move to `ENUMERATED_ROWS`.
+/// enumerating must move to `ENUMERATED_ROWS`. This entry is not a ledger
+/// row: it is an extra non-ledger dynamic-gate variant kept deliberately
+/// to pin that the bare feature-gate name selects nothing.
 const UNSUPPORTED_ROWS: &[(&str, &str)] = &[(
     "cargo test -p adze-cli test_parse_dynamic_without_feature_reports_feature_gate -- --exact --nocapture",
-    "filter selects no test: no test by that name exists in any adze-cli test executable under default features (closest existing: test_parse_dynamic_rejected_before_loading_any_library); ledger lane must repair the row",
+    "extra pinned-red variant (not a ledger row): filter selects no test: no test by that name exists in any adze-cli test executable under default features (closest existing: test_parse_dynamic_rejected_before_loading_any_library); kept to pin the bare dynamic-gate name as selecting nothing, no ledger repair owed",
 )];
 
 /// Split on whitespace, keeping double-quoted sections together.
@@ -280,7 +288,7 @@ fn test_package_wide_rows_enumerate_at_least_one_test() {
     assert_eq!(
         ENUMERATED_ROWS.len(),
         31,
-        "advisory scope is exactly the 5 smallest package-wide rows plus batches 1-4 (remaining unique package-wide ledger rows); the dynamic-gate row is UNSUPPORTED, not enumerated"
+        "advisory scope is exactly 30 unique package-wide ledger rows plus 1 non-ledger dynamic-gate variant; the other non-ledger dynamic-gate variant is UNSUPPORTED, not enumerated"
     );
     for command in ENUMERATED_ROWS {
         match enumerate_row(&root, command) {
@@ -332,7 +340,7 @@ fn test_unsupported_rows_still_fail_enumeration() {
     assert_eq!(
         UNSUPPORTED_ROWS.len(),
         1,
-        "exactly one package-wide row is harness-unsupported (dynamic-gate); repair moves it to ENUMERATED_ROWS"
+        "exactly one extra non-ledger dynamic-gate variant is pinned red as harness-unsupported; if it starts enumerating, move it to ENUMERATED_ROWS"
     );
     for (command, reason) in UNSUPPORTED_ROWS {
         match enumerate_row(&root, command) {
