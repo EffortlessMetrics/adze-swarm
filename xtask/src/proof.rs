@@ -4,6 +4,11 @@
 //! evidence lived in console logs only. This module wires one stable canary
 //! (a `projection_equivalence` suite row) to a stable on-disk location and
 //! provides a reader that re-checks `validate_against_output`.
+//!
+//! Older private xtask receipts without `raw_output_sha256` are unbound and
+//! fail validation. Regenerate them from the intended checkout with
+//! `cargo xtask proof run --out <fresh-dir>`; hashing an old log cannot
+//! recreate its original execution binding.
 
 use std::path::{Path, PathBuf};
 
