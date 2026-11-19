@@ -15,16 +15,13 @@ fn toml_path(path: &Path) -> String {
 fn readme_numeric_conversion_is_fallible() {
     // Normalize documentation checkout line endings, never parser input.
     let readme = include_str!("../../README.md").replace("\r\n", "\n");
-    let grammar_block = readme
+    let grammar = readme
         .split("```rust\n")
         .skip(1)
         .filter_map(|block| block.split_once("\n```"))
         .map(|(code, _)| code)
         .find(|code| code.starts_with("#[adze::grammar"))
         .expect("README grammar block");
-    let (grammar, _) = grammar_block
-        .split_once("\nlet expr =")
-        .expect("README grammar and usage example");
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("repository root");

@@ -1,49 +1,35 @@
-# Installation
+# Set up Adze from a checkout
 
-This chapter covers how to install and set up Adze in your project.
+This page uses the runtime and build tool from an Adze checkout. It does not
+require published Adze packages.
 
-## Prerequisites
+Use Rust 1.95.0 or newer for this crate. A sibling crate does not inherit the
+Adze checkout's toolchain file, so make sure your own Cargo uses that version
+before continuing. For example, with rustup you can select it for a command
+with `cargo +1.95.0`.
 
-- Rust 1.95.0 or later (2024 edition)
-- Cargo (comes with Rust)
+## Add the dependencies
 
-## Adding Dependencies
-
-Add Adze to your `Cargo.toml`:
-
-The versioned dependency block is the intended release-surface shape after the
-coordinated publish. Current repo proof uses local/path dependencies from this
-checkout until crates.io receipts exist for the co-release crates.
+The example assumes your crate sits next to a checkout named `adze-swarm`.
+Adjust the paths if the checkout is elsewhere. Merge the entries into your
+existing `Cargo.toml` tables. If your crate already lists default features, add
+`"pure-rust"` without removing them.
 
 ```toml
 [dependencies]
-adze = { version = "0.9.0", default-features = false }
+adze = { path = "../adze-swarm/runtime", default-features = false }
 
 [build-dependencies]
-adze-tool = "0.9.0"
+adze-tool = { path = "../adze-swarm/tool" }
 
 [features]
 default = ["pure-rust"]
 pure-rust = ["adze/pure-rust"]
 ```
 
-The generated pure-Rust parser path is the supported front door. Lower-level
-compatibility, WASM, CLI, and experimental runtime surfaces follow their
-support-tier rows and should not be treated as the default installation path.
+## Build configuration
 
-## Feature Posture
-
-| Feature | Use | Support posture |
-|---|---|---|
-| `pure-rust` | Generated parser front door | Stable |
-| `glr` | Ambiguous grammar conflict routing | Stabilizing |
-| `serialization` | Core table serialization and document JSON | Stable/advisory by surface |
-| `ts-compat` | Tree-sitter-compatible selected-tree adapter | Advisory |
-| `incremental_glr` | Incremental lifecycle experiments | Experimental |
-
-## Build Configuration
-
-Create a `build.rs` file in your project root:
+Create `build.rs` in the project root:
 
 ```rust
 use std::path::PathBuf;
@@ -54,54 +40,9 @@ fn main() {
 }
 ```
 
-## Verifying Installation
+The path in `build_parsers` should point to the file with the grammar module.
+For a binary crate with its grammar in the entry point, use `src/main.rs`.
 
-Create `src/lib.rs` with a tiny grammar and test:
-
-```rust
-#[adze::grammar("test")]
-pub mod grammar {
-    #[adze::language]
-    #[derive(Debug, PartialEq)]
-    pub enum Word {
-        Hello(#[adze::leaf(text = "hello")] ()),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::grammar::{self, Word};
-
-    #[test]
-    fn parses_hello() {
-        assert_eq!(grammar::parse("hello").unwrap(), Word::Hello(()));
-    }
-}
-```
-
-Run with:
-
-```bash
-cargo test
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Build fails with "cannot find macro `adze`"**
-   - Ensure both `adze` and `adze-tool` are in your dependencies
-   - Check that your `build.rs` is properly configured
-
-2. **"Multiple applicable items in scope" errors**
-   - This usually means you have conflicting features enabled
-   - Start from the `pure-rust` feature shape above
-
-3. **WASM compilation fails**
-   - WASM is advisory compile-signal territory, not the beginner path
-   - Check the current support-tier row before relying on browser/runtime behavior
-
-## Next Steps
-
-Now that you have Adze installed, proceed to the [Quick Start](quickstart.md)
-guide to create your first grammar.
+Follow [Quick Start](quickstart.md) to add a grammar and run the parser tests.
+Check [Support tiers](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/status/SUPPORT_TIERS.md)
+before enabling features outside the typed pure-Rust path.

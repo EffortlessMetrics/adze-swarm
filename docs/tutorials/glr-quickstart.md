@@ -208,7 +208,7 @@ If table artifacts fail to decode or behave unexpectedly:
 
 ## Next Steps
 
-- [Quickstart: First Parser In 10 Minutes](./quickstart-10-minutes.md)
+- [Build your first parser](./quickstart-10-minutes.md)
 - [Mental Model](../explanations/mental-model.md)
 - [API Reference](../reference/api.md)
 - [Tree-sitter Compatibility](../reference/tree-sitter-compatibility.md)
