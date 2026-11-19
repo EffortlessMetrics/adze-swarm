@@ -303,7 +303,8 @@ pub fn parse_with_streaming_driver(
     materialize_streaming_forest(&forest, language, &parse_table, &parse_table.grammar)
 }
 
-/// Select a complete alternative from an already-produced streaming [`Forest`].
+/// Select a complete alternative from an already-produced streaming
+/// [`adze_glr_core::Forest`].
 ///
 /// This is the #930 adapter seam: production routing produces a forest, then this
 /// function materializes deterministic selected-tree + ambiguity facts without
