@@ -243,7 +243,11 @@ fn test_unix_signal_is_retained_not_an_invalid_parse_exit_code() {
 fn test_starter_plan_with_nondefault_cargo_runs_all_three_requests() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project λ");
-    fs::create_dir(&project).unwrap();
+    let home = root.path().join("home");
+    let target = root.path().join("target");
+    for path in [&project, &home, &target] {
+        fs::create_dir(path).unwrap();
+    }
     fs::write(
         project.join("Cargo.toml"),
         "[package]\nname='fixture'\nversion='0.0.0'\n",
@@ -258,8 +262,17 @@ fn main() {
     let cwd = std::env::current_dir().unwrap();
     assert_eq!(cwd.file_name().unwrap(), "project λ");
     let parent = cwd.parent().unwrap();
-    assert_eq!(std::path::PathBuf::from(std::env::var_os("CARGO_HOME").unwrap()), parent.join("home"));
-    assert_eq!(std::path::PathBuf::from(std::env::var_os("CARGO_TARGET_DIR").unwrap()), parent.join("target"));
+    // Windows can report the working directory with a different spelling
+    // of its ancestor paths (for example, long names instead of 8.3 aliases).
+    for (name, leaf) in [("CARGO_HOME", "home"), ("CARGO_TARGET_DIR", "target")] {
+        let actual = std::path::PathBuf::from(std::env::var_os(name).unwrap());
+        assert!(actual.is_absolute(), "{name} must be absolute: {actual:?}");
+        assert_eq!(
+            actual.canonicalize().unwrap(),
+            parent.join(leaf).canonicalize().unwrap(),
+            "{name} points to the wrong directory",
+        );
+    }
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args == ["test"] { std::fs::write("Cargo.lock","version = 4\n[[package]]\nname='fixture'\nversion='0.0.0'\n").unwrap(); return; }
     if args == ["run","--example","parse","--","1 + 2 * 3"] {
@@ -284,13 +297,7 @@ fn main() {
     );
     let (mut inputs, generated) = StarterInputs::create(root.path(), source(), &project).unwrap();
     inputs.expect_effective(generated.as_bytes()).unwrap();
-    let results = run(
-        &mut inputs,
-        cargo.as_os_str(),
-        &root.path().join("home"),
-        &root.path().join("target"),
-    )
-    .unwrap();
+    let results = run(&mut inputs, cargo.as_os_str(), &home, &target).unwrap();
     assert_eq!(results.len(), 3);
     assert_eq!(
         results.iter().map(|r| r.exit_code).collect::<Vec<_>>(),
