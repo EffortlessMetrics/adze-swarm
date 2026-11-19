@@ -35,7 +35,7 @@ fn fixture() -> Grammar {
     g
 }
 #[test]
-fn records_actual_bracketed_item_producer_without_changing_native_or_wire_data() {
+fn test_records_actual_bracketed_item_producer_without_changing_native_or_wire_data() {
     let mut g = fixture();
     let mut legacy = g.clone();
     legacy.try_normalize().unwrap();
@@ -83,7 +83,7 @@ fn records_actual_bracketed_item_producer_without_changing_native_or_wire_data()
     );
 }
 #[test]
-fn distinct_alternatives_and_sites_survive_shared_productions_and_sequence_expansion() {
+fn test_distinct_alternatives_and_sites_survive_shared_productions_and_sequence_expansion() {
     let mut g = Grammar::new("distinct".into());
     g.fields.insert(FieldId(1), "xs".into());
     for atom in [term(3), Symbol::External(SymbolId(3))] {
@@ -124,7 +124,7 @@ fn distinct_alternatives_and_sites_survive_shared_productions_and_sequence_expan
     }
 }
 #[test]
-fn matching_normalized_shapes_and_ids_cannot_create_a_producer_record() {
+fn test_matching_normalized_shapes_and_ids_cannot_create_a_producer_record() {
     let mut original = fixture();
     let sites = original.try_normalize_with_repeat_field_origins().unwrap();
     let site = &sites[0];
@@ -152,7 +152,7 @@ fn matching_normalized_shapes_and_ids_cannot_create_a_producer_record() {
     );
 }
 #[test]
-fn no_invented_origins_for_unfielded_composite_or_non_source_helpers() {
+fn test_no_invented_origins_for_unfielded_composite_or_non_source_helpers() {
     let mut g = Grammar::new("unsupported".into());
     g.fields.insert(FieldId(1), "xs".into());
     add(
@@ -175,7 +175,7 @@ fn no_invented_origins_for_unfielded_composite_or_non_source_helpers() {
 }
 
 #[test]
-fn failed_normalization_leaks_neither_mutated_rules_nor_partial_origins() {
+fn test_failed_normalization_leaks_neither_mutated_rules_nor_partial_origins() {
     use adze_ir::{AliasSequence, GrammarError};
     let mut g = fixture();
     // The first RHS slot allocates its repeat carrier before a later slot's
