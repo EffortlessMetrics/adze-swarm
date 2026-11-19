@@ -430,7 +430,7 @@ mod document {
 // deliberately disagree. The field on the inner token is observable before
 // unary elision; the outer field is assigned to that retained child later.
 #[test]
-fn selected_rule_keeps_its_observed_fields_before_unary_elision() {
+fn test_selected_rule_keeps_its_observed_fields_before_unary_elision() {
     static SYMBOLS: [u8; 3] = [0, 1, 4];
     static MAP: [u16; 2] = [1, 0];
     static FIELDS: [SyncPtr; 2] = [
@@ -490,7 +490,7 @@ fn selected_rule_keeps_its_observed_fields_before_unary_elision() {
 }
 
 #[test]
-fn selected_empty_reduction_is_not_an_elided_present_reduction() {
+fn test_selected_empty_reduction_is_not_an_elided_present_reduction() {
     static RULES: [TSRule; 2] = [
         TSRule {
             lhs: 2,
