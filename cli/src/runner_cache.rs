@@ -430,7 +430,7 @@ fn collect_closure(
 }
 
 /// Resolve ordinary and inline modules using Rust's module directories.
-/// Explicit paths in inline modules and conditional path overrides are refused.
+/// Explicit and conditional path overrides are refused.
 fn collect_mods(
     items: &[syn::Item],
     module_dir: &Path,
@@ -449,27 +449,19 @@ fn collect_mods(
                 "conditional module paths require Cargo validation".into(),
             ));
         }
+        if module.attrs.iter().any(|attr| attr.path().is_ident("path")) {
+            // Explicit paths may be relative to a different directory than
+            // ordinary modules. Do not let a decoy supply a partial identity.
+            return Err(CacheSkip(
+                "explicit module paths require Cargo validation".into(),
+            ));
+        }
         if let Some(content) = &module.content {
-            if path_attr_literal(&module.attrs).is_some() {
-                return Err(CacheSkip(
-                    "inline module path override requires Cargo validation".into(),
-                ));
-            }
             collect_mods(
                 &content.1,
                 &module_dir.join(module.ident.to_string()),
                 nested,
             )?;
-        } else if let Some(literal) = path_attr_literal(&module.attrs) {
-            let target = module_dir.join(literal);
-            if !target.is_file() {
-                return Err(CacheSkip("explicit module path is not a file".into()));
-            }
-            let child_dir = target
-                .parent()
-                .ok_or_else(|| CacheSkip("missing module parent".into()))?
-                .to_path_buf();
-            nested.push((target, child_dir));
         } else {
             let name = module.ident.to_string();
             let child_dir = module_dir.join(&name);
@@ -488,24 +480,6 @@ fn collect_mods(
         }
     }
     Ok(())
-}
-
-/// Extract a `#[path = "..."]` literal from attributes, if present.
-fn path_attr_literal(attrs: &[syn::Attribute]) -> Option<String> {
-    for attr in attrs {
-        if !attr.path().is_ident("path") {
-            continue;
-        }
-        if let syn::Meta::NameValue(pair) = &attr.meta
-            && let syn::Expr::Lit(syn::ExprLit {
-                lit: syn::Lit::Str(lit),
-                ..
-            }) = &pair.value
-        {
-            return Some(lit.value());
-        }
-    }
-    None
 }
 
 /// Hash literal raw-data includes. Rust include! fragments and dynamic
@@ -1154,6 +1128,27 @@ mod tests {
             assert!(seen.is_empty());
             assert_eq!(budget, 64);
         }
+    }
+
+    #[test]
+    fn explicit_module_path_refuses_candidate_even_with_a_decoy() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let grammar = write_grammar(temp.path(), "grammar.rs", "mod foo;");
+        write_grammar(
+            temp.path(),
+            "foo.rs",
+            r#"#[path = "picked.rs"] mod picked; pub use picked::ACTUAL;"#,
+        );
+        // rustc resolves the explicit path beside foo.rs, not under foo/.
+        write_grammar(temp.path(), "picked.rs", "pub const ACTUAL: u8 = 1;");
+        let virtual_dir = temp.path().join("foo");
+        std::fs::create_dir(&virtual_dir).expect("virtual module directory");
+        write_grammar(&virtual_dir, "picked.rs", "pub const DECOY: u8 = 99;");
+
+        assert!(
+            candidate_key(&test_spec(&grammar, "grammar")).is_none(),
+            "an explicit path must not produce a candidate based on the decoy"
+        );
     }
 
     #[test]
