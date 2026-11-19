@@ -2,80 +2,14 @@
 
 use std::fs;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Command;
 
 const BASE_GRAMMAR: &str = include_str!("../src/lib.rs");
 const BUILD_SCRIPT: &str = include_str!("../build.rs");
-const FIELD_ANCHOR: &str = "        pub timeout: Option<Timeout>,";
-const TYPE_ANCHOR: &str = "    #[adze::extra]";
-const BACKOFF_TYPE: &str = r#"    /// Optional delay between retries; absence and zero are distinct.
-    #[derive(Debug, PartialEq)]
-    pub struct Backoff {
-        #[adze::leaf(text = "backoff")]
-        _keyword: (),
-        #[adze::leaf(text = "=")]
-        _equals: (),
-        #[adze::leaf(pattern = r"[0-9]+", try_transform = |text| text.parse::<u16>())]
-        pub seconds: u16,
-        #[adze::leaf(text = ";")]
-        _end: (),
-    }
+#[path = "support/edit_debug_contract.rs"]
+mod edit_debug_contract;
 
-"#;
-
-const BASELINE_TEST: &str = r#"use edit_debug_probe::grammar;
-
-#[test]
-fn journey_contract() {
-    let old = grammar::parse("retries=3;targets=[api,worker];timeout=30;").expect("old input");
-    assert_eq!(old.retries, 3);
-    assert_eq!(old.targets, vec!["api", "worker"]);
-    assert_eq!(old.timeout.expect("timeout").seconds, 30);
-    assert!(grammar::parse("retries=3;targets=[api];backoff=7;").is_err());
-}
-"#;
-
-const EXTENSION_TEST: &str = r#"use adze::errors::ParseErrorReason;
-use edit_debug_probe::grammar;
-
-#[test]
-fn journey_contract() {
-    for value in [0, 7, u16::MAX] {
-        let source = format!("retries=3;targets=[api,worker];backoff={value};");
-        let policy = grammar::parse(&source).expect("extended input");
-        assert_eq!(policy.retries, 3);
-        assert_eq!(policy.targets, vec!["api", "worker"]);
-        assert_eq!(policy.timeout, None);
-        assert_eq!(policy.backoff.expect("explicit backoff").seconds, value);
-    }
-    let old = grammar::parse("retries=3;targets=[api,worker];timeout=30;").expect("old input still works");
-    assert_eq!(old.retries, 3);
-    assert_eq!(old.targets, vec!["api", "worker"]);
-    assert_eq!(old.timeout.expect("old timeout").seconds, 30);
-    assert_eq!(old.backoff, None);
-    let source = "retries=3;targets=[api];backoff=65536;";
-    let errors = grammar::parse(source).expect_err("overflow is not success");
-    let error = errors.first().expect("conversion diagnostic");
-    assert!(matches!(error.reason, ParseErrorReason::ConversionFailed(_)));
-    let start = source.find("65536").expect("token");
-    assert_eq!(error.byte_span(), start..start + 5);
-}
-"#;
-
-fn extended_grammar(base: &str) -> String {
-    assert_eq!(
-        base.matches(FIELD_ANCHOR).count(),
-        1,
-        "sample field anchor drifted"
-    );
-    assert!(base.contains(TYPE_ANCHOR), "sample type anchor drifted");
-    base.replacen(
-        FIELD_ANCHOR,
-        &format!("{FIELD_ANCHOR}\n        pub backoff: Option<Backoff>,"),
-        1,
-    )
-    .replacen(TYPE_ANCHOR, &format!("{BACKOFF_TYPE}{TYPE_ANCHOR}"), 1)
-}
+use edit_debug_contract::{FIELD_ANCHOR, Phase, extended_grammar};
 
 fn toml_path(path: &Path) -> String {
     path.to_str()
@@ -84,52 +18,22 @@ fn toml_path(path: &Path) -> String {
         .replace('"', "\\\"")
 }
 
-fn run_phase(project: &Path) -> Output {
+fn run_phase(project: &Path, phase: Phase) {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    Command::new(cargo)
-        .args([
-            "test",
-            "--test",
-            "journey_contract",
-            "--",
-            "--exact",
-            "journey_contract",
-            "--test-threads=1",
-        ])
+    let output = Command::new(cargo)
+        .args(Phase::cargo_args(false))
         .current_dir(project)
         // Cleaning this directory between phases would hide stale generation.
         .env("CARGO_TARGET_DIR", project.join("target"))
         .output()
-        .expect("execute downstream Cargo; a missing tool is not passing proof")
-}
-
-fn assert_one_passed(phase: &str, output: &Output) {
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        output.status.success(),
-        "{phase}: {}\n{stdout}\n{stderr}",
-        output.status
-    );
-    let terminal_rows: Vec<_> = stdout
-        .lines()
-        .filter(|line| line.starts_with("test result:"))
-        .collect();
-    assert_eq!(
-        terminal_rows.len(),
-        1,
-        "{phase}: expected one terminal row\n{stdout}"
-    );
-    assert!(
-        terminal_rows[0].starts_with("test result: ok. 1 passed; 0 failed; 0 ignored;"),
-        "{phase}: the intended test must actually execute\n{stdout}",
-    );
-    assert!(
-        stdout
-            .lines()
-            .any(|line| line == "test journey_contract ... ok"),
-        "{phase}: missing named test\n{stdout}"
-    );
+        .expect("execute downstream Cargo; a missing tool is not passing proof");
+    if let Err(error) = phase.audit_output(output.status.code(), &output.stdout, &output.stderr) {
+        panic!(
+            "{error}\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }
 
 #[test]
@@ -183,37 +87,35 @@ pure-rust = ["adze/pure-rust"]
         ),
     )
     .expect("manifest");
-    fs::write(project.join("src/lib.rs"), BASE_GRAMMAR).expect("baseline grammar");
-    fs::write(project.join("tests/journey_contract.rs"), BASELINE_TEST).expect("baseline oracle");
-    assert_one_passed("baseline", &run_phase(project));
-
-    let extended = extended_grammar(BASE_GRAMMAR);
-    fs::write(project.join("src/lib.rs"), &extended).expect("edit grammar");
-    fs::write(project.join("tests/journey_contract.rs"), EXTENSION_TEST).expect("extension oracle");
-    assert_one_passed("extension", &run_phase(project));
-
-    // Break the new grammar field, not a copied data fixture. Either grammar
-    // generation or rustc may diagnose the missing type; both must name it.
-    let broken = extended.replacen(
-        "pub backoff: Option<Backoff>",
-        "pub backoff: Option<MissingBackoffType1138>",
-        1,
-    );
-    fs::write(project.join("src/lib.rs"), broken).expect("break user source");
-    let failure = run_phase(project);
-    let stderr = String::from_utf8_lossy(&failure.stderr);
-    assert!(
-        !failure.status.success(),
-        "broken source reused stale success"
-    );
-    assert!(
-        stderr.contains("MissingBackoffType1138"),
-        "failure must be the deliberate missing type, not network/tool setup: {stderr}"
-    );
-    assert!(!String::from_utf8_lossy(&failure.stdout).contains("test result: ok."));
-
-    fs::write(project.join("src/lib.rs"), extended).expect("repair source");
-    assert_one_passed("repair", &run_phase(project));
+    let owned_target = project.join("target");
+    fs::create_dir(&owned_target).expect("owned target");
+    let target_sentinel = owned_target.join("keep-target.txt");
+    fs::write(&target_sentinel, b"same target across phases\n").expect("target sentinel");
+    let manifest = fs::read(project.join("Cargo.toml")).expect("prepared manifest");
+    let mut lock = None;
+    for phase in Phase::ORDERED {
+        let (grammar, oracle) = phase.inputs(BASE_GRAMMAR);
+        fs::write(project.join("src/lib.rs"), grammar).expect("phase grammar");
+        fs::write(project.join("tests/journey_contract.rs"), oracle).expect("phase oracle");
+        run_phase(project, phase);
+        let current_lock = fs::read(project.join("Cargo.lock")).expect("resolved project lock");
+        assert_eq!(
+            lock.get_or_insert_with(|| current_lock.clone()),
+            &current_lock
+        );
+        assert_eq!(
+            fs::read(project.join("Cargo.toml")).expect("manifest preserved"),
+            manifest
+        );
+        assert_eq!(
+            fs::read(project.join("build.rs")).expect("build script preserved"),
+            BUILD_SCRIPT.as_bytes()
+        );
+        assert_eq!(
+            fs::read(&target_sentinel).expect("target was not cleared"),
+            b"same target across phases\n"
+        );
+    }
     assert_eq!(
         fs::read(project.join("preserve-me.txt"))
             .expect("sentinel preserved")
