@@ -504,6 +504,75 @@ impl RecordedObservation {
     }
 }
 
+/// Reconcile an entire ordered plan against its existing journal and verify
+/// the retained artifacts before projecting each slot. This does not infer
+/// process or release qualification and grants no new path or byte authority.
+pub(crate) fn reconcile_observations<T>(
+    root: &Path,
+    journal_name: &str,
+    ordered_names: &[&str],
+    observations: &[RecordedObservation],
+    project: impl Fn(&RecordedObservation) -> Result<T>,
+) -> Result<Vec<T>> {
+    if !observations
+        .iter()
+        .map(|obs| obs.request().name())
+        .eq(ordered_names.iter().copied())
+    {
+        bail!("{journal_name} observations do not match the complete ordered plan");
+    }
+    let commands = fs::canonicalize(root)?.join("commands");
+    // begin() owns a fresh namespace. Reconcile disk, not only the returned
+    // handles: an orphan intent or an unrelated entry must not disappear.
+    if !fs::symlink_metadata(&commands)?.is_dir() {
+        bail!("{journal_name} journal is not an owned directory");
+    }
+    let mut seen = 0;
+    for entry in fs::read_dir(&commands)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir()
+            || !observations
+                .iter()
+                .any(|o| o.completion_path().parent() == Some(entry.path().as_path()))
+        {
+            bail!(
+                "unexpected entry in {journal_name} journal: {}",
+                entry.path().display()
+            );
+        }
+        seen += 1;
+    }
+    if seen != ordered_names.len() {
+        bail!("missing {journal_name} journal entry");
+    }
+    for (index, observed) in observations.iter().enumerate() {
+        if observed.completion_path()
+            != commands
+                .join(format!("{:08}", index + 1))
+                .join("completion.json")
+        {
+            bail!("{journal_name} completion does not belong to its planned journal slot");
+        }
+    }
+    observations
+        .iter()
+        .map(|obs| {
+            let result = || {
+                obs.verify_artifacts()
+                    .with_context(|| format!("verifying {}", obs.completion_path().display()))?;
+                project(obs)
+            };
+            result().with_context(|| {
+                format!(
+                    "projecting {journal_name} command {} from retained evidence {}",
+                    obs.request().name(),
+                    obs.completion_path().display()
+                )
+            })
+        })
+        .collect()
+}
+
 struct RetainedArtifact {
     path: PathBuf,
     bytes: usize,
