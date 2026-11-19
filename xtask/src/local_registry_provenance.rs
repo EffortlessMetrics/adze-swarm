@@ -212,6 +212,19 @@ impl Provenance {
             .commit)
     }
 
+    pub(super) fn command_source(&self) -> Result<crate::local_release_command::SourceBinding> {
+        let source = self
+            .receipt
+            .source
+            .as_ref()
+            .context("source not captured")?;
+        Ok(crate::local_release_command::SourceBinding {
+            source_commit: source.commit.clone(),
+            source_tree: source.tree.clone(),
+            selected_version: self.receipt.selected_version.clone(),
+        })
+    }
+
     pub(super) fn stage(&mut self, stage: impl Into<String>) -> Result<()> {
         self.receipt.stage = stage.into();
         self.checkpoint()

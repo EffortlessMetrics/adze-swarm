@@ -1,14 +1,8 @@
 //! Request-owned command evidence for the local release harness (#1065).
 //!
-//! This data seam is deliberately unwired. It records an immutable native
-//! request and an observation; it neither launches processes nor infers custody
-//! from an exit status. The existing CapturedCommand view will be projected
-//! from this authority when the reviewed process adapter is connected.
-//!
-//! Individual records do not establish whole-run completeness. The eventual
-//! orchestrator must propagate completion recording errors and reject any
-//! aggregate with an incomplete/dropped intent. `failed_recording` only stops
-//! reuse after a `begin` recording failure; pending handles are independent.
+//! The starter Cargo observations use this journal; install and init still await
+//! the shared process backend. Individual records do not prove process custody
+//! or whole-journey qualification.
 
 use std::ffi::{OsStr, OsString};
 use std::fmt;
@@ -29,6 +23,8 @@ pub(crate) enum EnvironmentChange {
         value: OsString,
         record_value: bool,
     },
+    // Part of the persisted protocol; the current starter only adds overrides.
+    #[allow(dead_code)]
     Remove(OsString),
 }
 
@@ -78,6 +74,10 @@ impl ReleaseCommand {
             environment,
             policy,
         })
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 
     pub(crate) fn program(&self) -> &OsStr {
@@ -133,7 +133,7 @@ impl ReleaseCommand {
 
     fn recorded(&self) -> RecordedRequest {
         RecordedRequest {
-            name: self.name.clone(),
+            name: self.name().to_owned(),
             program: NativeString::from_os(&self.program),
             arguments: self
                 .arguments
@@ -149,7 +149,7 @@ impl ReleaseCommand {
                 .iter()
                 .map(RecordedEnvironmentChange::from)
                 .collect(),
-            requested_policy: self.policy,
+            requested_policy: self.policy(),
         }
     }
 }
