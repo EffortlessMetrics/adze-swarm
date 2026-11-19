@@ -83,6 +83,20 @@ fn positive_real_selection_executes_and_receipt_binds_identity() {
 }
 
 #[test]
+fn test_retained_output_cannot_overwrite_existing_evidence() {
+    let spec = spec(
+        manifest_command("alpha::real_canary -- --exact"),
+        "occupied-output.txt",
+    );
+    std::fs::create_dir_all(spec.raw_output_path.parent().unwrap()).unwrap();
+    let prior = b"older attempt or externally supplied ledger";
+    std::fs::write(&spec.raw_output_path, prior).unwrap();
+    let err = run_executed_proof(&spec).expect_err("raw log destination is already in use");
+    assert!(matches!(err, ProofError::Io(_)), "{err}");
+    assert_eq!(std::fs::read(&spec.raw_output_path).unwrap(), prior);
+}
+
+#[test]
 fn helper_function_resembling_test_is_not_selected() {
     let err = run_executed_proof(&spec(
         manifest_command("test_helper_lookalike -- --exact"),

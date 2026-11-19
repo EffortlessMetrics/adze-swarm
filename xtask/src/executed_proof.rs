@@ -28,6 +28,7 @@ use crate::cargo_flags;
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -145,6 +146,7 @@ fn raw_output_digest(raw_output: &str) -> String {
 pub struct ProofSpec {
     pub root: PathBuf,
     pub command: String,
+    /// Unused path where the attempt will retain its raw child output.
     pub raw_output_path: PathBuf,
     pub include_ignored: bool,
 }
@@ -656,7 +658,16 @@ pub fn run_executed_proof(spec: &ProofSpec) -> Result<ProofReceipt, ProofError> 
     if let Some(parent) = spec.raw_output_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| ProofError::Io(e.to_string()))?;
     }
-    std::fs::write(&spec.raw_output_path, &raw).map_err(|e| ProofError::Io(e.to_string()))?;
+    // Do not clobber another attempt's evidence even if its custom ledger
+    // destination aliases this raw output path.
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&spec.raw_output_path)
+        .and_then(|mut file| file.write_all(raw.as_bytes()))
+        .map_err(|err| {
+            ProofError::Io(format!("writing {}: {err}", spec.raw_output_path.display()))
+        })?;
 
     let rows = parse_result_rows(&raw);
     let (passed, failed, ignored) = rows.iter().fold((0, 0, 0), |(p, f, i), r| {
