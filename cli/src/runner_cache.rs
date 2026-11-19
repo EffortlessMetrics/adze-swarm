@@ -518,45 +518,48 @@ fn scan_includes(
     seen: &mut HashSet<PathBuf>,
     budget: &mut u64,
 ) -> Result<(), CacheSkip> {
+    #[derive(Default)]
     struct Includes {
-        literals: Vec<(String, bool)>,
+        literals: Vec<String>,
+        rust_source: bool,
         dynamic: bool,
     }
     impl<'ast> syn::visit::Visit<'ast> for Includes {
         fn visit_macro(&mut self, node: &'ast syn::Macro) {
-            if node.path.segments.last().is_some_and(|segment| {
-                matches!(
-                    segment.ident.to_string().as_str(),
-                    "include" | "include_str" | "include_bytes"
-                )
-            }) {
-                match node.parse_body::<syn::LitStr>() {
-                    Ok(literal) => self
-                        .literals
-                        .push((literal.value(), node.path.is_ident("include"))),
-                    Err(_) => self.dynamic = true,
+            if let Some(segment) = node.path.segments.last() {
+                match segment.ident.to_string().as_str() {
+                    "include" => self.rust_source = true,
+                    "include_str" | "include_bytes" => {
+                        // A qualified lookalike is not established as a raw-data builtin.
+                        if node.path.is_ident("include_str") || node.path.is_ident("include_bytes")
+                        {
+                            match node.parse_body::<syn::LitStr>() {
+                                Ok(literal) => self.literals.push(literal.value()),
+                                Err(_) => self.dynamic = true,
+                            }
+                        } else {
+                            self.dynamic = true;
+                        }
+                    }
+                    _ => {}
                 }
             }
             syn::visit::visit_macro(self, node);
         }
     }
-    let mut found = Includes {
-        literals: Vec::new(),
-        dynamic: false,
-    };
+    let mut found = Includes::default();
     syn::visit::Visit::visit_file(&mut found, file);
+    if found.rust_source {
+        // Rust fragments can expand in the invocation's module context.
+        return Err(CacheSkip("Rust include! requires Cargo validation".into()));
+    }
     if found.dynamic {
         return Err(CacheSkip(
-            "grammar uses dynamic include! arguments that cannot be fingerprinted".to_string(),
+            "grammar uses dynamic or qualified raw includes that cannot be fingerprinted".into(),
         ));
     }
-    for (literal, rust_source) in found.literals {
+    for literal in found.literals {
         let target = base_dir.join(literal);
-        if rust_source {
-            // include! can inject modules at the invocation's module context;
-            // expression/type fragments and nested contexts need Cargo validation.
-            return Err(CacheSkip("Rust include! requires Cargo validation".into()));
-        }
         let canonical = target
             .canonicalize()
             .map_err(|error| CacheSkip(error.to_string()))?;
@@ -1113,6 +1116,44 @@ mod tests {
             before,
             candidate_key(&test_spec(&grammar, "grammar")).expect("key")
         );
+    }
+
+    #[test]
+    fn test_rust_include_refuses_candidate_independent_of_qualification() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        for (name, reason) in [
+            ("include", "Rust include! requires Cargo validation"),
+            ("std::include", "Rust include! requires Cargo validation"),
+            ("::core::include", "Rust include! requires Cargo validation"),
+            ("local::include", "Rust include! requires Cargo validation"),
+            (
+                "local::include_str",
+                "grammar uses dynamic or qualified raw includes that cannot be fingerprinted",
+            ),
+            (
+                "local::include_bytes",
+                "grammar uses dynamic or qualified raw includes that cannot be fingerprinted",
+            ),
+        ] {
+            let source = syn::parse_file(&format!("const X: () = {name}!(\"fixture.txt\");"))
+                .expect("parse fixture");
+            let mut closure = Vec::new();
+            let mut seen = std::collections::HashSet::new();
+            let mut budget = 64;
+            let err = super::scan_includes(
+                &source,
+                temp.path(),
+                temp.path(),
+                &mut closure,
+                &mut seen,
+                &mut budget,
+            )
+            .expect_err("candidate must refuse before reading the include");
+            assert_eq!(err.0, reason, "{name}");
+            assert!(closure.is_empty());
+            assert!(seen.is_empty());
+            assert_eq!(budget, 64);
+        }
     }
 
     #[test]
