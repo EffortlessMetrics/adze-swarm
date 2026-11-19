@@ -25,6 +25,9 @@ use std::path::{Path, PathBuf};
 
 use xtask::cargo_flags as flag_table;
 
+#[path = "support/package_wide_ledger_rows.rs"]
+mod package_wide_ledger_rows;
+
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -660,9 +663,13 @@ fn test_support_tier_cargo_commands_are_valid_and_select_tests() {
 
     let mut failures = Vec::new();
     let mut unsupported: Vec<String> = Vec::new();
+    let mut package_wide = BTreeSet::new();
     for command in &commands {
         if let Err(error) = validate_command(&root, command) {
-            if unsupported_kind(&error).is_some() {
+            if let Some(kind) = unsupported_kind(&error) {
+                if kind == "package-wide" {
+                    package_wide.insert(command.as_str());
+                }
                 unsupported.push(format!("{command}\n  -> {error}"));
             } else {
                 failures.push(format!("{command}\n  -> {error}"));
@@ -673,6 +680,17 @@ fn test_support_tier_cargo_commands_are_valid_and_select_tests() {
         failures.is_empty(),
         "invalid support-tier proof commands:\n{}",
         failures.join("\n")
+    );
+    let enumerated_rows = package_wide_ledger_rows::PACKAGE_WIDE_LEDGER_ROWS;
+    let enumerated: BTreeSet<_> = enumerated_rows.iter().copied().collect();
+    assert_eq!(
+        enumerated.len(),
+        enumerated_rows.len(),
+        "duplicate enumeration row"
+    );
+    assert_eq!(
+        package_wide, enumerated,
+        "compiled enumeration inventory drifted from the statically quarantined package-wide ledger"
     );
     let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
     for row in &unsupported {

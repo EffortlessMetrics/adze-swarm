@@ -2,8 +2,8 @@
 //!
 //! Exercises `xtask::proof` against a tiny fixture crate built by Cargo
 //! itself (never the workspace build): a positive run retains a rereadable
-//! receipt, zero-selection retains nothing usable, and a tampered raw log
-//! fails re-validation.
+//! receipt, non-execution/failure retains no success receipt, and a raw log
+//! substituted from an unrelated success fails re-validation.
 
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -27,6 +27,16 @@ fn fixture() -> &'static PathBuf {
 mod alpha {
     #[test]
     fn real_canary() { assert_eq!(2 + 2, 4); }
+
+    #[test]
+    fn other_canary() { assert_eq!(3 + 3, 6); }
+
+    #[test]
+    #[ignore = "intentionally ignored"]
+    fn ignored_canary() {}
+
+    #[test]
+    fn failing_canary() { panic!("intentional fixture failure"); }
 }
 "#,
         )
@@ -103,6 +113,66 @@ fn zero_selection_fixture_fails_without_receipt() {
         !out.join(RECEIPT_FILE_NAME).is_file(),
         "zero-selection must not retain a receipt"
     );
+}
+
+#[test]
+fn ignored_only_fixture_fails_without_receipt() {
+    let out = out_dir("ignored");
+    let err = run_fixture("ignored", "alpha::ignored_canary -- --exact")
+        .expect_err("ignored-only selection must fail");
+    assert!(err.contains("ignored-only selection"), "{err}");
+    assert!(!out.join(RECEIPT_FILE_NAME).exists());
+}
+
+#[test]
+fn failed_fixture_preserves_raw_log_but_not_success_receipt() {
+    let out = out_dir("failed");
+    let err = run_fixture("failed", "alpha::failing_canary -- --exact")
+        .expect_err("failing child must fail");
+    assert!(err.contains("test child failed"), "{err}");
+    assert!(!out.join(RECEIPT_FILE_NAME).exists());
+    let raw = std::fs::read_to_string(out.join(RAW_FILE_NAME)).unwrap();
+    assert!(raw.contains("alpha::failing_canary"), "{raw}");
+    assert!(raw.contains("test result: FAILED."), "{raw}");
+}
+
+#[test]
+fn same_count_log_from_another_real_canary_fails_revalidation() {
+    let receipt_path =
+        run_fixture("original-log", "alpha::real_canary -- --exact").expect("canary must pass");
+    let other_path =
+        run_fixture("other-log", "alpha::other_canary -- --exact").expect("other canary must pass");
+    let receipt = xtask::proof::read_receipt(&receipt_path).unwrap();
+    let other = xtask::proof::read_receipt(&other_path).unwrap();
+    assert_eq!(receipt.counts, other.counts);
+    assert_eq!(receipt.counts.passed, 1);
+    assert_ne!(receipt.selected_test_ids, other.selected_test_ids);
+
+    std::fs::copy(&other.raw_output_ref, &receipt.raw_output_ref).unwrap();
+    let err = xtask::proof::validate_receipt_file(&receipt_path)
+        .expect_err("a passing raw log from the other selection must not validate");
+    assert!(
+        err.to_string().contains("raw output SHA-256 mismatch"),
+        "{err}"
+    );
+}
+
+#[test]
+fn legacy_receipt_without_raw_binding_is_rejected() {
+    let receipt_path =
+        run_fixture("legacy", "alpha::real_canary -- --exact").expect("canary must pass");
+    let mut json: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&receipt_path).unwrap()).unwrap();
+    assert!(
+        json.as_object_mut()
+            .unwrap()
+            .remove("raw_output_sha256")
+            .is_some()
+    );
+    std::fs::write(&receipt_path, serde_json::to_vec(&json).unwrap()).unwrap();
+    let err = xtask::proof::validate_receipt_file(&receipt_path)
+        .expect_err("a count-only legacy receipt must be regenerated");
+    assert!(format!("{err:#}").contains("missing field `raw_output_sha256`"));
 }
 
 #[test]

@@ -22,6 +22,13 @@ cargo run -p adze-cli -- --help
 The examples below use `adze` as shorthand. When running them from a checkout,
 replace the leading `adze` with `cargo run -p adze-cli --`.
 
+`build` and `test` use the current directory if you omit the path. To test a
+grammar project in a sibling directory, run this from the checkout root:
+
+```bash
+cargo run -p adze-cli -- test ../my-grammar
+```
+
 A crates.io install is not the verified path here. The
 [release decision tracker (#325)](https://github.com/EffortlessMetrics/adze-swarm/issues/325)
 tracks the separate release and post-publish install receipt.
