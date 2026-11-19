@@ -110,7 +110,7 @@ fn execute(
     println!("installed binary: {}", install.binary_path.display());
 
     registry.evidence_stage("installed_cli_init_unqualified")?;
-    let starter = registry.init_starter_project(&install.binary_path, root, "calc")?;
+    let mut starter = registry.init_starter_project(&install.binary_path, root, "calc")?;
     println!("starter project: {}", starter.project_dir.display());
 
     println!();

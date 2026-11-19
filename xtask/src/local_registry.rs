@@ -21,6 +21,8 @@ use tempfile::TempDir;
 mod provenance;
 #[path = "local_registry_starter.rs"]
 mod starter;
+#[path = "local_registry_starter_inputs.rs"]
+mod starter_inputs;
 
 pub const REGISTRY_NAME: &str = "adze-local";
 
@@ -36,6 +38,7 @@ pub struct LocalCliInstall {
 }
 
 pub struct StarterProject {
+    inputs: starter_inputs::StarterInputs,
     pub _parent: TempDir,
     pub project_dir: PathBuf,
 }
@@ -409,6 +412,9 @@ impl IsolatedRegistry {
         workspace_root: &Path,
         project_name: &str,
     ) -> Result<StarterProject> {
+        if Path::new(project_name).file_name() != Some(OsStr::new(project_name)) {
+            bail!("starter project name must name one child of the owned parent");
+        }
         let parent = tempfile::Builder::new()
             .prefix("adze-local-starter-")
             .tempdir()
@@ -443,12 +449,15 @@ impl IsolatedRegistry {
                 project_dir.display()
             );
         }
-        let manifest = fs::read_to_string(project_dir.join("Cargo.toml")).with_context(|| {
-            format!(
-                "reading generated {}",
-                project_dir.join("Cargo.toml").display()
-            )
-        })?;
+        let provenance = self
+            .provenance
+            .as_ref()
+            .context("starter evidence requires source provenance")?;
+        let (mut inputs, manifest) = starter_inputs::StarterInputs::create(
+            provenance.root(),
+            provenance.command_source()?,
+            &project_dir,
+        )?;
         if manifest_contains_path_dependency(&manifest) {
             bail!(
                 "generated starter at {} still resolves path dependencies; expected registry versions",
@@ -478,7 +487,9 @@ impl IsolatedRegistry {
             );
         }
 
+        inputs.expect_effective(pinned.as_bytes())?;
         Ok(StarterProject {
+            inputs,
             _parent: parent,
             project_dir,
         })
@@ -486,17 +497,14 @@ impl IsolatedRegistry {
 }
 
 impl StarterProject {
-    pub fn run_starter_proof(&self, registry: &IsolatedRegistry) -> Result<Vec<CapturedCommand>> {
-        let provenance = registry
-            .provenance
-            .as_ref()
-            .context("starter journal requires source evidence")?;
+    pub fn run_starter_proof(
+        &mut self,
+        registry: &IsolatedRegistry,
+    ) -> Result<Vec<CapturedCommand>> {
         let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
         starter::run(
-            provenance.root(),
-            provenance.command_source()?,
+            &mut self.inputs,
             &cargo,
-            &self.project_dir,
             registry.cargo_home.path(),
             registry.target_dir.path(),
         )

@@ -10,9 +10,10 @@ use std::process::Command;
 use anyhow::{Context, Result, bail};
 
 use super::CapturedCommand;
+use super::starter_inputs::StarterInputs;
 use crate::local_release_command::{
     CapturePolicy, CommandJournal, CommandObservation, EnvironmentChange, JournalLimits,
-    RecordedObservation, ReleaseCommand, SourceBinding,
+    RecordedObservation, ReleaseCommand,
 };
 
 const PLAN: [(&str, &[&str]); 3] = [
@@ -46,14 +47,47 @@ fn policy() -> CapturePolicy {
 }
 
 pub(super) fn run(
-    root: &Path,
-    source: SourceBinding,
+    inputs: &mut StarterInputs,
     cargo: &OsStr,
-    cwd: &Path,
     cargo_home: &Path,
     target: &Path,
 ) -> Result<Vec<CapturedCommand>> {
-    let mut journal = CommandJournal::create(root, source, limits())?;
+    let before = inputs.observe(None, "not_started");
+    if inputs.changed || before.is_err() {
+        let reason = if inputs.changed {
+            "starter inputs changed before the first command"
+        } else {
+            "starter input preflight unavailable"
+        };
+        let all = PLAN.map(|(name, _)| name);
+        let recorded = with_evidence(before, inputs.stopped(reason, &all));
+        return with_evidence(
+            Err(anyhow::anyhow!("{reason}; no starter command started")),
+            recorded,
+        );
+    }
+    let result = run_commands(inputs, cargo, cargo_home, target);
+    let verified = inputs.verify(result.is_ok());
+    with_evidence(result, verified)
+}
+
+fn with_evidence<T>(result: Result<T>, evidence: Result<()>) -> Result<T> {
+    match (result, evidence) {
+        (Ok(value), Ok(())) => Ok(value),
+        (Err(error), Ok(())) | (Ok(_), Err(error)) => Err(error),
+        (Err(original), Err(secondary)) => Err(original.context(format!(
+            "also failed to retain/verify starter inputs: {secondary:#}"
+        ))),
+    }
+}
+
+fn run_commands(
+    inputs: &mut StarterInputs,
+    cargo: &OsStr,
+    cargo_home: &Path,
+    target: &Path,
+) -> Result<Vec<CapturedCommand>> {
+    let mut journal = CommandJournal::create(&inputs.root, inputs.source.clone(), limits())?;
     let env = [("CARGO_HOME", cargo_home), ("CARGO_TARGET_DIR", target)].map(|(name, value)| {
         EnvironmentChange::Set {
             name: name.into(),
@@ -62,20 +96,79 @@ pub(super) fn run(
         }
     });
     let mut observations = Vec::new();
-    for (name, args) in PLAN {
+    let mut snapshots = Ok(());
+    for (index, (name, args)) in PLAN.into_iter().enumerate() {
         let request = ReleaseCommand::new(
             name.into(),
             cargo.into(),
             args.iter().map(OsString::from).collect(),
-            cwd.into(),
+            inputs.project.clone(),
             env.to_vec(),
             policy(),
         )?;
-        observations.push(capture(&mut journal, request)?);
+        let observation = capture(&mut journal, request);
+        let outcome = match &observation {
+            Ok(obs) if obs.natural_status().is_some_and(|s| s.success()) => "status_success",
+            Ok(_) => "status_unsuccessful",
+            Err(_) => "capture_or_recording_error",
+        };
+        let evidence = inputs.observe(Some((index + 1, name)), outcome);
+        snapshots = with_evidence(snapshots, evidence);
+        match observation {
+            Err(original) => {
+                let remaining: Vec<_> = PLAN[index + 1..].iter().map(|(name, _)| *name).collect();
+                let reason = if inputs.changed {
+                    "command capture or recording failed; input change observed"
+                } else {
+                    "command capture or recording failed"
+                };
+                let stopped = inputs.stopped(reason, &remaining);
+                return with_evidence(Err(original), with_evidence(snapshots, stopped));
+            }
+            Ok(observed) => observations.push(observed),
+        }
+
+        // Confirmed drift or unreadable inputs stop further launches. A
+        // failed sidecar write after stable inputs were observed still vetoes
+        // the final result, without hiding an existing Cargo diagnostic.
+        if inputs.changed || !inputs.inputs_read {
+            let reason = if inputs.changed {
+                "starter inputs changed"
+            } else {
+                "starter input observation unavailable"
+            };
+            let remaining: Vec<_> = PLAN[index + 1..].iter().map(|(name, _)| *name).collect();
+            let stopped = inputs.stopped(reason, &remaining);
+            let actual = observations
+                .iter()
+                .map(|obs| {
+                    let diagnostic = std::str::from_utf8(obs.stderr())
+                        .ok()
+                        .unwrap_or("[see binary stderr]");
+                    format!(
+                        "{} ({}); {}: {}",
+                        obs.request().name(),
+                        obs.natural_status()
+                            .map_or_else(|| "no natural status".into(), |s| s.to_string()),
+                        obs.completion_path().display(),
+                        diagnostic.chars().take(400).collect::<String>()
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            return with_evidence(
+                Err(anyhow::anyhow!(
+                    "{reason} after {name}; not run: {remaining:?}; recorded: {actual}"
+                )),
+                with_evidence(snapshots, stopped),
+            );
+        }
     }
-    let commands = project_plan(root, &observations)?;
-    crate::local_release_receipt::validate_starter_proof(&commands)?;
-    Ok(commands)
+    let journey = project_plan(&inputs.root, &observations).and_then(|commands| {
+        crate::local_release_receipt::validate_starter_proof(&commands)?;
+        Ok(commands)
+    });
+    with_evidence(journey, snapshots)
 }
 
 fn capture(journal: &mut CommandJournal, request: ReleaseCommand) -> Result<RecordedObservation> {
