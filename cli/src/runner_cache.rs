@@ -63,9 +63,6 @@ const MAX_MANIFEST_BYTES: u64 = 1 << 20;
 const MAX_EXECUTABLE_BYTES: u64 = 256 << 20;
 /// Bounded tail kept in `build.log` for post-mortem diagnosis.
 const BUILD_LOG_TAIL: usize = 8192;
-/// Test-only hook: when `ADZE_TEST_CARGO_COUNT_FILE` names a file, every
-/// spawned Cargo invocation appends one line (acceptance instrumentation).
-const COUNT_ENV: &str = "ADZE_TEST_CARGO_COUNT_FILE";
 
 /// Fully rendered inputs for one runner compilation.
 pub(crate) struct RunnerSpec<'a> {
@@ -773,7 +770,6 @@ pub(crate) fn build_and_publish(
     }
 
     eprintln!("compiling parse runner...");
-    note_cargo_spawn();
     let invocation = RunnerInvocation {
         program: "cargo".into(),
         args: vec![
@@ -846,22 +842,6 @@ pub(crate) fn build_and_publish(
         .ok_or_else(|| anyhow::anyhow!("published runner artifact failed validation"))
         .context(CacheExecutionAttempted)?;
     Ok(CachedBuild::Ready(lease))
-}
-
-/// Record one Cargo spawn for the test-only invocation counter.
-pub(crate) fn note_cargo_spawn() {
-    if let Ok(path) = std::env::var(COUNT_ENV)
-        && !path.is_empty()
-    {
-        use std::io::Write as _;
-        if let Ok(mut file) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)
-        {
-            let _ = writeln!(file, "cargo");
-        }
-    }
 }
 
 fn hash_str(hasher: &mut Sha256, value: &str) {

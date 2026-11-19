@@ -953,9 +953,11 @@ fn run_static_parse_runner(
     }
 
     let module = single_top_level_grammar_module(&grammar)?;
-    let process = runner_invocation::ProcessRunner::new(
-        std::env::current_exe().context(runner_invocation::ProcessFailure)?,
-    );
+    #[cfg(windows)]
+    let bootstrap = std::env::current_exe().context(runner_invocation::ProcessFailure)?;
+    #[cfg(not(windows))]
+    let bootstrap = PathBuf::new(); // ProcessRunner needs an executable only on Windows.
+    let process = runner_invocation::ProcessRunner::new(bootstrap);
     let spec = runner_cache::RunnerSpec {
         grammar: &grammar,
         module: &module,
@@ -1055,7 +1057,6 @@ fn run_static_parse_runner_uncached(
     fs::write(src_dir.join("main.rs"), &spec.main_rs)?;
 
     eprintln!("compiling temporary parse runner (first run may take a while)...");
-    runner_cache::note_cargo_spawn();
     let invocation = runner_invocation::RunnerInvocation {
         program: "cargo".into(),
         args: vec![
@@ -1931,9 +1932,7 @@ mod tests {
     fn test_direct_runner_keeps_completed_output_admission() {
         use std::os::unix::fs::PermissionsExt;
         let temp = tempfile::tempdir().unwrap();
-        let process = super::runner_invocation::ProcessRunner::new(
-            std::env::current_exe().expect("test executable identity"),
-        );
+        let process = super::runner_invocation::ProcessRunner::new(std::path::PathBuf::new());
         let executable = temp.path().join("runner");
         let input = temp.path().join("input λ.txt");
         std::fs::write(&input, "x").unwrap();

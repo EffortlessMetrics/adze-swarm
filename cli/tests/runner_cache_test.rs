@@ -1,12 +1,85 @@
 //! Fail-closed cache admission for issue #1067: incomplete dependency/config
 //! custody must use Cargo on every parse and never execute existing entries.
 //!
-//! Uses a real `adze init` starter grammar (not a fake runner) and counts
-//! actual `cargo` spawns through `ADZE_TEST_CARGO_COUNT_FILE`.
+//! Uses a real `adze init` starter and counts actual Cargo spawns solely
+//! through an owned test fixture. The shipping CLI does not observe the log.
 
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
-use std::path::Path;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+struct CountingCargo {
+    _bin: tempfile::TempDir,
+    executable: PathBuf,
+    count_file: PathBuf,
+    shim_path: OsString,
+    original_path: Option<OsString>,
+}
+
+impl CountingCargo {
+    fn new(count_file: &Path) -> Self {
+        let real = Path::new(env!("CARGO"));
+        assert!(
+            real.is_absolute() && real.is_file(),
+            "cannot bind real Cargo: {real:?}"
+        );
+        let bin = tempfile::Builder::new()
+            .prefix("observed cargo ")
+            .tempdir_in(count_file.parent().unwrap())
+            .unwrap();
+        let executable = bin
+            .path()
+            .join(format!("cargo{}", std::env::consts::EXE_SUFFIX));
+        let source =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cargo_count_forwarder.rs");
+        let built = Command::new(std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into()))
+            .args([
+                "--edition=2024",
+                "-Dwarnings",
+                "--crate-name",
+                "adze_test_cargo_forwarder",
+            ])
+            .arg(source)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .expect("compile the test-only Cargo forwarding fixture");
+        assert!(
+            built.status.success(),
+            "Cargo forwarding fixture compilation failed: {}",
+            String::from_utf8_lossy(&built.stderr)
+        );
+
+        let original_path = std::env::var_os("PATH");
+        let mut paths = vec![bin.path().to_owned()];
+        if let Some(path) = original_path.as_deref() {
+            paths.extend(std::env::split_paths(path));
+        }
+        Self {
+            _bin: bin,
+            executable,
+            count_file: count_file.to_owned(),
+            shim_path: std::env::join_paths(paths).unwrap(),
+            original_path,
+        }
+    }
+
+    fn configure(&self, command: &mut assert_cmd::Command) {
+        command
+            .env("PATH", &self.shim_path)
+            // Invoke the original absolute path, not canonicalized (a rustup
+            // proxy may rely on its cargo executable name).
+            .env("ADZE_TEST_FORWARD_CARGO", env!("CARGO"))
+            .env("ADZE_TEST_FORWARD_LOG", &self.count_file);
+        if let Some(path) = &self.original_path {
+            command.env("ADZE_TEST_FORWARD_PATH", path);
+        } else {
+            command.env_remove("ADZE_TEST_FORWARD_PATH");
+        }
+    }
+}
 
 fn cargo_spawns(count_file: &Path) -> usize {
     std::fs::read_to_string(count_file)
@@ -18,20 +91,53 @@ fn parse_with_cache(
     grammar: &Path,
     input: &Path,
     cache_dir: &Path,
-    count_file: &Path,
+    cargo: &CountingCargo,
 ) -> assert_cmd::assert::Assert {
     // A shared target dir keeps repeated cold builds in one test from
     // recompiling unchanged path dependencies; it changes artifact
     // placement only, never build identity or Cargo spawn counts.
     let target_dir = cache_dir.with_file_name("shared-target");
     let mut cmd = cargo_bin_cmd!("adze");
+    cargo.configure(&mut cmd);
     cmd.env("ADZE_RUNNER_CACHE_DIR", cache_dir)
-        .env("ADZE_TEST_CARGO_COUNT_FILE", count_file)
         .env("CARGO_TARGET_DIR", &target_dir)
         .arg("parse")
         .arg(grammar)
         .arg(input)
         .assert()
+}
+
+#[test]
+fn test_owned_cargo_observer_forwards_native_status_and_output() {
+    let temp = tempfile::tempdir().unwrap();
+    let count_file = temp.path().join("cargo count λ.txt");
+    let cargo = CountingCargo::new(&count_file);
+    for (index, args) in [
+        ["--version", "--verbose"],
+        ["--version", "--adze-test-no-such-option"],
+    ]
+    .iter()
+    .enumerate()
+    {
+        let expected = Command::new(env!("CARGO"))
+            .args(args)
+            .current_dir(temp.path())
+            .output()
+            .unwrap();
+        assert_eq!(expected.status.success(), index == 0);
+        let mut observed = assert_cmd::Command::new(&cargo.executable);
+        cargo.configure(&mut observed);
+        let actual = observed
+            .args(args)
+            .current_dir(temp.path())
+            .timeout(std::time::Duration::from_secs(15))
+            .output()
+            .unwrap();
+        assert_eq!(actual.status, expected.status);
+        assert_eq!(actual.stdout, expected.stdout);
+        assert_eq!(actual.stderr, expected.stderr);
+        assert_eq!(cargo_spawns(&count_file), index + 1);
+    }
 }
 
 #[test]
@@ -41,6 +147,7 @@ fn test_unresolved_build_identity_rebuilds_and_parses_fresh_input() {
     std::fs::create_dir_all(&spaced).expect("spaced dir");
     let cache_dir = spaced.join("runner-cache");
     let count_file = spaced.join("cargo-count.txt");
+    let cargo = CountingCargo::new(&count_file);
     let mut init = cargo_bin_cmd!("adze");
     init.arg("init")
         .arg("calc")
@@ -54,7 +161,7 @@ fn test_unresolved_build_identity_rebuilds_and_parses_fresh_input() {
     std::fs::write(&input_a, "123").expect("input a");
     std::fs::write(&input_b, "1 + 2").expect("input b");
 
-    let first = parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
+    let first = parse_with_cache(&grammar, &input_a, &cache_dir, &cargo)
         .success()
         .stdout(predicate::str::contains("Expr"))
         .stdout(predicate::str::contains("[0..3]"))
@@ -62,7 +169,7 @@ fn test_unresolved_build_identity_rebuilds_and_parses_fresh_input() {
         .stdout
         .clone();
     assert_eq!(cargo_spawns(&count_file), 1);
-    parse_with_cache(&grammar, &input_b, &cache_dir, &count_file)
+    parse_with_cache(&grammar, &input_b, &cache_dir, &cargo)
         .success()
         .stdout(predicate::str::contains("Expr_Add"))
         .stdout(predicate::str::contains("[0..5]"));
@@ -71,7 +178,7 @@ fn test_unresolved_build_identity_rebuilds_and_parses_fresh_input() {
         2,
         "unresolved dependencies/configuration require Cargo validation on every invocation"
     );
-    let repeated = parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
+    let repeated = parse_with_cache(&grammar, &input_a, &cache_dir, &cargo)
         .success()
         .stdout(predicate::str::contains("[0..3]"))
         .get_output()
@@ -93,6 +200,7 @@ fn test_runner_cache_disablement_falls_back_to_temp_build() {
     let temp = tempfile::tempdir().expect("tempdir");
     let cache_dir = temp.path().join("runner-cache");
     let count_file = temp.path().join("cargo-count.txt");
+    let cargo = CountingCargo::new(&count_file);
 
     let mut init = cargo_bin_cmd!("adze");
     init.arg("init")
@@ -109,8 +217,8 @@ fn test_runner_cache_disablement_falls_back_to_temp_build() {
     let target_dir = cache_dir.with_file_name("shared-target");
     for _ in 0..2 {
         let mut cmd = cargo_bin_cmd!("adze");
+        cargo.configure(&mut cmd);
         cmd.env("ADZE_RUNNER_CACHE_DIR", &cache_dir)
-            .env("ADZE_TEST_CARGO_COUNT_FILE", &count_file)
             .env("CARGO_TARGET_DIR", &target_dir)
             .env("ADZE_RUNNER_CACHE", "off")
             .arg("parse")
@@ -139,6 +247,7 @@ fn test_unsupported_closure_falls_back_to_fresh_build() {
     let temp = tempfile::tempdir().expect("tempdir");
     let cache_dir = temp.path().join("runner-cache");
     let count_file = temp.path().join("cargo-count.txt");
+    let cargo = CountingCargo::new(&count_file);
 
     let mut init = cargo_bin_cmd!("adze");
     init.arg("init")
@@ -162,7 +271,7 @@ fn test_unsupported_closure_falls_back_to_fresh_build() {
     std::fs::write(&input, "9").expect("write input");
 
     for _ in 0..2 {
-        parse_with_cache(&grammar, &input, &cache_dir, &count_file)
+        parse_with_cache(&grammar, &input, &cache_dir, &cargo)
             .success()
             .stdout(predicate::str::contains("[0..1]"));
     }
@@ -206,6 +315,7 @@ fn test_cached_runner_builds_once_reuses_binary_and_recovers() {
     std::fs::create_dir_all(&spaced).expect("spaced dir");
     let cache_dir = spaced.join("runner-cache");
     let count_file = spaced.join("cargo-count.txt");
+    let cargo = CountingCargo::new(&count_file);
 
     let mut init = cargo_bin_cmd!("adze");
     init.arg("init")
@@ -221,7 +331,7 @@ fn test_cached_runner_builds_once_reuses_binary_and_recovers() {
     std::fs::write(&input_b, "1 + 2").expect("write input b");
 
     // Cold parse builds exactly once through Cargo.
-    let first = parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
+    let first = parse_with_cache(&grammar, &input_a, &cache_dir, &cargo)
         .success()
         .stdout(predicate::str::contains("Expr"))
         .stdout(predicate::str::contains("[0..3]"))
@@ -236,7 +346,7 @@ fn test_cached_runner_builds_once_reuses_binary_and_recovers() {
 
     // Warm parse of DIFFERENT input reuses the binary: zero new Cargo
     // invocations, fresh parse of the new text.
-    parse_with_cache(&grammar, &input_b, &cache_dir, &count_file)
+    parse_with_cache(&grammar, &input_b, &cache_dir, &cargo)
         .success()
         .stdout(predicate::str::contains("Expr_Add"))
         .stdout(predicate::str::contains("[0..5]"));
@@ -248,7 +358,7 @@ fn test_cached_runner_builds_once_reuses_binary_and_recovers() {
 
     // Same input parses identically cold and warm: caching never changes the
     // outcome or diagnostics.
-    let warm_same = parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
+    let warm_same = parse_with_cache(&grammar, &input_a, &cache_dir, &cargo)
         .success()
         .stdout(predicate::str::contains("[0..3]"))
         .get_output()
@@ -260,7 +370,7 @@ fn test_cached_runner_builds_once_reuses_binary_and_recovers() {
     // A corrupt entry is refused and rebuilt, never executed.
     let corrupted = corrupt_every_entry_manifest(&cache_dir);
     assert!(corrupted >= 1, "cold build must have published an entry");
-    parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
+    parse_with_cache(&grammar, &input_a, &cache_dir, &cargo)
         .success()
         .stdout(predicate::str::contains("[0..3]"));
     assert_eq!(
@@ -273,7 +383,7 @@ fn test_cached_runner_builds_once_reuses_binary_and_recovers() {
     let mut source = std::fs::read_to_string(&grammar).expect("read grammar");
     source.push_str("\n// cache-invalidation probe\n");
     std::fs::write(&grammar, source).expect("rewrite grammar");
-    parse_with_cache(&grammar, &input_a, &cache_dir, &count_file)
+    parse_with_cache(&grammar, &input_a, &cache_dir, &cargo)
         .success()
         .stdout(predicate::str::contains("[0..3]"));
     assert_eq!(
@@ -283,7 +393,7 @@ fn test_cached_runner_builds_once_reuses_binary_and_recovers() {
     );
 
     // The rebuilt entry is reused again with zero Cargo invocations.
-    parse_with_cache(&grammar, &input_b, &cache_dir, &count_file)
+    parse_with_cache(&grammar, &input_b, &cache_dir, &cargo)
         .success()
         .stdout(predicate::str::contains("[0..5]"));
     assert_eq!(cargo_spawns(&count_file), 3);
