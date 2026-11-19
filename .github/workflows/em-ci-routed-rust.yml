@@ -843,6 +843,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 2
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@master
         with:
@@ -928,6 +930,14 @@ jobs:
           run_required_glr_test 'native LR work-budget and lifecycle (pure-rust,glr)' \
             cargo test --locked -p adze --no-default-features --features pure-rust,glr \
             --lib pure_parser::work_budget_tests:: -- --nocapture
+      - name: Qualify the config-dsl edit journey for affected queue changes
+        if: github.event_name == 'merge_group'
+        timeout-minutes: 10
+        env:
+          BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          EXPECTED_HEAD: ${{ github.event.merge_group.head_sha }}
+        run: bash scripts/check-config-edit-journey.sh
+
       - name: Run supported proof (fmt + clippy + tests on 7 core crates)
         run: just ci-supported
 
