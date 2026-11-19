@@ -1,30 +1,20 @@
-# Quick Start - Get Parsing in 5 Minutes
+# Quick start: The generated arithmetic parser
 
-> **Doc status:** matches Adze 0.9.0 in this checkout.
-> If something here disagrees with the repo, treat the repo as truth
-> and log it in [`docs/status/FRICTION_LOG.md`](./docs/status/FRICTION_LOG.md).
+Generate an Adze starter from a checkout, run its tests, and inspect the Rust
+value returned by the parser. [Build your first parser](./docs/tutorials/quickstart-10-minutes.md)
+is the shorter walkthrough. Both use the CLI and dependencies from this checkout,
+not a published package.
 
-**Goal**: Get a working parser running in 5 minutes or less.
+## Step 1: Create the project
 
-This is the same first-hour path as
-[docs/tutorials/quickstart-10-minutes.md](./docs/tutorials/quickstart-10-minutes.md):
-generate the starter project with `adze init`, then run its tests and
-parse example. The intended published install command is
-`cargo install adze-cli`, but the current repo proof uses the CLI built
-from this checkout until `adze-cli` is published as a crates.io install
-surface.
-
----
-
-## Step 1: Create the Project (1 minute)
-
-From this repo checkout, build the CLI and generate the starter parser:
+From the checkout root, choose an unused project name (`calc` below). The
+checkout pins Rust 1.95.0.
 
 ```bash
 cargo run -p adze-cli -- init calc
 cd calc
 cargo test
-cargo run --example parse -- "1 + 2 * 3"
+cargo run --quiet --example parse -- "1 + 2 * 3"
 ```
 
 The generated project contains:
@@ -45,10 +35,8 @@ README.md
 Add(Number(1), (), Mul(Number(2), (), Number(3)))
 ```
 
-The starter grammar parses arithmetic expressions into typed Rust
-values. The repository keeps the same user-shaped proof in
-`testing/downstream-starter`; that proof covers the starter-project
-shape and downstream wiring, not crates.io installation.
+The starter grammar parses arithmetic expressions into typed Rust values.
+The generated tests also check invalid input and document diagnostics.
 
 ---
 
@@ -78,7 +66,7 @@ pub use grammar_file::grammar;
 
 ---
 
-## Step 3: Define Your Grammar (2 minutes)
+## Step 3: Read the grammar
 
 The generated `src/grammar.rs` defines the grammar as Rust types:
 
@@ -115,7 +103,7 @@ pub mod grammar {
 
 ---
 
-## Step 4: Parse and Handle Errors (1 minute)
+## Step 4: Parse and handle errors
 
 The generated `examples/parse.rs` parses into those types:
 
@@ -148,27 +136,12 @@ itself with `{}` does not compile.
 Run it with valid and invalid input:
 
 ```bash
-cargo run --example parse -- "1 + 2 * 3"
-cargo run --example parse -- "1 + @"
+cargo run --quiet --example parse -- "1 + 2 * 3"
+cargo run --quiet --example parse -- "1 + @"
 ```
 
 The second command exits nonzero and renders the parse errors with
 their byte spans, expected tokens, and a source caret.
-
----
-
-## 🎉 Success!
-
-You just:
-
-- ✅ Generated a starter parser project with `adze init`
-- ✅ Defined a grammar with operator precedence
-- ✅ Generated a parser at compile time
-- ✅ Parsed `1 + 2 * 3` correctly as `1 + (2 * 3)`
-- ✅ Got a typed Rust AST
-- ✅ Rendered structured parse errors for invalid input
-
-**Total time**: ~5 minutes
 
 ---
 
@@ -190,11 +163,11 @@ You just:
 ### Try Different Inputs
 
 ```bash
-cargo run --example parse -- "1 + 2"
-cargo run --example parse -- "5 * 6"
-cargo run --example parse -- "1 + 2 * 3"
-cargo run --example parse -- "10"
-cargo run --example parse -- "1 + @"
+cargo run --quiet --example parse -- "1 + 2"
+cargo run --quiet --example parse -- "5 * 6"
+cargo run --quiet --example parse -- "1 + 2 * 3"
+cargo run --quiet --example parse -- "10"
+cargo run --quiet --example parse -- "1 + @"
 ```
 
 ### Add More Operators
@@ -243,8 +216,8 @@ tokens.
 
 ## Learn More
 
-- **10-Minute Tutorial**: [docs/tutorials/quickstart-10-minutes.md](./docs/tutorials/quickstart-10-minutes.md)
-- **Full Tutorial**: [docs/tutorials/getting-started.md](./docs/tutorials/getting-started.md)
+- [Build your first parser](./docs/tutorials/quickstart-10-minutes.md)
+- [Getting started](./docs/tutorials/getting-started.md)
 - **More Examples**: [example/src/](./example/src/)
 - **API Docs**: [docs/reference/api.md](./docs/reference/api.md)
 - **Architecture**: [docs/explanations/architecture.md](./docs/explanations/architecture.md)
@@ -256,8 +229,3 @@ tokens.
 - **Questions?** Check [FAQ.md](./FAQ.md)
 - **Stuck?** [GitHub Issues](https://github.com/EffortlessMetrics/adze/issues)
 - **Want to contribute?** See [CONTRIBUTING.md](./CONTRIBUTING.md)
-- **Report bugs**: [GitHub Issues](https://github.com/EffortlessMetrics/adze/issues)
-
----
-
-**Ready to build something bigger?** Check out the [full tutorial](./docs/tutorials/getting-started.md)!

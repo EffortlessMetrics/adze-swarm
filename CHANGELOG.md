@@ -4,25 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.10.0] - Unreleased candidate
+## [0.10.0] - In development
 
-**Focus**: True-GLR streaming runtime, fallible extraction, document outcomes and diagnostics, CLI safety, and the ledger-selected release graph.
-
-**Summary**: Draft candidate cut from `2798d169` on `main` (EffortlessMetrics/adze-swarm). All 12 release-graph crates (`adze`, `adze-cli`, `adze-common`, `adze-glr-core`, `adze-ir`, `adze-macro`, `adze-tablegen`, `adze-tool`, `adze-bdd-governance-core`, `adze-common-type-ops-core`, `adze-linecol-core`, `adze-parsetable-metadata`) report 0.10.0. This entry is a candidate only: no tag, signing, or publication is implied, and no crates.io installation is claimed; publication stays under #325/#881.
+Changes for 0.10.0 include streaming GLR parsing, fallible token conversion,
+document outcomes and diagnostics, and fixes to the CLI starter and runner.
+[Support tiers](./docs/status/SUPPORT_TIERS.md) describes which paths are supported.
+This changelog is not a release announcement or a crates.io install receipt.
+See [the release tracker](https://github.com/EffortlessMetrics/adze-swarm/issues/325)
+for publication and install verification.
 
 ### Added
-- **Streaming true-GLR runtime**: generated internal lexers and external scanners adapted to the streaming driver, conflicted parses routed through it, and the fixed pretokenization bridge removed from the supported path (#889–#892, #921, #922, #932, #954–#962)
+- **Streaming GLR runtime**: generated internal lexers and external scanners adapted to the streaming driver, conflicted parses routed through it, and the fixed pretokenization bridge removed from the supported path (#889–#892, #921, #922, #932, #954–#962)
 - **Explicit document outcome**: generated `parse_document` reports Complete/Recovered/Failed, with direct flat-record traversal, sibling access, and construction validation (#1036, #1094)
 - **Fallible leaf transforms**: `try_transform` extraction with structured conversion diagnostics and invalid-leaf failures that never call the converter (#864, #1045, #1082, #1085)
 - **Release graph authority**: explicit Cargo publish metadata, a package-policy checker, and the generated ledger-selected release crate graph consumed by release tooling (#855, #904–#908)
-- **Local-registry receipts**: publish/install/`adze init` scaffold proof against an isolated local registry with machine-readable receipts (#856, #909–#912)
+- **Local-registry testing**: tooling to exercise packaging, installation, and `adze init` against an isolated registry (#856, #909–#912)
 - **Conformance profile**: nullable/FIRST/FOLLOW spec, corpus, independent Python reference, and denominator-complete Rust/Python agreement receipt (#974–#977)
 - **Friendly ABI aliases** for TS-prefixed runtime types and node-types field cardinality derived from grammar structure (#871, #1055, #1032)
 
 ### Changed
 - **Diagnostics**: true EOF named as end of input, GLR cannot-lex errors point at the offending byte, and expected tokens use friendly names (#1007–#1021)
 - **IR normalization**: total `RuleId`-to-`ProductionId` map, full-symbol-domain helper allocation, and field origins preserved when sequences flatten (#978–#981, #1044–#1054)
-- **CLI safety**: `adze init` cannot overwrite existing projects or escape its output root, staging uses no-replace commit, and `adze test` honors the requested project path (#997, #1023, #1024, #1073, #1092)
+- **CLI project handling**: `adze init` refuses a non-empty destination and validates the project name; `adze test` uses the requested project path (#997, #1023, #1024, #1073, #1092)
 
 ### Fixed
 - **Ambiguity retention**: reduce/reduce and shift/reduce ambiguity retained in the streaming driver with deterministic document-JSON summaries (#954, #955, #959, #1021, #1037)
@@ -33,57 +36,51 @@ All notable changes to this project will be documented in this file.
 - **ABI safety**: generated ABI construction rejects right-hand sides longer than the child-count limit instead of silently truncating them (#1077)
 - **Bool leaf variants**: variant-level `#[adze::leaf(text = "true")]` variants extract by token kind instead of panicking during enum-variant determination (#1107)
 - **Parse-error diagnostics**: GLR CSV parse errors report expected tokens and distinct multi-error diagnostics, and a trailing list delimiter is reported at the delimiter itself (#1097)
-- **CLI build/init**: `adze build` works outside a Cargo build script (no undocumented `OUT_DIR` requirement), `adze-gen init` no longer overwrites user files, and `adze parse` failures surface the runner's root cause instead of an opaque exit code (#1079, #1080, #1099)
+- **CLI build/init**: `adze build` works outside a Cargo build script (no undocumented `OUT_DIR` requirement), `adze-gen init` is retired and points users to `adze init`, and `adze parse` failures surface the runner's root cause instead of an opaque exit code (#1079, #1080, #1099)
 - **Release tooling**: the xtask release-install dry run no longer overflows the Windows main-thread stack (#1098), and the QUICK_START guide's examples compile and are compile-tested (#1100)
 
 ### Known limitations
 - Nested grammar support is bounded: `ALIAS` is rejected rather than implemented, and dynamic precedence (`PREC_DYNAMIC`) is approximated (#1076).
 - Unit leaf variants (for example a keyword-only enum variant) still have no token-root extraction; variant-level leaves with fields are supported (#1107).
 - Package-first release receipts are pending: the local-registry receipt lane exists, but a qualified 0.10.0 package-first receipt has not been recorded yet.
-- This candidate makes no crates.io-install claim; end-user installation from crates.io is not available until the separate publication decision (#325) lands.
+- Installation of the 0.10.0 packages from crates.io is not verified.
 
 ---
 
 ## [0.9.0]
 
-**Focus**: Test infrastructure, quality hardening, documentation, security audit, and RC readiness.
-
-**Summary**: 10 waves of parallel agent work, 75+ commits. 1,700+ tests passing with 0 failures.
-All supported crates are fmt clean, clippy clean, and fully tested. WASM verified, security clean.
+Added parser and grammar test infrastructure, expanded the documentation, and
+introduced advisory platform checks.
 
 ### Added
-- **1,700+ tests** across all supported crates, covering unit, integration, snapshot, property-based, and end-to-end scenarios
 - **BDD scenario tests** for runtime crate using declarative test patterns
 - **Property-based testing** with `proptest` for grammar and parser invariants
 - **Mutation testing** setup with `cargo-mutants` for test-quality verification
-- **Feature combination verification** script to validate all feature-flag permutations
+- **Feature combination checks** for selected feature sets
 - **Benchmark baselines** with `criterion` for parser and table-generation performance
-- **20 fuzz targets** covering parser inputs, grammar construction, serialization, external scanners, stack pool, and concurrency
+- **Fuzz targets** for parser inputs, grammar construction, serialization, external scanners, stack pool, and concurrency
 - **Golden test expansion** — additional reference grammars and hash-verified parse trees
 - **Cross-crate integration tests** validating the full IR → GLR → tablegen → runtime pipeline
-- **Book with 6+ chapters**: grammar design, GLR parsing, external scanners, API reference, and more
+- **Book** covering grammar design, GLR parsing, external scanners, and the API
 - **Cross-platform CI advisory jobs** for macOS and Windows alongside Linux verification
 - **Publish order documentation** for crates.io release sequence
 - **`.editorconfig` and VS Code settings** for consistent contributor experience
-- **Security audit** with `cargo-audit` — 0 known vulnerabilities
 
 ### Fixed
-- All **clippy warnings resolved** across supported crates
-- **Rustdoc warnings eliminated** for clean `cargo doc` builds
+- Fixed Clippy and rustdoc warnings
 - **Runtime compilation errors** fixed for edge-case feature combinations
-- **Error messages improved** — 38 diagnostic messages made more actionable
+- Updated parser diagnostics
 - **Snapshot test assertions corrected** to match current parser output
 
 ### Changed
-- **WASM build compatibility** verified for all core crates (`wasm32-unknown-unknown`, `wasm32-wasi`)
+- Added WASM build checks
 - **Workspace dependencies centralized** — 9 common deps lifted to `[workspace.dependencies]`
 - **`cargo-deny` configuration** updated with current advisory database
 - **CI workflow enhanced** with feature matrix covering default, `glr-core`, `incremental`, and `all-features`
 - **Concurrency caps** standardized across CI and local testing (RUST_TEST_THREADS=2, RAYON_NUM_THREADS=4)
 
 ### Security
-- **SAFETY comments** added to all `unsafe` blocks per Rust best practices
-- **`cargo-audit` clean** — 0 advisories across the full dependency tree
+- Added safety comments to `unsafe` blocks and dependency checks with `cargo-audit`.
 
 ---
 

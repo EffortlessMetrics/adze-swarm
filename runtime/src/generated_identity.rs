@@ -34,7 +34,12 @@ pub enum NativeIdentityError {
     /// Public map missing, wrong-sized, duplicate, or different from the sidecar.
     InvalidPublicMap,
     /// A start is absent, a terminal, or has no emitted syntax rule.
-    InvalidStart { role: &'static str, symbol: u16 },
+    InvalidStart {
+        /// Start role checked by the validator (`"analysis"` or `"document"`).
+        role: &'static str,
+        /// Public grammar symbol ID supplied for that start.
+        symbol: u16,
+    },
 }
 
 impl std::fmt::Display for NativeIdentityError {

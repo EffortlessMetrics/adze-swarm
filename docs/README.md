@@ -1,16 +1,15 @@
 # Adze Documentation
 
-> **Status:** Documentation structured according to the [Diataxis framework](https://diataxis.fr/) for Adze 0.9.0.
-
-Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-native grammar toolchain for building high-performance parsers.
+Adze generates parsers from annotated Rust types. Start with the arithmetic
+starter to build a parser and see the Rust value it returns.
 
 ---
 
 ## 🎓 Tutorials
 *Learning-oriented: guided lessons to help you get started.*
 
-- [**Quickstart: First Parser In 10 Minutes**](./tutorials/quickstart-10-minutes.md) - Generate, test, and run the canonical starter parser.
-- [**Your First Parser**](./tutorials/getting-started.md) - Build a working calculator parser in 5 minutes.
+- [**Build your first parser**](./tutorials/quickstart-10-minutes.md): Generate, test, and run the arithmetic starter.
+- [**Getting Started**](./tutorials/getting-started.md): Add Adze to a crate and write a grammar.
 - [**GLR Quickstart**](./tutorials/glr-quickstart.md) - Understanding and building your first ambiguous grammar.
 
 ---
@@ -21,7 +20,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 - [**Handling Precedence**](./how-to/handle-precedence.md) - How to resolve operator ambiguity and associativity.
 - [**External Scanners**](./how-to/external-scanners.md) - Integrating custom Rust/C logic for indentation and complex tokens.
 - [**Testing Grammars**](./how-to/test-grammars.md) - Using unit tests, snapshots, and golden tests.
-- [**Incremental Parsing**](./how-to/incremental-parsing.md) - Reparsing partial text changes for IDE performance.
+- [**Incremental Parsing**](./how-to/incremental-parsing.md): Experimental API and full-reparse fallback.
 - [**Optimizing Performance**](./how-to/optimize-performance.md) - SIMD, GLR tuning, and profiling your parser.
 - [**LSP Generation**](./how-to/generate-lsp.md) - Generating a Language Server for your grammar.
 - [**Using the Playground**](./how-to/use-playground.md) - Developing grammars interactively in the browser.
@@ -72,7 +71,7 @@ Welcome to the Adze documentation. Adze (formerly `rust-sitter`) is a Rust-nativ
 
 ## Project Status
 
-- [**Roadmap**](../ROADMAP.md) - Milestones for 0.8.0, 0.9.0, and 1.0.
+- [**Roadmap**](../ROADMAP.md): Product priorities and planned work.
 - [**Source-Of-Truth System**](./reference/SPEC_SYSTEM.md) - Repo rails for proposals, specs, ADRs, plans, active goals, proof, and policy ledgers.
 - [**Repo Style**](./REPO_STYLE.md) - Evidence-machine doctrine: strict defaults, owned exceptions, static signal first, runtime proof where it pays, receipts everywhere, and one review-fast PR at a time.
 - [**Proposals**](./proposals/README.md) - PRD-style "why" documents for product and repo-governance campaigns.

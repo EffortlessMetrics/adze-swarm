@@ -26,17 +26,30 @@ Use the compatibility adapter when existing tooling expects Tree-sitter-shaped
 `grammar::parse()` for typed Rust values or `grammar::parse_document()` for
 document facts.
 
-There are two supported entry shapes.
+Enable `pure-rust` and `ts-compat` for the generated-language examples below.
+Build the compatibility language from the same grammar used to parse the
+source:
 
-Use `ts_compat::Parser` when the integration is already written in
-Tree-sitter terms:
+```rust
+let language = std::sync::Arc::new(adze::ts_compat::Language::from_ts_language(
+    "my_grammar",
+    grammar::language(),
+));
+```
+
+Use `ts_compat::Parser` to parse source directly into a Tree-sitter-shaped
+selected tree:
 
 ```rust
 let mut parser = adze::ts_compat::Parser::new();
 parser.set_language(language.clone())?;
-let tree = parser.parse(source, None)?;
-let root = tree.root_node();
+if let Some(tree) = parser.parse(source, None) {
+    let root = tree.root_node();
+    // Traverse the selected tree from root.
+}
 ```
+
+Passing an old tree to `Parser::parse` does not enable incremental reuse.
 
 Use `Tree::from_document` when the application already has the native document
 and wants a compatibility view over the same parse truth:
@@ -63,7 +76,7 @@ Use this decision rule:
 | Typed Rust values only | `grammar::parse(source)` |
 | Diagnostics, ambiguity summaries, JSON, or multiple projections | `grammar::parse_document(source)` |
 | Tree-sitter-shaped traversal from an existing document | `Tree::from_document(language, &document)` |
-| Drop-in Tree-sitter-style parser integration | `ts_compat::Parser` |
+| Parse source directly for Tree-sitter-shaped traversal | `ts_compat::Parser` |
 
 ## Concept Map
 
@@ -80,10 +93,10 @@ Use this decision rule:
 | `node-types.json` | language metadata projection, still advisory for alias-visible parity |
 | Queries | documented subset in [`query-compatibility.md`](query-compatibility.md) |
 
-Use the native APIs instead when the code needs typed Rust AST values, raw GLR
-ambiguity alternatives, user-facing diagnostics, stable JSON/CLI schemas, or
-full Tree-sitter query parity. Those are separate Adze surfaces with separate
-support-tier rows.
+Use the native APIs for typed Rust AST values, GLR ambiguity summaries,
+user-facing diagnostics, and JSON projections. Check the support tiers for
+each surface; switching APIs does not provide full query parity or make the
+JSON and CLI schemas stable.
 
 ## Selected-tree Compatibility Subset
 
@@ -91,10 +104,10 @@ The compatibility adapter exposes one selected tree. Native GLR ambiguity
 summaries stay on `AdzeDocument`; `ts_compat` does not expose raw forest data or
 multiple parse alternatives.
 
-### Supported now
+### Covered Method Families
 
-These method families are covered by current canaries and are the main
-selected-tree subset users should build against:
+Current canaries cover these method families in the Stabilizing selected-tree
+subset:
 
 | Area | Supported surface |
 | --- | --- |
@@ -110,9 +123,9 @@ selected-tree subset users should build against:
 | S-expression | named-node S-expression output using alias-visible identity |
 | Language metadata | field-name/id lookup and node-kind metadata lookup |
 
-### Stabilizing
+### Where Broader Coverage Is Needed
 
-These surfaces are useful and covered by targeted tests, but still need broader
+These surfaces have targeted tests, but still need broader
 fixture and imported-grammar proof before promotion:
 
 - alias-visible identity across all generated parser paths;
