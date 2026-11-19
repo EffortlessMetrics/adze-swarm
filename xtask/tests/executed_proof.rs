@@ -83,7 +83,7 @@ fn positive_real_selection_executes_and_receipt_binds_identity() {
 }
 
 #[test]
-fn retained_output_cannot_overwrite_existing_evidence() {
+fn test_retained_output_cannot_overwrite_existing_evidence() {
     let spec = spec(
         manifest_command("alpha::real_canary -- --exact"),
         "occupied-output.txt",

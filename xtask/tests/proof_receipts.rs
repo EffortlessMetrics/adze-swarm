@@ -127,7 +127,7 @@ fn zero_selection_fixture_fails_without_receipt() {
 }
 
 #[test]
-fn used_output_is_rejected_before_a_zero_or_ignored_rerun() {
+fn test_used_output_is_rejected_before_a_zero_or_ignored_rerun() {
     let out = out_dir("used-output");
     // Existing empty directories remain supported (for example, mktemp -d).
     std::fs::create_dir_all(&out).unwrap();
@@ -155,7 +155,7 @@ fn used_output_is_rejected_before_a_zero_or_ignored_rerun() {
 }
 
 #[test]
-fn used_custom_ledger_is_rejected_before_running_and_left_intact() {
+fn test_used_custom_ledger_is_rejected_before_running_and_left_intact() {
     let first_out = out_dir("ledger-first");
     let ledger = first_out.join("separate.json");
     run_command(
@@ -181,7 +181,7 @@ fn used_custom_ledger_is_rejected_before_running_and_left_intact() {
 }
 
 #[test]
-fn legacy_output_without_attempt_marker_is_rejected_and_preserved() {
+fn test_legacy_output_without_attempt_marker_is_rejected_and_preserved() {
     for artifact in [RAW_FILE_NAME, RECEIPT_FILE_NAME] {
         let out = out_dir(&format!("legacy-{artifact}"));
         std::fs::create_dir_all(&out).unwrap();
@@ -200,7 +200,7 @@ fn legacy_output_without_attempt_marker_is_rejected_and_preserved() {
 }
 
 #[test]
-fn custom_ledger_cannot_alias_an_attempt_artifact() {
+fn test_custom_ledger_cannot_alias_an_attempt_artifact() {
     let out = out_dir("alias");
     for name in [RAW_FILE_NAME, ".proof-attempt"] {
         let ledger = out.join(".").join(name);
@@ -220,7 +220,7 @@ fn custom_ledger_cannot_alias_an_attempt_artifact() {
 }
 
 #[test]
-fn concurrent_attempts_cannot_both_claim_one_output_directory() {
+fn test_concurrent_attempts_cannot_both_claim_one_output_directory() {
     let out = out_dir("concurrent-out");
     let command = command("alpha::real_canary -- --exact");
     let barrier = std::sync::Barrier::new(2);
