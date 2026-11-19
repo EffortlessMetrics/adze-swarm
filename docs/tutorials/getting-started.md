@@ -1,12 +1,8 @@
 # Getting Started with Adze
 
-> **Doc status:** Up to date for Adze 0.9.0 (0.10.0 RC pending #325).
-> If something here disagrees with the repo, treat the repo as truth
-> and log it in [`docs/status/FRICTION_LOG.md`](../status/FRICTION_LOG.md).
-> For the `i32` + `try_transform` typed-value shape, see `quickstart-10-minutes.md`.
-> Repetition/`Vec` claim boundaries live in `GENERATED_GRAMMAR_FEATURE_MATRIX.md`.
-
-A guide to building parsers with Adze's macro-based grammar generation.
+This guide shows how to add Adze to a Rust crate and write a grammar for it.
+If you want to run a generated project first, start with
+[Build your first parser](./quickstart-10-minutes.md).
 
 ## Table of Contents
 
@@ -19,45 +15,33 @@ A guide to building parsers with Adze's macro-based grammar generation.
 
 ## Quick Start
 
-The fastest currently proven path is the generated starter project from a repo
-checkout. The intended published install command is `cargo install adze-cli`,
-but the current proof uses the CLI built from this checkout until `adze-cli` is
-published as a crates.io install surface:
+This example builds a library that parses a number into a Rust struct.
 
-```bash
-cargo run -p adze-cli -- init calc
-cd calc
-cargo test
-cargo run --example parse -- "1 + 2 * 3"
-```
-
-That path teaches the default user flow:
-
-```rust
-let ast = grammar::parse("1 + 2 * 3")?;
-let document = grammar::parse_document("1 +")?;
-```
-
-The repo backs this shape with `testing/downstream-starter`, a standalone
-fixture that proves path dependencies, `build.rs`, generated parser imports,
-diagnostics, and the parse example. Published `cargo install adze-cli` remains
-release-surface work, not a proven Stable claim yet.
+Use Rust 1.95.0 or newer for this crate. A sibling crate does not inherit the
+Adze checkout's toolchain file, so make sure your own Cargo uses that version
+before continuing. For example, with rustup you can select it for a command
+with `cargo +1.95.0`.
 
 ### Installation
 
-Add adze to your `Cargo.toml`:
+Create a library next to a checkout named `adze-swarm`. From their parent
+folder, run:
 
-The versioned dependency block below is the intended release-surface shape.
-Until the publish/install receipt is recorded in
-[`PRODUCT_OBJECTIVE_AUDIT.md`](../status/PRODUCT_OBJECTIVE_AUDIT.md), the
-proved path uses local/path dependencies from this checkout.
+```bash
+cargo new --lib number-parser
+cd number-parser
+```
+
+Keep the generated `[package]` section in `Cargo.toml` and replace its empty
+`[dependencies]` table with the tables below. Adjust the two paths if your
+checkout is elsewhere.
 
 ```toml
 [dependencies]
-adze = { version = "0.9.0", default-features = false }
+adze = { path = "../adze-swarm/runtime", default-features = false }
 
 [build-dependencies]
-adze-tool = "0.9.0"
+adze-tool = { path = "../adze-swarm/tool" }
 
 [features]
 default = ["pure-rust"]
@@ -104,22 +88,22 @@ mod tests {
 }
 ```
 
-### Build and Run
+### Run the test
 
 ```bash
-cargo build
 cargo test
 ```
 
-That's it! You now have a working parser for numbers.
+The test checks that `grammar::parse("42")` returns a `Program` with `number`
+set to the string `"42"`.
 
 ## Basic Concepts
 
 ### Grammar Attributes
 
 - **`#[adze::grammar("name")]`**: Marks a module as a grammar definition.
-- **`#[adze::language]`**: Marks a type (struct or enum) as part of the grammar.
-- **`#[adze::leaf]`**: Defines a terminal symbol (token) using regex.
+- **`#[adze::language]`**: Marks the type returned by the generated parser.
+- **`#[adze::leaf]`**: Matches a token by literal text or a regular expression.
 - **`#[adze::extra]`**: Defines symbols to ignore (like whitespace).
 - **`#[adze::repeat]`**: Allows repetition of elements.
 - **`#[adze::prec]`**: Sets precedence levels for disambiguation.
@@ -134,6 +118,10 @@ That's it! You now have a working parser for numbers.
 6. **String**: Extracts the text content of a token.
 
 ## Creating Your First Grammar
+
+These examples show common grammar shapes. See the
+[generated grammar feature matrix](../product/GENERATED_GRAMMAR_FEATURE_MATRIX.md)
+for the tested scope of repetition, optional elements, and other constructs.
 
 ### Example 1: Simple Calculator
 
@@ -265,16 +253,13 @@ fixtures. Their support status follows
 known-limitations reference; do not treat every example as a stable language
 package.
 
-### test-mini
+### Downstream arithmetic demo
 
-The simplest possible grammar - parses a single number.
+[`samples/downstream-demo`](../../samples/downstream-demo) shows the parser in
+a library and a small executable. From the checkout root, run:
 
-**Location**: `/test-mini/`
-
-**Usage**:
 ```bash
-cd test-mini
-cargo test
+cargo run -p downstream-demo --quiet
 ```
 
 ### test-vec-wrapper
@@ -290,7 +275,7 @@ Demonstrates Vec repetition with multiple numbers.
 
 ### arithmetic (example crate)
 
-Full expression parser with precedence.
+An arithmetic grammar with operator precedence.
 
 **Location**: `/example/src/arithmetic.rs`
 
@@ -373,14 +358,14 @@ This error occurs when the Extract trait cannot determine which variant to use. 
 
 #### Parse errors at position 0
 
-Usually means a token_count issue or mismatched versions.
-
-**Solution**: Upgrade to the latest Adze release and ensure `adze` and `adze-tool` versions match.
+Inspect the first error and its expected tokens. Check that the first token in
+the input can match the grammar, that `build.rs` points to the grammar source,
+and that `adze` and `adze-tool` come from the same checkout.
 
 #### Empty string extraction
 
-If you need raw token text, use `String` fields. If you need a typed value, use
-`#[adze::leaf(transform = ...)]` and keep the transform small and deterministic.
+If you need the matched text, use a `String` field. If you need to convert the
+text to a typed value and that conversion can fail, use `try_transform`.
 
 ### Debug Tips
 

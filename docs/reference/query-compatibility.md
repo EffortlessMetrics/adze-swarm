@@ -83,8 +83,8 @@ source-aware matcher instead.
 Text-sensitive features require source text:
 
 ```scheme
-((identifier) @name
- (#eq? @name "main"))
+(identifier) @name
+(#eq? @name "main")
 ```
 
 Covered source-aware predicates:

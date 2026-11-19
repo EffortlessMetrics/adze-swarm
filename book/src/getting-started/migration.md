@@ -9,48 +9,11 @@ Adze no longer asks ordinary users to migrate from one low-level runtime API to
 another. The supported migration is from hand-managed parser construction to
 generated grammar modules.
 
-## What Changed
-
-| Old mental model | Current product model |
-|---|---|
-| Construct a parser manually. | Define grammar types and call generated `grammar::parse()`. |
-| Convert a generic tree into an AST yourself. | The generated parser returns typed Rust values directly. |
-| Treat Tree-sitter compatibility as the core runtime. | Treat compatibility as a projection from `AdzeDocument`. |
-| Assume incremental reuse/performance by default. | Treat incremental lifecycle as Experimental with visible fallback metadata. |
-| Use runtime internals as public API. | Use generated APIs first; reach lower only for implementation work. |
-
 ## Dependencies
 
-For a fresh generated-parser crate, start with the same shape as the book
-quickstart:
-
-The versioned dependency block is the intended release-surface shape after the
-coordinated publish. Current repo proof uses local/path dependencies from this
-checkout until crates.io receipts exist for the co-release crates.
-
-```toml
-[dependencies]
-adze = { version = "0.9.0", default-features = false }
-
-[build-dependencies]
-adze-tool = "0.9.0"
-
-[features]
-default = ["pure-rust"]
-pure-rust = ["adze/pure-rust"]
-```
-
-Create a `build.rs` that asks `adze-tool` to generate parsers from your grammar
-source:
-
-```rust
-use std::path::PathBuf;
-
-fn main() {
-    println!("cargo::rustc-check-cfg=cfg(adze_unsafe_attrs)");
-    adze_tool::build_parsers(&PathBuf::from("src/lib.rs"));
-}
-```
+Use the checkout dependencies and build script shown in
+[Set up Adze from a checkout](installation.md). The [Quick Start](quickstart.md)
+shows the same setup in a fresh crate.
 
 ## Parser Usage
 

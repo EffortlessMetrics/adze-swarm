@@ -8,7 +8,7 @@ use std::path::Path;
 use anyhow::{Context, Result, bail};
 
 use crate::local_registry;
-use crate::local_release_receipt::{self, LocalReleaseReceipt};
+use crate::local_release_receipt;
 use crate::policy;
 use crate::release_graph;
 
@@ -84,6 +84,10 @@ fn execute(
     registry: &mut local_registry::IsolatedRegistry,
     receipt_out: Option<&Path>,
 ) -> Result<()> {
+    // Reject unusable or overlapping destinations before paying for packaging.
+    let export = receipt_out
+        .map(|path| local_release_receipt::export_path(registry.evidence_root()?, path))
+        .transpose()?;
     registry.publish_release_graph(&plan.ordered_crates, &plan.version)?;
 
     println!();
@@ -135,28 +139,19 @@ fn execute(
         &starter.project_dir,
         &starter_commands,
     )?;
-    local_release_receipt::write_receipt(
-        &registry.evidence_root()?.join("journey-observations.json"),
-        &receipt,
-    )?;
-    emit_receipt(&receipt, receipt_out)?;
+    let json =
+        serde_json::to_string_pretty(&receipt).context("serializing local release receipt")?;
+    local_release_receipt::retain_and_export(registry.evidence_root()?, export.as_deref(), &json)?;
+    if let Some(path) = export {
+        println!("receipt written: {}", path.display());
+    }
+    println!("receipt-json:");
+    println!("{json}");
 
     println!();
     println!(
         "claim boundary: source/archive/index preparation and observed local journey; full package-first provenance remains unqualified"
     );
-    Ok(())
-}
-
-fn emit_receipt(receipt: &LocalReleaseReceipt, receipt_out: Option<&Path>) -> Result<()> {
-    let json =
-        serde_json::to_string_pretty(receipt).context("serializing local release receipt")?;
-    if let Some(path) = receipt_out {
-        local_release_receipt::write_receipt(path, receipt)?;
-        println!("receipt written: {}", path.display());
-    }
-    println!("receipt-json:");
-    println!("{json}");
     Ok(())
 }
 

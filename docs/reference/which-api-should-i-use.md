@@ -102,7 +102,7 @@ separately.
 
 ## Related References
 
-- [Quickstart: First Parser In 10 Minutes](../tutorials/quickstart-10-minutes.md)
+- [Build your first parser](../tutorials/quickstart-10-minutes.md)
 - [API Reference](./api.md)
 - [Parser Cookbook](./parser-cookbook.md)
 - [Tree-sitter Compatibility](./tree-sitter-compatibility.md)

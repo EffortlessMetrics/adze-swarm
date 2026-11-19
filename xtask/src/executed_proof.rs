@@ -11,6 +11,21 @@
 //! the test executable directly and checks both its exit status and the
 //! parsed `test result:` rows.
 
+// Shared `cargo test` flag table (#1058 unification). The accept set for
+// the supported selectors in `parse` is read from `crate::cargo_flags`, the
+// single source shared with the static validator (`xtask::cargo_flags`,
+// landed by #1261). The explicit reject lists (`REJECTED_TARGET_SELECTORS`,
+// `REJECTED_PROFILE_SHORTCUTS`, `is_rejected_flag`) are consumed by the
+// validator-side agreement test: this runner rejects every non-supported
+// `-`/`--*` token through one catch-all, so those lists stay exact subsets
+// of its rejections without being named here. The `--flag=value` forms and
+// the post-`--` handling stay runner-local: the runner accepts the `=`
+// forms of the supported value flags (which the validator conservatively
+// rejects) and rejects every post-`--` passthrough but `--exact` (the
+// validator screens `--exact`/`--nocapture` and quarantines the rest) —
+// both divergences resolve in favor of current runner semantics.
+use crate::cargo_flags;
+
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::io::Write;
@@ -44,7 +59,8 @@ impl std::fmt::Display for ProofError {
             Self::UnsupportedHarness(m) => write!(f, "unsupported test harness: {m}"),
             Self::UnsupportedFlag(m) => write!(
                 f,
-                "unsupported cargo test flag: {m} (supported: -p/--package, --manifest-path, --features, --test, --lib, --profile; harness: --exact after `--`)"
+                "unsupported cargo test flag: {m} (supported: {}; harness: --exact after `--`)",
+                cargo_flags::SUPPORTED_SUMMARY
             ),
             Self::ZeroSelection(m) => write!(f, "zero tests selected: {m}"),
             Self::IgnoredOnly(m) => write!(f, "ignored-only selection: {m}"),
@@ -189,43 +205,51 @@ fn parse(command: &str) -> Result<Parsed, ProofError> {
                     }
                 }
             }
-            "-p" | "--package" => {
-                p.package = Some(
-                    it.next()
-                        .ok_or_else(|| ProofError::Malformed("-p".into()))?
-                        .clone(),
-                )
-            }
-            "--manifest-path" => {
-                p.manifest_path = Some(
-                    it.next()
-                        .ok_or_else(|| ProofError::Malformed("--manifest-path".into()))?
-                        .clone(),
-                )
-            }
-            "--features" => {
-                let v = it
-                    .next()
-                    .ok_or_else(|| ProofError::Malformed("--features".into()))?;
-                p.features
-                    .extend(v.split(',').map(|s| s.trim().trim_matches('"').to_string()));
-            }
-            "--test" => {
-                p.test_target = Some(
-                    it.next()
-                        .ok_or_else(|| ProofError::Malformed("--test".into()))?
-                        .clone(),
-                )
-            }
-            "--lib" => p.lib = true,
-            "--doc" => p.doc = true,
-            "--profile" => {
-                p.profile = Some(
-                    it.next()
-                        .ok_or_else(|| ProofError::Malformed("--profile".into()))?
-                        .clone(),
-                )
-            }
+            // Supported selectors: the accept set is the shared `cargo_flags`
+            // table (single source with the static validator). The value/bool
+            // dispatch stays runner-local: `Parsed` fields exist only here.
+            t if cargo_flags::is_supported_flag(t) => match t {
+                "-p" | "--package" => {
+                    p.package = Some(
+                        it.next()
+                            .ok_or_else(|| ProofError::Malformed("-p".into()))?
+                            .clone(),
+                    )
+                }
+                "--manifest-path" => {
+                    p.manifest_path = Some(
+                        it.next()
+                            .ok_or_else(|| ProofError::Malformed("--manifest-path".into()))?
+                            .clone(),
+                    )
+                }
+                "--features" => {
+                    let v = it
+                        .next()
+                        .ok_or_else(|| ProofError::Malformed("--features".into()))?;
+                    p.features
+                        .extend(v.split(',').map(|s| s.trim().trim_matches('"').to_string()));
+                }
+                "--test" => {
+                    p.test_target = Some(
+                        it.next()
+                            .ok_or_else(|| ProofError::Malformed("--test".into()))?
+                            .clone(),
+                    )
+                }
+                "--profile" => {
+                    p.profile = Some(
+                        it.next()
+                            .ok_or_else(|| ProofError::Malformed("--profile".into()))?
+                            .clone(),
+                    )
+                }
+                _ if cargo_flags::SUPPORTED_BOOL_FLAGS.contains(&t) => p.lib = true,
+                _ => unreachable!(
+                    "shared flag table lists {t} as supported but the runner maps no field to it"
+                ),
+            },
+            t if t == cargo_flags::HARNESS_ONLY_FLAG => p.doc = true,
             t if t.starts_with("--features=") => {
                 let v = t.strip_prefix("--features=").expect("prefix checked");
                 if v.is_empty() {

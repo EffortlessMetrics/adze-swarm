@@ -425,6 +425,115 @@ class WorkflowWiring(unittest.TestCase):
         self.assertIn(command, block)
         self.assertLess(block.index(command), block.index("- id: detect"))
 
+    def test_config_edit_affected_group_runs_exact_offline_journey(self) -> None:
+        import json
+        import shutil
+        import tempfile
+
+        driver = "scripts/check-config-edit-journey.sh"
+        guard = "scripts/run-required-test.py"
+        workflow = ".github/workflows/em-ci-routed-rust.yml"
+        block = self._job_block(workflow, "supported-proof")
+        wired = block.split("- name: Qualify the config-dsl edit journey for affected queue changes", 1)[1].split("- name:", 1)[0]
+        for token in ("if: github.event_name == 'merge_group'", "github.event.merge_group.base_sha",
+                      "github.event.merge_group.head_sha", f"run: bash {driver}"):
+            self.assertIn(token, wired)
+        sample = "samples/config-dsl/"
+        manifest = sample + "Cargo.toml"
+        lock = sample + "Cargo.lock"
+        source = sample + "tests/support/edit_debug_contract.rs"
+        fetch_args = ["fetch", "--locked", "--target", "host-tuple", "--manifest-path", manifest]
+        test_args = ["test", "--locked", "--offline", "--manifest-path", manifest, "--test", "edit_debug",
+                     "--", "--ignored", "--exact", "grammar_edit_break_repair", "--format", "pretty",
+                     "--test-threads=1", "--color", "never"]
+        # The real required-test guard parses the fake child's actual output.
+        fake_cargo = """#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+args = sys.argv[1:]
+with open("calls", "a") as log:
+    print(json.dumps([args, os.environ.get("CARGO_NET_OFFLINE")]), file=log)
+mode = os.environ["MODE"]
+if args[0] == "fetch":
+    if mode == "lockchanged": Path("samples/config-dsl/Cargo.lock").write_bytes(b"replacement")
+    sys.exit(0)
+if mode == "failed":
+    print("nested-phase diagnostics")
+    sys.exit(37)
+print("running 1 test")
+if mode != "empty":
+    name = "another_test" if mode == "wrong" else "grammar_edit_break_repair"
+    print(f"test {name} ... ok")
+    if mode == "duplicate": print(f"test {name} ... ok")
+    if mode in ("extra_test", "extra_row"): print("test unrelated ... ok")
+passed = 0 if mode == "empty" else 2 if mode in ("extra_test", "extra_pass_count") else 1
+ignored = int(mode == "extra_ignored")
+measured = int(mode == "extra_measured")
+summary = f"test result: ok. {passed} passed; 0 failed; {ignored} ignored; {measured} measured; 8 filtered out; finished in 0.00s"
+print(summary)
+if mode == "extra_summary": print(summary)
+"""
+        cases = [(path, "edit", "pass") for path in [
+            manifest, lock, sample + "build.rs", sample + "src/lib.rs", source, driver, guard, workflow,
+            "README.md", sample + "README.md",
+        ]]
+        cases += [(source, change, "pass") for change in ("delete", "rename_in", "rename_out")]
+        cases += [(source, "edit", mode) for mode in (
+            "empty", "wrong", "duplicate", "extra_test", "extra_row", "extra_pass_count",
+            "extra_ignored", "extra_measured", "extra_summary", "failed", "lockchanged", "wrong_head",
+        )]
+        for path, change, mode in cases:
+            with self.subTest(path=path, change=change, mode=mode), tempfile.TemporaryDirectory() as tmp:
+                repo = Path(tmp)
+                def git(*args: str) -> str:
+                    return subprocess.check_output(["git", *args], cwd=repo, text=True).strip()
+                git("init", "-q")
+                git("config", "user.name", "fixture")
+                git("config", "user.email", "fixture@example.invalid")
+                for name in {guard, manifest, lock, "other.txt", path}:
+                    dest = repo / name
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    if name == guard:
+                        shutil.copyfile(ROOT / guard, dest)
+                    elif change != "rename_in" or name != path:
+                        dest.write_text("initial\n")
+                git("add", ".")
+                git("commit", "-qm", "before")
+                base = git("rev-parse", "HEAD")
+                dest = repo / path
+                if change == "rename_in":
+                    (repo / "other.txt").rename(dest)
+                elif change == "rename_out":
+                    dest.rename(repo / "moved.txt")
+                elif change == "delete":
+                    dest.unlink()
+                else:
+                    with dest.open("a") as file:
+                        file.write("# changed\n")
+                git("add", "-A")
+                git("commit", "-qm", "after")
+                head = git("rev-parse", "HEAD")
+                fake = repo / "cargo"
+                fake.write_text(fake_cargo)
+                fake.chmod(0o755)
+                result = subprocess.run(["bash", str(ROOT / driver)], cwd=repo, text=True,
+                    env={**os.environ, "PATH": f"{repo}{os.pathsep}{os.environ['PATH']}", "MODE": mode,
+                         "BASE_SHA": base, "EXPECTED_HEAD": base if mode == "wrong_head" else head},
+                    capture_output=True)
+                skipped = path in ("README.md", sample + "README.md")
+                calls = [json.loads(line) for line in (repo / "calls").read_text().splitlines()] if (repo / "calls").exists() else []
+                self.assertEqual(result.returncode == 0, mode == "pass", result.stdout + result.stderr)
+                if mode == "failed":
+                    self.assertEqual(37, result.returncode)
+                    self.assertIn("nested-phase diagnostics", result.stdout)
+                if skipped or mode == "wrong_head":
+                    self.assertEqual([], calls)
+                elif mode == "lockchanged":
+                    self.assertEqual([fetch_args], [args for args, _ in calls])
+                else:
+                    self.assertEqual([fetch_args, test_args], [args for args, _ in calls])
+                    self.assertEqual("true", calls[1][1])
+
     def _native_dependency_preparation(self, platform: str) -> tuple[str, str, str]:
         import textwrap
 

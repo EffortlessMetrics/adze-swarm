@@ -6,8 +6,8 @@
 //! It does not interpret document JSON, parser outcomes or cache admission.
 
 use crate::runner_windows_handles::{
-    BOOTSTRAP_MODE, FORCED_EXIT, OwnedChild, Pipe, ReadResult, decode_inherited_request,
-    prepare_bootstrap_stdio,
+    BOOTSTRAP_MODE, FORCED_EXIT, OwnedChild, Pipe, ReadResult, Terminal, TerminalWriter,
+    decode_inherited_request, prepare_bootstrap_stdio,
 };
 use crate::runner_windows_request::RunnerRequest;
 use std::ffi::c_void;
@@ -96,6 +96,7 @@ impl fmt::Display for Cancellation {
 pub(crate) enum CaptureCause {
     Setup(&'static str, io::Error),
     Spawn(io::Error),
+    ExternalSpawn(io::Error),
     Read(Channel, io::Error),
     Observe(io::Error),
     Limit(Channel, usize),
@@ -169,6 +170,9 @@ impl fmt::Display for CaptureError {
                 f,
                 "static runner could not start in its Windows job: {error}"
             )?,
+            CaptureCause::ExternalSpawn(error) => {
+                write!(f, "static runner external spawn failed: {error}")?
+            }
             CaptureCause::Read(channel, error) => {
                 write!(f, "static runner {channel} read failed: {error}")?
             }
@@ -211,7 +215,18 @@ impl fmt::Display for CaptureError {
     }
 }
 
-impl std::error::Error for CaptureError {}
+impl std::error::Error for CaptureError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.cause {
+            CaptureCause::Setup(_, error)
+            | CaptureCause::Spawn(error)
+            | CaptureCause::ExternalSpawn(error)
+            | CaptureCause::Read(_, error)
+            | CaptureCause::Observe(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 
 const ACTIVE: u32 = 1 << 31;
 const EVENT_MASK: u32 = 3;
@@ -464,6 +479,24 @@ struct Captured {
     cleanup: Box<Cleanup>,
 }
 
+fn observe_terminal(
+    child: &mut OwnedChild,
+    natural_status: &mut Option<ExitStatus>,
+    terminal_failure: &mut Option<CaptureCause>,
+) -> io::Result<bool> {
+    let Some(helper_exit) = child.status()? else {
+        return Ok(false);
+    };
+    match child.terminal_status(helper_exit) {
+        Ok(Terminal::Natural(code)) => *natural_status = Some(ExitStatus::from_raw(code)),
+        Ok(Terminal::ExternalSpawn(error)) => {
+            *terminal_failure = Some(CaptureCause::ExternalSpawn(error));
+        }
+        Err(error) => *terminal_failure = Some(CaptureCause::Observe(error)),
+    }
+    Ok(true)
+}
+
 fn capture_owned(
     request: &RunnerRequest,
     bootstrap: &Path,
@@ -510,13 +543,13 @@ fn capture_owned(
     let mut stdout_closed = false;
     let mut stderr_closed = false;
     let mut natural_status = None;
+    let mut terminal_failure = None;
     let mut drain_deadline = None;
     let mut cause = None;
     loop {
-        if natural_status.is_none() {
-            match child.status() {
-                Ok(Some(code)) => {
-                    natural_status = Some(ExitStatus::from_raw(code));
+        if !child.leader_closed() {
+            match observe_terminal(&mut child, &mut natural_status, &mut terminal_failure) {
+                Ok(true) => {
                     drain_deadline = Some(
                         Instant::now()
                             .checked_add(policy.drain_timeout)
@@ -524,7 +557,7 @@ fn capture_owned(
                             .min(deadline),
                     );
                 }
-                Ok(None) => {}
+                Ok(false) => {}
                 Err(error) => {
                     cause = Some(CaptureCause::Observe(error));
                     break;
@@ -539,7 +572,7 @@ fn capture_owned(
             cause = Some(error);
             break;
         }
-        if natural_status.is_some() && stdout_closed && stderr_closed {
+        if child.leader_closed() && stdout_closed && stderr_closed {
             break;
         }
         let previous = (stdout.len(), stderr.len(), stdout_closed, stderr_closed);
@@ -573,15 +606,20 @@ fn capture_owned(
             break;
         }
     }
-    // Only status observed before our intervention can be called natural.
-    if natural_status.is_none() {
-        match child.status() {
-            Ok(Some(code)) => natural_status = Some(ExitStatus::from_raw(code)),
-            Ok(None) => {}
-            Err(error) if cause.is_none() => cause = Some(CaptureCause::Observe(error)),
-            Err(_) => {}
-        }
+    // Only a validated terminal observed before our intervention can supply
+    // the external child's status. Never decode a helper we forced to exit.
+    if !child.leader_closed()
+        && let Err(error) = observe_terminal(&mut child, &mut natural_status, &mut terminal_failure)
+        && cause.is_none()
+    {
+        cause = Some(CaptureCause::Observe(error));
     }
+    // A confirmed external spawn failure is primary; absent or malformed
+    // terminal evidence must not conceal an already observed capture failure.
+    cause = match terminal_failure {
+        Some(failure @ CaptureCause::ExternalSpawn(_)) => Some(failure),
+        incomplete => cause.or(incomplete),
+    };
     let cleanup = Box::new(cleanup(&mut child, policy.cleanup_timeout));
     if cause.is_none()
         && (!cleanup.job_terminated
@@ -592,25 +630,27 @@ fn capture_owned(
         cause = Some(CaptureCause::Cleanup);
     }
     drop(child);
-    if let Some(cause) = cause {
-        return Err(CaptureError {
-            cause,
+    match (cause, natural_status) {
+        (None, Some(status)) => Ok(Captured {
+            output: Output {
+                status,
+                stdout,
+                stderr,
+            },
+            cleanup,
+        }),
+        (cause, natural_status) => Err(CaptureError {
+            cause: cause.unwrap_or_else(|| {
+                CaptureCause::Observe(io::Error::other("missing external child status"))
+            }),
             natural_status,
             stdout,
             stderr,
             cleanup,
             cancellation: None,
             restore_error: None,
-        });
+        }),
     }
-    Ok(Captured {
-        output: Output {
-            status: natural_status.expect("completed leader"),
-            stdout,
-            stderr,
-        },
-        cleanup,
-    })
 }
 
 pub(crate) fn capture(
@@ -663,28 +703,46 @@ pub(crate) fn bootstrap_if_requested() -> Option<io::Result<u32>> {
                     "missing bootstrap request handle",
                 )
             })?;
-        if args.next().is_some() {
+        let terminal_handle = args
+            .next()
+            .and_then(|arg| arg.to_str().and_then(|arg| arg.parse::<usize>().ok()))
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "missing bootstrap terminal handle",
+                )
+            })?;
+        if args.next().is_some() || handle == terminal_handle {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "unexpected bootstrap argument",
+                "unexpected bootstrap argument or aliased request/terminal handle",
             ));
         }
         let request = decode_inherited_request(handle)
             .map_err(|error| io::Error::new(error.kind(), format!("request decode: {error}")))?;
+        let terminal = TerminalWriter::from_inherited(terminal_handle)
+            .map_err(|error| io::Error::new(error.kind(), format!("terminal setup: {error}")))?;
         prepare_bootstrap_stdio()
             .map_err(|error| io::Error::new(error.kind(), format!("stdio inheritance: {error}")))?;
-        let mut child = request
-            .command()
-            .spawn()
-            .map_err(|error| io::Error::new(error.kind(), format!("external spawn: {error}")))?;
+        let mut child = match request.command().spawn() {
+            Ok(child) => child,
+            Err(error) => {
+                let diagnostic = io::Error::new(error.kind(), format!("external spawn: {error}"));
+                terminal.report(&Terminal::ExternalSpawn(error));
+                return Err(diagnostic);
+            }
+        };
         let status = child
             .wait()
             .map_err(|error| io::Error::new(error.kind(), format!("external wait: {error}")))?;
         // Windows always supplies a u32 process code. Preserve its complete bit
         // pattern through the public signed ExitStatus API, including 259 and
         // high-bit codes; main passes it to process::exit without u8 narrowing.
-        Ok(status
+        let code = status
             .code()
-            .ok_or_else(|| io::Error::other("missing Windows child status"))? as u32)
+            .ok_or_else(|| io::Error::other("missing Windows child status"))?
+            as u32;
+        terminal.report(&Terminal::Natural(code));
+        Ok(code)
     })())
 }

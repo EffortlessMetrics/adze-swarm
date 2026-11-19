@@ -77,6 +77,11 @@ fn engine_dispatch_policy(
     EngineDispatch::LegacyGlrWithoutLexFn
 }
 
+/// Choose the parser route from an already-decoded table and its language.
+///
+/// This macro support helper considers table conflicts, compiled GLR support,
+/// and the language's lexer configuration. It chooses a route without parsing.
+/// Applications should call the generated `parse()` or `parse_document()` functions.
 #[cfg(feature = "pure-rust")]
 pub fn engine_dispatch_for_table(
     language: &'static crate::pure_parser::TSLanguage,

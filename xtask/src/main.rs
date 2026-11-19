@@ -5,6 +5,11 @@ use xshell::Shell;
 mod badges;
 mod baseline;
 mod bench;
+/// Shared `cargo test` flag table (#1058); the library target exposes it as
+/// `xtask::cargo_flags`. `dead_code` is allowed because the binary only
+/// reaches the subset consumed through `mod executed_proof`.
+#[allow(dead_code)]
+mod cargo_flags;
 mod ci_plan;
 mod corpus;
 mod dashboard;
@@ -20,6 +25,7 @@ mod goto_indexing;
 mod grammar_json;
 mod lint;
 mod local_registry;
+mod local_release_command;
 mod local_release_install;
 mod local_release_receipt;
 mod no_mangle;
@@ -325,7 +331,7 @@ enum Commands {
         /// Print the command plan without touching registries.
         #[arg(long)]
         dry_run: bool,
-        /// Write the machine-readable receipt JSON to this path.
+        /// Export the receipt JSON to a new file outside the retained evidence directory.
         #[arg(long)]
         receipt_out: Option<std::path::PathBuf>,
         /// Retain source, original/served archives and partial evidence in a new directory outside the checkout.
