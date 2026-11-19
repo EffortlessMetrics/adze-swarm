@@ -10,25 +10,10 @@
 //! from `--message-format=json`, runs each executable with the ledger filter
 //! plus `--list`, and asserts at least one test is selected in total.
 //!
-//! Scope is [`ENUMERATED_ROWS`] plus `UNSUPPORTED_ROWS`. The static
-//! validator pins 39 quarantined `UNSUPPORTED[package-wide]` entries
-//! (`EXPECTED_UNSUPPORTED` in `support_tier_proof_commands.rs`,
-//! verified against `docs/status/SUPPORT_TIERS.md`): those 39 entries are
-//! 30 unique ledger commands plus 9 byte-for-byte duplicate entries that
-//! enumerate identically. The tables hold each of those 30 unique ledger
-//! commands once, plus 2 non-ledger dynamic-gate variants (one enumerated,
-//! one pinned-red unsupported): 31 enumerated + 1 unsupported = 32 rows,
-//! covering the 30 unique ledger commands behind all 39 pinned entries.
-//! Do not extend this list without ledger-lane coordination: the pinned
-//! quarantine counts in
-//! `support_tier_proof_commands.rs` still count these rows as quarantined
-//! until the ledger lane repairs them.
-//!
-//! Rows the harness itself rejects (unknown flags, zero executables,
-//! multi-filter ambiguity, zero selected tests) go in an `UNSUPPORTED_ROWS`
-//! table with an explicit reason — never silently skipped, never counted as
-//! enumerated. Each entry there must still fail `enumerate_row` (pinned red
-//! proof); a row that starts enumerating must move to [`ENUMERATED_ROWS`].
+//! The static validator checks the exact set of ledger commands against
+//! `PACKAGE_WIDE_LEDGER_ROWS`, ignoring duplicate ledger occurrences. They
+//! remain quarantined as historical selection evidence is not execution.
+//! The deliberately missing filter below is a negative fixture, not a ledger row.
 //!
 //! Enumeration alone is not execution (#1058): a listed test may still be
 //! ignored-only or failing. This test proves nonzero selection only.
@@ -36,67 +21,16 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[path = "support/package_wide_ledger_rows.rs"]
+mod package_wide_ledger_rows;
+use package_wide_ledger_rows::PACKAGE_WIDE_LEDGER_ROWS;
+
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("xtask lives directly under the workspace root")
         .to_path_buf()
 }
-
-/// Exact ledger commands (`docs/status/SUPPORT_TIERS.md`), smallest packages
-/// first. The first 30 are byte-for-byte ledger strings; the ledger lane owns
-/// repairing these rows from `UNSUPPORTED[package-wide]` to enumerated. The
-/// last row is a non-ledger dynamic-gate variant (substring filter under
-/// `--features dynamic`), included as extra compiled-selection evidence.
-const ENUMERATED_ROWS: &[&str] = &[
-    "cargo test -p downstream-demo -- --nocapture",
-    "cargo test -p adze-python test_python_language_exists -- --exact --nocapture",
-    "cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_matrix_returns_diagnostic_document --features pure-rust -- --exact --nocapture",
-    "cargo test -p adze-golden-tests javascript_canary_expression_golden --features javascript-grammar -- --nocapture",
-    "cargo test -p adze-cli test_parse_help_documents_available_modes -- --exact --nocapture",
-    // Batch 1: glr-core, tablegen, adze substring filters.
-    "cargo test -p adze-glr-core conflict -- --nocapture",
-    "cargo test -p adze-glr-core ambiguity -- --nocapture",
-    "cargo test -p adze-tablegen typed_cst_generator -- --nocapture",
-    "cargo test -p adze --features \"pure-rust,glr,runtime-e2e\" glr_ -- --nocapture",
-    "cargo test -p adze --features \"pure-rust,glr\" parse_error -- --nocapture",
-    // Batch 2: adze external-scanner and incremental rows.
-    "cargo test -p adze --features external_scanners",
-    "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests::test_parser_with_external_scanner -- --exact --nocapture",
-    "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests::test_external_scanner_rejects_token_not_in_valid_symbols -- --exact --nocapture",
-    "cargo test -p adze --features \"pure-rust,external_scanners\" parser_v4::tests::test_external_scanner_parse_document_bad_input_returns_diagnostic_document -- --exact --nocapture",
-    "cargo test -p adze --features incremental_glr reparse_fallback_metadata -- --nocapture",
-    // Batch 3: cli quickstarts, init, check, stats.
-    "cargo test -p adze-cli readme_stable_claims_are_in_stable_product_lane -- --exact --nocapture",
-    "cargo test -p adze-cli readme_arithmetic_quickstart_builds_and_runs -- --exact --nocapture",
-    "cargo test -p adze-cli getting_started_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture",
-    "cargo test -p adze-cli book_quickstart_builds_parses_and_reports_diagnostics -- --exact --nocapture",
-    "cargo test -p adze-cli test_init_default_cwd_generates_buildable_project -- --exact --nocapture",
-    "cargo test -p adze-cli test_init_generates_buildable_project -- --exact --nocapture",
-    "cargo test -p adze-cli test_init_cargo_toml_references_adze_dependency -- --exact --nocapture",
-    "cargo test -p adze-cli test_check_rejects_file_without_adze_grammar -- --exact --nocapture",
-    "cargo test -p adze-cli test_stats_rejects_file_without_adze_grammar -- --exact --nocapture",
-    // Batch 4: cli document-output and dynamic rows.
-    "cargo test -p adze-cli test_parse_static_tree_mode_emits_document_backed_tree -- --exact --nocapture",
-    "cargo test -p adze-cli test_parse_static_sexp_mode_emits_document_backed_sexp -- --exact --nocapture",
-    "cargo test -p adze-cli test_parse_static_json_mode_emits_document_json -- --exact --nocapture",
-    "cargo test -p adze-cli test_parse_static_dot_mode_emits_document_backed_graph -- --exact --nocapture",
-    "cargo test -p adze-cli test_parse_document_projection_modes_emit_schema_envelopes -- --exact --nocapture",
-    "cargo test -p adze-cli parse_document_json_modes_emit_recovery_diagnostics -- --exact --nocapture",
-    "cargo test -p adze-cli --features dynamic dynamic -- --nocapture",
-];
-
-/// Extra pinned-red variants the compiled harness itself rejects, with
-/// reasons. Never silently skipped, never counted as enumerated: each entry
-/// must still fail `enumerate_row` (pinned red proof in
-/// `test_unsupported_rows_still_fail_enumeration`); a row that starts
-/// enumerating must move to `ENUMERATED_ROWS`. This entry is not a ledger
-/// row: it is an extra non-ledger dynamic-gate variant kept deliberately
-/// to pin that the bare feature-gate name selects nothing.
-const UNSUPPORTED_ROWS: &[(&str, &str)] = &[(
-    "cargo test -p adze-cli test_parse_dynamic_without_feature_reports_feature_gate -- --exact --nocapture",
-    "extra pinned-red variant (not a ledger row): filter selects no test: no test by that name exists in any adze-cli test executable under default features (closest existing: test_parse_dynamic_rejected_before_loading_any_library); kept to pin the bare dynamic-gate name as selecting nothing, no ledger repair owed",
-)];
 
 /// Split on whitespace, keeping double-quoted sections together.
 fn tokenize(command: &str) -> Vec<String> {
@@ -186,9 +120,29 @@ fn positional_filters(cargo_args: &[String]) -> Result<Vec<String>, String> {
     Ok(filters)
 }
 
+#[derive(Debug)]
+enum EnumerationError {
+    Setup(String),
+    ZeroSelection(String),
+}
+
+impl std::fmt::Display for EnumerationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Setup(message) | Self::ZeroSelection(message) => f.write_str(message),
+        }
+    }
+}
+
+impl From<String> for EnumerationError {
+    fn from(message: String) -> Self {
+        Self::Setup(message)
+    }
+}
+
 /// Build the row's test executables without running them, then list the
 /// selected tests in each. Returns the total number of listed tests.
-fn enumerate_row(root: &Path, command: &str) -> Result<usize, String> {
+fn enumerate_row(root: &Path, command: &str) -> Result<usize, EnumerationError> {
     let (cargo_args, harness_args) = split_command(command);
     let filters = positional_filters(&cargo_args)?;
 
@@ -208,7 +162,8 @@ fn enumerate_row(root: &Path, command: &str) -> Result<usize, String> {
         return Err(format!(
             "cargo test --no-run failed for {command}:\n{}",
             tail.into_iter().rev().collect::<Vec<_>>().join("\n")
-        ));
+        )
+        .into());
     }
     let stdout = String::from_utf8_lossy(&build_out.stdout);
     let mut executables: Vec<PathBuf> = Vec::new();
@@ -235,9 +190,7 @@ fn enumerate_row(root: &Path, command: &str) -> Result<usize, String> {
         }
     }
     if executables.is_empty() {
-        return Err(format!(
-            "cargo test --no-run built no test executables for {command}"
-        ));
+        return Err(format!("cargo test --no-run built no test executables for {command}").into());
     }
 
     let mut list_args = filters;
@@ -260,7 +213,8 @@ fn enumerate_row(root: &Path, command: &str) -> Result<usize, String> {
                 "{} --list failed for {command}:\n{}",
                 executable.display(),
                 String::from_utf8_lossy(&list_out.stderr)
-            ));
+            )
+            .into());
         }
         let listed = String::from_utf8_lossy(&list_out.stdout)
             .lines()
@@ -274,10 +228,10 @@ fn enumerate_row(root: &Path, command: &str) -> Result<usize, String> {
         total += listed;
     }
     if total == 0 {
-        return Err(format!(
+        return Err(EnumerationError::ZeroSelection(format!(
             "filter selects no test in any built executable for {command} [{}]",
             list_args.join(" ")
-        ));
+        )));
     }
     Ok(total)
 }
@@ -285,12 +239,7 @@ fn enumerate_row(root: &Path, command: &str) -> Result<usize, String> {
 #[test]
 fn test_package_wide_rows_enumerate_at_least_one_test() {
     let root = workspace_root();
-    assert_eq!(
-        ENUMERATED_ROWS.len(),
-        31,
-        "advisory scope is exactly 30 unique package-wide ledger rows plus 1 non-ledger dynamic-gate variant; the other non-ledger dynamic-gate variant is UNSUPPORTED, not enumerated"
-    );
-    for command in ENUMERATED_ROWS {
+    for command in PACKAGE_WIDE_LEDGER_ROWS {
         match enumerate_row(&root, command) {
             Ok(total) => println!("ENUMERATED: {command} -> {total} listed test(s)"),
             Err(error) => panic!("enumeration failed for {command}: {error}"),
@@ -309,7 +258,9 @@ fn test_enumeration_rejects_unknown_package() {
     )
     .expect_err("a bogus package must fail enumeration, not select zero tests");
     assert!(
-        error.contains("adze-no-such-package-xyz") || error.contains("no test executables"),
+        matches!(error, EnumerationError::Setup(ref message)
+            if message.contains("adze-no-such-package-xyz")
+                || message.contains("no test executables")),
         "unexpected error shape: {error}"
     );
 }
@@ -322,32 +273,37 @@ fn test_enumeration_rejects_unknown_exact_filter() {
     let root = workspace_root();
     let error = enumerate_row(
         &root,
-        "cargo test -p adze-cli no_such_cli_test_exists_xyz -- --exact --nocapture",
+        "cargo test -p adze-cli test_parse_dynamic_without_feature_reports_feature_gate -- --exact --nocapture",
     )
     .expect_err("a filter matching no test must fail enumeration");
     assert!(
-        error.contains("selects no test"),
+        matches!(error, EnumerationError::ZeroSelection(_)),
         "unexpected error shape: {error}"
     );
 }
 
 #[test]
-fn test_unsupported_rows_still_fail_enumeration() {
-    // Pinned red proof for UNSUPPORTED_ROWS: every entry must still fail
-    // `enumerate_row`. A row that starts enumerating must move to
-    // ENUMERATED_ROWS (and both pinned counts updated deliberately).
-    let root = workspace_root();
-    assert_eq!(
-        UNSUPPORTED_ROWS.len(),
-        1,
-        "exactly one extra non-ledger dynamic-gate variant is pinned red as harness-unsupported; if it starts enumerating, move it to ENUMERATED_ROWS"
+fn test_enumeration_build_stderr_cannot_masquerade_as_zero_selection() {
+    let fixture = tempfile::tempdir().expect("temporary Cargo package");
+    let root = fixture.path();
+    std::fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"enumeration-control\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+    )
+    .expect("manifest");
+    std::fs::create_dir(root.join("src")).expect("src");
+    std::fs::write(root.join("src/lib.rs"), "").expect("source");
+    std::fs::write(
+        root.join("build.rs"),
+        "fn main() { panic!(\"filter selects no test in any built executable\"); }",
+    )
+    .expect("build script");
+    let error = enumerate_row(root, "cargo test -p enumeration-control")
+        .expect_err("a failed build cannot enumerate");
+    assert!(
+        matches!(error, EnumerationError::Setup(ref message)
+            if message.contains("cargo test --no-run failed")
+                && message.contains("filter selects no test in any built executable")),
+        "expected preserved build diagnostic, not zero selection: {error}"
     );
-    for (command, reason) in UNSUPPORTED_ROWS {
-        match enumerate_row(&root, command) {
-            Ok(total) => panic!("unsupported row now enumerates, move it: {command} -> {total}"),
-            Err(error) => {
-                println!("STILL-UNSUPPORTED: {command}\n  reason: {reason}\n  error: {error}")
-            }
-        }
-    }
 }
