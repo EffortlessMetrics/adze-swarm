@@ -3,11 +3,14 @@
 //! custody claim is implied. Install and init need the shared #1066 adapter.
 
 use std::ffi::{OsStr, OsString};
+#[cfg(test)]
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use anyhow::{Context, Result, bail};
+#[cfg(windows)]
+use anyhow::bail;
+use anyhow::{Context, Result};
 
 use super::CapturedCommand;
 use super::starter_inputs::StarterInputs;
@@ -211,63 +214,16 @@ fn capture(journal: &mut CommandJournal, request: ReleaseCommand) -> Result<Reco
 }
 
 fn project_plan(root: &Path, observations: &[RecordedObservation]) -> Result<Vec<CapturedCommand>> {
-    if !observations
-        .iter()
-        .map(|obs| obs.request().name())
-        .eq(PLAN.iter().map(|(name, _)| *name))
-    {
-        bail!("starter observations do not match the complete ordered plan");
-    }
-    let commands = fs::canonicalize(root)?.join("commands");
-    // begin() owns a fresh namespace. Reconcile disk, not only the returned
-    // handles: an orphan intent or an unrelated entry must not disappear.
-    if !fs::symlink_metadata(&commands)?.is_dir() {
-        bail!("starter journal is not an owned directory");
-    }
-    let mut seen = 0;
-    for entry in fs::read_dir(&commands)? {
-        let entry = entry?;
-        if !entry.file_type()?.is_dir()
-            || !observations
-                .iter()
-                .any(|o| o.completion_path().parent() == Some(entry.path().as_path()))
-        {
-            bail!(
-                "unexpected entry in starter journal: {}",
-                entry.path().display()
-            );
-        }
-        seen += 1;
-    }
-    if seen != PLAN.len() {
-        bail!("missing starter journal entry");
-    }
-    for (index, observed) in observations.iter().enumerate() {
-        if observed.completion_path()
-            != commands
-                .join(format!("{:08}", index + 1))
-                .join("completion.json")
-        {
-            bail!("starter completion does not belong to its planned journal slot");
-        }
-    }
-    observations
-        .iter()
-        .map(|obs| {
-            project(obs).with_context(|| {
-                format!(
-                    "projecting starter command {} from retained evidence {}",
-                    obs.request().name(),
-                    obs.completion_path().display()
-                )
-            })
-        })
-        .collect()
+    crate::local_release_command::reconcile_observations(
+        root,
+        "starter",
+        &PLAN.map(|(name, _)| name),
+        observations,
+        project,
+    )
 }
 
 fn project(obs: &RecordedObservation) -> Result<CapturedCommand> {
-    obs.verify_artifacts()
-        .with_context(|| format!("verifying {}", obs.completion_path().display()))?;
     let request = obs.request();
     let status = obs
         .natural_status()

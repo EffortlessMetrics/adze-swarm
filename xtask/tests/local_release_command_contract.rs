@@ -1,4 +1,4 @@
-//! Data/file-persistence controls for the unwired release journal.
+//! Data/file-persistence controls for the local release journal.
 //!
 //! ExitStatus values below are explicit protocol fixtures. These tests do not
 //! launch a child and cannot qualify process creation, custody or cancellation.
@@ -8,7 +8,7 @@ mod local_release_command;
 
 use local_release_command::{
     CapturePolicy, CommandJournal, CommandObservation, EnvironmentChange, JournalLimits,
-    ReleaseCommand, SourceBinding,
+    ReleaseCommand, SourceBinding, reconcile_observations,
 };
 use serde_json::Value;
 use std::ffi::{OsStr, OsString};
@@ -700,4 +700,87 @@ fn test_later_observation_does_not_close_an_earlier_dropped_intent() {
     assert_eq!(read_json(later.completion_path())["id"], 2);
     assert_unknown(&read_json(later.completion_path()));
     later.verify_artifacts().unwrap();
+}
+
+#[test]
+fn test_reconcile_five_commands_checks_complete_ordered_plan() {
+    // Install/init are synthetic requests only; nothing is executed here.
+    const PLAN: [&str; 5] = [
+        "install",
+        "init",
+        "starter-cargo-test",
+        "starter-parse-valid",
+        "starter-parse-invalid",
+    ];
+    let root = tempfile::tempdir().unwrap();
+    let mut journal = CommandJournal::create(root.path(), binding(), limits()).unwrap();
+    let mut observations = PLAN.map(|name| {
+        let fixture = request(root.path());
+        let request = ReleaseCommand::new(
+            name.into(),
+            fixture.program().into(),
+            fixture.arguments().to_vec(),
+            fixture.cwd().into(),
+            fixture.environment().to_vec(),
+            fixture.policy(),
+        )
+        .unwrap();
+        journal
+            .begin(request)
+            .unwrap()
+            .complete(CommandObservation::natural(
+                status(u32::from(name == "starter-parse-invalid")),
+                vec![0, 255],
+                Vec::new(),
+            ))
+            .unwrap()
+    });
+
+    let check = |plan: &[&str], observed: &[_]| {
+        reconcile_observations(root.path(), "synthetic", plan, observed, |obs| {
+            Ok((obs.request().name().to_owned(), obs.stdout().to_vec()))
+        })
+    };
+    assert_eq!(
+        check(&PLAN, &observations).unwrap(),
+        PLAN.map(|name| (name.to_owned(), vec![0, 255]))
+    );
+    assert!(
+        check(&PLAN, &observations[..4])
+            .unwrap_err()
+            .to_string()
+            .contains("complete ordered plan")
+    );
+    observations.swap(0, 1);
+    assert!(
+        check(&PLAN, &observations)
+            .unwrap_err()
+            .to_string()
+            .contains("complete ordered plan")
+    );
+    let mut swapped_names = PLAN;
+    swapped_names.swap(0, 1);
+    assert!(
+        check(&swapped_names, &observations)
+            .unwrap_err()
+            .to_string()
+            .contains("planned journal slot")
+    );
+    observations.swap(0, 1);
+    let mut duplicate_names = PLAN;
+    duplicate_names[1] = duplicate_names[0];
+    assert!(
+        check(&duplicate_names, &observations)
+            .unwrap_err()
+            .to_string()
+            .contains("complete ordered plan")
+    );
+
+    let stdout = observations[0]
+        .completion_path()
+        .with_file_name("stdout.bin");
+    fs::write(&stdout, [0, 254]).unwrap(); // same size, different hash
+    let error = check(&PLAN, &observations).unwrap_err();
+    assert!(format!("{error:#}").contains("artifact bytes changed"));
+    assert!(format!("{error:#}").contains(&stdout.display().to_string()));
 }
