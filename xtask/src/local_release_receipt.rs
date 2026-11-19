@@ -1,6 +1,8 @@
 //! Machine-readable receipt for #856 local-registry package-first proof.
 
-use std::path::Path;
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result, bail};
@@ -95,10 +97,48 @@ pub fn build_receipt(
     })
 }
 
-pub fn write_receipt(path: &Path, receipt: &LocalReleaseReceipt) -> Result<()> {
-    let json =
-        serde_json::to_string_pretty(receipt).context("serializing local release receipt")?;
-    std::fs::write(path, json).with_context(|| format!("writing receipt to {}", path.display()))?;
+/// Export copies belong outside the entire owned evidence namespace, not only
+/// outside the four known files of the most recent command.
+pub fn export_path(root: &Path, path: &Path) -> Result<PathBuf> {
+    let absolute = std::env::current_dir()?.join(path);
+    let name = absolute
+        .file_name()
+        .context("receipt export requires a file name")?;
+    let parent = fs::canonicalize(absolute.parent().context("receipt export has no parent")?)
+        .context("receipt export parent must already exist")?;
+    let target = parent.join(name);
+    if target.starts_with(fs::canonicalize(root)?) {
+        bail!(
+            "--receipt-out must be outside the retained evidence directory: {}",
+            target.display()
+        );
+    }
+    match fs::symlink_metadata(&target) {
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(target),
+        Err(err) => {
+            Err(err).with_context(|| format!("checking receipt export {}", target.display()))
+        }
+        Ok(_) => bail!("--receipt-out must name a new file: {}", target.display()),
+    }
+}
+
+pub fn retain_and_export(root: &Path, export: Option<&Path>, json: &str) -> Result<()> {
+    let export = export.map(|path| export_path(root, path)).transpose()?;
+    write_new(&root.join("journey-observations.json"), json)?;
+    if let Some(path) = export {
+        write_new(&path, json)?;
+    }
+    Ok(())
+}
+
+fn write_new(path: &Path, json: &str) -> Result<()> {
+    let parent = path.parent().context("receipt path has no parent")?;
+    let mut file =
+        tempfile::NamedTempFile::new_in(parent).context("creating pending release receipt")?;
+    file.write_all(json.as_bytes())?;
+    file.as_file().sync_all()?;
+    file.persist_noclobber(path)
+        .with_context(|| format!("publishing new receipt {}", path.display()))?;
     Ok(())
 }
 
@@ -240,6 +280,47 @@ fn host_target() -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn receipt_export_refuses_colliding_paths_and_preserves_retained_evidence() {
+        let owner = tempfile::tempdir().unwrap();
+        let root = owner.path().join("evidence");
+        let entry = root.join("commands/00000001");
+        fs::create_dir_all(&entry).unwrap();
+        let completion = entry.join("completion.json");
+        fs::write(&completion, b"original observation").unwrap();
+        let outside = owner.path().join("export.json");
+
+        for destination in [
+            &completion,
+            &entry.join("new.json"),
+            &entry.join("../00000001/intent-copy.json"),
+        ] {
+            let err = retain_and_export(&root, Some(destination), "new receipt").unwrap_err();
+            assert!(
+                err.to_string()
+                    .contains("outside the retained evidence directory"),
+                "{err:#}"
+            );
+        }
+        assert_eq!(fs::read(&completion).unwrap(), b"original observation");
+        assert!(!entry.join("new.json").exists());
+        assert!(!entry.join("intent-copy.json").exists());
+        assert!(!root.join("journey-observations.json").exists());
+
+        retain_and_export(&root, Some(&outside), "new receipt").unwrap();
+        assert_eq!(fs::read(&outside).unwrap(), b"new receipt");
+        let err = retain_and_export(&root, Some(&outside), "different").unwrap_err();
+        assert!(err.to_string().contains("must name a new file"), "{err:#}");
+        assert_eq!(fs::read(&outside).unwrap(), b"new receipt");
+        // Even an internal-name collision must not replace previously retained bytes.
+        assert!(retain_and_export(&root, None, "different").is_err());
+        assert_eq!(
+            fs::read(root.join("journey-observations.json")).unwrap(),
+            b"new receipt"
+        );
+        assert_eq!(fs::read(&completion).unwrap(), b"original observation");
+    }
 
     #[test]
     fn parse_precedence_output_accepts_expected_debug_shape() {
