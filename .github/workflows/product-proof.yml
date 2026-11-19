@@ -522,12 +522,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           # The xtask binary also contains unrelated tests, so filtered-out tests are expected.
           $passed = @($starterOutput | Where-Object { $_ -cmatch '^test local_registry::starter::tests::[a-z0-9_]+ \.\.\. ok$' })
-          if ($passed.Count -ne 17 -or $passed -cnotcontains 'test local_registry::starter::tests::high_bit_windows_status_is_retained_but_not_a_parser_refusal ... ok') {
+          if ($passed.Count -ne 17 -or $passed -cnotcontains 'test local_registry::starter::tests::test_windows_high_bit_status_is_retained_not_a_parser_refusal ... ok') {
             throw "Expected 17 named Windows starter passes, including the native high-bit status control; saw $($passed.Count)."
           }
 
       - name: Qualify Windows starter receipt export without clobber
-        run: python scripts/run-required-test.py --label "Windows starter receipt export without clobber" -- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask local_release_receipt::tests::receipt_export_refuses_colliding_paths_and_preserves_retained_evidence -- --exact --nocapture
+        run: python scripts/run-required-test.py --label "Windows starter receipt export without clobber" -- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask local_release_receipt::tests::test_receipt_export_on_colliding_paths_preserves_retained_evidence -- --exact --nocapture
 
       - name: Qualify Windows actual Cargo lock and offline install assumptions
         run: python scripts/run-required-test.py --label "Windows Cargo lock and offline install assumptions" -- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask local_registry::provenance::tests::lock_fixture::test_actual_transformed_packaged_lock_prefetch_and_offline_install -- --exact --nocapture

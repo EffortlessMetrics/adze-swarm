@@ -11,10 +11,28 @@
 //! the test executable directly and checks both its exit status and the
 //! parsed `test result:` rows.
 
+// Shared `cargo test` flag table (#1058 unification). The accept set for
+// the supported selectors in `parse` is read from `crate::cargo_flags`, the
+// single source shared with the static validator (`xtask::cargo_flags`,
+// landed by #1261). The explicit reject lists (`REJECTED_TARGET_SELECTORS`,
+// `REJECTED_PROFILE_SHORTCUTS`, `is_rejected_flag`) are consumed by the
+// validator-side agreement test: this runner rejects every non-supported
+// `-`/`--*` token through one catch-all, so those lists stay exact subsets
+// of its rejections without being named here. The `--flag=value` forms and
+// the post-`--` handling stay runner-local: the runner accepts the `=`
+// forms of the supported value flags (which the validator conservatively
+// rejects) and rejects every post-`--` passthrough but `--exact` (the
+// validator screens `--exact`/`--nocapture` and quarantines the rest) —
+// both divergences resolve in favor of current runner semantics.
+use crate::cargo_flags;
+
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+use sha2::{Digest, Sha256};
 
 #[derive(Debug)]
 pub enum ProofError {
@@ -41,7 +59,8 @@ impl std::fmt::Display for ProofError {
             Self::UnsupportedHarness(m) => write!(f, "unsupported test harness: {m}"),
             Self::UnsupportedFlag(m) => write!(
                 f,
-                "unsupported cargo test flag: {m} (supported: -p/--package, --manifest-path, --features, --test, --lib, --profile; harness: --exact after `--`)"
+                "unsupported cargo test flag: {m} (supported: {}; harness: --exact after `--`)",
+                cargo_flags::SUPPORTED_SUMMARY
             ),
             Self::ZeroSelection(m) => write!(f, "zero tests selected: {m}"),
             Self::IgnoredOnly(m) => write!(f, "ignored-only selection: {m}"),
@@ -84,15 +103,22 @@ pub struct ProofReceipt {
     pub child_exit_code: Option<i32>,
     pub terminal_status: String,
     pub raw_output_ref: String,
+    /// SHA-256 of the exact retained log bytes, not just the terminal counts.
+    pub raw_output_sha256: String,
     #[serde(default)]
     pub include_ignored: bool,
 }
 
 impl ProofReceipt {
-    /// Re-validate a receipt against its raw output. This is the check a
-    /// wrapper cannot bypass: counts must match the terminal result rows
-    /// actually present in the retained output.
+    /// Re-validate the retained log's byte identity and terminal counts.
+    /// The digest detects substituted logs; it is not a signature or a
+    /// substitute for checking the candidate's source and build identity.
     pub fn validate_against_output(&self, raw_output: &str) -> Result<(), ProofError> {
+        if self.raw_output_sha256 != raw_output_digest(raw_output) {
+            return Err(ProofError::InconsistentReceipt(
+                "raw output SHA-256 mismatch".into(),
+            ));
+        }
         validate_counts(
             self,
             &parse_result_rows(raw_output),
@@ -113,9 +139,14 @@ impl ProofReceipt {
     }
 }
 
+fn raw_output_digest(raw_output: &str) -> String {
+    format!("{:x}", Sha256::digest(raw_output.as_bytes()))
+}
+
 pub struct ProofSpec {
     pub root: PathBuf,
     pub command: String,
+    /// Unused path where the attempt will retain its raw child output.
     pub raw_output_path: PathBuf,
     pub include_ignored: bool,
 }
@@ -174,43 +205,51 @@ fn parse(command: &str) -> Result<Parsed, ProofError> {
                     }
                 }
             }
-            "-p" | "--package" => {
-                p.package = Some(
-                    it.next()
-                        .ok_or_else(|| ProofError::Malformed("-p".into()))?
-                        .clone(),
-                )
-            }
-            "--manifest-path" => {
-                p.manifest_path = Some(
-                    it.next()
-                        .ok_or_else(|| ProofError::Malformed("--manifest-path".into()))?
-                        .clone(),
-                )
-            }
-            "--features" => {
-                let v = it
-                    .next()
-                    .ok_or_else(|| ProofError::Malformed("--features".into()))?;
-                p.features
-                    .extend(v.split(',').map(|s| s.trim().trim_matches('"').to_string()));
-            }
-            "--test" => {
-                p.test_target = Some(
-                    it.next()
-                        .ok_or_else(|| ProofError::Malformed("--test".into()))?
-                        .clone(),
-                )
-            }
-            "--lib" => p.lib = true,
-            "--doc" => p.doc = true,
-            "--profile" => {
-                p.profile = Some(
-                    it.next()
-                        .ok_or_else(|| ProofError::Malformed("--profile".into()))?
-                        .clone(),
-                )
-            }
+            // Supported selectors: the accept set is the shared `cargo_flags`
+            // table (single source with the static validator). The value/bool
+            // dispatch stays runner-local: `Parsed` fields exist only here.
+            t if cargo_flags::is_supported_flag(t) => match t {
+                "-p" | "--package" => {
+                    p.package = Some(
+                        it.next()
+                            .ok_or_else(|| ProofError::Malformed("-p".into()))?
+                            .clone(),
+                    )
+                }
+                "--manifest-path" => {
+                    p.manifest_path = Some(
+                        it.next()
+                            .ok_or_else(|| ProofError::Malformed("--manifest-path".into()))?
+                            .clone(),
+                    )
+                }
+                "--features" => {
+                    let v = it
+                        .next()
+                        .ok_or_else(|| ProofError::Malformed("--features".into()))?;
+                    p.features
+                        .extend(v.split(',').map(|s| s.trim().trim_matches('"').to_string()));
+                }
+                "--test" => {
+                    p.test_target = Some(
+                        it.next()
+                            .ok_or_else(|| ProofError::Malformed("--test".into()))?
+                            .clone(),
+                    )
+                }
+                "--profile" => {
+                    p.profile = Some(
+                        it.next()
+                            .ok_or_else(|| ProofError::Malformed("--profile".into()))?
+                            .clone(),
+                    )
+                }
+                _ if cargo_flags::SUPPORTED_BOOL_FLAGS.contains(&t) => p.lib = true,
+                _ => unreachable!(
+                    "shared flag table lists {t} as supported but the runner maps no field to it"
+                ),
+            },
+            t if t == cargo_flags::HARNESS_ONLY_FLAG => p.doc = true,
             t if t.starts_with("--features=") => {
                 let v = t.strip_prefix("--features=").expect("prefix checked");
                 if v.is_empty() {
@@ -619,7 +658,16 @@ pub fn run_executed_proof(spec: &ProofSpec) -> Result<ProofReceipt, ProofError> 
     if let Some(parent) = spec.raw_output_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| ProofError::Io(e.to_string()))?;
     }
-    std::fs::write(&spec.raw_output_path, &raw).map_err(|e| ProofError::Io(e.to_string()))?;
+    // Do not clobber another attempt's evidence even if its custom ledger
+    // destination aliases this raw output path.
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&spec.raw_output_path)
+        .and_then(|mut file| file.write_all(raw.as_bytes()))
+        .map_err(|err| {
+            ProofError::Io(format!("writing {}: {err}", spec.raw_output_path.display()))
+        })?;
 
     let rows = parse_result_rows(&raw);
     let (passed, failed, ignored) = rows.iter().fold((0, 0, 0), |(p, f, i), r| {
@@ -662,6 +710,7 @@ pub fn run_executed_proof(spec: &ProofSpec) -> Result<ProofReceipt, ProofError> 
         child_exit_code: child_code,
         terminal_status: format!("exit:{child_code:?}"),
         raw_output_ref: spec.raw_output_path.display().to_string(),
+        raw_output_sha256: raw_output_digest(&raw),
         include_ignored: spec.include_ignored,
     };
     if child_code != Some(0) || failed > 0 {

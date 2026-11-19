@@ -64,7 +64,7 @@ fn child(root: &Path, script: &str, additional: &[&str]) -> ReleaseCommand {
 }
 
 #[test]
-fn child_observes_journaled_inputs_before_returning_binary_channels_and_natural_status() {
+fn test_child_with_journaled_inputs_retains_binary_channels_and_natural_status() {
     let (root, mut journal) = fixture();
     let script = r#"import json, os, pathlib, sys
 req = json.loads(pathlib.Path('commands/00000001/intent.json').read_bytes())['request']
@@ -105,7 +105,7 @@ sys.exit(7)
 }
 
 #[test]
-fn intent_failure_never_starts_child_and_spawn_failure_records_no_status() {
+fn test_capture_with_failed_intent_or_spawn_never_invents_status() {
     let (root, mut journal) = fixture();
     fs::create_dir(root.path().join("commands/00000001")).unwrap();
     let request = child(root.path(), "open('started', 'w').close()", &[]);
@@ -132,7 +132,7 @@ fn intent_failure_never_starts_child_and_spawn_failure_records_no_status() {
 }
 
 #[test]
-fn completion_failure_keeps_natural_status_and_missing_plan_is_not_success() {
+fn test_completion_write_failure_retains_natural_status_and_rejects_incomplete_plan() {
     let (root, mut journal) = fixture();
     let req = child(
         root.path(),
@@ -152,7 +152,7 @@ fn completion_failure_keeps_natural_status_and_missing_plan_is_not_success() {
 }
 
 #[test]
-fn aggregate_refuses_orphan_entry_and_changed_completion() {
+fn test_starter_plan_with_orphan_or_changed_completion_rejects_aggregate() {
     let (root, mut journal) = fixture();
     let mut observations = Vec::new();
     for (name, _) in PLAN {
@@ -199,7 +199,7 @@ fn aggregate_refuses_orphan_entry_and_changed_completion() {
 
 #[cfg(windows)]
 #[test]
-fn high_bit_windows_status_is_retained_but_not_a_parser_refusal() {
+fn test_windows_high_bit_status_is_retained_not_a_parser_refusal() {
     let (root, mut journal) = fixture();
     let req = child(
         root.path(),
@@ -221,7 +221,7 @@ fn high_bit_windows_status_is_retained_but_not_a_parser_refusal() {
 
 #[cfg(unix)]
 #[test]
-fn signal_is_not_an_invalid_parse_exit_code() {
+fn test_unix_signal_is_retained_not_an_invalid_parse_exit_code() {
     let (root, mut journal) = fixture();
     let req = child(
         root.path(),
@@ -240,7 +240,7 @@ fn signal_is_not_an_invalid_parse_exit_code() {
 }
 
 #[test]
-fn production_starter_plan_uses_the_nondefault_program_and_verifies_all_three() {
+fn test_starter_plan_with_nondefault_cargo_runs_all_three_requests() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project λ");
     fs::create_dir(&project).unwrap();
@@ -310,7 +310,7 @@ fn main() {
 }
 
 #[test]
-fn actual_cargo_builds_and_runs_an_outside_checkout_fixture() {
+fn test_real_cargo_outside_checkout_builds_and_runs_fixture() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("outside λ");
     fs::create_dir_all(project.join("examples")).unwrap();
@@ -322,7 +322,7 @@ fn actual_cargo_builds_and_runs_an_outside_checkout_fixture() {
     .unwrap();
     fs::write(
         project.join("src/lib.rs"),
-        "#[test] fn fixture() { assert_eq!(2+2,4); }",
+        "#[test] fn test_fixture_addition_returns_four() { assert_eq!(2+2,4); }",
     )
     .unwrap();
     fs::write(
@@ -389,12 +389,12 @@ fn actual_cargo_builds_and_runs_an_outside_checkout_fixture() {
 }
 
 #[test]
-fn starter_inputs_retains_failed_real_cargo_lock_and_all_three_results() {
+fn test_starter_inputs_after_cargo_failure_retain_lock_and_three_results() {
     failed_cargo_fixture(false)
 }
 
 #[test]
-fn natural_cargo_failure_and_snapshot_collision_preserve_oracle_and_all_three_results() {
+fn test_cargo_failure_with_snapshot_collision_preserves_oracle_and_three_results() {
     failed_cargo_fixture(true)
 }
 
@@ -480,7 +480,7 @@ fn failed_cargo_fixture(collision: bool) {
 }
 
 #[test]
-fn starter_inputs_record_absent_after_failure_and_never_overwrite() {
+fn test_starter_inputs_on_spawn_failure_record_absence_without_overwrite() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("absent");
     fs::create_dir(&project).unwrap();
@@ -518,7 +518,7 @@ fn starter_inputs_record_absent_after_failure_and_never_overwrite() {
 }
 
 #[test]
-fn starter_inputs_refuse_changed_observations_and_tampered_retained_bytes() {
+fn test_starter_inputs_with_changed_or_tampered_bytes_reject_verification() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("altered");
     fs::create_dir(&project).unwrap();
@@ -565,7 +565,7 @@ fn starter_inputs_refuse_changed_observations_and_tampered_retained_bytes() {
 }
 
 #[test]
-fn starter_inputs_refuse_changed_manifest_before_any_command_and_do_not_collect_it() {
+fn test_starter_inputs_with_changed_preflight_manifest_refuse_launch_without_collecting_it() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("preflight");
     fs::create_dir(&project).unwrap();
@@ -603,7 +603,7 @@ fn starter_inputs_refuse_changed_manifest_before_any_command_and_do_not_collect_
 }
 
 #[test]
-fn starter_inputs_preserve_original_attempt_error_when_checkpoint_also_fails() {
+fn test_starter_inputs_with_failed_checkpoint_preserve_original_attempt_error() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("collision");
     fs::create_dir(&project).unwrap();
@@ -632,7 +632,7 @@ fn starter_inputs_preserve_original_attempt_error_when_checkpoint_also_fails() {
 }
 
 #[test]
-fn existing_lock_drift_before_slot_one_never_starts_the_plan() {
+fn test_starter_with_existing_lock_drift_before_first_slot_skips_all_commands() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("early");
     fs::create_dir(&project).unwrap();
@@ -665,12 +665,12 @@ fn existing_lock_drift_before_slot_one_never_starts_the_plan() {
 }
 
 #[test]
-fn real_cargo_fixture_changes_manifest_after_first_slot_and_later_slots_never_begin() {
+fn test_real_cargo_with_manifest_drift_after_first_slot_skips_later_commands() {
     drift_after_first_slot("Cargo.toml");
 }
 
 #[test]
-fn real_cargo_fixture_changes_known_lock_after_first_slot_and_later_slots_never_begin() {
+fn test_real_cargo_with_lock_drift_after_first_slot_skips_later_commands() {
     drift_after_first_slot("Cargo.lock");
 }
 
@@ -683,7 +683,7 @@ fn drift_after_first_slot(filename: &str) {
         "[package]\nname='f'\nversion='0.0.0'\nedition='2024'\n[workspace]\n",
     )
     .unwrap();
-    fs::write(project.join("src/lib.rs"),r##"#[test] fn fixture_changes_manifest() {
+    fs::write(project.join("src/lib.rs"),r##"#[test] fn test_fixture_after_input_change_reports_failure() {
         use std::io::Write;
         std::fs::OpenOptions::new().append(true).open("FILE_TO_CHANGE").unwrap().write_all(b"# fixture change\n").unwrap();
         eprintln!("fixture change observed");
@@ -732,7 +732,7 @@ fn drift_after_first_slot(filename: &str) {
 }
 
 #[test]
-fn lock_appearing_before_any_cargo_attempt_is_not_a_generated_baseline() {
+fn test_starter_with_unexpected_preflight_lock_rejects_new_baseline() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("unexpected-lock");
     fs::create_dir(&project).unwrap();

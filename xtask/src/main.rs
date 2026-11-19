@@ -5,6 +5,11 @@ use xshell::Shell;
 mod badges;
 mod baseline;
 mod bench;
+/// Shared `cargo test` flag table (#1058); the library target exposes it as
+/// `xtask::cargo_flags`. `dead_code` is allowed because the binary only
+/// reaches the subset consumed through `mod executed_proof`.
+#[allow(dead_code)]
+mod cargo_flags;
 mod ci_plan;
 mod corpus;
 mod dashboard;
@@ -547,17 +552,17 @@ enum ProofAction {
     /// raw log. Mirrors `--receipt-out` idiom: --ledger selects the receipt
     /// JSON path, defaulting to <out>/proof-receipt.json.
     Run {
-        /// Output dir receiving proof-receipt.json + raw-output.log.
+        /// Fresh attempt directory for proof-receipt.json and raw-output.log.
         #[arg(long)]
         out: std::path::PathBuf,
-        /// Receipt JSON path (defaults to <out>/proof-receipt.json).
+        /// Unused receipt JSON path (defaults to <out>/proof-receipt.json).
         #[arg(long)]
         ledger: Option<std::path::PathBuf>,
         /// Override the exercised `cargo test ...` command.
         #[arg(long)]
         command: Option<String>,
     },
-    /// Re-check a retained receipt against its raw output.
+    /// Re-check a saved attempt, not the outcome of a newer run.
     Validate {
         /// Receipt JSON path.
         #[arg(long)]

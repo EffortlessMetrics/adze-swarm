@@ -1,19 +1,19 @@
-//! Compiled enumeration for the 5 smallest package-wide proof-inventory
-//! rows (issue #1058 follow-up, advisory scope).
+//! Compiled enumeration for package-wide proof-inventory rows
+//! (issue #1058 follow-up, advisory scope).
 //!
 //! The static validator in `support_tier_proof_commands.rs` marks every
 //! package-wide row (no `--test`/`--lib` scope) as
 //! `UNSUPPORTED[package-wide]` because a source scan cannot prove selection.
-//! This test closes the gap for the cheapest subset with the real Cargo
+//! This test closes the gap with the real Cargo
 //! harness: for each enumerated row it runs
 //! `cargo test <same args> --no-run`, collects the built test executables
 //! from `--message-format=json`, runs each executable with the ledger filter
 //! plus `--list`, and asserts at least one test is selected in total.
 //!
-//! Scope is exactly [`ENUMERATED_ROWS`]. Do not extend this list without
-//! ledger-lane coordination: the pinned quarantine counts in
-//! `support_tier_proof_commands.rs` still count these rows as quarantined
-//! until the ledger lane repairs them.
+//! The static validator checks the exact set of ledger commands against
+//! `PACKAGE_WIDE_LEDGER_ROWS`, ignoring duplicate ledger occurrences. They
+//! remain quarantined as historical selection evidence is not execution.
+//! The deliberately missing filter below is a negative fixture, not a ledger row.
 //!
 //! Enumeration alone is not execution (#1058): a listed test may still be
 //! ignored-only or failing. This test proves nonzero selection only.
@@ -21,23 +21,16 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[path = "support/package_wide_ledger_rows.rs"]
+mod package_wide_ledger_rows;
+use package_wide_ledger_rows::PACKAGE_WIDE_LEDGER_ROWS;
+
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("xtask lives directly under the workspace root")
         .to_path_buf()
 }
-
-/// Exact ledger commands (`docs/status/SUPPORT_TIERS.md`), smallest packages
-/// first. Byte-for-byte ledger strings; the ledger lane owns repairing these
-/// rows from `UNSUPPORTED[package-wide]` to enumerated.
-const ENUMERATED_ROWS: &[&str] = &[
-    "cargo test -p downstream-demo -- --nocapture",
-    "cargo test -p adze-python test_python_language_exists -- --exact --nocapture",
-    "cargo test --manifest-path example/Cargo.toml external_word_example::tests::generated_external_grammar_bad_input_matrix_returns_diagnostic_document --features pure-rust -- --exact --nocapture",
-    "cargo test -p adze-golden-tests javascript_canary_expression_golden --features javascript-grammar -- --nocapture",
-    "cargo test -p adze-cli test_parse_help_documents_available_modes -- --exact --nocapture",
-];
 
 /// Split on whitespace, keeping double-quoted sections together.
 fn tokenize(command: &str) -> Vec<String> {
@@ -127,9 +120,29 @@ fn positional_filters(cargo_args: &[String]) -> Result<Vec<String>, String> {
     Ok(filters)
 }
 
+#[derive(Debug)]
+enum EnumerationError {
+    Setup(String),
+    ZeroSelection(String),
+}
+
+impl std::fmt::Display for EnumerationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Setup(message) | Self::ZeroSelection(message) => f.write_str(message),
+        }
+    }
+}
+
+impl From<String> for EnumerationError {
+    fn from(message: String) -> Self {
+        Self::Setup(message)
+    }
+}
+
 /// Build the row's test executables without running them, then list the
 /// selected tests in each. Returns the total number of listed tests.
-fn enumerate_row(root: &Path, command: &str) -> Result<usize, String> {
+fn enumerate_row(root: &Path, command: &str) -> Result<usize, EnumerationError> {
     let (cargo_args, harness_args) = split_command(command);
     let filters = positional_filters(&cargo_args)?;
 
@@ -149,7 +162,8 @@ fn enumerate_row(root: &Path, command: &str) -> Result<usize, String> {
         return Err(format!(
             "cargo test --no-run failed for {command}:\n{}",
             tail.into_iter().rev().collect::<Vec<_>>().join("\n")
-        ));
+        )
+        .into());
     }
     let stdout = String::from_utf8_lossy(&build_out.stdout);
     let mut executables: Vec<PathBuf> = Vec::new();
@@ -176,9 +190,7 @@ fn enumerate_row(root: &Path, command: &str) -> Result<usize, String> {
         }
     }
     if executables.is_empty() {
-        return Err(format!(
-            "cargo test --no-run built no test executables for {command}"
-        ));
+        return Err(format!("cargo test --no-run built no test executables for {command}").into());
     }
 
     let mut list_args = filters;
@@ -201,7 +213,8 @@ fn enumerate_row(root: &Path, command: &str) -> Result<usize, String> {
                 "{} --list failed for {command}:\n{}",
                 executable.display(),
                 String::from_utf8_lossy(&list_out.stderr)
-            ));
+            )
+            .into());
         }
         let listed = String::from_utf8_lossy(&list_out.stdout)
             .lines()
@@ -215,10 +228,10 @@ fn enumerate_row(root: &Path, command: &str) -> Result<usize, String> {
         total += listed;
     }
     if total == 0 {
-        return Err(format!(
+        return Err(EnumerationError::ZeroSelection(format!(
             "filter selects no test in any built executable for {command} [{}]",
             list_args.join(" ")
-        ));
+        )));
     }
     Ok(total)
 }
@@ -226,12 +239,7 @@ fn enumerate_row(root: &Path, command: &str) -> Result<usize, String> {
 #[test]
 fn test_package_wide_rows_enumerate_at_least_one_test() {
     let root = workspace_root();
-    assert_eq!(
-        ENUMERATED_ROWS.len(),
-        5,
-        "advisory scope is exactly the 5 smallest package-wide rows"
-    );
-    for command in ENUMERATED_ROWS {
+    for command in PACKAGE_WIDE_LEDGER_ROWS {
         match enumerate_row(&root, command) {
             Ok(total) => println!("ENUMERATED: {command} -> {total} listed test(s)"),
             Err(error) => panic!("enumeration failed for {command}: {error}"),
@@ -250,7 +258,52 @@ fn test_enumeration_rejects_unknown_package() {
     )
     .expect_err("a bogus package must fail enumeration, not select zero tests");
     assert!(
-        error.contains("adze-no-such-package-xyz") || error.contains("no test executables"),
+        matches!(error, EnumerationError::Setup(ref message)
+            if message.contains("adze-no-such-package-xyz")
+                || message.contains("no test executables")),
         "unexpected error shape: {error}"
+    );
+}
+
+#[test]
+fn test_enumeration_rejects_unknown_exact_filter() {
+    // A well-formed command whose filter matches nothing must fail
+    // enumeration (zero selected tests), not pass vacuously. The returned
+    // error string is the red proof; expect_err pins the rejection path.
+    let root = workspace_root();
+    let error = enumerate_row(
+        &root,
+        "cargo test -p adze-cli test_parse_dynamic_without_feature_reports_feature_gate -- --exact --nocapture",
+    )
+    .expect_err("a filter matching no test must fail enumeration");
+    assert!(
+        matches!(error, EnumerationError::ZeroSelection(_)),
+        "unexpected error shape: {error}"
+    );
+}
+
+#[test]
+fn test_enumeration_build_stderr_cannot_masquerade_as_zero_selection() {
+    let fixture = tempfile::tempdir().expect("temporary Cargo package");
+    let root = fixture.path();
+    std::fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"enumeration-control\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+    )
+    .expect("manifest");
+    std::fs::create_dir(root.join("src")).expect("src");
+    std::fs::write(root.join("src/lib.rs"), "").expect("source");
+    std::fs::write(
+        root.join("build.rs"),
+        "fn main() { panic!(\"filter selects no test in any built executable\"); }",
+    )
+    .expect("build script");
+    let error = enumerate_row(root, "cargo test -p enumeration-control")
+        .expect_err("a failed build cannot enumerate");
+    assert!(
+        matches!(error, EnumerationError::Setup(ref message)
+            if message.contains("cargo test --no-run failed")
+                && message.contains("filter selects no test in any built executable")),
+        "expected preserved build diagnostic, not zero selection: {error}"
     );
 }

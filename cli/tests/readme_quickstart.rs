@@ -2,6 +2,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+const CHECKOUT_RUNTIME_DEP: &str =
+    r#"adze = { path = "../adze-swarm/runtime", default-features = false }"#;
+const CHECKOUT_TOOL_DEP: &str = r#"adze-tool = { path = "../adze-swarm/tool" }"#;
+
 const PRODUCT_PROOF_STABLE_SURFACES: &[&str] = &[
     "README.md",
     "FAQ.md",
@@ -56,37 +60,28 @@ fn readme_arithmetic_quickstart_builds_and_runs() {
     let runtime_path = toml_path(repo_root.join("runtime"));
     let tool_path = toml_path(repo_root.join("tool"));
     let readme = include_str!("../../README.md");
-    let manifest_snippet = fenced_block_after(readme, "## Install", "toml")
-        .expect("README install section should include a TOML dependency block");
+    let manifest_snippet = fenced_block_after(readme, "## Use Adze in an existing crate", "toml")
+        .expect("README should include a local TOML dependency block");
     let build_rs = fenced_block_after(readme, "Add a `build.rs`", "rust")
-        .expect("README install section should include a build.rs block");
+        .expect("README should include a build.rs block");
     let grammar_snippet = fenced_block_starting_with(readme, "rust", "#[adze::grammar")
         .expect("README should include the arithmetic grammar quickstart block");
-    assert!(
-        readme.contains("Release-surface boundary")
-            && readme.contains("crates.io")
-            && readme.contains("install")
-            && readme.contains("receipt"),
-        "README install block must bound the crates.io co-release claim until publish receipts exist"
-    );
-    assert!(
-        grammar_snippet.contains(r#"let expr = grammar::parse("1 + 2 * 3")?;"#),
-        "README grammar block should show the documented parser call"
-    );
-
+    let parser_call = fenced_block_after(readme, "Call the generated parser", "rust")
+        .expect("README should show how to call the generated parser");
     fs::write(
         project_dir.join("Cargo.toml"),
-        downstream_manifest(manifest_snippet, &runtime_path, &tool_path),
+        checkout_downstream_manifest(
+            "adze_readme_quickstart",
+            manifest_snippet,
+            &runtime_path,
+            &tool_path,
+        ),
     )
     .expect("write Cargo.toml");
 
     fs::write(project_dir.join("build.rs"), build_rs).expect("write build.rs");
 
-    fs::write(
-        project_dir.join("src/lib.rs"),
-        grammar_module_from_readme(grammar_snippet),
-    )
-    .expect("write lib.rs");
+    fs::write(project_dir.join("src/lib.rs"), grammar_snippet).expect("write lib.rs");
 
     fs::write(
         project_dir.join("tests/readme_quickstart.rs"),
@@ -94,7 +89,7 @@ fn readme_arithmetic_quickstart_builds_and_runs() {
 
 #[test]
 fn readme_expression_respects_precedence() {
-    let expr = grammar::parse("1 + 2 * 3").expect("README expression should parse");
+    // README parser call
 
     assert_eq!(
         expr,
@@ -147,7 +142,8 @@ fn readme_bad_input_reports_useful_diagnostic() {
         "rendered diagnostic should place a caret under the invalid token: {rendered}"
     );
 }
-"#,
+"#
+        .replace("// README parser call", parser_call),
     )
     .expect("write quickstart test");
 
@@ -186,7 +182,12 @@ fn getting_started_quickstart_builds_parses_and_reports_diagnostics() {
 
     fs::write(
         project_dir.join("Cargo.toml"),
-        tutorial_downstream_manifest(manifest_snippet, &runtime_path, &tool_path),
+        checkout_downstream_manifest(
+            "adze_getting_started_quickstart",
+            manifest_snippet,
+            &runtime_path,
+            &tool_path,
+        ),
     )
     .expect("write Cargo.toml");
 
@@ -279,15 +280,37 @@ fn book_quickstart_builds_parses_and_reports_diagnostics() {
         .expect("Book quickstart should include a build.rs block");
     let lib_rs = fenced_block_after(quickstart, "Create `src/lib.rs`", "rust")
         .expect("Book quickstart should include a src/lib.rs block");
+    let diagnostic_rs = fenced_block_after(quickstart, "## Parse Errors", "rust")
+        .expect("Book quickstart should include the bad-input test");
+    let installation = include_str!("../../book/src/getting-started/installation.md");
+    assert_eq!(
+        fenced_block_after(installation, "## Add the dependencies", "toml"),
+        Some(manifest_snippet),
+        "Book installation and quickstart should use the same checkout dependencies"
+    );
+    assert_eq!(
+        fenced_block_after(installation, "## Build configuration", "rust"),
+        Some(build_rs),
+        "Book installation and quickstart should show the same build script"
+    );
 
     fs::write(
         project_dir.join("Cargo.toml"),
-        book_downstream_manifest(manifest_snippet, &runtime_path, &tool_path),
+        checkout_downstream_manifest(
+            "adze_book_quickstart",
+            manifest_snippet,
+            &runtime_path,
+            &tool_path,
+        ),
     )
     .expect("write Cargo.toml");
 
     fs::write(project_dir.join("build.rs"), build_rs).expect("write build.rs");
-    fs::write(project_dir.join("src/lib.rs"), lib_rs).expect("write lib.rs");
+    fs::write(
+        project_dir.join("src/lib.rs"),
+        format!("{lib_rs}\n\n{diagnostic_rs}\n"),
+    )
+    .expect("write lib.rs and the documented bad-input test");
     fs::write(
         project_dir.join("tests/book_quickstart.rs"),
         r#"use adze_book_quickstart::grammar::{self, Expr};
@@ -470,9 +493,18 @@ fn readme_stable_claims_are_in_stable_product_lane() {
     let stable_lane = include_str!("../../scripts/ci-product-stable.sh");
     let stable_rows = readme_stable_capability_rows(readme);
 
-    assert!(
-        !stable_rows.is_empty(),
-        "README capability table should include Stable proof commands"
+    assert_eq!(
+        stable_rows
+            .iter()
+            .map(|row| row.surface.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "Typed extraction",
+            "Pure-Rust parser",
+            "Operator precedence",
+            "Serialization (core tables)",
+        ],
+        "README must keep the four Stable capabilities and their proof commands"
     );
 
     for row in stable_rows {
@@ -730,6 +762,10 @@ fn co_release_dependency_snippets_stay_release_surface_bounded() {
             if !line.contains("adze-tool =") && !line.contains("cargo add --build adze-tool") {
                 continue;
             }
+            // The exact checkout-only form has no registry version to qualify.
+            if line.trim() == CHECKOUT_TOOL_DEP {
+                continue;
+            }
 
             let context = surrounding_context(text, idx, 14).to_ascii_lowercase();
             assert!(
@@ -891,42 +927,34 @@ fn workflow_path_filter_contains(workflow: &str, path: &str) -> bool {
 
 fn readme_stable_capability_rows(readme: &str) -> Vec<StableCapabilityRow> {
     let mut rows = Vec::new();
-    let mut in_capability_table = false;
+    let mut in_proof_list = false;
 
     for line in readme.lines() {
-        if line == "### Capability table" {
-            in_capability_table = true;
+        if line == "### Stable proof commands" {
+            in_proof_list = true;
             continue;
         }
-
-        if in_capability_table && line.starts_with("##") {
+        if !in_proof_list {
+            continue;
+        }
+        if line.starts_with("##") || line == "</details>" {
             break;
         }
-
-        if !in_capability_table {
+        if line.is_empty() {
             continue;
         }
 
-        if !line.starts_with('|') || !line.contains("| **Stable** |") {
-            continue;
-        }
-
-        let columns: Vec<&str> = line.split('|').collect();
-        assert!(
-            columns.len() >= 4,
-            "README Stable capability row should have a surface and proof column: {line}"
-        );
-
-        let surface = columns[1].trim().to_string();
-        let proof = columns[3];
+        let (surface, proof) = line
+            .strip_prefix("- ")
+            .and_then(|entry| entry.split_once(": "))
+            .unwrap_or_else(|| panic!("expected a Stable surface and proof commands: {line}"));
         let proof_commands = inline_code_spans(proof);
         assert!(
             !proof_commands.is_empty(),
-            "README Stable capability row should name at least one proof command: {line}"
+            "README Stable capability should name at least one proof command: {line}"
         );
-
         rows.push(StableCapabilityRow {
-            surface,
+            surface: surface.to_string(),
             proof_commands,
         });
     }
@@ -934,91 +962,32 @@ fn readme_stable_capability_rows(readme: &str) -> Vec<StableCapabilityRow> {
     rows
 }
 
-fn book_downstream_manifest(readme_toml: &str, runtime_path: &str, tool_path: &str) -> String {
+fn checkout_downstream_manifest(
+    package: &str,
+    manifest_snippet: &str,
+    runtime_path: &str,
+    tool_path: &str,
+) -> String {
     assert!(
-        readme_toml.contains(r#"adze = { version = "0.9.0", default-features = false }"#),
-        "Book quickstart install block should document the adze runtime dependency"
+        manifest_snippet
+            .lines()
+            .any(|line| line == CHECKOUT_RUNTIME_DEP),
+        "checkout example must point the runtime dependency at the local checkout"
     );
     assert!(
-        readme_toml.contains(r#"adze-tool = "0.9.0""#),
-        "Book quickstart install block should document the adze-tool build dependency"
+        manifest_snippet
+            .lines()
+            .any(|line| line == CHECKOUT_TOOL_DEP),
+        "checkout example must point the build dependency at the local checkout"
     );
 
-    let dependencies = readme_toml
-        .replace(
-            r#"adze = { version = "0.9.0", default-features = false }"#,
-            &format!(r#"adze = {{ path = "{runtime_path}", default-features = false }}"#),
-        )
-        .replace(
-            r#"adze-tool = "0.9.0""#,
-            &format!(r#"adze-tool = {{ path = "{tool_path}" }}"#),
-        );
-
+    // The test project is in a temporary directory, not a sibling of this checkout.
+    let dependencies = manifest_snippet
+        .replace("../adze-swarm/runtime", runtime_path)
+        .replace("../adze-swarm/tool", tool_path);
     format!(
         r#"[package]
-name = "adze_book_quickstart"
-version = "0.1.0"
-edition = "2024"
-
-{dependencies}
-"#
-    )
-}
-
-fn tutorial_downstream_manifest(readme_toml: &str, runtime_path: &str, tool_path: &str) -> String {
-    assert!(
-        readme_toml.contains(r#"adze = { version = "0.9.0", default-features = false }"#),
-        "Getting Started install block should document the adze runtime dependency"
-    );
-    assert!(
-        readme_toml.contains(r#"adze-tool = "0.9.0""#),
-        "Getting Started install block should document the adze-tool build dependency"
-    );
-
-    let dependencies = readme_toml
-        .replace(
-            r#"adze = { version = "0.9.0", default-features = false }"#,
-            &format!(r#"adze = {{ path = "{runtime_path}", default-features = false }}"#),
-        )
-        .replace(
-            r#"adze-tool = "0.9.0""#,
-            &format!(r#"adze-tool = {{ path = "{tool_path}" }}"#),
-        );
-
-    format!(
-        r#"[package]
-name = "adze_getting_started_quickstart"
-version = "0.1.0"
-edition = "2024"
-
-{dependencies}
-"#
-    )
-}
-
-fn downstream_manifest(readme_toml: &str, runtime_path: &str, tool_path: &str) -> String {
-    assert!(
-        readme_toml.contains(r#"adze = { version = "0.9.0", default-features = false }"#),
-        "README install block should document the adze runtime dependency"
-    );
-    assert!(
-        readme_toml.contains(r#"adze-tool = "0.9.0""#),
-        "README install block should document the adze-tool build dependency"
-    );
-
-    let dependencies = readme_toml
-        .replace(
-            r#"adze = { version = "0.9.0", default-features = false }"#,
-            &format!(r#"adze = {{ path = "{runtime_path}", default-features = false }}"#),
-        )
-        .replace(
-            r#"adze-tool = "0.9.0""#,
-            &format!(r#"adze-tool = {{ path = "{tool_path}" }}"#),
-        );
-
-    format!(
-        r#"[package]
-name = "adze_readme_quickstart"
+name = "{package}"
 version = "0.1.0"
 edition = "2024"
 
@@ -1106,17 +1075,6 @@ fn surrounding_context(text: &str, line_idx: usize, radius: usize) -> String {
     let start = line_idx.saturating_sub(radius);
     let end = (line_idx + radius + 1).min(lines.len());
     lines[start..end].join("\n")
-}
-
-fn grammar_module_from_readme(snippet: &str) -> String {
-    let parser_call = "\nlet expr = grammar::parse";
-    let grammar = snippet
-        .split(parser_call)
-        .next()
-        .expect("README grammar snippet should have a grammar module before the parser call")
-        .trim_end();
-
-    format!("{grammar}\n")
 }
 
 fn fenced_block_after<'a>(text: &'a str, marker: &str, language: &str) -> Option<&'a str> {

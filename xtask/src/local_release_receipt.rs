@@ -282,7 +282,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn receipt_export_refuses_colliding_paths_and_preserves_retained_evidence() {
+    fn test_receipt_export_on_colliding_paths_preserves_retained_evidence() {
         let owner = tempfile::tempdir().unwrap();
         let root = owner.path().join("evidence");
         let entry = root.join("commands/00000001");

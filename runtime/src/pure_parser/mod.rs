@@ -373,6 +373,33 @@ impl Parser {
         source: &[u8],
         old_tree: Option<&crate::pure_incremental::Tree>,
     ) -> ParseResult {
+        self.parse_bytes_observing(source, old_tree, |_, _, _, _, _, _| {})
+    }
+
+    /// Observe reductions in this invocation's native table, before hidden
+    /// unary elision removes the selected rule. IDs/columns are local to the
+    /// assigned language. RHS children exclude pending extras; field_id is the
+    /// physical value *after* this production's field map was applied, not a
+    /// claim that every carried field originated in this production.
+    ///
+    /// This is an internal producer, not a complete-document capability. A parse
+    /// may recover or fail after committed reductions. Legacy tables without
+    /// explicit syntax rules and malformed reductions with missing RHS children
+    /// provide no such observations. The normal path has
+    /// a statically empty observer and allocates no event or trace collection.
+    pub(crate) fn parse_bytes_observing(
+        &mut self,
+        source: &[u8],
+        old_tree: Option<&crate::pure_incremental::Tree>,
+        mut observe: impl FnMut(
+            adze_ir::RuleId,
+            adze_ir::ProductionId,
+            TSSymbol,
+            std::ops::Range<usize>,
+            &[Subtree],
+            bool,
+        ),
+    ) -> ParseResult {
         let language = match self.language {
             Some(lang) => lang,
             None => {
@@ -632,7 +659,7 @@ impl Parser {
                 }
 
                 Action::Reduce(rule_id) => {
-                    if !self.reduce(language, rule_id, source) {
+                    if !self.reduce(language, rule_id, source, &mut observe) {
                         // Reduction failed - record error and try to recover
                         errors.push(ParseError {
                             work_limit: None,
@@ -1379,7 +1406,20 @@ impl Parser {
     }
 
     /// Perform a reduction
-    fn reduce(&mut self, language: &TSLanguage, production_id: u16, source: &[u8]) -> bool {
+    fn reduce(
+        &mut self,
+        language: &TSLanguage,
+        production_id: u16,
+        source: &[u8],
+        observe: &mut impl FnMut(
+            adze_ir::RuleId,
+            adze_ir::ProductionId,
+            TSSymbol,
+            std::ops::Range<usize>,
+            &[Subtree],
+            bool,
+        ),
+    ) -> bool {
         if source.len() < 20 {
             // eprintln!(
             // "DEBUG reduce: Reducing with production_id={} (from parse table)",
@@ -1507,7 +1547,20 @@ impl Parser {
             let is_hidden = self.is_hidden_symbol(language, symbol);
 
             // Create parent node or unwrap if hidden
-            let mut parent = if is_hidden && children.len() == 1 {
+            let elide_unary = is_hidden && children.len() == 1;
+            if !language.rules.is_null() && children.len() == child_count {
+                // The goto and RHS pop have succeeded. Capture the executed
+                // rule, not the child that may survive the elision below.
+                observe(
+                    adze_ir::RuleId(zero_based_id),
+                    adze_ir::ProductionId(production_index),
+                    symbol,
+                    start_byte..end_byte,
+                    &children,
+                    elide_unary,
+                );
+            }
+            let mut parent = if elide_unary {
                 // Return the child directly, skipping the hidden wrapper
                 if let Some(node) = children.pop() {
                     node

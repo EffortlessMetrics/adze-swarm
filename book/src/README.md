@@ -2,57 +2,32 @@
 
 [![Crates.io](https://img.shields.io/crates/v/adze)](https://crates.io/crates/adze)
 
-Welcome to the official documentation for **Adze** - a Rust framework that makes it easy to create efficient parsers by leveraging the [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) parser generator.
+When syntax changes, the grammar and the Rust types your application reads need
+to stay in sync. Adze puts the grammar rules on those types. It generates the
+parser at build time, and `grammar::parse()` returns values of the types you
+defined.
 
-With Adze, you can define your entire grammar with annotations on idiomatic Rust code, and let macros generate the parser and type-safe bindings for you!
+## Build Your First Parser
 
-## Key Features
+Follow the [Quick Start](getting-started/quickstart.md) to generate and test a
+small arithmetic parser in a fresh Rust crate. It covers the grammar
+annotations, the build script, and what happens when input is invalid.
 
-### 0.9.0 Highlights
+## Choose the Output You Need
 
-- **Generated Parser Front Door**: Define Rust grammar types and call generated parsers.
-- **Pure-Rust Option**: Generate static parsers at compile time without C dependencies.
-- **Structured Diagnostics**: Use supported parser errors and document diagnostics for bad input.
-- **GLR Ambiguity Handling**: Use documented GLR conflict-routing and ambiguity-summary surfaces.
-- **Document Projections**: Inspect `AdzeDocument`, typed views, Tree-sitter-shaped selected trees, and JSON according to support tiers.
-- **Static CLI Output**: Render a generated document as a tree, S-expression, DOT graph, or JSON projection. The CLI is Stabilizing and public JSON is Experimental; see [Support Tiers](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/status/SUPPORT_TIERS.md).
-- **Proof-Tracked Surfaces**: Support tiers, proof commands, known gaps, and release receipts are tracked in repo docs.
+- **Typed values for an interpreter, transpiler, or analyzer:** use
+  `grammar::parse()`.
+- **A selected syntax tree and diagnostics for tooling:** use
+  `grammar::parse_document()`. See [Error Recovery](guide/error-recovery.md)
+  for how to handle incomplete input.
+- **A Tree-sitter-shaped view for integrations:** use the
+  [selected-tree adapter](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/reference/tree-sitter-compatibility.md)
+  for the documented traversal subset.
 
-## Quick Example
-
-Here's a simple arithmetic expression parser:
-
-```rust
-#[adze::grammar("arithmetic")]
-mod grammar {
-    #[adze::language]
-    pub enum Expr {
-        Number(
-            #[adze::leaf(pattern = r"\d+", try_transform = |v| v.parse::<u32>())]
-            u32,
-        ),
-        #[adze::prec_left(1)]
-        Add(
-            Box<Expr>,
-            #[adze::leaf(text = "+")] (),
-            Box<Expr>,
-        )
-    }
-}
-
-// Usage
-let result = grammar::parse("1+2+3");
-```
-
-## When to Use Adze
-
-Adze is ideal for:
-
-- **Language Server Protocol (LSP) implementations** - Fast incremental parsing for IDE support
-- **Code analysis tools** - Syntax highlighting, linting, formatting
-- **Transpilers and interpreters** - Type-safe AST generation
-- **Documentation generators** - Parsing code for documentation extraction
-- **Any application requiring robust parsing** - With error recovery and ambiguity handling
+[Incremental parsing](guide/incremental-parsing.md) is Experimental. Editor
+integrations should be prepared to reparse the full source after an edit. See
+[Support Tiers](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/status/SUPPORT_TIERS.md)
+for the status and limits of each surface.
 
 ## How This Book is Organized
 
@@ -70,4 +45,5 @@ Adze is ideal for:
 
 ## License
 
-Adze is licensed under the MIT license. See the [LICENSE](https://github.com/EffortlessMetrics/adze/blob/main/LICENSE) file for details.
+Adze is available under either the [MIT license](https://github.com/EffortlessMetrics/adze/blob/main/LICENSE-MIT)
+or the [Apache License, Version 2.0](https://github.com/EffortlessMetrics/adze/blob/main/LICENSE-APACHE).

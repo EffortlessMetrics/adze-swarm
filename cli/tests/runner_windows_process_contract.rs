@@ -15,7 +15,7 @@ mod runner_windows_request;
 mod windows_fixture;
 
 use runner_windows::{CaptureCause, CapturePolicy, Channel};
-use runner_windows_handles::{OwnedChild, ReadResult};
+use runner_windows_handles::{BOOTSTRAP_MODE, OwnedChild, ReadResult};
 use runner_windows_request::{
     EnvironmentChange, EnvironmentPolicy, MAX_REQUEST_BYTES, RunnerRequest,
 };
@@ -418,11 +418,16 @@ fn test_cli_reports_bootstrap_cargo_spawn_failure() {
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     assert!(output.stdout.is_empty(), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("static parse failed for"), "{output:?}");
+    assert!(stderr.contains("static runner process for"), "{output:?}");
+    assert!(
+        stderr.contains("static runner external spawn failed:"),
+        "{output:?}"
+    );
     assert!(
         stderr.contains("error: static runner bootstrap failed: external spawn:"),
         "{output:?}"
     );
+    assert!(!stderr.contains("runner exited with"), "{output:?}");
     assert!(
         !stderr.contains("the runner produced no error output"),
         "{output:?}"
@@ -435,12 +440,13 @@ fn test_bootstrap_argument_and_handle_failures_are_non_success() {
     assert!(runner_windows::bootstrap_if_requested().is_none());
     let pseudo_handle = (usize::MAX - 1).to_string();
     for args in [
-        vec!["--adze-runner-bootstrap-v1"],
-        vec!["--adze-runner-bootstrap-v1", "not-a-handle"],
-        vec!["--adze-runner-bootstrap-v1", "0"],
-        vec!["--adze-runner-bootstrap-v1", "1"],
-        vec!["--adze-runner-bootstrap-v1", pseudo_handle.as_str()],
-        vec!["--adze-runner-bootstrap-v1", "1", "extra"],
+        vec![BOOTSTRAP_MODE],
+        vec![BOOTSTRAP_MODE, "not-a-handle"],
+        vec![BOOTSTRAP_MODE, "0", "1"],
+        vec![BOOTSTRAP_MODE, "1", "2"],
+        vec![BOOTSTRAP_MODE, pseudo_handle.as_str(), "2"],
+        vec![BOOTSTRAP_MODE, "1", "2", "extra"],
+        vec![BOOTSTRAP_MODE, "1", "1"],
     ] {
         let output = assert_cmd::Command::new(adze())
             .args(args)
@@ -873,7 +879,7 @@ fn test_success_also_stops_descendants_which_closed_both_pipes() {
 #[test]
 fn test_terminal_259_and_high_bit_codes_are_forwarded_without_narrowing() {
     let _serial = serial();
-    for code in [0_u32, 7, 259, 0x8000ffff, 0xc000013a] {
+    for code in [0_u32, 1, 7, 259, 0x8000ffff, 0xc000013a] {
         let output = capture(&request(&["exit", &code.to_string()]), policy()).unwrap();
         assert_eq!(output.status.code().unwrap() as u32, code);
     }
@@ -887,15 +893,52 @@ fn test_creation_and_external_spawn_failures_keep_their_stage() {
     let error = runner_windows::capture(&request(&["inspect"]), &missing, policy()).unwrap_err();
     assert!(matches!(&error.cause, CaptureCause::Spawn(_)), "{error:?}");
     assert!(error.natural_status.is_none());
-    let mut request = request(&["inspect"]);
-    request.program = missing.into_os_string();
-    let output = capture(&request, policy()).unwrap();
-    assert!(!output.status.success());
+    let unknown = runner_windows::capture(
+        &request(&["inspect"]),
+        windows_fixture::fixture_exe(),
+        policy(),
+    )
+    .unwrap_err();
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains("external spawn:"),
-        "{output:?}"
+        matches!(
+            &unknown.cause,
+            CaptureCause::Observe(error) if error.kind() == io::ErrorKind::InvalidData
+        ),
+        "{unknown:?}"
     );
-    assert!(output.stdout.is_empty());
+    assert!(unknown.natural_status.is_none());
+    assert!(
+        String::from_utf8_lossy(&unknown.stderr).contains("unknown native fixture argument"),
+        "{unknown:?}"
+    );
+    assert_cleanup(&unknown);
+
+    let mut external = request(&["inspect"]);
+    external.program = missing.into_os_string();
+    let failure = capture(&external, policy()).unwrap_err();
+    assert!(
+        matches!(
+            &failure.cause,
+            CaptureCause::ExternalSpawn(error) if error.kind() == io::ErrorKind::NotFound
+        ),
+        "{failure:?}"
+    );
+    let source = std::error::Error::source(&failure)
+        .unwrap()
+        .downcast_ref::<io::Error>()
+        .unwrap();
+    assert_eq!(source.kind(), io::ErrorKind::NotFound);
+    assert!(failure.natural_status.is_none());
+    assert!(
+        String::from_utf8_lossy(&failure.stderr).contains("external spawn:"),
+        "{failure:?}"
+    );
+    assert!(failure.stdout.is_empty());
+    assert_cleanup(&failure);
+
+    let natural = capture(&request(&["exit", "1"]), policy()).unwrap();
+    assert_eq!(natural.status.code(), Some(1));
+    assert!(natural.stdout.is_empty() && natural.stderr.is_empty());
 }
 
 #[test]
