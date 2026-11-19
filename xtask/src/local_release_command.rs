@@ -718,7 +718,7 @@ fn bounded_error_text(error: &anyhow::Error) -> (String, bool) {
     (output.text, output.truncated)
 }
 
-fn write_atomic_new(path: &Path, raw: &[u8]) -> Result<()> {
+pub(crate) fn write_atomic_new(path: &Path, raw: &[u8]) -> Result<()> {
     let parent = path
         .parent()
         .context("release command artifact has no parent")?;
@@ -750,7 +750,7 @@ fn write_exclusive(path: &Path, raw: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn sha256(raw: &[u8]) -> String {
+pub(crate) fn sha256(raw: &[u8]) -> String {
     hex(&Sha256::digest(raw))
 }
 

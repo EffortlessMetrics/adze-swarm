@@ -1,6 +1,7 @@
 //! Focused native controls for the starter Cargo journal.
 
 use super::*;
+use crate::local_release_command::{SourceBinding, sha256};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -243,6 +244,11 @@ fn test_starter_plan_with_nondefault_cargo_runs_all_three_requests() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project λ");
     fs::create_dir(&project).unwrap();
+    fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname='fixture'\nversion='0.0.0'\n",
+    )
+    .unwrap();
     let cargo = root
         .path()
         .join(format!("cargo fixture λ{}", std::env::consts::EXE_SUFFIX));
@@ -255,7 +261,7 @@ fn main() {
     assert_eq!(std::path::PathBuf::from(std::env::var_os("CARGO_HOME").unwrap()), parent.join("home"));
     assert_eq!(std::path::PathBuf::from(std::env::var_os("CARGO_TARGET_DIR").unwrap()), parent.join("target"));
     let args: Vec<_> = std::env::args().skip(1).collect();
-    if args == ["test"] { return; }
+    if args == ["test"] { std::fs::write("Cargo.lock","version = 4\n[[package]]\nname='fixture'\nversion='0.0.0'\n").unwrap(); return; }
     if args == ["run","--example","parse","--","1 + 2 * 3"] {
         println!("Add(Number(1), Mul(Number(2), Number(3)))");
     } else if args == ["run","--example","parse","--","1 + @"] {
@@ -276,11 +282,11 @@ fn main() {
         "{}",
         String::from_utf8_lossy(&built.stderr)
     );
+    let (mut inputs, generated) = StarterInputs::create(root.path(), source(), &project).unwrap();
+    inputs.expect_effective(generated.as_bytes()).unwrap();
     let results = run(
-        root.path(),
-        source(),
+        &mut inputs,
         cargo.as_os_str(),
-        &project,
         &root.path().join("home"),
         &root.path().join("target"),
     )
@@ -331,11 +337,11 @@ fn test_real_cargo_outside_checkout_builds_and_runs_fixture() {
     )
     .unwrap();
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let (mut inputs, generated) = StarterInputs::create(root.path(), source(), &project).unwrap();
+    inputs.expect_effective(generated.as_bytes()).unwrap();
     let commands = run(
-        root.path(),
-        source(),
+        &mut inputs,
         &cargo,
-        &project,
         &root.path().join("home"),
         &root.path().join("target"),
     )
@@ -346,5 +352,427 @@ fn test_real_cargo_outside_checkout_builds_and_runs_fixture() {
         commands[0].stdout
     );
     assert_eq!(commands[2].exit_code, 23);
-    assert!(project.join("Cargo.lock").is_file());
+    let lock = fs::read(project.join("Cargo.lock")).unwrap();
+    let parsed: toml::Value = toml::from_str(std::str::from_utf8(&lock).unwrap()).unwrap();
+    let packages = parsed["package"].as_array().unwrap();
+    assert_eq!(packages.len(), 1);
+    assert_eq!(packages[0]["name"].as_str(), Some("proof-fixture"));
+    assert_eq!(packages[0]["version"].as_str(), Some("0.0.0"));
+    let observations = root.path().join("starter-inputs");
+    assert_eq!(
+        fs::read(observations.join("generated-Cargo.toml")).unwrap(),
+        generated.as_bytes()
+    );
+    assert_eq!(
+        json(&observations.join("before.json"))["lock"]["state"],
+        "absent"
+    );
+    for id in 1..=3 {
+        let record = json(&observations.join(format!("after-{id:02}.json")));
+        assert_eq!(record["journal_slot"], id);
+        assert_eq!(record["lock"]["state"], "present");
+        assert_eq!(record["lock"]["artifact"]["bytes"], lock.len());
+        assert_eq!(record["lock"]["artifact"]["sha256"], sha256(&lock));
+        assert_eq!(
+            fs::read(observations.join(record["lock"]["artifact"]["path"].as_str().unwrap()))
+                .unwrap(),
+            lock
+        );
+    }
+    println!(
+        "actual outside fixture: generated_manifest {} bytes sha256 {}; cargo_lock {} bytes sha256 {}",
+        generated.len(),
+        sha256(generated.as_bytes()),
+        lock.len(),
+        sha256(&lock)
+    );
+}
+
+#[test]
+fn test_starter_inputs_after_cargo_failure_retain_lock_and_three_results() {
+    failed_cargo_fixture(false)
+}
+
+#[test]
+fn test_cargo_failure_with_snapshot_collision_preserves_oracle_and_three_results() {
+    failed_cargo_fixture(true)
+}
+
+fn failed_cargo_fixture(collision: bool) {
+    // A valid local fixture with a compilation error resolves a genuine
+    // lockfile, then fails without any registry dependency or network need.
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("broken");
+    fs::create_dir_all(project.join("src")).unwrap();
+    fs::create_dir(project.join("examples")).unwrap();
+    let original = "[package]\nname='broken'\nversion='0.1.0'\nedition='2024'\n[workspace]\n";
+    fs::write(project.join("Cargo.toml"), original).unwrap();
+    let (mut inputs, generated) = StarterInputs::create(root.path(), source(), &project).unwrap();
+    let effective = format!("{original}\n# bounded fixture for harness manifest preparation\n");
+    fs::write(project.join("Cargo.toml"), &effective).unwrap();
+    assert_eq!(generated, original);
+    inputs.expect_effective(effective.as_bytes()).unwrap();
+    fs::write(
+        project.join("src/lib.rs"),
+        "compile_error!(\"fixture compile refusal\");",
+    )
+    .unwrap();
+    fs::write(project.join("examples/parse.rs"), "fn main() {}").unwrap();
+    if collision {
+        fs::write(
+            root.path().join("starter-inputs/after-01.json"),
+            b"prior output",
+        )
+        .unwrap();
+    }
+    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let err = run(
+        &mut inputs,
+        &cargo,
+        &root.path().join("home"),
+        &root.path().join("target"),
+    )
+    .unwrap_err();
+    assert!(
+        format!("{err:#}").contains("fixture compile refusal"),
+        "{err:#}"
+    );
+    let directory = root.path().join("starter-inputs");
+    assert_eq!(
+        fs::read(directory.join("generated-Cargo.toml")).unwrap(),
+        original.as_bytes()
+    );
+    let before = json(&directory.join("before.json"));
+    assert_eq!(before["lock"]["state"], "absent");
+    assert_eq!(
+        fs::read(directory.join(before["effective_manifest"]["path"].as_str().unwrap())).unwrap(),
+        effective.as_bytes()
+    );
+    let lock = fs::read(project.join("Cargo.lock")).unwrap();
+    for id in 1..=3 {
+        if collision && id == 1 {
+            assert_eq!(
+                fs::read(directory.join("after-01.json")).unwrap(),
+                b"prior output"
+            );
+            assert!(format!("{err:#}").contains("after-01.json"));
+        } else {
+            let after = json(&directory.join(format!("after-{id:02}.json")));
+            assert_eq!(after["command_outcome"], "status_unsuccessful");
+            assert_eq!(after["lock"]["artifact"]["sha256"], sha256(&lock));
+        }
+        let completion = json(
+            &root
+                .path()
+                .join(format!("commands/{id:08}/completion.json")),
+        );
+        assert_eq!(completion["natural_status"]["code"], 101);
+    }
+    println!(
+        "failed real Cargo fixture: generated {} bytes sha256 {}; effective {} bytes sha256 {}; lock {} bytes sha256 {}",
+        original.len(),
+        sha256(original.as_bytes()),
+        effective.len(),
+        sha256(effective.as_bytes()),
+        lock.len(),
+        sha256(&lock)
+    );
+}
+
+#[test]
+fn test_starter_inputs_on_spawn_failure_record_absence_without_overwrite() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("absent");
+    fs::create_dir(&project).unwrap();
+    fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname='absent'\nversion='0.1.0'\n",
+    )
+    .unwrap();
+    let (mut inputs, generated) = StarterInputs::create(root.path(), source(), &project).unwrap();
+    inputs.expect_effective(generated.as_bytes()).unwrap();
+    let cargo = root.path().join("no-such-cargo");
+    let err = run(
+        &mut inputs,
+        cargo.as_os_str(),
+        &root.path().join("home"),
+        &root.path().join("target"),
+    )
+    .unwrap_err();
+    assert_eq!(
+        err.downcast_ref::<std::io::Error>().unwrap().kind(),
+        std::io::ErrorKind::NotFound
+    );
+    let directory = root.path().join("starter-inputs");
+    let after = json(&directory.join("after-01.json"));
+    assert_eq!(after["lock"]["state"], "absent");
+    assert_eq!(after["command_outcome"], "capture_or_recording_error");
+    assert_eq!(after["stage"], "after_command_attempt");
+    assert!(!directory.join("after-02.json").exists());
+    let before = fs::read(directory.join("generated-Cargo.toml")).unwrap();
+    assert!(StarterInputs::create(root.path(), source(), &project).is_err());
+    assert_eq!(
+        fs::read(directory.join("generated-Cargo.toml")).unwrap(),
+        before
+    );
+}
+
+#[test]
+fn test_starter_inputs_with_changed_or_tampered_bytes_reject_verification() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("altered");
+    fs::create_dir(&project).unwrap();
+    fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname='changed'\nversion='0.1.0'\n",
+    )
+    .unwrap();
+    let (mut inputs, generated) = StarterInputs::create(root.path(), source(), &project).unwrap();
+    inputs.expect_effective(generated.as_bytes()).unwrap();
+    inputs.observe(None, "not_started").unwrap();
+    for (index, version) in ["0.1.0", "0.1.1"].iter().enumerate() {
+        let lock = format!("version=4\n[[package]]\nname='changed'\nversion='{version}'\n");
+        fs::write(project.join("Cargo.lock"), lock).unwrap();
+        inputs
+            .observe(Some((index + 1, PLAN[index].0)), "status_success")
+            .unwrap();
+    }
+    assert!(
+        inputs
+            .verify(true)
+            .unwrap_err()
+            .to_string()
+            .contains("changed during the journey")
+    );
+    let dir = root.path().join("starter-inputs");
+    let a = json(&dir.join("after-01.json"));
+    let b = json(&dir.join("after-02.json"));
+    assert_ne!(
+        a["lock"]["artifact"]["sha256"],
+        b["lock"]["artifact"]["sha256"]
+    );
+    let file = dir.join(a["lock"]["artifact"]["path"].as_str().unwrap());
+    let mut raw = fs::read(&file).unwrap();
+    raw[0] = b'X';
+    fs::write(&file, raw).unwrap();
+    assert!(
+        inputs
+            .verify(false)
+            .unwrap_err()
+            .to_string()
+            .contains("retained starter input changed")
+    );
+}
+
+#[test]
+fn test_starter_inputs_with_changed_preflight_manifest_refuse_launch_without_collecting_it() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("preflight");
+    fs::create_dir(&project).unwrap();
+    let manifest = project.join("Cargo.toml");
+    fs::write(&manifest, "[package]\nname='f'\nversion='0.0.0'\n").unwrap();
+    let (mut inputs, generated) = StarterInputs::create(root.path(), source(), &project).unwrap();
+    inputs.expect_effective(generated.as_bytes()).unwrap();
+    fs::write(&manifest, "[workspace]\n# replaced before proof\n").unwrap();
+    let error = run(
+        &mut inputs,
+        OsStr::new("unused"),
+        &root.path().join("home"),
+        &root.path().join("target"),
+    )
+    .unwrap_err();
+    assert!(
+        error.to_string().contains("before the first command"),
+        "{error:#}"
+    );
+    assert!(!root.path().join("commands").exists());
+    let dir = root.path().join("starter-inputs");
+    let before = json(&dir.join("before.json"));
+    assert_eq!(before["effective_manifest_matches"], false);
+    assert_eq!(
+        fs::read(dir.join("effective-Cargo.toml")).unwrap(),
+        generated.as_bytes()
+    );
+    for item in fs::read_dir(&dir).unwrap() {
+        assert!(
+            !fs::read_to_string(item.unwrap().path())
+                .unwrap()
+                .contains("replaced before proof")
+        );
+    }
+}
+
+#[test]
+fn test_starter_inputs_with_failed_checkpoint_preserve_original_attempt_error() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("collision");
+    fs::create_dir(&project).unwrap();
+    fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname='f'\nversion='0.0.0'\n",
+    )
+    .unwrap();
+    let (mut inputs, generated) = StarterInputs::create(root.path(), source(), &project).unwrap();
+    inputs.expect_effective(generated.as_bytes()).unwrap();
+    let reserved = root.path().join("starter-inputs/after-01.json");
+    fs::write(&reserved, b"previous evidence").unwrap();
+    let err = run(
+        &mut inputs,
+        root.path().join("missing-program").as_os_str(),
+        &root.path().join("home"),
+        &root.path().join("target"),
+    )
+    .unwrap_err();
+    assert_eq!(
+        err.downcast_ref::<std::io::Error>().unwrap().kind(),
+        std::io::ErrorKind::NotFound
+    );
+    assert!(format!("{err:#}").contains("after-01.json"));
+    assert_eq!(fs::read(reserved).unwrap(), b"previous evidence");
+}
+
+#[test]
+fn test_starter_with_existing_lock_drift_before_first_slot_skips_all_commands() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("early");
+    fs::create_dir(&project).unwrap();
+    fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname='f'\nversion='0.0.0'\n",
+    )
+    .unwrap();
+    let lock = project.join("Cargo.lock");
+    fs::write(&lock, "version=4\n[[package]]\nname='f'\nversion='0.0.0'\n").unwrap();
+    let (mut inputs, generated) = StarterInputs::create(root.path(), source(), &project).unwrap();
+    inputs.expect_effective(generated.as_bytes()).unwrap();
+    fs::write(&lock, "version=4\n[[package]]\nname='f'\nversion='0.1.0'\n").unwrap();
+    let err = run(&mut inputs, OsStr::new("unused"), root.path(), root.path()).unwrap_err();
+    assert!(format!("{err:#}").contains("before the first command"));
+    let dir = root.path().join("starter-inputs");
+    assert!(
+        json(&dir.join("before.json"))["known_input_change"]
+            .as_bool()
+            .unwrap()
+    );
+    assert_eq!(
+        json(&dir.join("stopped.json"))["not_run"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert!(!root.path().join("commands").exists());
+}
+
+#[test]
+fn test_real_cargo_with_manifest_drift_after_first_slot_skips_later_commands() {
+    drift_after_first_slot("Cargo.toml");
+}
+
+#[test]
+fn test_real_cargo_with_lock_drift_after_first_slot_skips_later_commands() {
+    drift_after_first_slot("Cargo.lock");
+}
+
+fn drift_after_first_slot(filename: &str) {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("during");
+    fs::create_dir_all(project.join("src")).unwrap();
+    fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname='f'\nversion='0.0.0'\nedition='2024'\n[workspace]\n",
+    )
+    .unwrap();
+    fs::write(project.join("src/lib.rs"),r##"#[test] fn test_fixture_after_input_change_reports_failure() {
+        use std::io::Write;
+        std::fs::OpenOptions::new().append(true).open("FILE_TO_CHANGE").unwrap().write_all(b"# fixture change\n").unwrap();
+        eprintln!("fixture change observed");
+        panic!("fixture change observed");
+    }"##.replace("FILE_TO_CHANGE",filename)).unwrap();
+    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let generated_lock = Command::new(&cargo)
+        .args(["generate-lockfile", "--offline"])
+        .current_dir(&project)
+        .env("CARGO_HOME", root.path().join("home"))
+        .output()
+        .unwrap();
+    assert!(generated_lock.status.success());
+    let (mut inputs, generated) = StarterInputs::create(root.path(), source(), &project).unwrap();
+    inputs.expect_effective(generated.as_bytes()).unwrap();
+    let err = run(
+        &mut inputs,
+        &cargo,
+        &root.path().join("home"),
+        &root.path().join("target"),
+    )
+    .unwrap_err();
+    assert!(format!("{err:#}").contains("starter inputs changed after starter-cargo-test"));
+    let dir = root.path().join("starter-inputs");
+    let stopped = json(&dir.join("stopped.json"));
+    assert_eq!(
+        stopped["not_run"],
+        serde_json::json!(["starter-parse-valid", "starter-parse-invalid"])
+    );
+    assert_eq!(
+        json(&dir.join("after-01.json"))["effective_manifest_matches"],
+        filename != "Cargo.toml"
+    );
+    let commands = root.path().join("commands");
+    assert_eq!(
+        json(&commands.join("00000001/completion.json"))["natural_status"]["code"],
+        101
+    );
+    assert!(
+        fs::read_to_string(commands.join("00000001/stdout.bin"))
+            .unwrap()
+            .contains("fixture change observed")
+    );
+    assert!(!commands.join("00000002").exists());
+    assert!(!commands.join("00000003").exists());
+}
+
+#[test]
+fn test_starter_with_unexpected_preflight_lock_rejects_new_baseline() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("unexpected-lock");
+    fs::create_dir(&project).unwrap();
+    fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname='f'\nversion='0.0.0'\n",
+    )
+    .unwrap();
+    let (mut inputs, generated) = StarterInputs::create(root.path(), source(), &project).unwrap();
+    inputs.expect_effective(generated.as_bytes()).unwrap();
+    let early = b"version=4\n[[package]]\nname='f'\nversion='0.0.0'\n";
+    fs::write(project.join("Cargo.lock"), early).unwrap();
+    let err = run(
+        &mut inputs,
+        OsStr::new("unneeded-program"),
+        root.path(),
+        root.path(),
+    )
+    .unwrap_err();
+    assert!(
+        format!("{err:#}").contains("changed before the first command"),
+        "{err:#}"
+    );
+    let dir = root.path().join("starter-inputs");
+    assert_eq!(json(&dir.join("generated.json"))["lock"]["state"], "absent");
+    let before = json(&dir.join("before.json"));
+    assert_eq!(before["lock"]["state"], "present");
+    assert_eq!(before["lock"]["artifact"]["sha256"], sha256(early));
+    assert_eq!(
+        fs::read(dir.join(before["lock"]["artifact"]["path"].as_str().unwrap())).unwrap(),
+        early
+    );
+    assert_eq!(before["known_input_change"], true);
+    assert_eq!(
+        json(&dir.join("stopped.json"))["not_run"],
+        serde_json::json!([
+            "starter-cargo-test",
+            "starter-parse-valid",
+            "starter-parse-invalid"
+        ])
+    );
+    assert!(!root.path().join("commands").exists());
 }
