@@ -63,7 +63,7 @@ fn child(root: &Path, script: &str, additional: &[&str]) -> ReleaseCommand {
 }
 
 #[test]
-fn child_observes_journaled_inputs_before_returning_binary_channels_and_natural_status() {
+fn test_child_with_journaled_inputs_retains_binary_channels_and_natural_status() {
     let (root, mut journal) = fixture();
     let script = r#"import json, os, pathlib, sys
 req = json.loads(pathlib.Path('commands/00000001/intent.json').read_bytes())['request']
@@ -104,7 +104,7 @@ sys.exit(7)
 }
 
 #[test]
-fn intent_failure_never_starts_child_and_spawn_failure_records_no_status() {
+fn test_capture_with_failed_intent_or_spawn_never_invents_status() {
     let (root, mut journal) = fixture();
     fs::create_dir(root.path().join("commands/00000001")).unwrap();
     let request = child(root.path(), "open('started', 'w').close()", &[]);
@@ -131,7 +131,7 @@ fn intent_failure_never_starts_child_and_spawn_failure_records_no_status() {
 }
 
 #[test]
-fn completion_failure_keeps_natural_status_and_missing_plan_is_not_success() {
+fn test_completion_write_failure_retains_natural_status_and_rejects_incomplete_plan() {
     let (root, mut journal) = fixture();
     let req = child(
         root.path(),
@@ -151,7 +151,7 @@ fn completion_failure_keeps_natural_status_and_missing_plan_is_not_success() {
 }
 
 #[test]
-fn aggregate_refuses_orphan_entry_and_changed_completion() {
+fn test_starter_plan_with_orphan_or_changed_completion_rejects_aggregate() {
     let (root, mut journal) = fixture();
     let mut observations = Vec::new();
     for (name, _) in PLAN {
@@ -198,7 +198,7 @@ fn aggregate_refuses_orphan_entry_and_changed_completion() {
 
 #[cfg(windows)]
 #[test]
-fn high_bit_windows_status_is_retained_but_not_a_parser_refusal() {
+fn test_windows_high_bit_status_is_retained_not_a_parser_refusal() {
     let (root, mut journal) = fixture();
     let req = child(
         root.path(),
@@ -220,7 +220,7 @@ fn high_bit_windows_status_is_retained_but_not_a_parser_refusal() {
 
 #[cfg(unix)]
 #[test]
-fn signal_is_not_an_invalid_parse_exit_code() {
+fn test_unix_signal_is_retained_not_an_invalid_parse_exit_code() {
     let (root, mut journal) = fixture();
     let req = child(
         root.path(),
@@ -239,7 +239,7 @@ fn signal_is_not_an_invalid_parse_exit_code() {
 }
 
 #[test]
-fn production_starter_plan_uses_the_nondefault_program_and_verifies_all_three() {
+fn test_starter_plan_with_nondefault_cargo_runs_all_three_requests() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project λ");
     fs::create_dir(&project).unwrap();
@@ -304,7 +304,7 @@ fn main() {
 }
 
 #[test]
-fn actual_cargo_builds_and_runs_an_outside_checkout_fixture() {
+fn test_real_cargo_outside_checkout_builds_and_runs_fixture() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("outside λ");
     fs::create_dir_all(project.join("examples")).unwrap();
@@ -316,7 +316,7 @@ fn actual_cargo_builds_and_runs_an_outside_checkout_fixture() {
     .unwrap();
     fs::write(
         project.join("src/lib.rs"),
-        "#[test] fn fixture() { assert_eq!(2+2,4); }",
+        "#[test] fn test_fixture_addition_returns_four() { assert_eq!(2+2,4); }",
     )
     .unwrap();
     fs::write(
