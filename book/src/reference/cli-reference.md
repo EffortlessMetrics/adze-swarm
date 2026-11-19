@@ -10,23 +10,21 @@ Reference for the current adze command-line interface.
 > Dynamic (`--dynamic`) parsing is unavailable and rejects the request before
 > loading a library.
 
-## Installation
+## Run From a Checkout
 
-The crates.io install command is a release-surface target until the release
-checklist records a crates.io install receipt for `adze-cli`. For the current
-proved path, build the CLI from the checkout under test.
-
-Intended published install command:
+From the repository root, use the checkout's pinned Rust toolchain to build
+and run the CLI:
 
 ```bash
-cargo install adze-cli
+cargo run -p adze-cli -- --help
 ```
 
-From this checkout:
+The examples below use `adze` as shorthand. When running them from a checkout,
+replace the leading `adze` with `cargo run -p adze-cli --`.
 
-```bash
-cargo build --release -p adze-cli
-```
+A crates.io install is not the verified path here. The
+[release decision tracker (#325)](https://github.com/EffortlessMetrics/adze-swarm/issues/325)
+tracks the separate release and post-publish install receipt.
 
 ## Global Options
 
