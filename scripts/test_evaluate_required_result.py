@@ -601,6 +601,7 @@ class WorkflowWiring(unittest.TestCase):
             "--bin adze generated_runner_argv_tests::test_generated_runner_protocol_args_precede_input_io -- --exact --nocapture",
             "--test runner_cache_process_contract -- --nocapture",
         ]
+        self.assertEqual(len(commands[:8]), len(targets), "Windows guard target denominator changed")
         for command, target in zip(commands[:8], targets):
             self.assertIn("--label ", command)
             self.assertIn("-- cargo test --locked -p adze-cli --target x86_64-pc-windows-msvc ", command)
