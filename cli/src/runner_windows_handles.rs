@@ -10,7 +10,7 @@ use std::os::windows::ffi::OsStrExt;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::path::Path;
 use std::ptr;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicU64, Ordering, fence};
 use windows_sys::Win32::Foundation::{
     CloseHandle, DuplicateHandle, ERROR_BROKEN_PIPE, ERROR_INSUFFICIENT_BUFFER, ERROR_NO_DATA,
     ERROR_PIPE_CONNECTED, ERROR_PIPE_NOT_CONNECTED, GENERIC_READ, GENERIC_WRITE, HANDLE,
@@ -47,7 +47,11 @@ use windows_sys::Win32::System::Threading::{
     WaitForSingleObject,
 };
 
-pub(crate) const BOOTSTRAP_MODE: &str = "--adze-runner-bootstrap-v1";
+#[path = "runner_windows_status.rs"]
+mod status_wire;
+pub(crate) use status_wire::Terminal;
+
+pub(crate) const BOOTSTRAP_MODE: &str = "--adze-runner-bootstrap-v2";
 pub(crate) const FORCED_EXIT: u32 = 0xc000013a;
 
 pub(crate) fn prepare_bootstrap_stdio() -> io::Result<()> {
@@ -93,9 +97,9 @@ struct View {
 }
 
 impl View {
-    fn read(handle: &Handle, length: usize) -> io::Result<Self> {
+    fn map(handle: &Handle, length: usize, access: u32) -> io::Result<Self> {
         // SAFETY: the kernel validates the requested mapping extent and access.
-        let address = unsafe { MapViewOfFile(handle.raw(), FILE_MAP_READ, 0, 0, length) };
+        let address = unsafe { MapViewOfFile(handle.raw(), access, 0, 0, length) };
         if address.Value.is_null() {
             return Err(io::Error::last_os_error());
         }
@@ -211,10 +215,10 @@ pub(crate) fn decode_inherited_request(value: usize) -> io::Result<RunnerRequest
         return Err(io::Error::last_os_error());
     }
     let handle = Handle::from_created(duplicate)?;
-    let header = View::read(&handle, HEADER_BYTES)?;
+    let header = View::map(&handle, HEADER_BYTES, FILE_MAP_READ)?;
     let length = request_length(header.bytes());
     header.close()?;
-    let view = View::read(&handle, length?)?;
+    let view = View::map(&handle, length?, FILE_MAP_READ)?;
     let request = RunnerRequest::decode(view.bytes());
     view.close()?;
     // Neither the view nor its inheritable handle may reach the external child.
@@ -226,6 +230,83 @@ pub(crate) fn decode_inherited_request(value: usize) -> io::Result<RunnerRequest
         return Err(io::Error::last_os_error());
     }
     request
+}
+
+fn duplicate_mapping(raw: HANDLE, access: u32, inheritable: bool) -> io::Result<Handle> {
+    let mut duplicate = ptr::null_mut();
+    // SAFETY: the kernel validates the borrowed source. Only this new owned
+    // duplicate is returned; the operation never closes the source itself.
+    if unsafe {
+        DuplicateHandle(
+            GetCurrentProcess(),
+            raw,
+            GetCurrentProcess(),
+            &mut duplicate,
+            access,
+            i32::from(inheritable),
+            0,
+        )
+    } == 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    Handle::from_created(duplicate)
+}
+
+fn terminal_mapping() -> io::Result<(Handle, Handle)> {
+    // SAFETY: a fresh unnamed zero-filled pagefile mapping, fixed nonzero
+    // extent, no executable access and no inheritable owner handle.
+    let mapping = Handle::from_created(unsafe {
+        CreateFileMappingW(
+            INVALID_HANDLE_VALUE,
+            ptr::null(),
+            PAGE_READWRITE,
+            0,
+            status_wire::STATUS_BYTES as u32,
+            ptr::null(),
+        )
+    })?;
+    Ok((
+        duplicate_mapping(mapping.raw(), FILE_MAP_READ, false)?,
+        duplicate_mapping(mapping.raw(), FILE_MAP_WRITE, true)?,
+    ))
+}
+
+pub(crate) struct TerminalWriter(View);
+
+impl TerminalWriter {
+    pub(crate) fn from_inherited(value: usize) -> io::Result<Self> {
+        let inherited = value as HANDLE;
+        if inherited.is_null() || inherited == INVALID_HANDLE_VALUE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid terminal mapping handle",
+            ));
+        }
+        let duplicate = duplicate_mapping(inherited, FILE_MAP_WRITE, false)?;
+        let view = View::map(&duplicate, status_wire::STATUS_BYTES, FILE_MAP_WRITE)?;
+        // SAFETY: successful mapping established this original inherited
+        // handle's object type. Close it before external Command::spawn so
+        // neither a descendant nor stdio can supply the helper's terminal.
+        if unsafe { CloseHandle(inherited) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        drop(duplicate);
+        Ok(Self(view))
+    }
+
+    pub(crate) fn report(self, terminal: &Terminal) {
+        let wire = status_wire::encode(terminal);
+        let address: *mut u8 = self.0.address.Value.cast();
+        // SAFETY: this is the helper's fixed writable view. The parent does
+        // not sample it until observing the helper exit; its acquire of the
+        // first (previously zero) byte checks the final commit after all
+        // other bytes. Partial writes before helper death cannot commit.
+        unsafe {
+            ptr::copy_nonoverlapping(wire.as_ptr().add(1), address.add(1), wire.len() - 1);
+            AtomicU8::from_ptr(address).store(wire[0], Ordering::Release);
+        }
+    }
 }
 
 pub(crate) enum ReadResult {
@@ -446,6 +527,7 @@ impl Drop for Attributes {
 pub(crate) struct OwnedChild {
     job: Handle,
     process: Option<Handle>,
+    terminal: Handle,
     pub(crate) stdout: Pipe,
     pub(crate) stderr: Pipe,
     pub(crate) process_id: u32,
@@ -467,6 +549,7 @@ impl OwnedChild {
         before_create: impl FnOnce() -> io::Result<()>,
     ) -> io::Result<Self> {
         let mapping = request_mapping(request)?;
+        let (terminal, terminal_write) = terminal_mapping()?;
         let (stdout, stdout_write) = Pipe::pair()?;
         let (stderr, stderr_write) = Pipe::pair()?;
         let attributes = inheritable_attributes();
@@ -507,6 +590,7 @@ impl OwnedChild {
             stdout_write.raw(),
             stderr_write.raw(),
             mapping.raw(),
+            terminal_write.raw(),
         ];
         let mut attributes = Attributes::new()?;
         attributes.handles(PROC_THREAD_ATTRIBUTE_JOB_LIST, &jobs)?;
@@ -521,7 +605,14 @@ impl OwnedChild {
         let mut command_line = vec![b'"' as u16];
         command_line.extend_from_slice(&executable[..executable.len() - 1]);
         command_line.push(b'"' as u16);
-        command_line.extend(format!(" {BOOTSTRAP_MODE} {}", mapping.raw() as usize).encode_utf16());
+        command_line.extend(
+            format!(
+                " {BOOTSTRAP_MODE} {} {}",
+                mapping.raw() as usize,
+                terminal_write.raw() as usize,
+            )
+            .encode_utf16(),
+        );
         command_line.push(0);
         if command_line.len() > 32767 {
             return Err(io::Error::new(
@@ -542,7 +633,7 @@ impl OwnedChild {
         let mut process: PROCESS_INFORMATION = unsafe { zeroed() };
         before_create()?;
         // SAFETY: JOB_LIST assigns the new process before its initial thread
-        // runs. HANDLE_LIST contains only the four intentional inherited
+        // runs. HANDLE_LIST contains only the five intentional inherited
         // handles, never the kill-on-close job. NULL env/cwd preserve the CLI
         // context; the helper applies request changes only to its Command.
         if unsafe {
@@ -568,6 +659,7 @@ impl OwnedChild {
         let child = Self {
             job,
             process: Some(process_handle),
+            terminal,
             stdout,
             stderr,
             process_id: process.dwProcessId,
@@ -576,6 +668,7 @@ impl OwnedChild {
         drop(stdout_write);
         drop(stderr_write);
         drop(mapping);
+        drop(terminal_write);
         let mut member = 0;
         // SAFETY: both handles identify objects this guard owns; no PID lookup.
         if unsafe {
@@ -613,6 +706,30 @@ impl OwnedChild {
             }
             _ => Err(io::Error::last_os_error()),
         }
+    }
+
+    pub(crate) fn terminal_status(&self, helper_exit: u32) -> io::Result<Terminal> {
+        if !self.leader_closed() {
+            return Err(io::Error::other("bootstrap terminal read before exit"));
+        }
+        let view = View::map(&self.terminal, status_wire::STATUS_BYTES, FILE_MAP_READ)?;
+        let address: *mut u8 = view.address.Value.cast();
+        // SAFETY: the first byte is the aligned mapped commit flag, initially
+        // zero. The helper alone can store it, and has already exited. Use a
+        // single-byte relaxed load (valid on a read-only Windows view), then
+        // an acquire fence before reading the published payload.
+        let committed = unsafe { (&*address.cast::<AtomicU8>()).load(Ordering::Relaxed) };
+        fence(Ordering::Acquire);
+        let result = if committed == 0 {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "bootstrap exited without committing a terminal record",
+            ))
+        } else {
+            status_wire::decode(view.bytes(), helper_exit)
+        };
+        view.close()?;
+        result
     }
 
     pub(crate) fn terminate(&self) -> io::Result<()> {
