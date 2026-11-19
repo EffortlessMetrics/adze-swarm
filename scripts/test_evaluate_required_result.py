@@ -579,7 +579,8 @@ class WorkflowWiring(unittest.TestCase):
         self.assertIn("targets: x86_64-pc-windows-msvc", windows)
         self.assertIn("EXPECTED_SHA: ${{ github.sha }}", windows)
         self.assertIn("$actualSha -cne $env:EXPECTED_SHA", windows)
-        self.assertEqual(2, windows.count("if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"))
+        identity = windows.split("- name: Verify checkout and record native Windows identity", 1)[1].split("- name:", 1)[0]
+        self.assertEqual(2, identity.count("if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"))
         for token in ("ImageOS", "ImageVersion", "windows_build", "rustc -vV", "lock_sha256"):
             self.assertIn(token, windows)
         self.assertIn("run: python scripts/test_run_required_test.py\n", windows)
@@ -588,8 +589,8 @@ class WorkflowWiring(unittest.TestCase):
     def test_windows_guards_each_native_contract_and_strict_targeted_clippy(self) -> None:
         block = self._job_block(".github/workflows/product-proof.yml", "ci-product-windows")
         commands = [line.strip() for line in block.splitlines()
-                    if "run: python scripts/run-required-test.py " in line]
-        self.assertEqual(9, len(commands))
+                    if line.strip().removeprefix("run: ").startswith("python scripts/run-required-test.py ")]
+        self.assertEqual(11, len(commands))
         targets = [
             "--test runner_windows_process_contract -- --nocapture",
             "--test runner_windows_output_contract -- --nocapture",
@@ -610,11 +611,27 @@ class WorkflowWiring(unittest.TestCase):
             commands[7],
         )
         self.assertEqual(
+            'python scripts/run-required-test.py --label "Windows starter journal and input retention" '
+            "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask "
+            "local_registry::starter::tests:: -- --format pretty --test-threads=1 | Tee-Object -Variable starterOutput",
+            commands[8],
+        )
+        self.assertIn(commands[8] + "\n          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }", block)
+        self.assertIn("$passed.Count -ne 17 -or $passed -cnotcontains "
+                      "'test local_registry::starter::tests::high_bit_windows_status_is_retained_but_not_a_parser_refusal ... ok'", block)
+        self.assertEqual(
+            'run: python scripts/run-required-test.py --label "Windows starter receipt export without clobber" '
+            "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask "
+            "local_release_receipt::tests::receipt_export_refuses_colliding_paths_and_preserves_retained_evidence "
+            "-- --exact --nocapture",
+            commands[9],
+        )
+        self.assertEqual(
             'run: python scripts/run-required-test.py --label "Windows Cargo lock and offline install assumptions" '
             "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask "
             "local_registry::provenance::tests::lock_fixture::test_actual_transformed_packaged_lock_prefetch_and_offline_install "
             "-- --exact --nocapture",
-            commands[8],
+            commands[10],
         )
         clippy = (
             "cargo clippy --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze "
