@@ -31,6 +31,8 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use sha2::{Digest, Sha256};
+
 #[derive(Debug)]
 pub enum ProofError {
     Malformed(String),
@@ -100,15 +102,22 @@ pub struct ProofReceipt {
     pub child_exit_code: Option<i32>,
     pub terminal_status: String,
     pub raw_output_ref: String,
+    /// SHA-256 of the exact retained log bytes, not just the terminal counts.
+    pub raw_output_sha256: String,
     #[serde(default)]
     pub include_ignored: bool,
 }
 
 impl ProofReceipt {
-    /// Re-validate a receipt against its raw output. This is the check a
-    /// wrapper cannot bypass: counts must match the terminal result rows
-    /// actually present in the retained output.
+    /// Re-validate the retained log's byte identity and terminal counts.
+    /// The digest detects substituted logs; it is not a signature or a
+    /// substitute for checking the candidate's source and build identity.
     pub fn validate_against_output(&self, raw_output: &str) -> Result<(), ProofError> {
+        if self.raw_output_sha256 != raw_output_digest(raw_output) {
+            return Err(ProofError::InconsistentReceipt(
+                "raw output SHA-256 mismatch".into(),
+            ));
+        }
         validate_counts(
             self,
             &parse_result_rows(raw_output),
@@ -127,6 +136,10 @@ impl ProofReceipt {
             && self.features == other.features
             && self.executables == other.executables
     }
+}
+
+fn raw_output_digest(raw_output: &str) -> String {
+    format!("{:x}", Sha256::digest(raw_output.as_bytes()))
 }
 
 pub struct ProofSpec {
@@ -686,6 +699,7 @@ pub fn run_executed_proof(spec: &ProofSpec) -> Result<ProofReceipt, ProofError> 
         child_exit_code: child_code,
         terminal_status: format!("exit:{child_code:?}"),
         raw_output_ref: spec.raw_output_path.display().to_string(),
+        raw_output_sha256: raw_output_digest(&raw),
         include_ignored: spec.include_ignored,
     };
     if child_code != Some(0) || failed > 0 {

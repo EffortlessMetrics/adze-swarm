@@ -2,6 +2,7 @@
 //! Uses a tiny fixture crate built by Cargo itself; selection comes from
 //! the compiled harness listing, never source scanning.
 
+use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use xtask::executed_proof::{ProofError, ProofSpec, run_executed_proof};
@@ -159,10 +160,54 @@ fn failing_child_is_not_hidden_by_successful_wrapper() {
         "wrapper.txt",
     ))
     .unwrap();
-    let tampered_raw = "running 1 test\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out\n";
-    assert!(ok.validate_against_output(tampered_raw).is_err());
-    // Truncated output (no terminal row) also cannot pass.
-    assert!(ok.validate_against_output("running 1 test\n").is_err());
+    let raw = std::fs::read_to_string(&ok.raw_output_ref).unwrap();
+    let terminal = raw
+        .lines()
+        .find(|line| line.starts_with("test result: ok."))
+        .expect("real canary must emit a passing terminal row");
+    let failed = raw.replacen(
+        terminal,
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out",
+        1,
+    );
+    let truncated = raw.replacen(terminal, "", 1);
+
+    // Rebind each edited fixture so a digest mismatch cannot hide a
+    // regression in terminal validation. The real digest-negative case is
+    // exercised separately with a different actual passing harness log.
+    let mut rebound = ok.clone();
+    rebound.raw_output_sha256 = format!("{:x}", Sha256::digest(failed.as_bytes()));
+    let err = rebound
+        .validate_against_output(&failed)
+        .expect_err("the failing row must disagree with the original passing counters");
+    assert!(
+        matches!(&err, ProofError::InconsistentReceipt(reason)
+            if reason == "receipt counts do not match raw output"),
+        "{err}"
+    );
+
+    // Even with consistent receipt counters, exit 0 cannot hide a failed row.
+    rebound.counts.passed = 0;
+    rebound.counts.failed = 1;
+    let err = rebound
+        .validate_against_output(&failed)
+        .expect_err("consistent counts must not turn wrapper success into test success");
+    assert!(
+        matches!(&err, ProofError::ChildFailed { code: Some(0), detail }
+            if detail == "1 failed in raw output"),
+        "{err}"
+    );
+
+    let mut rebound = ok;
+    rebound.raw_output_sha256 = format!("{:x}", Sha256::digest(truncated.as_bytes()));
+    let err = rebound
+        .validate_against_output(&truncated)
+        .expect_err("removing the only terminal row must fail validation");
+    assert!(
+        matches!(&err, ProofError::InconsistentReceipt(reason)
+            if reason == "missing/truncated terminal test result"),
+        "{err}"
+    );
 }
 
 #[test]
