@@ -334,6 +334,15 @@ class WorkflowWiring(unittest.TestCase):
                         self.assertEqual("true", result["run_stable"])
                         self.assertEqual(f"stable_surface:{path}", result["reason"])
 
+    def test_installed_image_module_alone_selects_product_qualification(self) -> None:
+        path = "xtask/src/local_registry_installed_image.rs"
+        for event in ("merge_group", "pull_request"):
+            for change in ("modify", "delete", "rename"):
+                with self.subTest(event=event, change=change):
+                    result = self._product_path_selection(path, event=event, change=change)
+                    self.assertEqual("true", result["run_stable"])
+                    self.assertEqual(f"stable_surface:{path}", result["reason"])
+
     def test_local_release_controls_remain_small_guarded_selected_proof(self) -> None:
         block = self._job_block(".github/workflows/product-proof.yml", "ci-product-stable")
         self.assertIn("outputs.run_stable == 'true' && github.event_name != 'pull_request'", block)
@@ -702,7 +711,7 @@ if mode == "extra_summary": print(summary)
         block = self._job_block(".github/workflows/product-proof.yml", "ci-product-windows")
         commands = [line.strip() for line in block.splitlines()
                     if line.strip().removeprefix("run: ").startswith("python scripts/run-required-test.py ")]
-        self.assertEqual(11, len(commands))
+        self.assertEqual(12, len(commands))
         targets = [
             "--test runner_windows_process_contract -- --nocapture",
             "--test runner_windows_output_contract -- --nocapture",
@@ -745,6 +754,29 @@ if mode == "extra_summary": print(summary)
             "-- --exact --nocapture",
             commands[10],
         )
+        self.assertEqual(
+            'python scripts/run-required-test.py --label "Windows installed CLI image observations" '
+            "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc "
+            "--bin xtask installed_image -- --format pretty --test-threads=1 | Tee-Object -Variable imageOutput",
+            commands[11],
+        )
+        self.assertIn(commands[11] + "\n          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }", block)
+        image_names = (
+            "local_registry::installed_image::tests::test_installed_image_receipt_keeps_one_exact_bin_basename",
+            "local_registry::installed_image::tests::test_installed_image_bounds_and_hashes_raw_bytes",
+            "local_registry::tests::test_installed_image_rejects_ambiguous_basename_before_cargo",
+            "local_registry::tests::test_init_refuses_same_length_installed_image_replacement",
+            "local_registry::tests::test_init_refuses_installed_image_byte_loss",
+        )
+        self.assertIn(
+            "$expectedImagePasses = @(\n"
+            + "".join(f"            'test {name} ... ok'\n" for name in image_names)
+            + "          )",
+            block,
+        )
+        self.assertIn("$imagePassed = @($imageOutput | Where-Object { $_ -cmatch '^test [a-z0-9_:]+ \\.\\.\\. ok$' })", block)
+        self.assertIn('$missingImagePasses = @($expectedImagePasses | Where-Object { $imagePassed -cnotcontains $_ })', block)
+        self.assertIn('if ($imagePassed.Count -ne 5 -or $missingImagePasses.Count -ne 0) {', block)
         clippy = (
             "cargo clippy --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze "
             "--test runner_windows_process_contract --test runner_windows_output_contract "

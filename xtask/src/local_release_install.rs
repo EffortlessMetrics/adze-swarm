@@ -107,10 +107,10 @@ fn execute(
     println!("install:");
     registry.evidence_stage("cargo_install_unqualified")?;
     let install = registry.install_cli(&plan.cli_crate, &plan.cli_bin, &plan.version)?;
-    println!("installed binary: {}", install.binary_path.display());
+    println!("installed binary: {}", install.binary_path().display());
 
     registry.evidence_stage("installed_cli_init_unqualified")?;
-    let mut starter = registry.init_starter_project(&install.binary_path, root, "calc")?;
+    let mut starter = registry.init_starter_project(&install, root, "calc")?;
     println!("starter project: {}", starter.project_dir.display());
 
     println!();

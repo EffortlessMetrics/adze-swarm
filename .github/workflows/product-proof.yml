@@ -94,6 +94,7 @@ env:
     xtask/src/local_registry_provenance.rs
     xtask/src/local_registry_provenance_tests.rs
     xtask/src/local_registry_lock_fixture.rs
+    xtask/src/local_registry_installed_image.rs
     xtask/src/local_release_archive.py
     xtask/src/local_release_install.rs
     xtask/src/local_release_receipt.rs
@@ -540,6 +541,23 @@ jobs:
           path: ${{ runner.temp }}/adze-lock-fixture-*
           include-hidden-files: true
           if-no-files-found: error
+
+      - name: Qualify Windows installed CLI image observations
+        run: |
+          python scripts/run-required-test.py --label "Windows installed CLI image observations" -- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask installed_image -- --format pretty --test-threads=1 | Tee-Object -Variable imageOutput
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $expectedImagePasses = @(
+            'test local_registry::installed_image::tests::test_installed_image_receipt_keeps_one_exact_bin_basename ... ok'
+            'test local_registry::installed_image::tests::test_installed_image_bounds_and_hashes_raw_bytes ... ok'
+            'test local_registry::tests::test_installed_image_rejects_ambiguous_basename_before_cargo ... ok'
+            'test local_registry::tests::test_init_refuses_same_length_installed_image_replacement ... ok'
+            'test local_registry::tests::test_init_refuses_installed_image_byte_loss ... ok'
+          )
+          $imagePassed = @($imageOutput | Where-Object { $_ -cmatch '^test [a-z0-9_:]+ \.\.\. ok$' })
+          $missingImagePasses = @($expectedImagePasses | Where-Object { $imagePassed -cnotcontains $_ })
+          if ($imagePassed.Count -ne 5 -or $missingImagePasses.Count -ne 0) {
+            throw "Expected exactly five named Windows installed-image passes; saw $($imagePassed.Count), missing: $missingImagePasses."
+          }
 
   product-proof-result:
     timeout-minutes: 5
