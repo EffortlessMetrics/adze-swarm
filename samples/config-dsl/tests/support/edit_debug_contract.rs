@@ -119,6 +119,11 @@ impl Phase {
         args
     }
 
+    /// Baseline resolves the fresh checkout; later phases must reuse its lock.
+    pub(crate) fn source_cargo_args(self) -> Vec<&'static str> {
+        Self::cargo_args(self != Self::Baseline)
+    }
+
     pub(crate) fn inputs(self, base: &str) -> (String, &'static str) {
         match self {
             Self::Baseline => (base.to_owned(), BASELINE_TEST),
@@ -299,7 +304,7 @@ mod tests {
     const OK: &[u8] = b"running 1 test\ntest journey_contract ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n";
 
     #[test]
-    fn registry_commands_lock_offline_before_libtest_selection() {
+    fn test_cargo_args_after_baseline_require_locked_offline() {
         let expected = [
             "test",
             "--color",
@@ -318,11 +323,18 @@ mod tests {
             "never",
         ];
         assert_eq!(Phase::cargo_args(true), expected);
+        assert_eq!(
+            Phase::Baseline.source_cargo_args(),
+            Phase::cargo_args(false)
+        );
+        for phase in [Phase::Extension, Phase::Break, Phase::Repair] {
+            assert_eq!(phase.source_cargo_args(), expected);
+        }
         assert!(!Phase::cargo_args(false).contains(&"--locked"));
     }
 
     #[test]
-    fn edit_has_the_same_oracle_before_and_after_the_deliberate_break() {
+    fn test_edit_inputs_after_repair_restore_the_extended_oracle() {
         let baseline = include_str!("../../src/lib.rs");
         let (original, old_test) = Phase::Baseline.inputs(baseline);
         let (edit, edited_test) = Phase::Extension.inputs(baseline);
@@ -351,7 +363,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_zero_selection_wrong_method_and_duplicate_terminal_rows() {
+    fn test_success_oracle_with_missing_or_duplicate_rows_rejects_output() {
         assert!(Phase::Baseline.audit_output(Some(0), OK, b"").is_ok());
         let ok = std::str::from_utf8(OK).unwrap();
         for changed in [
@@ -399,7 +411,7 @@ mod tests {
     );
 
     #[test]
-    fn rejects_setup_failure_named_failure_without_native_101_and_stale_output() {
+    fn test_break_oracle_without_native_compile_failure_rejects_output() {
         assert!(
             Phase::Break
                 .audit_output(Some(101), b"", GENERATOR.as_bytes())
@@ -438,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn reviewer_refuses_unrelated_cargo_error_with_pasted_excerpt() {
+    fn test_break_oracle_with_unrelated_cargo_error_rejects_excerpt() {
         let fake = "error: failed to download adze\nnote: pasted old output: Symbol 'MissingBackoffType1138' referenced in 'Policy' not found\n";
         let wrong_context = GENERATOR.replace("edit-debug-probe", "unrelated");
         let moved_cause = GENERATOR
@@ -468,7 +480,7 @@ mod tests {
     }
 
     #[test]
-    fn reviewer_refuses_stale_libtest_in_stderr_on_break() {
+    fn test_break_oracle_with_libtest_stderr_rejects_output() {
         let mixed = [GENERATOR.as_bytes(), OK].concat();
         assert!(Phase::Break.audit_output(Some(101), b"", &mixed).is_err());
         let unrelated = format!("{GENERATOR}test unrelated ... ok\n");
@@ -486,7 +498,7 @@ mod tests {
     }
 
     #[test]
-    fn reviewer_refuses_extra_unrelated_test_method() {
+    fn test_success_oracle_with_unrelated_test_rejects_output() {
         let ok = std::str::from_utf8(OK).unwrap();
         for fake in [
             ok.replace(

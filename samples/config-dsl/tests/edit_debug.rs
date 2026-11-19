@@ -21,7 +21,7 @@ fn toml_path(path: &Path) -> String {
 fn run_phase(project: &Path, phase: Phase) {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = Command::new(cargo)
-        .args(Phase::cargo_args(false))
+        .args(phase.source_cargo_args())
         .current_dir(project)
         // Cleaning this directory between phases would hide stale generation.
         .env("CARGO_TARGET_DIR", project.join("target"))
