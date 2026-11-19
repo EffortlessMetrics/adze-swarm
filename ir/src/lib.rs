@@ -50,6 +50,10 @@ pub use compiler_identity::{
 /// Allocation-time optional helper and source field provenance.
 pub mod field_origin;
 pub use field_origin::{OptionalFieldOrigin, OptionalOrigin, SourceRuleId};
+mod repeat_field_origin;
+// Internal producer seam shared with compiler crates, not a supported document API.
+#[doc(hidden)]
+pub use repeat_field_origin::RepeatFieldOrigin;
 
 /// Core grammar representation supporting all Tree-sitter features including GLR
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -892,6 +896,35 @@ impl Grammar {
     /// unchanged, including a late allocation failure after nested
     /// rewrites duplicated demand across helper rules (#1059).
     pub fn try_normalize(&mut self) -> Result<Vec<Rule>, GrammarError> {
+        self.normalize_recording_repeat_fields(None)?;
+        Ok(self.rules.values().flatten().cloned().collect())
+    }
+
+    /// Normalize and return allocation-time origins for direct source fields
+    /// on `Repeat(Terminal | NonTerminal | External)`. Composite items,
+    /// RepeatOne, and fields introduced by later rewrites are not covered.
+    /// Already-normalized input yields no new origins; an empty result is not
+    /// a certificate that the grammar has no repeated fields.
+    ///
+    /// The grammar result is identical to [`Self::try_normalize`]. Origins are
+    /// out of band: legacy positional serialization and native rules do not change.
+    ///
+    /// # Errors
+    ///
+    /// As for [`Self::try_normalize`]; no origins escape a failed normalization.
+    #[doc(hidden)]
+    pub fn try_normalize_with_repeat_field_origins(
+        &mut self,
+    ) -> Result<Vec<RepeatFieldOrigin>, GrammarError> {
+        let mut origins = Vec::new();
+        self.normalize_recording_repeat_fields(Some(&mut origins))?;
+        Ok(origins)
+    }
+
+    fn normalize_recording_repeat_fields(
+        &mut self,
+        repeat_fields: Option<&mut Vec<RepeatFieldOrigin>>,
+    ) -> Result<(), GrammarError> {
         // SymbolId(0) is reserved in occupied_symbol_ids, so helpers never
         // collide with EOF even for legacy grammars using 0 as an LHS (#1059).
         let mut occupied = self.occupied_symbol_ids();
@@ -1005,9 +1038,12 @@ impl Grammar {
         // restore is unreachable on current demand accounting; it guards
         // against future accounting drift.
         let saved = self.clone();
-        if let Err(error) =
-            self.expand_complex_symbols(&mut occupied, &mut next_aux, &mut fresh_production_id)
-        {
+        if let Err(error) = self.expand_complex_symbols(
+            &mut occupied,
+            &mut next_aux,
+            &mut fresh_production_id,
+            repeat_fields,
+        ) {
             *self = saved;
             return Err(error);
         }
@@ -1026,7 +1062,7 @@ impl Grammar {
             *self = saved;
             return Err(error);
         }
-        Ok(self.rules.values().flatten().cloned().collect())
+        Ok(())
     }
 
     /// Expand complex symbols pass by pass, rebuilding the rule map until
@@ -1039,6 +1075,7 @@ impl Grammar {
         occupied: &mut [bool],
         next_aux: &mut impl FnMut(&mut [bool]) -> Result<SymbolId, GrammarError>,
         fresh_production_id: &mut impl FnMut() -> Result<ProductionId, GrammarError>,
+        mut repeat_fields: Option<&mut Vec<RepeatFieldOrigin>>,
     ) -> Result<(), GrammarError> {
         // We need to keep processing until no complex symbols remain
         loop {
@@ -1067,7 +1104,12 @@ impl Grammar {
                 let mut field_ranges: Vec<std::ops::Range<usize>> =
                     Vec::with_capacity(rule.rhs.len());
 
+                let mut final_rhs_width = 0;
                 for (source_position, symbol) in rule.rhs.into_iter().enumerate() {
+                    let lowered_rhs_position = final_rhs_width;
+                    if repeat_fields.is_some() {
+                        final_rhs_width += Self::sequence_expansion_len(&symbol);
+                    }
                     let range_start = new_rhs.len();
                     match symbol {
                         Symbol::Optional(inner) => {
@@ -1125,6 +1167,37 @@ impl Grammar {
                             found_complex = true;
                             // Create aux rule: aux -> aux inner | ε
                             let aux_id = next_aux(occupied)?;
+
+                            // Capture at allocation, not by recognizing a normalized
+                            // rule or guessing the meaning of its public name.
+                            if let Some(origins) = repeat_fields.as_deref_mut()
+                                && matches!(
+                                    &*inner,
+                                    Symbol::Terminal(_)
+                                        | Symbol::NonTerminal(_)
+                                        | Symbol::External(_)
+                                )
+                            {
+                                for &(field, _) in rule
+                                    .fields
+                                    .iter()
+                                    .filter(|(_, pos)| *pos == source_position)
+                                {
+                                    origins.push(RepeatFieldOrigin {
+                                        source_rule: SourceRuleId {
+                                            owner: rule.lhs,
+                                            alternative,
+                                        },
+                                        source_rhs_position: source_position,
+                                        lowered_rhs_position,
+                                        field,
+                                        helper: aux_id,
+                                        item: (*inner).clone(),
+                                        recursive_alternative: 0,
+                                        empty_alternative: 1,
+                                    });
+                                }
+                            }
 
                             // aux -> aux inner (recursively normalize)
                             self.add_rule(Rule {
@@ -1295,6 +1368,9 @@ impl Grammar {
             }
             self.alias_sequences = remapped_aliases;
 
+            // Only original, directly fielded source sites are in scope. A
+            // helper/later pass has no independently retained source coordinate.
+            repeat_fields = None;
             // If no complex symbols were found in this iteration, we're done
             if !found_complex {
                 break;
