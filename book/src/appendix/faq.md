@@ -97,19 +97,11 @@ the same module unless you are writing a test or adapter.
 
 ### Build fails with macro errors
 
-Ensure both dependencies are present:
-
-This versioned dependency block is the intended release-surface shape after the
-coordinated publish. Current repo proof uses local/path dependencies from this
-checkout until crates.io receipts exist for the co-release crates.
-
-```toml
-[dependencies]
-adze = "0.9.0"
-
-[build-dependencies]
-adze-tool = "0.9.0"
-```
+Check the [Quick Start setup](../getting-started/quickstart.md#installation).
+The example uses `adze` and the build dependency `adze-tool` from the same
+checkout. It also shows the pure-Rust feature wiring and the `build.rs` call
+that points to the file containing your grammar. A crate beside the checkout
+must select Rust 1.95.0 or newer itself.
 
 ### Grammar has conflicts
 
@@ -171,12 +163,10 @@ const HIGH: u32 = 10;
 
 ### WASM build fails
 
-Start with the pure-Rust parser surface and keep optional adapters out of the
-build until you need them:
-
-```toml
-adze = { version = "0.9.0", features = ["pure-rust"] }
-```
+WebAssembly is Advisory. The [WASM entry in Support Tiers](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/status/SUPPORT_TIERS.md)
+points to the checkout's compile check. That check does not verify browser or
+runtime behavior. If you are just checking a new grammar, first confirm it
+builds natively with the [Quick Start setup](../getting-started/quickstart.md#installation).
 
 ## Migration Questions
 

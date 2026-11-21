@@ -311,6 +311,9 @@ class WorkflowWiring(unittest.TestCase):
             "xtask/src/main.rs",
             "xtask/src/policy.rs",
             "xtask/src/local_registry.rs",
+            "xtask/src/local_registry_starter.rs",
+            "xtask/src/local_registry_starter_inputs.rs",
+            "xtask/src/local_registry_starter_tests.rs",
             "xtask/src/local_registry_provenance.rs",
             "xtask/src/local_registry_provenance_tests.rs",
             "xtask/src/local_registry_lock_fixture.rs",
@@ -331,6 +334,15 @@ class WorkflowWiring(unittest.TestCase):
                         result = self._product_path_selection(path, event=event, change=change)
                         self.assertEqual("true", result["run_stable"])
                         self.assertEqual(f"stable_surface:{path}", result["reason"])
+
+    def test_installed_image_module_alone_selects_product_qualification(self) -> None:
+        path = "xtask/src/local_registry_installed_image.rs"
+        for event in ("merge_group", "pull_request"):
+            for change in ("modify", "delete", "rename"):
+                with self.subTest(event=event, change=change):
+                    result = self._product_path_selection(path, event=event, change=change)
+                    self.assertEqual("true", result["run_stable"])
+                    self.assertEqual(f"stable_surface:{path}", result["reason"])
 
     def test_local_release_controls_remain_small_guarded_selected_proof(self) -> None:
         block = self._job_block(".github/workflows/product-proof.yml", "ci-product-stable")
@@ -425,6 +437,115 @@ class WorkflowWiring(unittest.TestCase):
         command = "run: python3 scripts/test_evaluate_required_result.py"
         self.assertIn(command, block)
         self.assertLess(block.index(command), block.index("- id: detect"))
+
+    def test_config_edit_affected_group_runs_exact_offline_journey(self) -> None:
+        import json
+        import shutil
+        import tempfile
+
+        driver = "scripts/check-config-edit-journey.sh"
+        guard = "scripts/run-required-test.py"
+        workflow = ".github/workflows/em-ci-routed-rust.yml"
+        block = self._job_block(workflow, "supported-proof")
+        wired = block.split("- name: Qualify the config-dsl edit journey for affected queue changes", 1)[1].split("- name:", 1)[0]
+        for token in ("if: github.event_name == 'merge_group'", "github.event.merge_group.base_sha",
+                      "github.event.merge_group.head_sha", f"run: bash {driver}"):
+            self.assertIn(token, wired)
+        sample = "samples/config-dsl/"
+        manifest = sample + "Cargo.toml"
+        lock = sample + "Cargo.lock"
+        source = sample + "tests/support/edit_debug_contract.rs"
+        fetch_args = ["fetch", "--locked", "--target", "host-tuple", "--manifest-path", manifest]
+        test_args = ["test", "--locked", "--offline", "--manifest-path", manifest, "--test", "edit_debug",
+                     "--", "--ignored", "--exact", "grammar_edit_break_repair", "--format", "pretty",
+                     "--test-threads=1", "--color", "never"]
+        # The real required-test guard parses the fake child's actual output.
+        fake_cargo = """#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+args = sys.argv[1:]
+with open("calls", "a") as log:
+    print(json.dumps([args, os.environ.get("CARGO_NET_OFFLINE")]), file=log)
+mode = os.environ["MODE"]
+if args[0] == "fetch":
+    if mode == "lockchanged": Path("samples/config-dsl/Cargo.lock").write_bytes(b"replacement")
+    sys.exit(0)
+if mode == "failed":
+    print("nested-phase diagnostics")
+    sys.exit(37)
+print("running 1 test")
+if mode != "empty":
+    name = "another_test" if mode == "wrong" else "grammar_edit_break_repair"
+    print(f"test {name} ... ok")
+    if mode == "duplicate": print(f"test {name} ... ok")
+    if mode in ("extra_test", "extra_row"): print("test unrelated ... ok")
+passed = 0 if mode == "empty" else 2 if mode in ("extra_test", "extra_pass_count") else 1
+ignored = int(mode == "extra_ignored")
+measured = int(mode == "extra_measured")
+summary = f"test result: ok. {passed} passed; 0 failed; {ignored} ignored; {measured} measured; 8 filtered out; finished in 0.00s"
+print(summary)
+if mode == "extra_summary": print(summary)
+"""
+        cases = [(path, "edit", "pass") for path in [
+            manifest, lock, sample + "build.rs", sample + "src/lib.rs", source, driver, guard, workflow,
+            "README.md", sample + "README.md",
+        ]]
+        cases += [(source, change, "pass") for change in ("delete", "rename_in", "rename_out")]
+        cases += [(source, "edit", mode) for mode in (
+            "empty", "wrong", "duplicate", "extra_test", "extra_row", "extra_pass_count",
+            "extra_ignored", "extra_measured", "extra_summary", "failed", "lockchanged", "wrong_head",
+        )]
+        for path, change, mode in cases:
+            with self.subTest(path=path, change=change, mode=mode), tempfile.TemporaryDirectory() as tmp:
+                repo = Path(tmp)
+                def git(*args: str) -> str:
+                    return subprocess.check_output(["git", *args], cwd=repo, text=True).strip()
+                git("init", "-q")
+                git("config", "user.name", "fixture")
+                git("config", "user.email", "fixture@example.invalid")
+                for name in {guard, manifest, lock, "other.txt", path}:
+                    dest = repo / name
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    if name == guard:
+                        shutil.copyfile(ROOT / guard, dest)
+                    elif change != "rename_in" or name != path:
+                        dest.write_text("initial\n")
+                git("add", ".")
+                git("commit", "-qm", "before")
+                base = git("rev-parse", "HEAD")
+                dest = repo / path
+                if change == "rename_in":
+                    (repo / "other.txt").rename(dest)
+                elif change == "rename_out":
+                    dest.rename(repo / "moved.txt")
+                elif change == "delete":
+                    dest.unlink()
+                else:
+                    with dest.open("a") as file:
+                        file.write("# changed\n")
+                git("add", "-A")
+                git("commit", "-qm", "after")
+                head = git("rev-parse", "HEAD")
+                fake = repo / "cargo"
+                fake.write_text(fake_cargo)
+                fake.chmod(0o755)
+                result = subprocess.run(["bash", str(ROOT / driver)], cwd=repo, text=True,
+                    env={**os.environ, "PATH": f"{repo}{os.pathsep}{os.environ['PATH']}", "MODE": mode,
+                         "BASE_SHA": base, "EXPECTED_HEAD": base if mode == "wrong_head" else head},
+                    capture_output=True)
+                skipped = path in ("README.md", sample + "README.md")
+                calls = [json.loads(line) for line in (repo / "calls").read_text().splitlines()] if (repo / "calls").exists() else []
+                self.assertEqual(result.returncode == 0, mode == "pass", result.stdout + result.stderr)
+                if mode == "failed":
+                    self.assertEqual(37, result.returncode)
+                    self.assertIn("nested-phase diagnostics", result.stdout)
+                if skipped or mode == "wrong_head":
+                    self.assertEqual([], calls)
+                elif mode == "lockchanged":
+                    self.assertEqual([fetch_args], [args for args, _ in calls])
+                else:
+                    self.assertEqual([fetch_args, test_args], [args for args, _ in calls])
+                    self.assertEqual("true", calls[1][1])
 
     def _native_dependency_preparation(self, platform: str) -> tuple[str, str, str]:
         import textwrap
@@ -580,7 +701,8 @@ class WorkflowWiring(unittest.TestCase):
         self.assertIn("targets: x86_64-pc-windows-msvc", windows)
         self.assertIn("EXPECTED_SHA: ${{ github.sha }}", windows)
         self.assertIn("$actualSha -cne $env:EXPECTED_SHA", windows)
-        self.assertEqual(2, windows.count("if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"))
+        identity = windows.split("- name: Verify checkout and record native Windows identity", 1)[1].split("- name:", 1)[0]
+        self.assertEqual(2, identity.count("if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"))
         for token in ("ImageOS", "ImageVersion", "windows_build", "rustc -vV", "lock_sha256"):
             self.assertIn(token, windows)
         self.assertIn("run: python scripts/test_run_required_test.py\n", windows)
@@ -589,8 +711,8 @@ class WorkflowWiring(unittest.TestCase):
     def test_windows_guards_each_native_contract_and_strict_targeted_clippy(self) -> None:
         block = self._job_block(".github/workflows/product-proof.yml", "ci-product-windows")
         commands = [line.strip() for line in block.splitlines()
-                    if "run: python scripts/run-required-test.py " in line]
-        self.assertEqual(10, len(commands))
+                    if line.strip().removeprefix("run: ").startswith("python scripts/run-required-test.py ")]
+        self.assertEqual(13, len(commands))
         targets = [
             "--test runner_windows_process_contract -- --nocapture",
             "--test runner_windows_output_contract -- --nocapture",
@@ -613,12 +735,51 @@ class WorkflowWiring(unittest.TestCase):
             commands[8],
         )
         self.assertEqual(
+            'python scripts/run-required-test.py --label "Windows starter journal and input retention" '
+            "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask "
+            "local_registry::starter::tests:: -- --format pretty --test-threads=1 | Tee-Object -Variable starterOutput",
+            commands[9],
+        )
+        self.assertIn(commands[9] + "\n          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }", block)
+        self.assertIn("$passed.Count -ne 17 -or $passed -cnotcontains "
+                      "'test local_registry::starter::tests::test_windows_high_bit_status_is_retained_not_a_parser_refusal ... ok'", block)
+        self.assertEqual(
+            'run: python scripts/run-required-test.py --label "Windows starter receipt export without clobber" '
+            "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask "
+            "local_release_receipt::tests::test_receipt_export_on_colliding_paths_preserves_retained_evidence "
+            "-- --exact --nocapture",
+            commands[10],
+        )
+        self.assertEqual(
             'run: python scripts/run-required-test.py --label "Windows Cargo lock and offline install assumptions" '
             "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask "
             "local_registry::provenance::tests::lock_fixture::test_actual_transformed_packaged_lock_prefetch_and_offline_install "
             "-- --exact --nocapture",
-            commands[9],
+            commands[11],
         )
+        self.assertEqual(
+            'python scripts/run-required-test.py --label "Windows installed CLI image observations" '
+            "-- cargo test --locked -p xtask --target x86_64-pc-windows-msvc "
+            "--bin xtask installed_image -- --format pretty --test-threads=1 | Tee-Object -Variable imageOutput",
+            commands[12],
+        )
+        self.assertIn(commands[12] + "\n          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }", block)
+        image_names = (
+            "local_registry::installed_image::tests::test_installed_image_receipt_keeps_one_exact_bin_basename",
+            "local_registry::installed_image::tests::test_installed_image_bounds_and_hashes_raw_bytes",
+            "local_registry::tests::test_installed_image_rejects_ambiguous_basename_before_cargo",
+            "local_registry::tests::test_init_refuses_same_length_installed_image_replacement",
+            "local_registry::tests::test_init_refuses_installed_image_byte_loss",
+        )
+        self.assertIn(
+            "$expectedImagePasses = @(\n"
+            + "".join(f"            'test {name} ... ok'\n" for name in image_names)
+            + "          )",
+            block,
+        )
+        self.assertIn("$imagePassed = @($imageOutput | Where-Object { $_ -cmatch '^test [a-z0-9_:]+ \\.\\.\\. ok$' })", block)
+        self.assertIn('$missingImagePasses = @($expectedImagePasses | Where-Object { $imagePassed -cnotcontains $_ })', block)
+        self.assertIn('if ($imagePassed.Count -ne 5 -or $missingImagePasses.Count -ne 0) {', block)
         clippy = (
             "cargo clippy --locked -p adze-cli --target x86_64-pc-windows-msvc --bin adze "
             "--test runner_windows_process_contract --test runner_windows_output_contract "

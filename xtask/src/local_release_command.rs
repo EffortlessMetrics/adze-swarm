@@ -1,14 +1,8 @@
 //! Request-owned command evidence for the local release harness (#1065).
 //!
-//! This data seam is deliberately unwired. It records an immutable native
-//! request and an observation; it neither launches processes nor infers custody
-//! from an exit status. The existing CapturedCommand view will be projected
-//! from this authority when the reviewed process adapter is connected.
-//!
-//! Individual records do not establish whole-run completeness. The eventual
-//! orchestrator must propagate completion recording errors and reject any
-//! aggregate with an incomplete/dropped intent. `failed_recording` only stops
-//! reuse after a `begin` recording failure; pending handles are independent.
+//! The starter Cargo observations use this journal; install and init still await
+//! the shared process backend. Individual records do not prove process custody
+//! or whole-journey qualification.
 
 use std::ffi::{OsStr, OsString};
 use std::fmt;
@@ -29,6 +23,8 @@ pub(crate) enum EnvironmentChange {
         value: OsString,
         record_value: bool,
     },
+    // Part of the persisted protocol; the current starter only adds overrides.
+    #[allow(dead_code)]
     Remove(OsString),
 }
 
@@ -78,6 +74,10 @@ impl ReleaseCommand {
             environment,
             policy,
         })
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 
     pub(crate) fn program(&self) -> &OsStr {
@@ -133,7 +133,7 @@ impl ReleaseCommand {
 
     fn recorded(&self) -> RecordedRequest {
         RecordedRequest {
-            name: self.name.clone(),
+            name: self.name().to_owned(),
             program: NativeString::from_os(&self.program),
             arguments: self
                 .arguments
@@ -149,7 +149,7 @@ impl ReleaseCommand {
                 .iter()
                 .map(RecordedEnvironmentChange::from)
                 .collect(),
-            requested_policy: self.policy,
+            requested_policy: self.policy(),
         }
     }
 }
@@ -504,6 +504,75 @@ impl RecordedObservation {
     }
 }
 
+/// Reconcile an entire ordered plan against its existing journal and verify
+/// the retained artifacts before projecting each slot. This does not infer
+/// process or release qualification and grants no new path or byte authority.
+pub(crate) fn reconcile_observations<T>(
+    root: &Path,
+    journal_name: &str,
+    ordered_names: &[&str],
+    observations: &[RecordedObservation],
+    project: impl Fn(&RecordedObservation) -> Result<T>,
+) -> Result<Vec<T>> {
+    if !observations
+        .iter()
+        .map(|obs| obs.request().name())
+        .eq(ordered_names.iter().copied())
+    {
+        bail!("{journal_name} observations do not match the complete ordered plan");
+    }
+    let commands = fs::canonicalize(root)?.join("commands");
+    // begin() owns a fresh namespace. Reconcile disk, not only the returned
+    // handles: an orphan intent or an unrelated entry must not disappear.
+    if !fs::symlink_metadata(&commands)?.is_dir() {
+        bail!("{journal_name} journal is not an owned directory");
+    }
+    let mut seen = 0;
+    for entry in fs::read_dir(&commands)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir()
+            || !observations
+                .iter()
+                .any(|o| o.completion_path().parent() == Some(entry.path().as_path()))
+        {
+            bail!(
+                "unexpected entry in {journal_name} journal: {}",
+                entry.path().display()
+            );
+        }
+        seen += 1;
+    }
+    if seen != ordered_names.len() {
+        bail!("missing {journal_name} journal entry");
+    }
+    for (index, observed) in observations.iter().enumerate() {
+        if observed.completion_path()
+            != commands
+                .join(format!("{:08}", index + 1))
+                .join("completion.json")
+        {
+            bail!("{journal_name} completion does not belong to its planned journal slot");
+        }
+    }
+    observations
+        .iter()
+        .map(|obs| {
+            let result = || {
+                obs.verify_artifacts()
+                    .with_context(|| format!("verifying {}", obs.completion_path().display()))?;
+                project(obs)
+            };
+            result().with_context(|| {
+                format!(
+                    "projecting {journal_name} command {} from retained evidence {}",
+                    obs.request().name(),
+                    obs.completion_path().display()
+                )
+            })
+        })
+        .collect()
+}
+
 struct RetainedArtifact {
     path: PathBuf,
     bytes: usize,
@@ -718,7 +787,7 @@ fn bounded_error_text(error: &anyhow::Error) -> (String, bool) {
     (output.text, output.truncated)
 }
 
-fn write_atomic_new(path: &Path, raw: &[u8]) -> Result<()> {
+pub(crate) fn write_atomic_new(path: &Path, raw: &[u8]) -> Result<()> {
     let parent = path
         .parent()
         .context("release command artifact has no parent")?;
@@ -750,7 +819,7 @@ fn write_exclusive(path: &Path, raw: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn sha256(raw: &[u8]) -> String {
+pub(crate) fn sha256(raw: &[u8]) -> String {
     hex(&Sha256::digest(raw))
 }
 

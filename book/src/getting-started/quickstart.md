@@ -3,7 +3,15 @@
 This walkthrough builds a small arithmetic parser in a fresh Rust crate. The
 parser is generated from Rust types and returns those typed values directly.
 
-## Create a Project
+## Create a project
+
+Use Rust 1.95.0 or newer for this crate. A sibling crate does not inherit the
+Adze checkout's toolchain file, so make sure your own Cargo uses that version
+before continuing. For example, with rustup you can select it for a command
+with `cargo +1.95.0`.
+
+Create the library next to a checkout named `adze-swarm`. From their parent
+directory, run:
 
 ```bash
 cargo new adze-quickstart --lib
@@ -12,18 +20,16 @@ cd adze-quickstart
 
 ## Installation
 
-Add Adze to `Cargo.toml`:
-
-The versioned dependency block is the intended release-surface shape after the
-coordinated publish. Current repo proof uses local/path dependencies from this
-checkout until crates.io receipts exist for the co-release crates.
+Keep the generated `[package]` section in `Cargo.toml` and replace its empty
+`[dependencies]` table with the tables below. Adjust the two paths if your
+checkout is elsewhere. No published Adze packages are needed for these steps.
 
 ```toml
 [dependencies]
-adze = { version = "0.9.0", default-features = false }
+adze = { path = "../adze-swarm/runtime", default-features = false }
 
 [build-dependencies]
-adze-tool = "0.9.0"
+adze-tool = { path = "../adze-swarm/tool" }
 
 [features]
 default = ["pure-rust"]
@@ -102,8 +108,7 @@ cargo test
 ```
 
 The generated `grammar::parse` function returns `Result<Expr, Vec<ParseError>>`.
-The value is the AST type you wrote, not a generic parse tree that needs a
-second hand-written mapping layer.
+A successful parse gives you the `Expr` you defined.
 
 ## Parse Errors
 
@@ -118,7 +123,7 @@ fn reports_expected_tokens_for_bad_input() {
     let first = errors.first().expect("at least one parse error");
 
     assert_eq!(first.byte_span(), 4..5);
-    assert!(first.expected.iter().any(|name| name == r"/\d+/"));
+    assert!(first.expected.iter().any(|name| name == "number"));
 
     let rendered = first.display_with_source(source).to_string();
     assert!(rendered.contains("bytes 4..5"));
@@ -134,18 +139,13 @@ During `cargo build`, `adze-tool` reads `src/lib.rs`, extracts the
 Cargo's build output directory. The compiled crate then exposes
 `grammar::parse(input)` from the generated parser module.
 
-## Next Steps
+## Next steps
 
-Choose the next page by the job you are doing:
-
-| Goal | Next page | Boundary |
-| --- | --- | --- |
-| Build an application around typed Rust values | [Grammar Definition](../guide/grammar-definition.md) | Start with `grammar::parse(source)` for the typed parser path. |
-| Choose between typed parsing, documents, compatibility, query, JSON, and CLI surfaces | [Which API Should I Use?](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/reference/which-api-should-i-use.md) | Support status still comes from the support-tier rows, not from this quickstart. |
-| Add tooling diagnostics, ranges, or projection data | [Error Recovery](../guide/error-recovery.md) | Use `grammar::parse_document(source)` so diagnostics and projections come from one `AdzeDocument`. |
-| Bring Tree-sitter-shaped tooling to Adze | [Migration Guide](migration.md) and [Tree-sitter Compatibility](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/reference/tree-sitter-compatibility.md) | Compatibility is a selected-tree adapter, not a full Tree-sitter parity claim. |
-| Match syntax with Tree-sitter-style queries | [Query and Pattern Matching](../guide/query-patterns.md) and [Query Compatibility](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/reference/query-compatibility.md) | Query support is a documented subset with explicit known gaps. |
-| Understand precedence and ambiguity behavior | [GLR Precedence Resolution](../guide/glr-precedence-resolution.md) | GLR behavior is proof-backed by the documented grammar classes, not a blanket parser-generality claim. |
-| Check whether a surface is Stable | [Support Tiers](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/status/SUPPORT_TIERS.md) | Do not broaden claims without a proof command and limitations row. |
-| Inspect a grammar with static command-line output | [CLI Reference](../reference/cli-reference.md#parse) | Tree, S-expression, DOT, document JSON, and projection JSON are implemented; the CLI remains Stabilizing and public JSON remains Experimental. |
-| Check release or install status | [Release Process](../development/release.md) and [#325](https://github.com/EffortlessMetrics/adze-swarm/issues/325) | `cargo install adze-cli` still requires a crates.io install receipt before it becomes a public claim. |
+- [Grammar definition](../guide/grammar-definition.md) explains the attributes
+  used in this example.
+- [Diagnostics](../guide/error-recovery.md) describes syntax and diagnostic data
+  from `grammar::parse_document(source)`.
+- [Which API should I use?](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/reference/which-api-should-i-use.md)
+  helps you choose a parser API.
+- [Support tiers](https://github.com/EffortlessMetrics/adze-swarm/blob/main/docs/status/SUPPORT_TIERS.md)
+  gives the scope and proof for each surface.

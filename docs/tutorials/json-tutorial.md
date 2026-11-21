@@ -1,39 +1,40 @@
 # Tutorial: Building a JSON Parser with Adze
 
-In this tutorial, we will build a JSON-subset parser from scratch using Adze.
-You will learn how to define complex grammars using Rust enums and structs,
-handle recursive structures, and extract typed data. Treat this as a tutorial
-fixture, not a separate stable `adze-json` language package.
+You'll build a parser for a small subset of JSON. The grammar uses Rust
+enums and structs to represent nested objects and arrays as typed values.
 
-## What You'll Build
-
-We will implement a parser for a subset of JSON that supports:
-- Numbers and Strings
-- Arrays
-- Objects (key-value pairs)
-- Nested structures
+The example handles nonnegative integers, quoted ASCII words, arrays, objects,
+and `true`, `false`, and `null`. Object keys use the same quoted words. This is
+a tutorial grammar, not a complete JSON validator or a separate `adze-json`
+package. It does not cover general string escapes or the whole JSON number
+syntax. The grammar skips whitespace inside the quotes around a word and does
+not reject leading zeros in integers.
 
 ## Step 1: Project Setup
 
-Create a new Rust library project:
+Use Rust 1.95.0 or newer. This example uses the Adze source checkout, not
+published Adze packages. From the parent directory of a checkout named
+`adze-swarm`, create the library next to it:
 
 ```bash
 cargo new --lib adze-json-demo
 cd adze-json-demo
 ```
 
-Add Adze to your `Cargo.toml`:
-
-The versioned dependency block below is a release-surface shape for the
-coordinated 0.9.0 publish. Current repo proof uses local/path dependencies until
-the crates.io metadata and install receipts exist.
+Keep the generated `[package]` section in `Cargo.toml`. Replace its empty
+`[dependencies]` table with the tables below, adjusting the paths if the
+checkout is elsewhere:
 
 ```toml
 [dependencies]
-adze = "0.9.0"
+adze = { path = "../adze-swarm/runtime", default-features = false }
 
 [build-dependencies]
-adze-tool = "0.9.0"
+adze-tool = { path = "../adze-swarm/tool" }
+
+[features]
+default = ["pure-rust"]
+pure-rust = ["adze/pure-rust"]
 ```
 
 Create a `build.rs` file in the root of your project:
@@ -42,6 +43,7 @@ Create a `build.rs` file in the root of your project:
 use std::path::PathBuf;
 
 fn main() {
+    println!("cargo::rustc-check-cfg=cfg(adze_unsafe_attrs)");
     adze_tool::build_parsers(&PathBuf::from("src/lib.rs"));
 }
 ```
@@ -50,7 +52,7 @@ fn main() {
 
 In JSON, a value can be many things. We'll use a Rust `enum` to represent these alternatives.
 
-Open `src/lib.rs` and add the following:
+Replace the generated contents of `src/lib.rs` with the following:
 
 ```rust
 #[adze::grammar("json")]
@@ -69,15 +71,18 @@ pub mod grammar {
 
     #[derive(Debug, PartialEq)]
     pub struct NumberLiteral {
-        #[adze::leaf(pattern = r"-?\d+(\.\d+)?")]
+        #[adze::leaf(pattern = r"\d+")]
         pub value: String,
     }
 
     #[derive(Debug, PartialEq)]
     pub struct StringLiteral {
-        // Simple string pattern: anything between double quotes
-        #[adze::leaf(pattern = r#""[^"]*""#)]
+        #[adze::leaf(text = "\"")]
+        _open: (),
+        #[adze::leaf(pattern = r"\w+")]
         pub value: String,
+        #[adze::leaf(text = "\"")]
+        _close: (),
     }
 }
 ```
@@ -86,7 +91,7 @@ pub mod grammar {
 
 JSON objects and arrays can contain other JSON values. We use `Box<T>` or `Vec<T>` to handle this recursion.
 
-Update your `grammar` module in `src/lib.rs`:
+Insert the following before the closing brace of `mod grammar` in `src/lib.rs`:
 
 ```rust
     // ... inside pub mod grammar ...
@@ -95,10 +100,10 @@ Update your `grammar` module in `src/lib.rs`:
     pub struct Object {
         #[adze::leaf(text = "{")]
         _open: (),
-        
+
         #[adze::delimited(#[adze::leaf(text = ",")] ())]
         pub pairs: Vec<Pair>,
-        
+
         #[adze::leaf(text = "}")]
         _close: (),
     }
@@ -115,15 +120,16 @@ Update your `grammar` module in `src/lib.rs`:
     pub struct Array {
         #[adze::leaf(text = "[")]
         _open: (),
-        
+
         #[adze::delimited(#[adze::leaf(text = ",")] ())]
         pub items: Vec<Value>,
-        
+
         #[adze::leaf(text = "]")]
         _close: (),
     }
 
     #[adze::extra]
+    #[allow(dead_code)]
     struct Whitespace {
         #[adze::leaf(pattern = r"\s+")]
         _ws: (),
@@ -134,7 +140,8 @@ Update your `grammar` module in `src/lib.rs`:
 
 Now let's add a test that exercises the parser with a nested JSON string.
 
-Add this to the bottom of `src/lib.rs`:
+Append this after the closing brace of `mod grammar`, at the bottom of
+`src/lib.rs`:
 
 ```rust
 #[cfg(test)]
@@ -142,12 +149,41 @@ mod tests {
     use super::grammar;
 
     #[test]
-    fn test_json_parse() {
-        let input = r#"{ "key": [1, true, null], "nested": { "ok": false } }"#;
-        let result = grammar::parse(input);
-        
-        assert!(result.is_ok(), "Parse failed: {:?}", result.err());
-        println!("Parsed: {:#?}", result.unwrap());
+    fn parses_nested_values() {
+        use grammar::Value;
+
+        let input = r#"{ "key": [1, true, false, null], "nested": { "tag": "ok" } }"#;
+        let parsed = grammar::parse(input).expect("valid tutorial input");
+        let Value::Object(object) = &parsed else {
+            panic!("expected an object");
+        };
+        assert_eq!(object.pairs.len(), 2);
+        assert_eq!(object.pairs[0].key.value, "key");
+
+        let Value::Array(array) = object.pairs[0].value.as_ref() else {
+            panic!("expected an array");
+        };
+        assert!(matches!(
+            array.items.as_slice(),
+            [Value::Number(number), Value::True(()), Value::False(()), Value::Null(())]
+                if number.value == "1"
+        ));
+
+        assert_eq!(object.pairs[1].key.value, "nested");
+        let Value::Object(nested) = object.pairs[1].value.as_ref() else {
+            panic!("expected a nested object");
+        };
+        assert_eq!(nested.pairs.len(), 1);
+        assert_eq!(nested.pairs[0].key.value, "tag");
+        assert!(matches!(
+            nested.pairs[0].value.as_ref(),
+            Value::String(text) if text.value == "ok"
+        ));
+    }
+
+    #[test]
+    fn rejects_a_missing_colon() {
+        assert!(grammar::parse(r#"{ "key" 1 }"#).is_err());
     }
 }
 ```
@@ -158,11 +194,12 @@ mod tests {
 cargo test -- --nocapture
 ```
 
-You should see the structured Rust representation of your JSON string printed to the console!
+The tests check the typed values of the nested input and reject an object entry
+with no colon.
 
 ## Key Concepts Learned
 
-1. **`#[adze::language]`**: Identifies the root and component types of your grammar.
+1. **`#[adze::language]`**: Marks the root type returned by the generated parser.
 2. **`enum` for Choice**: Represents alternatives like `true` vs `false` vs `number`.
 3. **`Vec<T>` and `#[adze::delimited]`**: Handles sequences of items with a separator.
 4. **`Box<T>` for Recursion**: Allows types to contain themselves (essential for tree structures).
@@ -170,6 +207,5 @@ You should see the structured Rust representation of your JSON string printed to
 
 ## Next Steps
 
-- Try adding support for escape sequences in strings.
+- Read the [grammar examples](../reference/grammar-examples.md) for other token and grammar shapes.
 - Implement a `From<Value>` trait to convert the AST into your own internal data model.
-- Check out the [Grammar Reference](../reference/grammar-examples.md) for more complex patterns.

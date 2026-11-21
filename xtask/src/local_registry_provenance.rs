@@ -1,7 +1,8 @@
 //! Durable source/archive/index evidence for the local release harness (#1065).
 //!
-//! This is deliberately not an install-resolution or binary receipt. The
-//! record remains unqualified even if the existing installed starter succeeds.
+//! Optional installed-image byte observations are not install-resolution,
+//! compiler provenance, or immutable execution evidence. This record remains
+//! unqualified even if the existing installed starter succeeds.
 
 use std::collections::BTreeMap;
 use std::fs::{self, File};
@@ -13,7 +14,10 @@ use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use tempfile::TempDir;
 
-use super::sha256_hex_file;
+use super::{
+    installed_image::{InstalledImage, receipt_path},
+    sha256_hex_file,
+};
 
 const RECEIPT: &str = "archive-provenance.json";
 
@@ -83,6 +87,16 @@ struct Archive {
 }
 
 #[derive(Debug, Serialize)]
+struct InstalledImageObservation {
+    requested_package: String,
+    requested_version: String,
+    install_root_relative_path: String,
+    observed_image: InstalledImage,
+    matched_after_init_exit_zero: bool,
+    scope: &'static str,
+}
+
+#[derive(Debug, Serialize)]
 struct Receipt {
     schema_version: &'static str,
     kind: &'static str,
@@ -96,6 +110,8 @@ struct Receipt {
     archive_preparation_complete: bool,
     source: Option<Source>,
     archives: Vec<Archive>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    installed_image_observation: Option<InstalledImageObservation>,
     pending_claims: [&'static str; 5],
 }
 
@@ -185,10 +201,11 @@ impl Provenance {
                 archive_preparation_complete: false,
                 source: None,
                 archives: Vec::new(),
+                installed_image_observation: None,
                 pending_claims: [
                     "transformed packaged lock and actual resolved install",
                     "complete executed command, capture, toolchain and environment provenance",
-                    "installed executable identity and subsequent tamper checks",
+                    "compiler-to-installed image provenance and immutable execution custody",
                     "declared packaged target/test-source closure",
                     "same-source Linux/Windows package-first qualification",
                 ],
@@ -210,6 +227,19 @@ impl Provenance {
             .as_ref()
             .context("source not captured")?
             .commit)
+    }
+
+    pub(super) fn command_source(&self) -> Result<crate::local_release_command::SourceBinding> {
+        let source = self
+            .receipt
+            .source
+            .as_ref()
+            .context("source not captured")?;
+        Ok(crate::local_release_command::SourceBinding {
+            source_commit: source.commit.clone(),
+            source_tree: source.tree.clone(),
+            selected_version: self.receipt.selected_version.clone(),
+        })
     }
 
     pub(super) fn stage(&mut self, stage: impl Into<String>) -> Result<()> {
@@ -498,6 +528,43 @@ impl Provenance {
             }
         }
         Ok(())
+    }
+
+    pub(super) fn record_installed_image(
+        &mut self,
+        package: &str,
+        version: &str,
+        relative_path: &Path,
+        image: &InstalledImage,
+    ) -> Result<()> {
+        if self.receipt.installed_image_observation.is_some() {
+            bail!("installed CLI image observation was already recorded");
+        }
+        self.receipt.installed_image_observation = Some(InstalledImageObservation {
+            requested_package: package.into(),
+            requested_version: version.into(),
+            install_root_relative_path: receipt_path(relative_path)?,
+            observed_image: image.clone(),
+            matched_after_init_exit_zero: false,
+            scope: "owned path byte samples only; neither compiler provenance nor immutable execution custody",
+        });
+        self.checkpoint()
+    }
+
+    pub(super) fn record_installed_image_checked_after_init(
+        &mut self,
+        image: &InstalledImage,
+    ) -> Result<()> {
+        let record = self
+            .receipt
+            .installed_image_observation
+            .as_mut()
+            .context("missing install-time CLI image observation")?;
+        if record.observed_image != *image || record.matched_after_init_exit_zero {
+            bail!("init image check disagrees with the existing installed CLI observation");
+        }
+        record.matched_after_init_exit_zero = true;
+        self.checkpoint()
     }
 
     pub(super) fn archives_prepared(&mut self) -> Result<()> {

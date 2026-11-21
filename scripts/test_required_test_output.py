@@ -2,8 +2,10 @@
 """Execute the required scripts with real libtest selections (#995).
 
 The process fixtures require bash and rustc. Only Cargo's dispatch and the
-unrelated formatting / clippy prerequisites are replaced; both gate scripts
-and their shared guard are copied unchanged. The producer is a compiled Rust test harness, not text
+unrelated formatting / clippy and shell-self-test prerequisites are replaced.
+Both gate scripts and both output guards are copied unchanged. The validator
+prerequisite has its own compiled 15-test harness so the original core/doctest
+selections remain independent. Producers are compiled Rust harnesses, not text
 that imitates a test summary. Run: python3 scripts/test_required_test_output.py
 
 The RequiredSummaryContracts class separately exercises the shared Bash parser
@@ -74,10 +76,20 @@ class RequiredScriptProcesses(unittest.TestCase):
         scripts = cls.root / "scripts"
         (scripts / "lib").mkdir(parents=True)
         (cls.root / "bin").mkdir()
-        for script in (*SCRIPTS, "lib/required-test-output.sh"):
+        for script in (*SCRIPTS, "lib/required-test-output.sh", "run-required-test.py"):
             shutil.copy2(ROOT / "scripts" / script, scripts / script)
         (scripts / "fmt-workspace.sh").write_text("#!/bin/sh\nexit 0\n")
         (scripts / "fmt-workspace.sh").chmod(0o755)
+        # This unrelated self-test has its own required invocation and controls.
+        # Keep this fixture focused on the original native core/doctest cases;
+        # do not recursively run another complete shell-contract suite here.
+        (scripts / "test_support_tier_qualification.py").write_text(
+            "# Neutral prerequisite only inside this owned fixture.\nraise SystemExit(0)\n"
+        )
+        validator = cls.root / "validator.rs"
+        validator.write_text("".join(
+            f"#[test] fn prerequisite_{index}() {{}}\n" for index in range(15)
+        ))
         harness = cls.root / "harness.rs"
         harness.write_text('''#[test] fn test_pass_case() {}
 #[test] #[ignore] fn test_ignored_case() {}
@@ -94,7 +106,10 @@ class RequiredScriptProcesses(unittest.TestCase):
 }
 ''')
         rustc = os.environ.get("RUSTC", "rustc")
-        for source, target, args in [(harness, "harness", ["--test"]), (program, "program", [])]:
+        for source, target, args in [
+            (harness, "harness", ["--test"]), (program, "program", []),
+            (validator, "validator", ["--test"]),
+        ]:
             subprocess.run([rustc, *args, str(source), "-o", str(cls.root / target)], check=True,
                            capture_output=True, text=True)
         cargo = cls.root / "bin" / "cargo"
@@ -104,6 +119,13 @@ case "$1" in
   clippy) exit 0 ;;
   run) exec "$ADZE_GUARD_ROOT/program" "$ADZE_GUARD_CASE" ;;
   test)
+    # The new prerequisite must succeed independently before the original
+    # core/doctest negative selection is dispatched below.
+    for arg in "$@"; do
+      if [[ "$arg" == support_tier_proof_commands ]]; then
+        exec "$ADZE_GUARD_ROOT/validator"
+      fi
+    done
     case "$ADZE_GUARD_CASE" in
       zero) exec "$ADZE_GUARD_ROOT/harness" --exact absent ;;
       ignored) exec "$ADZE_GUARD_ROOT/harness" --exact test_ignored_case ;;
@@ -144,6 +166,12 @@ esac
                  "ADZE_GUARD_ROOT": str(self.root), "ADZE_GUARD_CASE": selection},
             capture_output=True, text=True, timeout=30,
         )
+
+    def test_validator_prerequisite_does_not_mask_core_zero_selection(self) -> None:
+        result = self.run_script("ci-supported.sh", "zero")
+        self.assertIn("15 passed; 0 failed; 0 ignored;", result.stdout)
+        self.assertIn("0 passed; 0 failed; 0 ignored;", result.stdout)
+        self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_all_ignored_selection_rejected(self) -> None:
         for script in SCRIPTS:

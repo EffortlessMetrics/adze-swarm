@@ -1,13 +1,17 @@
 # adze
 
-A package for defining tree-sitter grammars alongside Rust logic.
+When syntax changes, keep the grammar beside the Rust types your application
+reads. Adze generates a parser at build time from rules on those types.
+This crate runs the generated parser and extracts typed Rust values.
 
-Adze lets you define the shape of your syntax in Rust types, then parse source
-text directly into those types. It supports both a pure-Rust GLR backend and
-the traditional Tree-sitter C backend.
+Start with the default pure-Rust path. Call `grammar::parse(source)` for typed
+values, or `grammar::parse_document(source)` when your tool needs diagnostics
+and a selected syntax tree. The document API is Stabilizing. Check the support
+notes in your checkout before relying on optional runtime features or adapters.
 
-This crate is part of the [Adze](https://github.com/effortlessmetrics/adze)
-workspace -- an AST-first grammar toolchain for Rust.
+The runtime is part of [Adze](https://github.com/effortlessmetrics/adze).
+To try it from source, follow the getting-started guide in your checkout and
+use the runtime and build-time tool from the same revision.
 
 ## License
 

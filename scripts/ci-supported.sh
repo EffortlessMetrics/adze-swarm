@@ -34,6 +34,13 @@ cargo clippy "${supported_crates[@]}" --all-targets -- -D warnings
 # Keep executed-test accounting shared with the individual product canaries.
 source "$(dirname "${BASH_SOURCE[0]}")/lib/required-test-output.sh"
 
+# #1267: exercise the validator itself once in this existing integration job.
+# Passing these regressions does not prove the ledger commands were executed.
+python3 scripts/test_support_tier_qualification.py
+cargo clippy --locked -p xtask --lib --test support_tier_proof_commands -- -D warnings
+python3 scripts/run-required-test.py --label "support-tier validator regressions (static screen only)" --expected-tests 15 -- \
+  cargo test --locked -p xtask --test support_tier_proof_commands -- --nocapture
+
 set +e
 supported_output="$(cargo test "${supported_crates[@]}" --lib --tests --bins -- "${test_args[@]}" 2>&1)"
 supported_status=$?

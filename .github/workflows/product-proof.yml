@@ -89,9 +89,13 @@ env:
     xtask/src/main.rs
     xtask/src/policy.rs
     xtask/src/local_registry.rs
+    xtask/src/local_registry_starter.rs
+    xtask/src/local_registry_starter_inputs.rs
+    xtask/src/local_registry_starter_tests.rs
     xtask/src/local_registry_provenance.rs
     xtask/src/local_registry_provenance_tests.rs
     xtask/src/local_registry_lock_fixture.rs
+    xtask/src/local_registry_installed_image.rs
     xtask/src/local_release_archive.py
     xtask/src/local_release_install.rs
     xtask/src/local_release_receipt.rs
@@ -518,6 +522,20 @@ jobs:
       - name: Strict Clippy for Windows Cargo lock assumption fixture
         run: cargo clippy --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask --tests -- -D warnings
 
+      - name: Qualify Windows starter journal and input retention
+        run: |
+          # Keep child output captured so each named libtest result occupies one line.
+          python scripts/run-required-test.py --label "Windows starter journal and input retention" -- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask local_registry::starter::tests:: -- --format pretty --test-threads=1 | Tee-Object -Variable starterOutput
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # The xtask binary also contains unrelated tests, so filtered-out tests are expected.
+          $passed = @($starterOutput | Where-Object { $_ -cmatch '^test local_registry::starter::tests::[a-z0-9_]+ \.\.\. ok$' })
+          if ($passed.Count -ne 17 -or $passed -cnotcontains 'test local_registry::starter::tests::test_windows_high_bit_status_is_retained_not_a_parser_refusal ... ok') {
+            throw "Expected 17 named Windows starter passes, including the native high-bit status control; saw $($passed.Count)."
+          }
+
+      - name: Qualify Windows starter receipt export without clobber
+        run: python scripts/run-required-test.py --label "Windows starter receipt export without clobber" -- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask local_release_receipt::tests::test_receipt_export_on_colliding_paths_preserves_retained_evidence -- --exact --nocapture
+
       - name: Qualify Windows actual Cargo lock and offline install assumptions
         run: python scripts/run-required-test.py --label "Windows Cargo lock and offline install assumptions" -- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask local_registry::provenance::tests::lock_fixture::test_actual_transformed_packaged_lock_prefetch_and_offline_install -- --exact --nocapture
 
@@ -529,6 +547,23 @@ jobs:
           path: ${{ runner.temp }}/adze-lock-fixture-*
           include-hidden-files: true
           if-no-files-found: error
+
+      - name: Qualify Windows installed CLI image observations
+        run: |
+          python scripts/run-required-test.py --label "Windows installed CLI image observations" -- cargo test --locked -p xtask --target x86_64-pc-windows-msvc --bin xtask installed_image -- --format pretty --test-threads=1 | Tee-Object -Variable imageOutput
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $expectedImagePasses = @(
+            'test local_registry::installed_image::tests::test_installed_image_receipt_keeps_one_exact_bin_basename ... ok'
+            'test local_registry::installed_image::tests::test_installed_image_bounds_and_hashes_raw_bytes ... ok'
+            'test local_registry::tests::test_installed_image_rejects_ambiguous_basename_before_cargo ... ok'
+            'test local_registry::tests::test_init_refuses_same_length_installed_image_replacement ... ok'
+            'test local_registry::tests::test_init_refuses_installed_image_byte_loss ... ok'
+          )
+          $imagePassed = @($imageOutput | Where-Object { $_ -cmatch '^test [a-z0-9_:]+ \.\.\. ok$' })
+          $missingImagePasses = @($expectedImagePasses | Where-Object { $imagePassed -cnotcontains $_ })
+          if ($imagePassed.Count -ne 5 -or $missingImagePasses.Count -ne 0) {
+            throw "Expected exactly five named Windows installed-image passes; saw $($imagePassed.Count), missing: $missingImagePasses."
+          }
 
   product-proof-result:
     timeout-minutes: 5

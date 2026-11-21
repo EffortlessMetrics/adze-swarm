@@ -1,20 +1,27 @@
-# Quickstart: First Parser In 10 Minutes
+# Build your first parser
 
-This is the shortest currently proven path from a repo checkout to a working
-Adze parser project. The intended published install command is
-`cargo install adze-cli`, but the current repo proof uses the CLI built from
-this checkout until `adze-cli` is published as a crates.io install surface.
+Use the CLI from an Adze checkout to generate an arithmetic parser. If `calc`
+already exists, choose an unused project name. Run the commands from the root
+of the checkout, which pins Rust 1.95.0.
 
-## Create The Project
-
-Build the CLI from this checkout and generate the starter parser:
+## Create the project
 
 ```bash
 cargo run -p adze-cli -- init calc
 cd calc
 cargo test
-cargo run --example parse -- "1 + 2 * 3"
+cargo run --quiet --example parse -- "1 + 2 * 3"
 ```
+
+The example prints the parsed expression as a Rust value. The multiplication is
+inside the addition because `*` has higher precedence.
+
+```text
+Add(Number(1), (), Mul(Number(2), (), Number(3)))
+```
+
+The generated project depends on the local checkout. This walkthrough does not
+require a published CLI or published Adze crates.
 
 The generated project contains:
 
@@ -28,16 +35,11 @@ tests/parse.rs
 README.md
 ```
 
-The starter grammar parses arithmetic expressions into typed Rust values.
-The repository keeps the same user-shaped proof in `testing/downstream-starter`,
-which builds through a normal `build.rs`, tests the generated parser API, and
-runs the parse example from outside the main workspace. That proof covers the
-starter-project shape and downstream wiring; it does not prove crates.io
-installation until the CLI is published.
+## Read the grammar
 
-## The Core Idea
-
-Adze grammars are Rust types:
+Open `src/grammar.rs`. The enum defines the Rust values the parser returns;
+the attributes define the tokens and operator precedence. The grammar module
+looks like this:
 
 ```rust
 #[adze::grammar("calc")]
@@ -66,25 +68,25 @@ pub mod grammar {
 }
 ```
 
-Then parse into those types:
+From code in the generated project, call the parser like this:
 
 ```rust
-let expr = calc::grammar::parse("1 + 2 * 3").expect("valid input parses");
+let expr = calc::grammar::parse("1 + 2 * 3").expect("valid arithmetic");
 ```
 
-> Shape note: this page uses `i32` + `try_transform` for typed values. For the
-> no-transform `String`-leaf shape, see `getting-started.md`. Use the typed
-> shape when the app wants Rust values.
+A `Number` contains an `i32`. The `try_transform` runs the conversion after the
+token matches; it can report a conversion error if the number is out of range.
 
-For the generated starter, that expression parses as:
+## Read a diagnostic
 
-```text
-Add(Number(1), (), Mul(Number(2), (), Number(3)))
+Try a token the grammar doesn't accept:
+
+```bash
+cargo run --quiet --example parse -- "1 + @"
 ```
 
-## Diagnostics
-
-The generated tests also show the diagnostic path:
+The example exits with an error and points to `@`. The generated tests check
+the same span using the typed parser:
 
 ```rust
 let source = "1 + @";
@@ -94,7 +96,8 @@ let first = errors.first().expect("expected at least one error");
 assert_eq!(first.byte_span(), 4..5);
 ```
 
-For tooling or editor integration, use the document path:
+For tooling that needs syntax nodes or diagnostics, the generated tests also
+show `parse_document`. The document API is **Stabilizing**:
 
 ```rust
 let document = calc::grammar::parse_document("1 +").expect("document parses recoverably");
@@ -102,21 +105,11 @@ assert!(document.tree().has_errors());
 assert!(!document.diagnostics().is_empty());
 ```
 
-## What To Read Next
+## Next steps
 
-Choose the next page by the job you are doing:
-
-| Goal | Next page | Boundary |
-| --- | --- | --- |
-| Build an application around typed Rust values | [Which API Should I Use?](../reference/which-api-should-i-use.md) | Start with `grammar::parse(source)` for the Stable typed-parser path. |
-| Add tooling diagnostics, ranges, or projection data | [Diagnostics And Recovery](../reference/diagnostics-and-recovery.md) | Use `grammar::parse_document(source)` so diagnostics and projections come from the same `AdzeDocument`. |
-| Bring Tree-sitter-shaped tooling to Adze | [Migrating From Tree-sitter](../reference/migrating-from-tree-sitter.md) | Tree-sitter compatibility is a selected-tree adapter, not a full parity claim. |
-| Match syntax with Tree-sitter-style queries | [Query Compatibility](../reference/query-compatibility.md) | Query support is a documented subset with explicit known gaps. |
-| Use CLI commands beyond the starter | [`adze-cli` README](../../cli/README.md) | CLI flows are scoped to the current support-tier rows; release-surface `cargo install adze-cli` still needs the #325 crates.io install receipt. |
-| Check whether a surface is Stable | [Support Tiers](../status/SUPPORT_TIERS.md) | Do not broaden claims without a proof command and limitations row. |
-
-- [Mental Model](../explanations/mental-model.md) explains how Rust types,
-  generated parsers, `parse()`, and `parse_document()` fit together.
-- [GLR Quickstart](./glr-quickstart.md) introduces ambiguous grammars.
-- [Support Tiers](../status/SUPPORT_TIERS.md) shows which surfaces are stable,
-  stabilizing, experimental, or advisory.
+- [Getting started](./getting-started.md) covers wiring up a crate and writing
+  grammar rules.
+- [Which API should I use?](../reference/which-api-should-i-use.md) helps you
+  choose between typed values and a document.
+- [Support tiers](../status/SUPPORT_TIERS.md) lists the supported surfaces and
+  what is still developing.

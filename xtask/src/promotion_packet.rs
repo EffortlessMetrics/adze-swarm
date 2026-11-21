@@ -188,12 +188,7 @@ pub fn build_packet(root: &Path, args: &PacketArgs) -> Result<PromotionPacket> {
         "Roadmap/gate counts were not recomputed from the live GitHub issue graph; see roadmap_counts (uncomputed).".to_string(),
         "No crates.io publication, tag, or signing is claimed by this packet.".to_string(),
     ];
-    if !receipts.iter().any(is_journey_receipt) {
-        non_claims.push(
-            "journey (local-registry package-first install): no durable receipt attached"
-                .to_string(),
-        );
-    }
+    add_journey_non_claim(&receipts, &mut non_claims);
 
     Ok(PromotionPacket {
         schema_version: SCHEMA_VERSION.to_string(),
@@ -228,9 +223,20 @@ pub fn build_packet(root: &Path, args: &PacketArgs) -> Result<PromotionPacket> {
     })
 }
 
-/// True only for a successful journey receipt: explicit `kind` field when
-/// present (exact `journey`), otherwise exact name `journey`. No substring
-/// matching — `journey-final`, `not-journey`, etc. never qualify.
+fn add_journey_non_claim(receipts: &[Receipt], non_claims: &mut Vec<String>) {
+    let claim = if receipts.iter().any(is_journey_receipt) {
+        "journey (local-registry package-first install): a receipt is attached, but this packet \
+         does not verify full package/install provenance (#1065) or same-candidate Linux and \
+         Windows qualification (#880)"
+    } else {
+        "journey (local-registry package-first install): no durable receipt attached"
+    };
+    non_claims.push(claim.to_string());
+}
+
+/// Classify an attached receipt by its explicit kind, or by its exact name
+/// when kind is absent. The marker identifies a journey receipt; it does not
+/// establish package-first qualification.
 pub fn is_journey_receipt(receipt: &Receipt) -> bool {
     if let Some(kind) = &receipt.kind {
         return kind.trim().eq_ignore_ascii_case("journey");
@@ -1066,7 +1072,7 @@ mod tests {
     }
 
     #[test]
-    fn journey_clearing_requires_exact_successful_journey_receipt() {
+    fn journey_classification_requires_exact_name_or_kind() {
         // Substring names never qualify.
         for name in ["journey-final", "not-journey", "my journey run", "journey2"] {
             let mut r = receipt("2026-10-30T22:00:00Z", "docs/x.log");
@@ -1095,6 +1101,47 @@ mod tests {
         )
         .expect("receipt with kind");
         assert!(is_journey_receipt(&parsed_kind));
+    }
+
+    #[test]
+    fn journey_attachments_do_not_clear_package_and_platform_limits() {
+        let mut windows = receipt("2026-10-30T22:00:00Z", "docs/evidence/windows-journey.log");
+        windows.name = "Windows starter journey".into();
+        windows.kind = Some("journey".into());
+        let mut repeat = windows.clone();
+        repeat.artifact = "docs/evidence/windows-journey-rerun.log".into();
+
+        for receipts in [vec![windows.clone()], vec![windows, repeat]] {
+            for r in &receipts {
+                validate_receipt_at(r, "abc123", source_time(), gen_time()).expect("valid wrapper");
+            }
+            let mut packet = sample_packet();
+            packet.receipts = receipts;
+            packet.non_claims.clear();
+            add_journey_non_claim(&packet.receipts, &mut packet.non_claims);
+            let json = render_json(&packet).expect("packet JSON");
+            let md = render_markdown(&packet);
+            for output in [&json, &md] {
+                assert!(output.contains("does not verify full package/install provenance"));
+                assert!(output.contains("same-candidate Linux and Windows qualification"));
+                assert!(!output.contains("no durable receipt attached"));
+            }
+        }
+    }
+
+    #[test]
+    fn missing_journey_preserves_the_existing_non_claim() {
+        let mut unrelated = receipt("2026-10-30T22:00:00Z", "docs/evidence/focused-test.log");
+        unrelated.name = "focused test".into();
+
+        for receipts in [vec![], vec![unrelated]] {
+            let mut non_claims = vec![];
+            add_journey_non_claim(&receipts, &mut non_claims);
+            assert_eq!(
+                non_claims,
+                ["journey (local-registry package-first install): no durable receipt attached"]
+            );
+        }
     }
 
     #[test]

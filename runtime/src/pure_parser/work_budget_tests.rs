@@ -425,3 +425,114 @@ mod document {
         }
     }
 }
+
+// A hidden S -> a | a S. The syntax rule order and the two metadata slots
+// deliberately disagree. The field on the inner token is observable before
+// unary elision; the outer field is assigned to that retained child later.
+#[test]
+fn test_selected_rule_keeps_its_observed_fields_before_unary_elision() {
+    static SYMBOLS: [u8; 3] = [0, 1, 4];
+    static MAP: [u16; 2] = [1, 0];
+    static FIELDS: [SyncPtr; 2] = [
+        SyncPtr::new(c"atom".as_ptr().cast()),
+        SyncPtr::new(c"tail".as_ptr().cast()),
+    ];
+    static SLICES: [u16; 4] = [0, 1, 1, 1];
+    static ENTRIES: [u16; 4] = [1, 1, 0, 0];
+    static HIDDEN: TSLanguage = TSLanguage {
+        production_id_map: MAP.as_ptr(),
+        field_count: 2,
+        field_names: FIELDS.as_ptr().cast(),
+        field_map_slices: SLICES.as_ptr(),
+        field_map_entries: ENTRIES.as_ptr(),
+        symbol_metadata: SYMBOLS.as_ptr(),
+        ..EOF_UNWIND
+    };
+    let mut parser = Parser::new();
+    parser.set_language(&HIDDEN).unwrap();
+    let mut events = Vec::new();
+    let result = parser.parse_bytes_observing(
+        b"aa",
+        None,
+        |rule, metadata, lhs, span, children, elided| {
+            events.push((
+                rule.0,
+                metadata.0,
+                lhs,
+                span,
+                elided,
+                children
+                    .iter()
+                    .map(|c| (c.symbol, c.start_byte..c.end_byte, c.field_id))
+                    .collect::<Vec<_>>(),
+            ));
+        },
+    );
+    assert!(result.errors.is_empty());
+    assert_eq!(
+        events,
+        [
+            (0, 1, 2, 1..2, true, vec![(1, 1..2, Some(0))]),
+            (
+                1,
+                0,
+                2,
+                0..2,
+                false,
+                vec![(1, 0..1, None), (1, 1..2, Some(1))]
+            ),
+        ]
+    );
+    let root = result.root.unwrap();
+    assert_eq!(root.children.len(), 2);
+    assert_eq!(root.children[1].symbol, 1);
+    assert_eq!(root.children[1].field_id, Some(1));
+}
+
+#[test]
+fn test_selected_empty_reduction_is_not_an_elided_present_reduction() {
+    static RULES: [TSRule; 2] = [
+        TSRule {
+            lhs: 2,
+            rhs_len: 0,
+            _pad: 0,
+        },
+        TSRule {
+            lhs: 2,
+            rhs_len: 1,
+            _pad: 0,
+        },
+    ];
+    static SYMBOLS: [u8; 3] = [0, 1, 4];
+    static MAP: [u16; 2] = [1, 0];
+    static OPTIONAL: TSLanguage = TSLanguage {
+        symbol_metadata: SYMBOLS.as_ptr(),
+        production_id_map: MAP.as_ptr(),
+        ..language(
+            &[0, 0x8001, 1, 1, 2, 2, 0, 0x8002, 0, 0xffff],
+            &[0, 6, 8, 10],
+            &RULES,
+        )
+    };
+    let mut parser = Parser::new();
+    parser.set_language(&OPTIONAL).unwrap();
+    for (bytes, expected) in [
+        (b"".as_slice(), (0, 1, 0..0, false, 0, 2)),
+        (b"a".as_slice(), (1, 0, 0..1, true, 1, 1)),
+    ] {
+        let mut events = Vec::new();
+        let result = parser.parse_bytes_observing(
+            bytes,
+            None,
+            |rule, metadata, _lhs, span, children, elided| {
+                events.push((rule.0, metadata.0, span, elided, children.len()));
+            },
+        );
+        assert!(result.errors.is_empty());
+        assert_eq!(
+            events,
+            [(expected.0, expected.1, expected.2, expected.3, expected.4)]
+        );
+        assert_eq!(result.root.unwrap().symbol, expected.5);
+    }
+}

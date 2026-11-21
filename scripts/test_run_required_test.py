@@ -28,23 +28,26 @@ PASS = (
 )
 
 
-def guarded(command: list[str], *, label: str = "synthetic process control") -> subprocess.CompletedProcess:
+def guarded(command: list[str], *, label: str = "synthetic process control",
+            expected_tests: int | None = None) -> subprocess.CompletedProcess:
+    expectation = [] if expected_tests is None else ["--expected-tests", str(expected_tests)]
     return subprocess.run(
-        [sys.executable, str(WRAPPER), "--label", label, "--", *command],
+        [sys.executable, str(WRAPPER), "--label", label, *expectation, "--", *command],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         env={**os.environ, "CARGO_TERM_COLOR": "always"},
         timeout=30, check=False,
     )
 
 
-def synthetic(stdout: bytes, *, stderr: bytes = b"", status: int = 0) -> subprocess.CompletedProcess:
+def synthetic(stdout: bytes, *, stderr: bytes = b"", status: int = 0,
+              expected_tests: int | None = None) -> subprocess.CompletedProcess:
     code = (
         "import sys; "
         f"sys.stdout.buffer.write({stdout!r}); sys.stdout.buffer.flush(); "
         f"sys.stderr.buffer.write({stderr!r}); sys.stderr.buffer.flush(); "
         f"sys.exit({status})"
     )
-    return guarded([sys.executable, "-c", code])
+    return guarded([sys.executable, "-c", code], expected_tests=expected_tests)
 
 
 class SyntheticProcessControls(unittest.TestCase):
@@ -204,6 +207,69 @@ class SyntheticProcessControls(unittest.TestCase):
                 self.assertEqual(0, status, b"".join(chunks))
                 self.assertIn(prefix + b"\n" + PASS, b"".join(chunks))
 
+    def test_exact_suite_accepts_complete_lf_and_crlf_without_changing_default(self) -> None:
+        full = PASS.replace(b"1 passed", b"15 passed")
+        for output in (full, full.replace(b"\n", b"\r\n")):
+            with self.subTest(output=output):
+                result = synthetic(output, expected_tests=15)
+                self.assertEqual(0, result.returncode, result.stdout)
+                self.assertIn(output, result.stdout)
+        partial = full.replace(b"15 passed", b"14 passed").replace(b"0 ignored", b"1 ignored")
+        self.assertEqual(0, synthetic(partial).returncode, "default remains nonzero-pass mode")
+        self.assertEqual(1, synthetic(partial, expected_tests=15).returncode)
+
+    def test_exact_suite_rejects_short_excess_skipped_and_multiple_results(self) -> None:
+        full = PASS.replace(b"1 passed", b"15 passed")
+        for output in (
+            PASS, full.replace(b"15 passed", b"16 passed"),
+            full.replace(b"0 ignored", b"1 ignored"),
+            full.replace(b"0 measured", b"1 measured"),
+            full.replace(b"0 filtered out", b"1 filtered out"),
+            full + full,
+            full.replace(b"15 passed", b"7 passed") + full.replace(b"15 passed", b"8 passed"),
+            full + PASS.replace(b"1 passed", b"0 passed"),
+        ):
+            with self.subTest(output=output):
+                result = synthetic(output, expected_tests=15)
+                self.assertEqual(1, result.returncode, result.stdout)
+                self.assertIn(output, result.stdout)
+
+    def test_exact_suite_preserves_nonzero_status_and_refuses_invalid_output(self) -> None:
+        full = PASS.replace(b"1 passed", b"15 passed")
+        for output in (full, PASS, full.rstrip(b"\n"), b"", full.replace(b"0 failed", b"1 failed")):
+            with self.subTest(output=output):
+                result = synthetic(output, status=37, expected_tests=15)
+                self.assertEqual(37, result.returncode, result.stdout)
+                if output != full:
+                    self.assertEqual(1, synthetic(output, expected_tests=15).returncode)
+
+    def test_exact_suite_invalid_count_refuses_before_child_launch(self) -> None:
+        for count in ("0", "-1", "not-a-number"):
+            with self.subTest(count=count):
+                result = subprocess.run(
+                    [sys.executable, str(WRAPPER), "--label", "invalid expectation",
+                     "--expected-tests", count, "--", sys.executable, "-c", "print('CHILD_RAN')"],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30, check=False,
+                )
+                self.assertEqual(2, result.returncode, result.stdout)
+                self.assertNotIn(b"CHILD_RAN", result.stdout)
+
+    def test_exact_suite_oversized_excluded_count_retains_status_and_bytes(self) -> None:
+        for field in (b"ignored", b"measured", b"filtered out"):
+            output = PASS.replace(b"0 " + field, b"9" * 641 + b" " + field)
+            for status in (0, 37):
+                with self.subTest(field=field, status=status):
+                    code = f"import sys; sys.stdout.buffer.write({output!r}); sys.exit({status})"
+                    result = subprocess.run(
+                        [sys.executable, str(WRAPPER), "--label", "oversized exact count",
+                         "--expected-tests", "1", "--", sys.executable, "-c", code],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30, check=False,
+                        env={**os.environ, "PYTHONINTMAXSTRDIGITS": "640"},
+                    )
+                    self.assertEqual(status or 1, result.returncode, result.stdout)
+                    self.assertIn(output, result.stdout)
+                    self.assertNotIn(b"Traceback", result.stdout)
+
     def test_missing_child_command_fails_explicitly(self) -> None:
         with tempfile.TemporaryDirectory(prefix="adze missing child ") as directory:
             result = guarded([str(Path(directory) / "does-not-exist")])
@@ -241,6 +307,23 @@ class NativeRustHarnessControls(unittest.TestCase):
                 + compiled.stdout.decode("utf-8", errors="replace")
             )
 
+        exact_source = root / "exact suite.rs"
+        cls.exact_binary = root / ("exact suite.exe" if os.name == "nt" else "exact suite")
+        exact_source.write_text(
+            "".join(f"#[test]\nfn member_{i}() {{}}\n" for i in range(14))
+            + '#[test]\n#[ignore]\nfn deliberately_ignored() {}\n', encoding="utf-8",
+        )
+        exact_compiled = subprocess.run(
+            [rustc, "--edition=2024", "--crate-name", "exact_guard_suite", "--test",
+             str(exact_source), "-o", str(cls.exact_binary)],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120, check=False,
+        )
+        if exact_compiled.returncode != 0:
+            raise RuntimeError(
+                f"Exact-suite rustc compilation failed ({exact_compiled.returncode}):\n"
+                + exact_compiled.stdout.decode("utf-8", errors="replace")
+            )
+
     def native(self, name: str) -> subprocess.CompletedProcess:
         return guarded([str(self.binary), name, "--exact", "--nocapture"], label="actual native Rust harness")
 
@@ -271,6 +354,28 @@ class NativeRustHarnessControls(unittest.TestCase):
         self.assertEqual(direct.returncode, result.returncode, result.stdout)
         self.assertIn(b"intentional native guard failure", result.stdout)
         self.assertIn(b"test result: FAILED.", result.stdout)
+
+    def test_native_partial_ignored_suite_is_rejected(self) -> None:
+        result = guarded([str(self.exact_binary)], expected_tests=15, label="native partial suite")
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertIn(b"14 passed; 0 failed; 1 ignored;", result.stdout)
+
+    def test_native_complete_suite_executes_all_fifteen(self) -> None:
+        result = guarded(
+            [str(self.exact_binary), "--include-ignored"],
+            expected_tests=15, label="native complete suite",
+        )
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn(b"15 passed; 0 failed; 0 ignored;", result.stdout)
+
+    def test_native_filtered_suite_refuses_even_when_pass_count_matches(self) -> None:
+        result = guarded(
+            [str(self.exact_binary), "--skip", "deliberately_ignored"],
+            expected_tests=14, label="native filtered suite",
+        )
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertIn(b"14 passed; 0 failed; 0 ignored;", result.stdout)
+        self.assertIn(b"1 filtered out;", result.stdout)
 
 
 if __name__ == "__main__":

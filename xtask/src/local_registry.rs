@@ -17,8 +17,16 @@ use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
+#[path = "local_registry_installed_image.rs"]
+mod installed_image;
 #[path = "local_registry_provenance.rs"]
 mod provenance;
+#[path = "local_registry_starter.rs"]
+mod starter;
+#[path = "local_registry_starter_inputs.rs"]
+mod starter_inputs;
+
+use installed_image::InstalledImage;
 
 pub const REGISTRY_NAME: &str = "adze-local";
 
@@ -29,11 +37,24 @@ pub struct PublishedCrate {
 }
 
 pub struct LocalCliInstall {
-    pub _install_root: TempDir,
-    pub binary_path: PathBuf,
+    install_root: TempDir,
+    binary_path: PathBuf,
+    image: InstalledImage,
+}
+
+impl LocalCliInstall {
+    pub fn binary_path(&self) -> &Path {
+        &self.binary_path
+    }
+
+    fn verify_image(&self) -> Result<()> {
+        self.image
+            .verify(self.install_root.path(), &self.binary_path)
+    }
 }
 
 pub struct StarterProject {
+    inputs: starter_inputs::StarterInputs,
     pub _parent: TempDir,
     pub project_dir: PathBuf,
 }
@@ -326,7 +347,7 @@ impl IsolatedRegistry {
     }
 
     pub fn install_cli(
-        &self,
+        &mut self,
         cli_crate: &str,
         bin: &str,
         version: &str,
@@ -339,12 +360,13 @@ impl IsolatedRegistry {
     }
 
     fn install_cli_with_command(
-        &self,
+        &mut self,
         cli_crate: &str,
         bin: &str,
         version: &str,
         mut command: Command,
     ) -> Result<LocalCliInstall> {
+        installed_image::validate_binary_basename(bin)?;
         let published = self
             .published_crates()
             .iter()
@@ -388,25 +410,28 @@ impl IsolatedRegistry {
         }
 
         let binary_path = installed_binary_path(install_root.path(), bin);
-        if !binary_path.is_file() {
-            bail!(
-                "expected installed binary `{}` was not created",
-                binary_path.display()
-            );
+        let image = InstalledImage::capture(install_root.path(), &binary_path)?;
+        if let Some(provenance) = &mut self.provenance {
+            let relative = binary_path.strip_prefix(install_root.path())?;
+            provenance.record_installed_image(cli_crate, version, relative, &image)?;
         }
 
         Ok(LocalCliInstall {
-            _install_root: install_root,
+            install_root,
             binary_path,
+            image,
         })
     }
 
     pub fn init_starter_project(
-        &self,
-        adze_binary: &Path,
+        &mut self,
+        install: &LocalCliInstall,
         workspace_root: &Path,
         project_name: &str,
     ) -> Result<StarterProject> {
+        if Path::new(project_name).file_name() != Some(OsStr::new(project_name)) {
+            bail!("starter project name must name one child of the owned parent");
+        }
         let parent = tempfile::Builder::new()
             .prefix("adze-local-starter-")
             .tempdir()
@@ -419,6 +444,10 @@ impl IsolatedRegistry {
             bail!("starter project parent must be outside the source workspace");
         }
 
+        install
+            .verify_image()
+            .context("checking installed CLI image before init")?;
+        let adze_binary = install.binary_path();
         let status = Command::new(adze_binary)
             .args(["init", project_name, "--output"])
             .arg(&parent_path)
@@ -434,6 +463,13 @@ impl IsolatedRegistry {
             );
         }
 
+        install
+            .verify_image()
+            .context("checking installed CLI image after exit-zero init")?;
+        if let Some(provenance) = &mut self.provenance {
+            provenance.record_installed_image_checked_after_init(&install.image)?;
+        }
+
         let project_dir = parent_path.join(project_name);
         if !project_dir.join("Cargo.toml").is_file() {
             bail!(
@@ -441,12 +477,15 @@ impl IsolatedRegistry {
                 project_dir.display()
             );
         }
-        let manifest = fs::read_to_string(project_dir.join("Cargo.toml")).with_context(|| {
-            format!(
-                "reading generated {}",
-                project_dir.join("Cargo.toml").display()
-            )
-        })?;
+        let provenance = self
+            .provenance
+            .as_ref()
+            .context("starter evidence requires source provenance")?;
+        let (mut inputs, manifest) = starter_inputs::StarterInputs::create(
+            provenance.root(),
+            provenance.command_source()?,
+            &project_dir,
+        )?;
         if manifest_contains_path_dependency(&manifest) {
             bail!(
                 "generated starter at {} still resolves path dependencies; expected registry versions",
@@ -476,64 +515,27 @@ impl IsolatedRegistry {
             );
         }
 
+        inputs.expect_effective(pinned.as_bytes())?;
         Ok(StarterProject {
+            inputs,
             _parent: parent,
             project_dir,
-        })
-    }
-
-    pub fn run_cargo_capture(
-        &self,
-        cwd: &Path,
-        name: &str,
-        args: &[&str],
-    ) -> Result<CapturedCommand> {
-        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
-        let mut argv = vec!["cargo".to_string()];
-        argv.extend(args.iter().map(|arg| (*arg).to_string()));
-
-        let output = Command::new(cargo)
-            .args(args)
-            .current_dir(cwd)
-            .env("CARGO_HOME", self.cargo_home.path())
-            .env("CARGO_TARGET_DIR", self.target_dir.path())
-            .output()
-            .with_context(|| format!("running cargo {} in {}", args.join(" "), cwd.display()))?;
-
-        Ok(CapturedCommand {
-            name: name.to_string(),
-            argv,
-            exit_code: output.status.code().unwrap_or(-1),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
         })
     }
 }
 
 impl StarterProject {
-    pub fn run_starter_proof(&self, registry: &IsolatedRegistry) -> Result<Vec<CapturedCommand>> {
-        let mut commands = Vec::new();
-
-        let test =
-            registry.run_cargo_capture(&self.project_dir, "starter-cargo-test", &["test"])?;
-        commands.push(test);
-
-        let parse_ok = registry.run_cargo_capture(
-            &self.project_dir,
-            "starter-parse-valid",
-            &["run", "--example", "parse", "--", "1 + 2 * 3"],
-        )?;
-        commands.push(parse_ok);
-
-        let parse_bad = registry.run_cargo_capture(
-            &self.project_dir,
-            "starter-parse-invalid",
-            &["run", "--example", "parse", "--", "1 + @"],
-        )?;
-        commands.push(parse_bad);
-
-        crate::local_release_receipt::validate_starter_proof(&commands)?;
-        Ok(commands)
+    pub fn run_starter_proof(
+        &mut self,
+        registry: &IsolatedRegistry,
+    ) -> Result<Vec<CapturedCommand>> {
+        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsStr::new("cargo").to_owned());
+        starter::run(
+            &mut self.inputs,
+            &cargo,
+            registry.cargo_home.path(),
+            registry.target_dir.path(),
+        )
     }
 }
 
@@ -1889,7 +1891,7 @@ binary.write_text('installed fixture')
             .install_cli_with_command("adze-cli", "adze fixture", "0.10.0", command)
             .expect("locked install request");
         assert_eq!(
-            fs::read_to_string(install.binary_path).unwrap(),
+            fs::read_to_string(install.binary_path()).unwrap(),
             "installed fixture"
         );
 
@@ -1903,6 +1905,255 @@ binary.write_text('installed fixture')
             .err()
             .expect("nonzero installer must fail");
         assert!(error.to_string().contains("23"), "{error:#}");
+    }
+
+    #[test]
+    fn test_installed_image_rejects_ambiguous_basename_before_cargo() {
+        let mut registry = IsolatedRegistry::new().unwrap();
+        registry.published.push(PublishedCrate {
+            name: "adze-cli".into(),
+            version: "0.10.0".into(),
+            checksum: "fixture".into(),
+        });
+        let temp = tempfile::tempdir().unwrap();
+        let nonexistent_installer = temp.path().join("missing-installer");
+        for name in [
+            r"adze\fixture",
+            "adze/fixture",
+            "adze/",
+            "C:adze",
+            ".",
+            "..",
+            "",
+        ] {
+            let error = registry
+                .install_cli_with_command(
+                    "adze-cli",
+                    name,
+                    "0.10.0",
+                    Command::new(&nonexistent_installer),
+                )
+                .err()
+                .expect("unsupported name must be refused before running the installer");
+            assert!(
+                error
+                    .to_string()
+                    .starts_with("installed CLI binary name must be one unambiguous basename:"),
+                "{name:?}: {error:#}"
+            );
+        }
+    }
+
+    fn fixture_installed_image(bytes: &[u8]) -> LocalCliInstall {
+        let install_root = tempfile::tempdir().unwrap();
+        let binary_path = installed_binary_path(install_root.path(), "adze");
+        fs::create_dir(binary_path.parent().unwrap()).unwrap();
+        fs::write(&binary_path, bytes).unwrap();
+        let image = InstalledImage::capture(install_root.path(), &binary_path).unwrap();
+        LocalCliInstall {
+            install_root,
+            binary_path,
+            image,
+        }
+    }
+
+    fn assert_init_refuses_changed_image(install: &LocalCliInstall) {
+        let mut registry = IsolatedRegistry::new().unwrap();
+        let workspace = tempfile::tempdir().unwrap();
+        let error = registry
+            .init_starter_project(install, workspace.path(), "calc")
+            .err()
+            .expect("installed path differences must be refused before launch");
+        let detail = format!("{error:#}");
+        assert!(
+            detail.starts_with("checking installed CLI image before init:")
+                && detail.contains("image differs from installation"),
+            "{detail}"
+        );
+    }
+
+    #[test]
+    fn test_init_refuses_same_length_installed_image_replacement() {
+        let original = b"old fixture bytes";
+        let install = fixture_installed_image(original);
+        let other = install.binary_path().with_extension("replacement");
+        let replacement = b"new fixture bytes";
+        assert_eq!(original.len(), replacement.len());
+        fs::write(&other, replacement).unwrap();
+        fs::remove_file(install.binary_path()).unwrap();
+        fs::rename(other, install.binary_path()).unwrap();
+        assert_init_refuses_changed_image(&install);
+    }
+
+    #[test]
+    fn test_init_refuses_installed_image_byte_loss() {
+        let original = b"old fixture bytes";
+        let install = fixture_installed_image(original);
+        File::options()
+            .write(true)
+            .open(install.binary_path())
+            .unwrap()
+            .set_len((original.len() - 1) as u64)
+            .unwrap();
+        assert_init_refuses_changed_image(&install);
+    }
+
+    #[cfg(unix)]
+    fn fixture_installed_image_journey(
+        workspace: &Path,
+        evidence_root: &Path,
+        replace_after_launch: bool,
+    ) -> (IsolatedRegistry, LocalCliInstall) {
+        fs::write(workspace.join("source.txt"), b"committed source").unwrap();
+        for args in [
+            &["init", "-q"][..],
+            &["add", "source.txt"][..],
+            &["commit", "-qm", "source fixture"][..],
+        ] {
+            let output = Command::new("git")
+                .args([
+                    "-c",
+                    "user.name=Image fixture",
+                    "-c",
+                    "user.email=fixture@example.invalid",
+                    "-c",
+                    "commit.gpgsign=false",
+                ])
+                .args(args)
+                .current_dir(workspace)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "git {args:?}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        let mut provenance = provenance::Provenance::create(
+            workspace,
+            Some(evidence_root),
+            "0.10.0",
+            &["adze-cli".into()],
+        )
+        .unwrap();
+        let source = provenance.snapshot().unwrap();
+        assert!(source.join("source.txt").is_file());
+        let mut registry = IsolatedRegistry::new().unwrap();
+        registry.provenance = Some(provenance);
+        registry.published.push(PublishedCrate {
+            name: "adze-cli".into(),
+            version: "0.10.0".into(),
+            checksum: "fixture".into(),
+        });
+        let mut installer = fake_server_command(
+            r##"import pathlib, sys
+binary = pathlib.Path(sys.argv[-1]) / 'bin' / 'adze'
+binary.parent.mkdir()
+script = b"""#!/bin/sh
+set -eu
+test "$1" = init
+test "$3" = --output
+mkdir "$4/$2"
+printf '[package]\nname = "calc"\nversion = "0.1.0"\n' > "$4/$2/Cargo.toml"
+"""
+if sys.argv[1] == 'replace':
+    script += b"""printf 'replacement image' > "$0.replacement"
+mv -f "$0.replacement" "$0"
+exit 0
+"""
+binary.write_bytes(script)
+binary.chmod(0o700)
+"##,
+        );
+        installer.arg(if replace_after_launch {
+            "replace"
+        } else {
+            "keep"
+        });
+        let install = registry
+            .install_cli_with_command("adze-cli", "adze", "0.10.0", installer)
+            .unwrap();
+        (registry, install)
+    }
+
+    #[cfg(unix)]
+    fn image_receipt(evidence_root: &Path) -> Value {
+        serde_json::from_slice(&fs::read(evidence_root.join("archive-provenance.json")).unwrap())
+            .unwrap()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_observed_installed_image_is_retained_without_qualifying_custody() {
+        let workspace = tempfile::tempdir().unwrap();
+        let evidence = tempfile::tempdir().unwrap();
+        let evidence_root = evidence.path().join("retained");
+        let (mut registry, install) =
+            fixture_installed_image_journey(workspace.path(), &evidence_root, false);
+        let installed = image_receipt(&evidence_root);
+        let record = &installed["installed_image_observation"];
+        assert_eq!(installed["package_first_qualified"], false);
+        assert_eq!(record["requested_package"], "adze-cli");
+        assert_eq!(record["requested_version"], "0.10.0");
+        assert_eq!(record["install_root_relative_path"], "bin/adze");
+        assert_eq!(record["matched_after_init_exit_zero"], false);
+        assert!(
+            record["scope"]
+                .as_str()
+                .unwrap()
+                .contains("neither compiler provenance")
+        );
+        assert_eq!(
+            record["observed_image"],
+            serde_json::to_value(&install.image).unwrap()
+        );
+        let starter = registry
+            .init_starter_project(&install, workspace.path(), "calc")
+            .unwrap();
+        assert!(starter.project_dir.join("Cargo.toml").is_file());
+        let observed = image_receipt(&evidence_root);
+        let after_init = &observed["installed_image_observation"];
+        assert_eq!(after_init["matched_after_init_exit_zero"], true);
+        assert_eq!(after_init["observed_image"], record["observed_image"]);
+        assert_eq!(observed["package_first_qualified"], false);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_changed_installed_image_after_exit_zero_retains_failed_baseline() {
+        let workspace = tempfile::tempdir().unwrap();
+        let evidence = tempfile::tempdir().unwrap();
+        let evidence_root = evidence.path().join("retained");
+        let (mut registry, install) =
+            fixture_installed_image_journey(workspace.path(), &evidence_root, true);
+        let installed = image_receipt(&evidence_root);
+        let result = registry
+            .init_starter_project(&install, workspace.path(), "calc")
+            .map(|_| ());
+        let error = registry.finish_evidence(result).unwrap_err();
+        let detail = format!("{error:#}");
+        assert!(
+            detail.starts_with("checking installed CLI image after exit-zero init:")
+                && detail.contains("image differs from installation"),
+            "{detail}"
+        );
+        assert_eq!(
+            fs::read(install.binary_path()).unwrap(),
+            b"replacement image"
+        );
+        let failed = image_receipt(&evidence_root);
+        assert_eq!(failed["harness_status"], "failed");
+        assert_eq!(failed["error"], detail);
+        assert_eq!(failed["package_first_qualified"], false);
+        assert_eq!(
+            failed["installed_image_observation"],
+            installed["installed_image_observation"]
+        );
+        assert_eq!(
+            failed["installed_image_observation"]["matched_after_init_exit_zero"],
+            false
+        );
+        assert!(!evidence_root.join("starter-inputs").exists());
     }
 
     fn fake_server_command(script: &str) -> Command {

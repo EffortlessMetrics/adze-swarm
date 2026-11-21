@@ -5,6 +5,9 @@ The child receives an argv list without a shell. Its merged stdout/stderr is
 streamed byte-for-byte, including on failure. A successful process must provide
 complete libtest summaries, no failed tests, and at least one passed test.
 Ignored, measured, filtered-out and zero-selection rows do not count as passes.
+An optional --expected-tests count requires one complete, unfiltered suite with
+exactly that many passes and no ignored or measured tests. This checks the
+reported denominator, not compiled test identities or source provenance.
 """
 
 from __future__ import annotations
@@ -33,7 +36,8 @@ def message(text: str) -> None:
 class TestEvidence:
     """Inspect complete output lines while the original bytes are forwarded."""
 
-    def __init__(self) -> None:
+    def __init__(self, expected_tests: int | None = None) -> None:
+        self.expected_tests = expected_tests
         self.pending = b""
         self.summaries = 0
         self.passed = 0
@@ -55,6 +59,10 @@ class TestEvidence:
             return
         try:
             passed, failed = int(match["passed"]), int(match["failed"])
+            excluded = (
+                tuple(int(match[field]) for field in ("ignored", "measured", "filtered"))
+                if self.expected_tests is not None else ()
+            )
         except ValueError:
             self.reject("malformed libtest summary count")
             return
@@ -62,6 +70,11 @@ class TestEvidence:
         if match["result"] != "ok" or failed != 0:
             self.reject("libtest reported failed tests")
         self.passed += passed
+        if self.expected_tests is not None:
+            if passed != self.expected_tests:
+                self.reject(f"expected exactly {self.expected_tests} passed tests, observed {passed}")
+            if any(excluded):
+                self.reject("exact suite must have zero ignored, measured and filtered-out tests")
 
     def feed(self, data: bytes) -> None:
         self.pending += data
@@ -74,6 +87,8 @@ class TestEvidence:
             self.line(self.pending, terminated=False)
         if self.error is not None:
             return self.error
+        if self.expected_tests is not None and self.summaries != 1:
+            return f"exact suite requires one complete summary, observed {self.summaries}"
         if self.summaries == 0:
             return "no complete libtest summary was produced"
         if self.passed == 0:
@@ -84,8 +99,14 @@ class TestEvidence:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--label", required=True)
+    parser.add_argument(
+        "--expected-tests", type=int, metavar="N",
+        help="require one summary with exactly N passes and zero ignored/measured/filtered tests",
+    )
     parser.add_argument("command", nargs=argparse.REMAINDER, help="-- executable [arguments...]")
     arguments = parser.parse_args(argv)
+    if arguments.expected_tests is not None and arguments.expected_tests <= 0:
+        parser.error("--expected-tests must be a positive integer")
     command = arguments.command
     if command[:1] == ["--"]:
         command = command[1:]
@@ -95,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
     message(f"[required test] {arguments.label}")
     message("argv=" + json.dumps(command, ensure_ascii=False))
     environment = {**os.environ, "CARGO_TERM_COLOR": "never"}
-    evidence = TestEvidence()
+    evidence = TestEvidence(arguments.expected_tests)
     try:
         with subprocess.Popen(
             command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=environment
