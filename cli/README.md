@@ -138,6 +138,79 @@ Native qualification is specific to the tested Windows image, architecture and
 toolchain. A Linux receipt or a Windows cross-compilation is not Windows process,
 console or installed-package proof.
 
+## Static runner builds and cache admission
+
+Static parsing currently builds a temporary runner through Cargo on every
+invocation. Changing the input always parses fresh. Progress messages go to
+stderr; document output owns stdout.
+
+Direct cached-executable reuse is disabled while issue #1067 establishes
+complete build-input custody. The generated runner currently depends on
+mutable workspace packages or floating registry requirements, and a grammar
+hash plus a source-tree walk does not identify the resolved lock state,
+transitive dependencies, Cargo configuration, compiler wrappers or arbitrary
+build-script inputs. A seven-day expiry cannot make an incomplete key safe.
+The CLI therefore uses the checked temporary-project path instead of executing
+a potentially stale cache entry. This also applies to existing cache entries.
+
+```bash
+adze parse src/grammar.rs input.txt
+ADZE_RUNNER_CACHE=off adze parse src/grammar.rs input.txt
+```
+
+The candidate-key, atomic publication and integrity-check machinery remains
+covered by isolated fixtures for future admission work. It does not yet provide
+a supported zero-Cargo warm-hit path. Candidate scanning handles ordinary and
+inline modules and literal raw-data includes; uncertain conditional module
+paths and Rust `include!` fragments require Cargo validation. Production
+admission requires a separate complete dependency/configuration proof.
+
+Cache-root handling requires a private owned directory with trusted ancestors
+on Unix; other ACL platforms refuse cache use until equivalent checks exist.
+The dormant owned-store layout has at most 32 permanent slots, 128 durable run
+tokens, and 1 GiB of reserved or published artifact bytes. A complete artifact
+allowance is recorded before writing; each namespace record and its one
+replacement are limited to 64 KiB. Nonblocking namespace/slot locks and tokens
+bound to the physical store, generation and owner replace pathname/age-based
+cleanup. Retirement requires an exclusive slot and no durable owners. Old
+cache layouts, unrelated files and permanent coordination files are preserved.
+Executable hashing has no measured performance guarantee; #869 owns reporting.
+
+Dormant cache IO now refuses over-budget files while reading: manifests are
+limited to 1 MiB, executables to 256 MiB, retained lockfiles to 4 MiB, and the
+grammar closure to 64 MiB across at most 256 files. Executable hashing and
+exclusive publication copies stream through an 8 KiB buffer. A length reported
+by the filesystem is only an early check; the read loop enforces the limit if
+a file grows. These are refusal thresholds, with no claim that every generated
+runner fits them. The artifact reservation bounds only internally copied
+artifacts; Cargo never receives the store's staging path. Compiler scratch,
+filesystem latency and immutable compiled inputs remain separate unqualified
+requirements. Scratch is retained when process ownership is unproved.
+
+A stored executable is exposed through a durable execution lease. Destruction,
+PID, age, timeout, output status and successful decoding never release its
+reservation. The shared process layer has no qualified empty-owner receipt
+producer yet, so completion retains that capacity and returns an error. A
+semantic result followed by store-finalization failure cannot trigger another
+parse. Orphan reservations require explicit administrative recovery after old
+owners and descendants are proved absent. None of this enables production
+reuse or qualifies Windows ACLs, network filesystems or power-loss durability.
+
+The dormant direct-runner and Cargo-build paths, fresh Cargo execution and
+rustc fingerprint acquisition share the same process boundary. On Linux and
+Windows its existing 64 MiB stdout / 1 MiB stderr capture limits, 600-second
+absolute deadline and 2-second drain/cleanup phases also apply to these sites.
+Process setup, cancellation, capture and coordination refusals propagate as
+errors; they never trigger a fresh fallback. A concurrent first fingerprint
+probe refuses immediately, and only a successful fingerprint is memoized.
+Completed nonzero rustc output leaves the partial candidate unavailable.
+
+Both runner execution paths request private protocol version 2 and preserve
+actual failed-child status before decoding. Cargo and rustc bytes are raw
+process output. All four sites inherit the CLI cwd and environment; only the
+dormant cache build additionally sets its owned CARGO_TARGET_DIR. This does
+not extend cache admission, input/config custody or platform support claims.
+
 ## Windows notes
 
 First `adze parse` compiles a temporary runner and may look hung on Windows;
