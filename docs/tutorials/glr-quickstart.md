@@ -5,6 +5,9 @@
 > table-loading APIs are not the ordinary user entry point. This page is an
 > advanced orientation note, not a Stable production API contract.
 
+Run the `glr_ambiguity` example commands on this page from the repository root.
+The example uses workspace grammar dependencies.
+
 For most users, GLR does not change the first-use path:
 
 ```rust

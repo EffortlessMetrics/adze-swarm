@@ -13,7 +13,14 @@ readme = "README.md"
 publish = true
 keywords = ["parsing", "codegen", "grammar", "tree-sitter", "glr"]
 categories = ["development-tools", "parsing"]
-include = ["Cargo.toml", "LICENSE*", "README*", "src/**", "build.rs", "benches/**", "examples/**"]
+include = [
+    "Cargo.toml", "LICENSE*", "README*", "src/**", "build.rs", "benches/**", "examples/**",
+    # These checkout examples use path-only dev-dependencies on workspace grammars.
+    "!examples/diagnostics_recovery.rs",
+    "!examples/external_scanner_demo.rs",
+    "!examples/glr_ambiguity.rs",
+    "!examples/lang_probe.rs",
+]
 
 [package.metadata.docs.rs]
 all-features = true
