@@ -82,7 +82,7 @@ class ArchiveControls(unittest.TestCase):
         ARCHIVE.process_archive(self.source, source_dest, package=False)
         self.assertEqual(b"source", (source_dest / "src/lib.rs").read_bytes())
 
-    def test_regular_member_with_redundant_posix_type(self):
+    def test_regular_member_with_redundant_posix_type_is_accepted(self):
         name = "pkg-1/Cargo.toml"
         info, data = regular(name, b'[package]\nname = "pkg"\n', 0o666)
         # tarfile's writer strips file type bits. Encode the observed ordinary
