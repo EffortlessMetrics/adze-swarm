@@ -3,6 +3,9 @@
 > **Doc status:** User-experience hardening guide. Support status remains
 > authoritative in [`SUPPORT_TIERS.md`](../status/SUPPORT_TIERS.md).
 
+Run the `diagnostics_recovery` example commands on this page from the repository
+root. The example uses workspace grammar dependencies.
+
 Adze exposes diagnostics through two user paths:
 
 ```text

@@ -4,6 +4,10 @@ Status: advisory recipes backed by `runtime/tests/cookbook.rs` and the
 `examples/cookbook` crate (`cargo test --manifest-path examples/cookbook/Cargo.toml`, 15 tests by
 default, 16 with `--features serialization`).
 
+Run the example commands on this page from the repository root. The
+`diagnostics_recovery` and `glr_ambiguity` examples use workspace grammar
+dependencies.
+
 This cookbook shows the canonical Adze product ladder:
 
 ```text
