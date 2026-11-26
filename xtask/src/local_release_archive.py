@@ -57,7 +57,9 @@ def member_parts(member: tarfile.TarInfo) -> tuple[str, ...]:
         raise ArchiveRefusal("archive links and special-file entries are refused")
     if member.linkname or member.sparse is not None:
         raise ArchiveRefusal("archive link/sparse metadata is refused")
-    if member.mode & ~0o777:
+    # Some writers repeat the regular-file type in the mode field.
+    extra = member.mode & ~0o777
+    if extra and not (member.isreg() and extra == stat.S_IFREG):
         raise ArchiveRefusal("archive special permission bits are refused")
     if member.size < 0 or member.size > MAX_FILE_BYTES:
         raise ArchiveRefusal("archive member exceeds file byte limit")
@@ -177,7 +179,7 @@ def process_archive(source: Path, destination: Path | None, *, package: bool,
                         shutil.copyfileobj(data, output, COPY_BYTES)
                     if target.stat().st_size != member.size:
                         raise ArchiveRefusal("extracted file length differs from archive")
-                    os.chmod(target, member.mode)
+                    os.chmod(target, member.mode & 0o777)
                 archive.members.clear()
             finish_stream(archive)
             if observed != entries.keys():

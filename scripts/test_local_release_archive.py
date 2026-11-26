@@ -82,6 +82,25 @@ class ArchiveControls(unittest.TestCase):
         ARCHIVE.process_archive(self.source, source_dest, package=False)
         self.assertEqual(b"source", (source_dest / "src/lib.rs").read_bytes())
 
+    def test_regular_member_with_redundant_posix_type(self):
+        name = "pkg-1/Cargo.toml"
+        info, data = regular(name, b'[package]\nname = "pkg"\n', 0o666)
+        # tarfile's writer strips file type bits. Encode the observed ordinary
+        # regular-file convention in this one header and update its checksum.
+        header = bytearray(info.tobuf())
+        header[100:108] = b"0100666\0"
+        header[148:156] = b"        "
+        header[148:156] = b"%06o\0 " % sum(header)
+        payload = data.ljust(tarfile.BLOCKSIZE, b"\0")
+        self.source.write_bytes(gzip.compress(header + payload + bytes(2 * tarfile.BLOCKSIZE)))
+        with patch.object(os, "chmod", wraps=os.chmod) as chmod:
+            manifest = ARCHIVE.process_archive(self.source, self.destination, package=True,
+                                               expected_root="pkg-1")
+        self.assertEqual(name, manifest)
+        target = self.destination / name
+        self.assertEqual(data, target.read_bytes())
+        chmod.assert_called_once_with(target, 0o666)
+
     def test_absolute_parent_backslash_drive_device_and_alias_names_refused(self):
         cases = ["/escape", "../escape", "pkg-1/../../escape", "pkg-1/./escape",
                  "pkg-1//escape", "pkg-1/escape\\child", "C:/escape", "pkg-1/C:escape",
@@ -182,5 +201,5 @@ class ArchiveControls(unittest.TestCase):
 if __name__ == "__main__":
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(ArchiveControls)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    # This required class must execute all ten methods, with no skipped control.
-    raise SystemExit(0 if result.wasSuccessful() and result.testsRun == 10 and not result.skipped else 1)
+    # This required class must execute all eleven methods, with no skipped control.
+    raise SystemExit(0 if result.wasSuccessful() and result.testsRun == 11 and not result.skipped else 1)
